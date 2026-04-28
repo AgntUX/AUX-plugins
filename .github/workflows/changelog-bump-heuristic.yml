@@ -1,0 +1,34 @@
+name: Changelog bump heuristic
+
+on:
+  pull_request:
+    paths:
+      - "plugins/*/CHANGELOG.md"
+      - "plugins/*/.claude-plugin/plugin.json"
+
+jobs:
+  changelog-bump-heuristic:
+    name: Bump-rule mismatch advisory check
+    runs-on: ubuntu-latest
+    # continue-on-error: this check is advisory; it never blocks a PR
+    continue-on-error: true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # actions/checkout v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        # actions/setup-node v4.1.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run changelog bump heuristic (advisory — never fails CI)
+        run: npx tsx scripts/changelog-bump-heuristic.ts

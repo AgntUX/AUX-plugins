@@ -1,1 +1,31 @@
-{ "plugins": [] }
+{
+  "name": "agntux",
+  "owner": {
+    "name": "AgntUX",
+    "url": "https://agntux.ai"
+  },
+  "metadata": {
+    "description": "AgntUX plugins — Claude Code plugins for action-oriented data ingestion.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "agntux-core",
+      "source": "./plugins/agntux-core",
+      "description": "The AgntUX orchestrator.",
+      "version": "1.0.0",
+      "author": {
+        "name": "AgntUX"
+      },
+      "homepage": "https://agntux.ai/plugins/agntux-core",
+      "license": "Elastic-2.0",
+      "keywords": [
+        "orchestrator",
+        "personalization",
+        "knowledge-store",
+        "triage"
+      ],
+      "category": "meta"
+    }
+  ]
+}

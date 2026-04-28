@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - "plugins/**"
+      - "canonical/**"
+      - "scripts/**"
+      - "lib/**"
+  pull_request:
+    paths:
+      - "plugins/**"
+      - "canonical/**"
+      - "scripts/**"
+      - "lib/**"
+
+# Run all jobs even if one fails (fail-fast: OFF).
+# hook-hash-check runs independently of linter failures per the spec.
+jobs:
+  lint:
+    name: Lint marketplace metadata + version-changelog
+    uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
+
+  hook-hash-check:
+    name: Canonical hook hash check
+    uses: ./.github/workflows/hook-hash-check.yml
+    permissions:
+      contents: read
+    # Runs independently — even if lint fails
+    if: always()
+
+  version-check:
+    name: Version / CHANGELOG alignment
+    uses: ./.github/workflows/version-check.yml
+    permissions:
+      contents: read
+
+  changelog-bump-heuristic:
+    name: Changelog bump heuristic (advisory)
+    uses: ./.github/workflows/changelog-bump-heuristic.yml
+    permissions:
+      contents: read
+    continue-on-error: true
+    # Advisory — runs even if other jobs fail
+    if: always()
