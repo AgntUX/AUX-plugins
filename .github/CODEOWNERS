@@ -1,0 +1,22 @@
+# CODEOWNERS — agntux/plugins (per P7 §7.1)
+#
+# External contributors (post-P14) are not added here; their PRs require
+# a maintainer approval per the standard flow.
+
+# Repo-wide governance — AgntUX engineers
+*                                    @agntux/marketplace-maintainers
+
+# Canonical templates — stricter reviewer set
+/canonical/                          @agntux/marketplace-maintainers @agntux/security
+/canonical/hooks/                    @agntux/security @agntux/marketplace-maintainers
+/canonical/kms-public-keys.json      @agntux/security
+
+# CI infrastructure
+/.github/                            @agntux/marketplace-maintainers
+/scripts/                            @agntux/marketplace-maintainers
+
+# Per-plugin — owners default to marketplace team; first-party plugins may
+# add specific maintainers as the catalog grows.
+/plugins/agntux-core/                @agntux/orchestrator-team
+/plugins/notes-ingest/               @agntux/marketplace-maintainers
+/plugins/*-ingest/                   @agntux/marketplace-maintainers

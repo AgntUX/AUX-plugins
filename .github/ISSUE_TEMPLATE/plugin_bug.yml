@@ -1,0 +1,68 @@
+name: Plugin Bug
+description: Report a bug in an installed AgntUX plugin
+title: "[bug] <plugin-slug>: <short summary>"
+labels:
+  - bug
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin slug
+      description: The slug of the plugin (e.g. `agntux-core`, `notes-ingest`).
+      placeholder: agntux-core
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: From `plugin.json.version` or the version shown in your host UI.
+      placeholder: 1.2.3
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host runtime + version
+      description: e.g. Cowork 0.18.4, Claude Code 1.0.5
+      placeholder: Cowork 0.18.4
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimum steps to trigger the bug.
+      placeholder: |
+        1. Install plugin via `/plugin marketplace add agntux/plugins`
+        2. Run prompt `<example>`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Host logs / console output (if any)
+      description: Redact secrets before posting.
+      render: shell
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: I am running the latest version of the plugin (per the marketplace listing).
+          required: true
+        - label: I have searched existing issues for this slug + symptom.
+          required: true

@@ -1,0 +1,67 @@
+name: Plugin Proposal
+description: Propose a new plugin for the AgntUX marketplace
+title: "[proposal] <slug>: <short pitch>"
+labels:
+  - proposal
+body:
+  - type: input
+    id: slug
+    attributes:
+      label: Proposed slug
+      description: kebab-case; will become the directory name under `plugins/`.
+      placeholder: my-new-ingest
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - orchestrator
+        - ingest
+        - automation
+    validations:
+      required: true
+  - type: input
+    id: tagline
+    attributes:
+      label: Tagline
+      description: One-sentence pitch (≤120 chars).
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this plugin solve?
+      description: Who is the user, and what task does this make easier?
+    validations:
+      required: true
+  - type: textarea
+    id: surface
+    attributes:
+      label: Proposed surface
+      description: Bullet list of `supported_prompts` and `ui_components` you anticipate.
+    validations:
+      required: true
+  - type: textarea
+    id: data_sources
+    attributes:
+      label: External data sources (if any)
+      description: Per the Relay Pattern, the host fetches third-party data; the plugin renders. List the APIs/services.
+  - type: input
+    id: maintainer
+    attributes:
+      label: Proposed maintainer (GitHub handle)
+      description: Who will own this plugin's CHANGELOG, version bumps, and review responses?
+      placeholder: "@agntux/marketplace-maintainers"
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: External contributors are out of scope until P14; I understand this proposal will be triaged but not built by an external contributor.
+          required: true
+        - label: I have read CLAUDE.md and the P15 listing schema.
+          required: true
