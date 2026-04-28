@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(shasum *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(npm run lint:marketplace)",
+      "Bash(npm run lint:marketplace -- *)",
+      "Bash(npm test)",
+      "Bash(npm test -- *)",
+      "Bash(npx tsx scripts/regenerate-marketplace-json.ts)",
+      "Bash(npx tsx scripts/regenerate-aggregate-index.ts)",
+      "Bash(npx tsx scripts/verify-canonical-hooks.ts)",
+      "Bash(npx tsx scripts/verify-version-changelog.ts)",
+      "Bash(npx tsx scripts/changelog-bump-heuristic.ts)"
+    ]
+  }
+}
