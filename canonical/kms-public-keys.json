@@ -1,0 +1,54 @@
+{
+  "$schema": "https://agntux.ai/schemas/kms-public-keys.v1.json",
+  "_doc": "AgntUX KMS public-key registry. Consumed by the plugin generator (P6) and component-template build (P2a §2.3) at build time to substitute PUBLIC_KEY_SPKI_PEM (license JWT verifier) and PUBLIC_KEY_RENDER_SPKI_PEM (iframe render-token verifier). Private keys never leave AWS KMS. See ~/.claude/plans/p2-keys.md for the rotation runbook.",
+  "_provenance": {
+    "kms_provider": "aws-kms",
+    "kms_region": "us-east-1",
+    "kms_account_id": "492098926368",
+    "key_spec": "ECC_NIST_EDWARDS25519",
+    "key_usage": "SIGN_VERIFY",
+    "supported_signing_algorithms": ["ED25519_SHA_512", "ED25519_PH_SHA_512"],
+    "jwt_signing_algorithm": "ED25519_SHA_512",
+    "provisioned_at": "2026-04-28",
+    "provisioned_by": "T05 orchestrator",
+    "verified_against_aws": true
+  },
+  "keys": [
+    {
+      "kid": "agntux-license-v1",
+      "alg": "EdDSA",
+      "use": "license-jwt",
+      "audience": "agntux-plugin",
+      "issuer": "https://app.agntux.ai",
+      "kms_key_id": "aafd26eb-6a79-4181-84dc-7aba5a75943b",
+      "kms_key_alias": "alias/agntux-license-v1",
+      "kms_key_arn": "arn:aws:kms:us-east-1:492098926368:key/aafd26eb-6a79-4181-84dc-7aba5a75943b",
+      "kms_region": "us-east-1",
+      "status": "active",
+      "rotation_status": "primary",
+      "consumed_by": [
+        "hooks/lib/public-key.mjs (PUBLIC_KEY_SPKI_PEM, PUBLIC_KEY_KID)",
+        "AgntUX backend /api/license/refresh signer"
+      ],
+      "public_key_spki_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA8WVzf12gfIrg5TT9DxnTFU/mO/7UKEQMTAc2JX+AUO4=\n-----END PUBLIC KEY-----\n"
+    },
+    {
+      "kid": "agntux-render-v1",
+      "alg": "EdDSA",
+      "use": "render-token",
+      "audience": "mcp-app-iframe",
+      "issuer": "https://agntux.ai",
+      "kms_key_id": "401eab1f-ad6e-499e-b534-d838a47f4f23",
+      "kms_key_alias": "alias/agntux-render-v1",
+      "kms_key_arn": "arn:aws:kms:us-east-1:492098926368:key/401eab1f-ad6e-499e-b534-d838a47f4f23",
+      "kms_region": "us-east-1",
+      "status": "active",
+      "rotation_status": "primary",
+      "consumed_by": [
+        "component-template/src/lib/license.ts (PUBLIC_KEY_RENDER_SPKI_PEM)",
+        "AgntUX backend /api/license/refresh render-token signer"
+      ],
+      "public_key_spki_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAFGzWfy8wMeEIEpUh7ssswmDXkU5JtxOclwvDx8qlIBM=\n-----END PUBLIC KEY-----\n"
+    }
+  ]
+}
