@@ -1,0 +1,18 @@
+AgntUX Plugins — NOTICE
+
+This product is licensed under the Elastic License 2.0 (ELv2).
+See the LICENSE file at the root of this repository for the full license text,
+or visit: https://www.elastic.co/licensing/elastic-license
+
+Copyright (c) 2026 AgntUX, Inc.
+
+---
+
+Third-Party Attributions
+
+The canonical/ directory may include code or content derived from third-party
+sources. Attributions are listed below in the format:
+  {package} — {version} — {license-spdx-id} — {one-line attribution}
+
+(No third-party attributions at bootstrap. This section is updated whenever a
+dependency is introduced into canonical/.)

@@ -1,0 +1,20 @@
+{
+  "name": "agntux-plugins",
+  "version": "1.0.0",
+  "description": "Public AgntUX plugin marketplace",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">= 20"
+  },
+  "scripts": {
+    "lint:marketplace": "echo 'lint:marketplace not yet implemented — see T11 in plan-execution/phase-2-marketplace.md' >&2 && exit 1",
+    "regenerate-indexes": "echo 'regenerate-indexes not yet implemented — see T12 in plan-execution/phase-2-marketplace.md' >&2 && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "js-yaml": "4.1.0",
+    "tsx": "4.19.3",
+    "zod": "3.24.3"
+  }
+}
