@@ -11,7 +11,7 @@
     "lint:marketplace": "tsx scripts/lint-marketplace-metadata.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "regenerate-indexes": "echo 'regenerate-indexes not yet implemented — see T12 in plan-execution/phase-2-marketplace.md' >&2 && exit 1"
+    "regenerate-indexes": "tsx scripts/regenerate-marketplace-json.ts && tsx scripts/regenerate-aggregate-index.ts"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
