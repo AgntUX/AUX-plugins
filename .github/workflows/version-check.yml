@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "plugins/**"
+  workflow_call:
 
 jobs:
   version-check:

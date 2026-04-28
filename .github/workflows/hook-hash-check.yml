@@ -5,6 +5,7 @@ on:
     paths:
       - "canonical/hooks/**"
       - "plugins/*/hooks/**"
+  workflow_call:
 
 jobs:
   hook-hash-check:
