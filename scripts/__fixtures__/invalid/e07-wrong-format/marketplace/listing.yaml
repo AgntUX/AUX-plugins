@@ -1,0 +1,20 @@
+tagline: "Wrong image format fixture for E07 testing."
+description: |
+  This fixture has a screenshot with PNG bytes but a .jpg extension to trigger
+  E07 image-wrong-format. The linter parses image metadata and detects the mismatch.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

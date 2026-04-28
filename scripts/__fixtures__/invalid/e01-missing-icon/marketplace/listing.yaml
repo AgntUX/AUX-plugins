@@ -1,0 +1,20 @@
+tagline: "Missing icon fixture for E01 testing."
+description: |
+  This fixture has no icon.png to trigger E01 missing-required-file error.
+  The linter should report that marketplace/icon.png is missing.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

@@ -1,0 +1,21 @@
+tagline: "Reserved field fixture for E11 testing."
+description: |
+  This fixture has a reserved field (featured) to trigger E11 reserved-field-rejected.
+  The linter should reject any reserved fields at the top level of listing.yaml.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+featured: true
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

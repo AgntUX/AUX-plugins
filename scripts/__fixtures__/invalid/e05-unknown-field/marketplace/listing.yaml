@@ -1,0 +1,21 @@
+tagline: "Unknown field fixture for E05 testing."
+description: |
+  This fixture has an unknown top-level field to trigger E05 listing-yaml-invalid-shape.
+  The linter should report that "pricing_tier" is an unknown field.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+pricing_tier: pro
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

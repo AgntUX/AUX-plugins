@@ -1,0 +1,23 @@
+tagline: "Missing screenshot reference fixture for E06 testing."
+description: |
+  This fixture has screenshot_order referencing a file that does not exist
+  to trigger E06 listing-yaml-cross-check-failed.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+screenshot_order:
+  - 01-overview.png
+  - 02-nonexistent.png
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"
