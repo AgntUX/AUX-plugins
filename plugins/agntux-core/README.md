@@ -26,3 +26,7 @@ prioritizes action items and manages your workflow.
 ## License
 
 Elastic License v2 (ELv2). See LICENSE for details.
+
+## Support
+
+Issues and proposals: https://github.com/agntux/plugins/issues
