@@ -42,6 +42,7 @@ jobs:
     uses: ./.github/workflows/changelog-bump-heuristic.yml
     permissions:
       contents: read
-    continue-on-error: true
-    # Advisory — runs even if other jobs fail
+    # Advisory — runs even if other jobs fail. The advisory `continue-on-error`
+    # behavior lives inside the called workflow's job definition (reusable-workflow
+    # callers cannot set continue-on-error at the job-level `uses:` boundary).
     if: always()

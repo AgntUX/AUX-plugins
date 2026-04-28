@@ -13,6 +13,7 @@ on:
       - "canonical/**"
       - "scripts/lint-marketplace-metadata.ts"
       - "lib/marketplace-schema.ts"
+  workflow_call:
 
 jobs:
   lint:
