@@ -1,0 +1,20 @@
+tagline: "Bad aspect ratio fixture for E09 testing."
+description: |
+  This fixture has a screenshot with a 2560x720 resolution (ratio 3.55) that
+  falls outside the allowed [1.33, 2.33] range to trigger E09 screenshot-aspect-ratio.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

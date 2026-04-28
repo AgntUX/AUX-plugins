@@ -1,0 +1,20 @@
+tagline: "Bad category fixture for E04 testing."
+description: |
+  This fixture has an invalid category value to trigger E04 listing-yaml-invalid-enum.
+  The linter should report that "real-time" is not a valid category.
+categories:
+  - real-time
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"

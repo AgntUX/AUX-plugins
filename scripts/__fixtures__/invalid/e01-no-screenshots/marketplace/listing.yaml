@@ -1,0 +1,20 @@
+tagline: "No screenshots fixture for E01 testing."
+description: |
+  This fixture has an empty screenshots directory to trigger E01.
+  The linter should report that at least one screenshot is required.
+categories:
+  - productivity
+keywords:
+  - test
+  - fixture
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  github_handle: "agntux"
