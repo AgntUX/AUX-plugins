@@ -214,7 +214,7 @@ describe('Send intent assembly (P9 §8.3)', () => {
     expect(sentText).toContain('completed_at=<ISO now>');
     // Resolution log
     expect(sentText).toContain('## Resolution log');
-    expect(sentText).toContain('Sent reply via slack. permalink: <permalink from step 0>');
+    expect(sentText).toContain('Sent reply via slack. permalink: <permalink>');
     // mcp__slack__post_message reference
     expect(sentText).toContain('mcp__slack__post_message');
   });
