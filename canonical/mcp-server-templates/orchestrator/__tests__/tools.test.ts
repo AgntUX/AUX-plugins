@@ -242,14 +242,28 @@ describe("tool: pivot (path guard)", () => {
     expect(hostPrompt).toContain("agntux-core");
   });
 
+  // Pivot has TWO defensive layers: a kebab-case shape check (rejects with
+  // "Invalid subtype/slug …") that fires first, and a path-traversal boundary
+  // check (rejects with "Path traversal rejected …") as defense-in-depth.
+  // Either rejection path is correct.
   it("real handler rejects subtype '../../../etc' before any FS access", async () => {
     await expect(pivotTool.handler({ subtype: "../../../etc", slug: "passwd" }))
-      .rejects.toThrow(/[Pp]ath traversal/);
+      .rejects.toThrow(/[Pp]ath traversal|Invalid subtype/);
   });
 
   it("real handler rejects slug '../../etc/passwd' before any FS access", async () => {
     await expect(pivotTool.handler({ subtype: "companies", slug: "../../etc/passwd" }))
-      .rejects.toThrow(/[Pp]ath traversal/);
+      .rejects.toThrow(/[Pp]ath traversal|Invalid slug/);
+  });
+
+  it("real handler rejects malformed slug 'Acme_Corp' (underscores) at shape check", async () => {
+    await expect(pivotTool.handler({ subtype: "companies", slug: "Acme_Corp" }))
+      .rejects.toThrow(/Invalid slug/);
+  });
+
+  it("real handler accepts valid kebab-case slug 'acme-corp'", async () => {
+    const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
+    expect(result.content[0].text).toContain("companies/acme-corp");
   });
 
   it("real handler rejects empty subtype", async () => {

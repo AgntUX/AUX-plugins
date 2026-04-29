@@ -49,6 +49,24 @@ inlined into `skills/orchestrator.md`). Maintainers must NOT strip or escape the
 - `{highlight_ids}` — JSON array of source-native message IDs
 - `{ref}` — the action-item ID join key
 
+**Runtime-illustrative tokens (single-curly; written by the subagent at write time, NOT P6-substituted):**
+Some prompts (notably `agents/personalization.md`) embed example file shapes that
+include placeholder tokens for values the subagent fills at runtime — today's
+date, a per-plugin slug read from `plugin.json`, the `recommended_ingest_cadence`
+read from the same manifest. These use `{single-curly}` form to distinguish them
+from build-time `{{double-curly}}` substitutions. Maintainers must NOT replace
+them with concrete values. Examples:
+
+- `{iso-timestamp}` — RFC 3339 UTC, written by `now()`
+- `{yyyy-mm-dd}` — today's date in date-only form
+- `{plugin-slug}` — runtime-resolved from each plugin's `.claude-plugin/plugin.json`
+- `{recommended-cadence}` — runtime-resolved from `recommended_ingest_cadence` in the same manifest
+
+**Build-time placeholder used by personalization.md:**
+The one `{{double-curly}}` build-time substitution in this directory is
+`{{CONNECTOR_DIRECTORY_URL}}` — a constant for all `agntux-core` deployments,
+substituted by P6 at plugin-emission time.
+
 ## Do not add content here
 
 Do not add prompt content to this directory until T15 lands. P6's generator reads
