@@ -1,8 +1,8 @@
 tagline: "The AgntUX orchestrator. Triages action items and queries your knowledge store."
 description: |
-  Installs first; everything else hangs off it. Maintains your ~/agntux/
-  knowledge store, triages action items per your user.md preferences,
-  and keeps _index.md files in sync as ingest plugins write new data.
+  Installs first; everything else hangs off it. Maintains your `~/agntux/`
+  knowledge store, triages action items per your `user.md` preferences,
+  and keeps `_index.md` files in sync as ingest plugins write new data.
 categories:
   - meta
 keywords:
@@ -23,12 +23,20 @@ supported_prompts:
   - prompt: "ux: feedback review"
     purpose: "Daily pattern detection over recently-resolved action items. Recommended scheduled task at Daily 16:00."
 ui_components:
-  - name: "triage-ui"
+  - name: "triage"
     title: "Action item triage"
     purpose: "The primary inline UI. Shows priority-sorted open action items with snooze / dismiss / done buttons."
+  - name: "entity-browser"
+    title: "Entity browser"
+    purpose: "Browse and pivot between people, companies, projects, and topics in your knowledge store."
+screenshot_order:
+  - "01-chat.png"
+  - "02-action-detail.png"
+  - "03-personalization.png"
 support:
   url: "https://github.com/agntux/plugins/issues?q=label%3Aagntux-core"
   email: "support@agntux.ai"
+requires_plugins: []
 developer:
   name: "AgntUX"
   url: "https://agntux.ai"
