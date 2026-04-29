@@ -30,15 +30,24 @@ canonical/prompts/orchestrator/
 
 ## Placeholder variables these files will use
 
-All placeholders use `{{double-curly}}` format. Orchestrator prompts carry no
-source-specific substitutions — they are fixed for all deployments of `agntux-core`.
+The orchestrator prompts carry no build-time substitutions — they are fixed for
+all deployments of `agntux-core`. P6 copies them verbatim.
 
-| Placeholder | Substituted value | Substituted by |
+| Build-time placeholder (P6 substitutes) | Substituted value | Substituted by |
 |---|---|---|
 | None at MVP | — | — |
 
-The orchestrator prompts are not parameterised — they ship as-is. P6 copies them
-verbatim without substitution.
+**Runtime slot tokens (single-curly, host-filled per P3 §9.2; NOT P6-substituted):**
+The orchestrator skill emits the following tokens in `host_prompt` strings; the
+host's click-time drafting flow fills them before re-dispatch (per P9 §9.1, now
+inlined into `skills/orchestrator.md`). Maintainers must NOT strip or escape them:
+
+- `{propose_reply}` — short conversational reply
+- `{summary}` — 3–5 bullets recapping a source item
+- `{draft_body}` — longer email body
+- `{propose_comment}` — Jira/HubSpot comment text
+- `{highlight_ids}` — JSON array of source-native message IDs
+- `{ref}` — the action-item ID join key
 
 ## Do not add content here
 
