@@ -39,9 +39,23 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   ],
 }));
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  return handleUIResource(request.params.uri);
-});
+// Per P2a §4 — resources/read must return either a successful
+// ReadResourceResult OR a structured error (`{ isError: true, contents: [...] }`)
+// when the license cache is missing/malformed or the bundle fetch fails.
+// The SDK's ReadResourceResultSchema does not currently expose `isError` in
+// its inferred TS type, so the union we return is wider than the schema's
+// inferred output type. The SDK runtime forwards our envelope unchanged
+// (verified end-to-end by Phase 3 QA Layer 2 — see
+// langgraph/plan-execution/qa/phase-3/layer-2-report.json). The cast below
+// is a type-system workaround for that SDK schema gap; it does NOT widen
+// runtime behavior. Track upstream: file an issue against
+// @modelcontextprotocol/sdk to add `isError` to ReadResourceResultSchema
+// (or document a separate channel for resource-fetch errors). Until then,
+// keep the cast scoped to this single line and documented.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
+  (await handleUIResource(request.params.uri)) as any,
+);
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: Object.entries(TOOLS).map(([name, t]) => ({
