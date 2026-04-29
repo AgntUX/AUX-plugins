@@ -1,0 +1,43 @@
+tagline: "Turn your local Markdown notes into an AgntUX knowledge store."
+description: |
+  Watches a local notes directory (Obsidian vault, Markdown folder, plain
+  text files) and extracts people, companies, projects, and topics as
+  AgntUX entities. Action items surface deadlines, follow-ups, and open
+  questions so nothing falls through the cracks.
+categories:
+  - productivity
+  - notes-knowledge
+keywords:
+  - notes
+  - markdown
+  - local-files
+  - knowledge-base
+  - obsidian
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Markdown (.md) and plain-text (.txt) files in the configured notes directory"
+  - "People mentioned by name (meeting notes, introductions, action items)"
+  - "Companies and organisations referenced in notes"
+  - "Projects and codenames from the user's glossary"
+  - "Topics, concepts, and recurring themes"
+supported_prompts:
+  - prompt: "ux:notes-ingest"
+    purpose: "Scheduled task — fires the ingest agent on the user's chosen cadence (recommended: Daily 09:00)."
+support:
+  url: "https://github.com/agntux/plugins/issues?q=label%3Anotes-ingest"
+  email: "support@agntux.ai"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: npm
+  package_name: "@modelcontextprotocol/server-filesystem"
+  install_url: "https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem"
+  display_name: "Filesystem MCP"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"

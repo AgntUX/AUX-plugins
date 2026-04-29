@@ -1,0 +1,24 @@
+{
+  "name": "@agntux/ingest-mcp-server-template",
+  "version": "1.0.0",
+  "description": "Local stdio MCP server template for per-source ingest plugins (slack-ingest, gmail-ingest, etc.)",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
