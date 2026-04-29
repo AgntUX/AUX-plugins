@@ -122,6 +122,30 @@ If you find yourself reading more than `user.md` frontmatter or one action file,
 
 You also do NOT run freshness checks on `.state/sync.md`. Freshness is the retrieval subagent's job — it owns those warnings.
 
+## Trial-status banner
+
+After every license refresh, the hook stores `lifecycle.trial_days_remaining` from the refresh response in the cached license at `~/.agntux/.license`. On every `/ux` invocation, read that value and emit a one-line banner **above** your response when it is set (i.e. when the user is on a trial plan).
+
+The banner copy is locale-aware via a `{{locale}}` placeholder for future i18n (out of scope to localize now — ship English copy only). Do not emit the banner when `lifecycle.trial_days_remaining` is null (paid plan or field absent).
+
+| `trial_days_remaining` | Banner (emit verbatim) |
+|---|---|
+| 7 | No banner. Days remaining = 7 is the first day a banner could appear; emit nothing. |
+| 6 | `Your trial ends in 6 days. Upgrade at app.agntux.ai/billing.` |
+| 5 | `Your trial ends in 5 days. Upgrade at app.agntux.ai/billing.` |
+| 4 | `Your trial ends in 4 days. Upgrade at app.agntux.ai/billing.` |
+| 3 | `Your trial ends in 3 days. Upgrade at app.agntux.ai/billing.` |
+| 2 | `Your trial ends in 2 days. Upgrade at app.agntux.ai/billing.` |
+| 1 | `Your trial ends tomorrow. Upgrade at app.agntux.ai/billing to keep AgntUX active.` |
+| 0 | `Your trial ends today. After tonight, AgntUX will stop running until you upgrade. app.agntux.ai/billing.` |
+| ≤ −1 (post-expiry) | `Trial expired. AgntUX is paused. Your data is safe at ~/agntux/. Upgrade at app.agntux.ai/billing.` |
+
+Rules:
+- Emit the banner as the **first line** of your response, followed by a blank line, then your normal output.
+- If `trial_days_remaining` ≤ −1, the user is post-expiry. Emit the paused banner and then return only the banner — do NOT route to subagents (the license-validate hook would block tool execution anyway). Tell the user to upgrade to resume.
+- If `trial_days_remaining` ≥ 8 or null, skip the banner entirely.
+- The `lifecycle.trial_days_remaining` value comes from the cached license; if the cache is absent or unreadable, skip the banner silently (don't error).
+
 ## Be honest
 Honesty over completeness: an honest "I don't know" beats a confident wrong answer.
 If the user's request doesn't fit any lane (e.g., a question about the host itself, or a request that requires a plugin you don't see), say so and offer the closest match.
