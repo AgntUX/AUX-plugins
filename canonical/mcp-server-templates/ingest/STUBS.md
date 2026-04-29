@@ -1,58 +1,86 @@
-# TODO: Ingest MCP Server Template Stubs
+# Ingest MCP Server Template — Placeholder Registry
 
-**TO BE FILLED BY T19 / T20 (P5 ingest plugin template — MCP server source)**
+This directory contains the TypeScript source template for per-source ingest plugins'
+local stdio MCP server. Only plugins that ship UI components include this server; sources
+without an actionable surface (e.g., `notes-ingest`) omit it entirely (P5 §7.5).
 
-This directory will contain the TypeScript source template for per-source ingest
-plugins' local stdio MCP server. Only plugins that ship UI components include this
-server; sources without an actionable surface (e.g., `notes-ingest`) omit it entirely
-(P5 §7.5).
+## Delivered by T20
 
-## Files T19/T20 will deliver
+| File | Status |
+|---|---|
+| `package.json` | T20 — delivered |
+| `tsconfig.json` | T20 — delivered |
+| `vitest.config.ts` | T20 — delivered |
+| `src/index.ts` | T20 — delivered |
+| `src/ui-resources.ts` | T20 — delivered |
+| `src/s3-fetch.ts` | T20 — delivered |
+| `src/csp.ts` | T20 — delivered |
+| `src/tools/_view-tool-template.ts` | T20 — delivered |
+| `skill-fragments/send-actions.template.md` | T20 — delivered |
+| `__tests__/csp.test.ts` | T20 — delivered |
+| `__tests__/s3-fetch.test.ts` | T20 — delivered |
+| `__tests__/ui-resources.test.ts` | T20 — delivered |
+| `__tests__/view-tool-guard.test.ts` | T20 — delivered |
 
-Per P5 §7.4 (local MCP server mirrors ux's pattern) and §6 (.mcp.json shape):
+## Placeholder registry
 
-```
-canonical/mcp-server-templates/ingest/
-├── package.json           # devDependencies: @modelcontextprotocol/sdk, typescript
-│                          # engines.node: >= 18
-├── tsconfig.json          # ESM target, strict, outDir: dist/
-├── src/
-│   ├── index.ts           # MCP server entrypoint — Server, StdioServerTransport
-│   │                      # Registers ui:// resources + view tools + send-action tools
-│   │                      # (one view tool per UI component per P9 §4)
-│   ├── ui-resources.ts    # Maps ui://{ui-name} → {ui-name}/index.html
-│   │                      # attaches _meta.license (render_token) per P2a / P5.AMEND.1
-│   │                      # (mirrors P4 §6.6; keyed on plugin slug not agntux-core)
-│   ├── s3-fetch.ts        # Same pattern as orchestrator s3-fetch.ts (P4 §6.7)
-│   │                      # reads per-plugin entry from signed_ui_base_urls map
-│   │                      # exports readRenderTokenFromLicense() per P5.AMEND.1
-│   ├── csp.ts             # CSP _meta builder — same constraints as orchestrator
-│   └── tools/
-│       └── _readme.md     # Placeholder: one {ui-name}_view.ts file per UI component
-│                          # (view-tool architecture per P9 §4–§6, shipped by T19/T20)
-│                          # send-action tools (send_thread_reply, send_email, etc.)
-│                          # also live here — one file per source-side action
-└── dist/                  # Built JS — committed to marketplace repo (not pre-committed here)
-```
+All placeholders use `{{double-curly}}` format. P6 substitutes these from a per-source
+spec JSON/YAML at generation time.
 
-## Placeholder variables
+### Shared across all MCP server template files
 
-| Placeholder | Example (slack-ingest) | Where |
+| Placeholder | Example (slack-ingest) | Source |
 |---|---|---|
-| `{{plugin-slug}}` | `slack-ingest` | MCP server name in `.mcp.json`, S3 cache subdir |
-| `{{AGNTUX_APP_ID}}` | Per-plugin app ID from AgntUX backend | `.mcp.json` env block |
-| `{{ui-name}}` | `thread`, `channel-summary` | Per view tool file, per ui:// resource mapping |
+| `{{plugin-slug}}` | `slack-ingest` | manifest `name` field; used in Server name ("{{plugin-slug}}-ui"), CACHE_DIR sub-path, and SKILL.md routing |
+| `{{plugin-version}}` | `1.0.0` | manifest `version` field; used in Server version |
+| `{{source-display-name}}` | `Slack` | per-source spec; used in tool descriptions |
+| `{{source-slug}}` | `slack` | per-source spec; used in s3-fetch PLUGIN_SLUG default |
+| `{{AGNTUX_APP_ID}}` | Per-plugin app ID from AgntUX backend | `.mcp.json` env block; used as S3 path segment in dev fallback |
 
-The `{{ui-name}}` placeholder expands to one file per UI component the plugin ships.
-Sources with no UI components omit this entire `mcp-server-templates/ingest/` tree.
+### Per UI component (expanded once per component by P6)
 
-## Relationship to P9
+| Placeholder | Example (slack thread component) | Source |
+|---|---|---|
+| `{{ui-name}}` | `thread` | per-source spec; used in view-tool name (`thread_view`), resource URI (`ui://thread`), and S3 path (`thread/index.html`) |
+| `{{ui-resource-entries}}` | `"ui://thread": "thread/index.html",` | one entry per UI component; generator expands the `UI_PATHS` map in `ui-resources.ts` |
+| `{{structured-content-field-1}}` | `thread_messages` | per-source spec; top-level field in structuredContent |
+| `{{structured-content-field-2}}` | `thread_members` | per-source spec; secondary field |
+| `{{structured-content-field-3}}` | `proposed_reply` | per-source spec; orchestrator-authored slot |
 
-The view-tool protocol (tool naming convention `mcp__{{plugin-slug}}__{ui-name}_view`,
-`structuredContent` schema, `_meta.ui.resourceUri` semantics, iframe gate) is
-specified in P9 §4–§6. T19/T20 implement the protocol defined there.
+## Architecture notes
 
-## Do not add content here
+### s3-fetch.ts — per-plugin URL resolution
 
-Do not add source content to this directory until T19/T20 land. P6's generator
-reads from this directory; placeholder content would be copied into production plugins.
+The ingest MCP server prefers the per-plugin entry in `signed_ui_base_urls` (map keyed by
+plugin slug) over the flat `signed_ui_base_url` (orchestrator-only MVP shape). Both fields
+live in the same `~/.agntux/.license` cache (P5 §6.3 / P5.AMEND.1). Source plugins do NOT
+maintain their own license file.
+
+### ui-resources.ts — license attachment
+
+Every `resources/read` response attaches `_meta.license` from `readRenderTokenFromLicense()`
+per P2a §4 / P5.AMEND.1. Missing or malformed license → `license` key omitted → iframe gate
+fails closed with reason "missing". Never throws.
+
+### tools/_view-tool-template.ts — constraints
+
+View tools are stateless. The T23 linter (and `view-tool-guard.test.ts`) enforce:
+- NO `mcp__<third-party>__*` references (only `mcp__{{plugin-slug}}__*` allowed).
+- NO `fs.writeFile` / `fs.appendFile`.
+- NO `fetch()` / `https.request` / network calls.
+
+### LRU cache params
+
+Identical to the orchestrator template (P5 §7.4 / P4 §6.7):
+- `CACHE_MAX = 100`
+- `CACHE_TTL_MS = 5 * 60 * 1000` (5 minutes)
+- Cache directory: `~/.agntux/.ui-cache/{{plugin-slug}}/` (keyed per plugin slug)
+
+### skill-fragments/send-actions.template.md
+
+Generic "Send actions" prose for SKILL.md inclusion. Uses Slack reply-to-thread as the
+canonical worked example (P9 §8.3). Copy into the plugin's `skills/orchestrator.md` under
+a `## Send actions` section; substitute `{{plugin-slug}}`, `{{source-display-name}}`, etc.
+
+The send-actions pattern applies to any plugin that ships UI components with state-mutating
+buttons. Plugins with no UI components (no Send buttons) omit this section.

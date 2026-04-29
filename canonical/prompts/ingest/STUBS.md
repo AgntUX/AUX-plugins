@@ -1,51 +1,70 @@
-# TODO: Ingest Prompt Stubs
+# Ingest Prompt Templates — Placeholder Registry
 
-**TO BE FILLED BY T16 / T17 (P5 ingest plugin template — prompt templates)**
+This directory contains the canonical prompt templates for per-source ingest plugins.
+P6's plugin generator copies these verbatim (with placeholder substitution) when generating
+any ingest plugin (`gmail-ingest`, `slack-ingest`, `notes-ingest`, etc.).
 
-This directory will contain the canonical prompt templates for per-source ingest
-plugins. P6's plugin generator copies these verbatim (with placeholder substitution)
-when generating any ingest plugin (`gmail-ingest`, `slack-ingest`, `notes-ingest`, etc.).
+## Delivered by T16/T17/T19/T20
 
-## Files T16/T17 will deliver
+| File | Status |
+|---|---|
+| `skills/orchestrator.md` | T19 — delivered |
+| `agents/ingest.md` | T19 — delivered |
+| `agents/ui-handlers/_template.md` | T20 — delivered |
 
-Per P5 §3 (SKILL.md template), §4 (ingest subagent template), and the repo layout
-in please-study-these-plans-fuzzy-valley.md §3.1:
+## Placeholder registry
 
-```
-canonical/prompts/ingest/
-├── orchestrator.md        # Per-source SKILL.md template (P5 §3.2)
-│                          # Frontmatter: name: {{plugin-slug}}, description: ...
-│                          # Body: two-check guard (project root + user.md gate),
-│                          #        freshness check, Lane A (ingest) + Lane B (UI),
-│                          #        fallback, out-of-scope list
-├── ingest.md              # Ingest subagent template (P5 §4.2)
-│                          # Frontmatter: name: ingest, tools: Read,Write,Edit,Glob,Grep
-│                          # Body: two-check guard, read-first sequence, lock protocol,
-│                          #        time window, fetch loop (Steps A–E), post-loop
-└── ui-handlers/
-    └── _readme.md         # Explains the ui-handlers/ convention:
-                           # one file per UI handler is added per plugin by T19/T20
-                           # (the view-tool architecture per P5 §7.3 / P9 §4–§6).
-                           # notes-ingest ships zero files here (no UI handlers).
-```
+All placeholders use `{{double-curly}}` format. P6 substitutes these from a per-source
+spec JSON/YAML at generation time. Single-curly tokens like `{ref}`, `{text}`, `{ids}` are
+runtime/host-filled — NOT P6-substituted.
 
-## Placeholder variables these files will use
+### Shared across all ingest plugin templates
 
-All placeholders use `{{double-curly}}` format. The generator (P6) substitutes
-these from a per-source spec JSON/YAML.
+| Placeholder | Example (notes-ingest) | Example (slack-ingest) | Source |
+|---|---|---|---|
+| `{{plugin-slug}}` | `notes-ingest` | `slack-ingest` | manifest `name` field |
+| `{{plugin-version}}` | `1.0.0` | `1.0.0` | manifest `version` field |
+| `{{source-display-name}}` | `Apple Notes` | `Slack` | per-source spec |
+| `{{source-slug}}` | `notes` | `slack` | per-source spec; matches `# {{source-slug}}` heading in `.state/sync.md` |
+| `{{recommended-cadence}}` | `Daily 09:00` | `Hourly` | manifest `recommended_ingest_cadence` field |
+| `{{source-cursor-semantics}}` | `local-file modification time (RFC 3339)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
+| `{{source-mcp-tools}}` | `the local filesystem MCP server (read-only access to the notes directory)` | `mcp__slack__list_channels, mcp__slack__get_thread, mcp__slack__list_messages` | per-source spec |
+| `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components — Lane B is unused)` | `- "display the slack thread UI for {ref}" → call mcp__slack-ingest-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string |
 
-| Placeholder | Example (notes-ingest) | Source |
+### UI-handler subagent template only (`agents/ui-handlers/_template.md`)
+
+| Placeholder | Example (slack-thread handler) | Source |
 |---|---|---|
-| `{{plugin-slug}}` | `notes-ingest` | manifest name |
-| `{{source-display-name}}` | `Apple Notes` | per-source spec |
-| `{{source-slug}}` | `notes` | per-source spec; matches `.state/sync.md` H1 |
-| `{{recommended-cadence}}` | `Daily 09:00` | per-source spec |
-| `{{source-cursor-semantics}}` | `local-file modification time (RFC 3339)` | per-source spec |
-| `{{source-mcp-tools}}` | `the local filesystem MCP server (read-only)` | per-source spec |
-| `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components — Lane B is unused)` | per-source spec |
-| `{{plugin-version}}` | `1.0.0` | manifest version |
+| `{{ui-handler-name}}` | `slack-thread` | per-source spec; kebab-case |
+| `{{ui-handler-display-name}}` | `Slack thread` | per-source spec; human-readable |
+| `{{ui-name}}` | `thread` | per-source spec; view-tool root name (no source prefix) |
+| `{{primary-verb-phrase}}` | `display the slack thread UI for {ref}` | per-source spec; lower-case prose, must include `{ref}` |
+| `{{structured-content-field-1}}` | `thread_messages` | per-source spec; first top-level field in structuredContent |
+| `{{structured-content-field-2}}` | `thread_members` | per-source spec; second field |
+| `{{structured-content-field-3}}` | `proposed_reply` | per-source spec; third field (often the orchestrator-authored slot) |
+| `{{primary-intent-key}}` | `send-thread-reply` | per-source spec; must match a `## intent-key:{name}` heading in SKILL.md |
 
-## Do not add content here
+### MCP server templates only (`mcp-server-templates/ingest/`)
 
-Do not add prompt content to this directory until T16/T17 land. P6's generator
-reads from this directory; placeholder content would be copied into production plugins.
+See `mcp-server-templates/ingest/STUBS.md` for the MCP server placeholder registry.
+
+## Placeholder conventions
+
+- `{{double-curly}}` — P6 build-time substitution from per-source spec.
+- `{single-curly}` — runtime/host-filled token; NOT substituted by P6. Appears in verb phrases, intent templates, and freshness check output.
+- Placeholders are always kebab-case for slugs and display-name for human labels.
+- The generator rejects any output file containing unsubstituted `{{...}}` tokens (the SKILL.md stale-placeholder guard catches them at runtime too).
+
+## Notes on the ui-handlers/_template.md
+
+Per P9 §7 (superseding P5 §7): handler subagent files at `agents/ui-handlers/{name}.md`
+are **metadata carriers only**. Their YAML frontmatter carries the operational manifest
+(P9 §5 — `verb_phrases`, `view_tool`, `resource_uri`, `structured_content_schema`,
+`follow_up_intents`, `degraded_states`). Their body is NOT used as a runtime subagent prompt.
+
+UI rendering is performed by the stateless view tool on the plugin's local stdio MCP server.
+The SKILL.md routes directly to the view tool (no intermediate subagent dispatch).
+
+Sources without an actionable surface (e.g., `notes-ingest`) ship zero files in
+`agents/ui-handlers/`. The template file `_template.md` is the generator's input; it is
+NOT copied verbatim — the generator expands one concrete handler file per UI component.
