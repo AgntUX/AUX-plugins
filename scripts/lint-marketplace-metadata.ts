@@ -18,6 +18,14 @@ import { fileURLToPath } from "node:url";
 import * as yaml from "js-yaml";
 import { imageSize } from "image-size";
 import { ListingSchema } from "../lib/marketplace-schema.js";
+import {
+  pass6HandlerFrontmatter,
+  pass6CanonicalHandlers,
+} from "./lint/lint-handler-frontmatter.js";
+import {
+  pass7NoThirdPartyInViews,
+  pass7CanonicalHandlers,
+} from "./lint/lint-no-third-party-in-views.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -625,6 +633,10 @@ export function lintPlugin(
   pass2Schema(pluginSlug, pluginDir, opts.pluginsDir, opts.repoRoot, findings);
   pass3Images(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass4ReadmeChangelog(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 6 — operational frontmatter validation
+  pass6HandlerFrontmatter(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 7 — no third-party MCP calls in view tools
+  pass7NoThirdPartyInViews(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 
@@ -715,6 +727,22 @@ if (isMain) {
       }
       if (f.severity === "error") {
         failedPlugins.add(slug);
+      }
+    }
+  }
+
+  // Pass 6 + Pass 7 on canonical ui-handlers (not per-plugin slugs)
+  // Only run when not filtering to a specific plugin slug.
+  if (!pluginFilter) {
+    const canonicalFindings: Finding[] = [];
+    pass6CanonicalHandlers(repoRoot, canonicalFindings);
+    pass7CanonicalHandlers(repoRoot, canonicalFindings);
+    for (const f of canonicalFindings) {
+      allFindings.push(f);
+      if (jsonMode) {
+        process.stdout.write(formatJson(f) + "\n");
+      } else {
+        process.stderr.write(formatHuman(f) + "\n");
       }
     }
   }

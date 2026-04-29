@@ -361,6 +361,65 @@ export const ListingSchema = z
 export type Listing = z.infer<typeof ListingSchema>;
 
 // ---------------------------------------------------------------------------
+// Error code documentation (T23 — Pass 6 / Pass 7)
+// ---------------------------------------------------------------------------
+
+/**
+ * E12 — Operational frontmatter validation errors (Pass 6, T23).
+ *
+ * Emitted when a UI-handler file at agents/ui-handlers/{name}.md has an
+ * `operational:` block that fails the OperationalManifestSchema (P9 §5.1).
+ *
+ * Sub-codes:
+ *   E12-verb-phrases-missing       verb_phrases array absent or empty
+ *   E12-view-tool-missing          view_tool field absent or blank
+ *   E12-view-tool-malformed        view_tool doesn't match ^[a-z][a-z0-9_]*_view$
+ *   E12-resource-uri-missing       resource_uri field absent or blank
+ *   E12-resource-uri-malformed     resource_uri doesn't start with "ui://"
+ *   E12-structured-content-missing structured_content_schema absent or empty
+ *   E12-follow-up-intents-missing  follow_up_intents absent (required as array)
+ *   E12-degraded-states-missing    degraded_states absent or empty object
+ *   E12-degraded-states-invalid    degraded_states.source_not_found absent or malformed
+ *   E12-field-invalid              generic Zod validation failure on a known field
+ *
+ * W03 — stub handler warning (Pass 6).
+ * Emitted when a handler file exists but has no `operational:` block (or no
+ * YAML frontmatter at all). Not a hard error — stub handlers are allowed
+ * during development, but must be completed before production use.
+ */
+export const E12_CODES = [
+  "E12-verb-phrases-missing",
+  "E12-view-tool-missing",
+  "E12-view-tool-malformed",
+  "E12-resource-uri-missing",
+  "E12-resource-uri-malformed",
+  "E12-structured-content-missing",
+  "E12-follow-up-intents-missing",
+  "E12-degraded-states-missing",
+  "E12-degraded-states-invalid",
+  "E12-field-invalid",
+] as const;
+
+export type E12Code = (typeof E12_CODES)[number];
+
+/**
+ * E13 — Third-party MCP reference in view/tool file (Pass 7, T23).
+ *
+ * Emitted when a file under mcp-server/src/tools/ contains a reference to
+ * a third-party MCP namespace (e.g., mcp__slack__send_message). View tools
+ * must be stateless and must not call source MCPs directly. All mutations
+ * must flow via sendFollowUpMessage → host → source MCP (P9 D3 / §2.7).
+ *
+ * Allowed references (not flagged):
+ *   mcp__{{plugin-slug}}__*      own-plugin placeholder (canonical templates)
+ *   mcp__{{plugin-slug}}-ui__*  own-plugin UI server placeholder
+ *   mcp__<slug>__*              own-plugin resolved namespace
+ *   mcp__<slug>-ui__*           own-plugin resolved UI namespace
+ */
+export const E13_CODE = "E13" as const;
+export type E13Code = typeof E13_CODE;
+
+// ---------------------------------------------------------------------------
 // Aggregate-index schema (P15 §6.4)
 // ---------------------------------------------------------------------------
 
