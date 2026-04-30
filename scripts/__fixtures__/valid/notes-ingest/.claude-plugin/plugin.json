@@ -1,0 +1,7 @@
+{
+  "name": "notes-ingest",
+  "version": "1.0.0",
+  "description": "Local Markdown notes ingest plugin for AgntUX.",
+  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "license": "ELv2"
+}

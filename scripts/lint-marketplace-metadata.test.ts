@@ -256,6 +256,36 @@ describe("E10 — bad screenshot filename", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Pass 2 — E14: ingest plugin missing proposed_schema
+// ---------------------------------------------------------------------------
+
+describe("E14 — ingest plugin missing proposed_schema", () => {
+  it("reports E14 when an ingest plugin (slug ending -ingest) has no proposed_schema", () => {
+    const findings = lintFixture(invalidDir, "e14-missing-schema-ingest");
+    const errs = errors(findings);
+    expect(codes(errs)).toContain("E14");
+    const e14 = errs.filter((f) => f.code === "E14");
+    expect(e14[0].message).toMatch(/proposed_schema/);
+    expect(e14[0].file).toMatch(/listing\.yaml/);
+  });
+
+  it("does NOT report E14 when an ingest plugin declares a valid proposed_schema", () => {
+    const findings = lintFixture(validDir, "notes-ingest");
+    const errs = errors(findings);
+    expect(codes(errs)).not.toContain("E14");
+    // The valid notes-ingest fixture should pass cleanly.
+    expect(errs).toHaveLength(0);
+  });
+
+  it("does NOT report E14 for orchestrator (non-ingest) plugins without proposed_schema", () => {
+    // agntux-core has no proposed_schema and slug doesn't end in -ingest.
+    const findings = lintFixture(validDir, "agntux-core");
+    const errs = errors(findings);
+    expect(codes(errs)).not.toContain("E14");
+  });
+});
+
 describe("E11 — reserved field rejected", () => {
   it('reports E11 for "featured" reserved field in listing.yaml', () => {
     const findings = lintFixture(invalidDir, "e11-reserved-field");

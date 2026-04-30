@@ -25,7 +25,7 @@ runtime/host-filled — NOT P6-substituted.
 | `{{plugin-slug}}` | `notes-ingest` | `slack-ingest` | manifest `name` field |
 | `{{plugin-version}}` | `1.0.0` | `1.0.0` | manifest `version` field |
 | `{{source-display-name}}` | `Apple Notes` | `Slack` | per-source spec |
-| `{{source-slug}}` | `notes` | `slack` | per-source spec; matches `# {{source-slug}}` heading in `.state/sync.md` |
+| `{{source-slug}}` | `notes` | `slack` | per-source spec; appears in entity source maps, action-item `source:` fields, and the `# {{source-slug}}` heading inside `data/learnings/{{plugin-slug}}/sync.md` |
 | `{{recommended-cadence}}` | `Daily 09:00` | `Hourly` | manifest `recommended_ingest_cadence` field |
 | `{{source-cursor-semantics}}` | `local-file modification time (RFC 3339)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
 | `{{source-mcp-tools}}` | `the local filesystem MCP server (read-only access to the notes directory)` | `mcp__slack__list_channels, mcp__slack__get_thread, mcp__slack__list_messages` | per-source spec |
@@ -54,6 +54,21 @@ See `mcp-server-templates/ingest/STUBS.md` for the MCP server placeholder regist
 - `{single-curly}` — runtime/host-filled token; NOT substituted by P6. Appears in verb phrases, intent templates, and freshness check output.
 - Placeholders are always kebab-case for slugs and display-name for human labels.
 - The generator rejects any output file containing unsubstituted `{{...}}` tokens (the SKILL.md stale-placeholder guard catches them at runtime too).
+
+### Subtype and action_class lists are NOT placeholders
+
+`entity_subtypes` and `action_classes` are vocabulary the plugin claims at install
+time — they live exclusively inside `marketplace/listing.yaml`'s `proposed_schema`
+block (per P3a §6.2). They are NOT `{{...}}` placeholders that get inlined into
+agent prompts.
+
+At run-start, the ingest subagent reads the contract at
+`~/agntux/data/schema/contracts/{{plugin-slug}}.md` (Step 0 of `agents/ingest.md`)
+and uses the contract's allowed subtypes + action classes as its writable
+vocabulary. The validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks
+any write that diverges. **Never inline subtype or action_class lists into
+canonical prompt templates** — doing so creates two sources of truth and the
+runtime contract becomes ignored.
 
 ## Notes on the ui-handlers/_template.md
 

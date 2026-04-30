@@ -9,7 +9,9 @@ Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
   {{plugin-slug}}              — kebab-case plugin slug; from manifest `name` field
   {{plugin-version}}           — from manifest `version` field
   {{source-display-name}}      — human-readable label (e.g., "Slack"); from per-source spec
-  {{source-slug}}              — matches the `# {{source-slug}}` heading in .state/sync.md;
+  {{source-slug}}              — short source identifier appearing in entity source maps,
+                                  action-item `source:` fields, and the per-plugin sync file at
+                                  `data/learnings/{{plugin-slug}}/sync.md`;
                                   typically equals {{plugin-slug}} sans `-ingest` suffix
   {{recommended-cadence}}      — value from manifest `recommended_ingest_cadence` (P5 §11)
   {{source-cursor-semantics}}  — narrative description from cursor-strategies.md per-source entry
@@ -65,7 +67,7 @@ For Lane A (an ingest run is about to happen, so staleness is being repaired rig
 
 For Lane B (UI rendering), run this check before engaging any view tool.
 
-Read `~/agntux/.state/sync.md`. Find the `# {{source-slug}}` section. Compare `last_success` against the current time using this table:
+Read `~/agntux/data/learnings/{{plugin-slug}}/sync.md`. Compare `last_success` against the current time using this table:
 
 | `recommended_ingest_cadence` | Stale threshold |
 |---|---|
