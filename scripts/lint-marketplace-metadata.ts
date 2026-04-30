@@ -268,6 +268,22 @@ function pass2Schema(
       }
     }
 
+    // P3a — ingest plugins MUST declare a proposed_schema block. The
+    // data-architect reviews this at install time before authorising the
+    // plugin to write entities/actions. Heuristic: slug ends with `-ingest`.
+    if (pluginSlug.endsWith("-ingest") && !listing.proposed_schema) {
+      emit(findings, {
+        code: "E14",
+        severity: "error",
+        plugin: pluginSlug,
+        file: rel(listingPath),
+        message:
+          "ingest plugins must declare proposed_schema (P3a §6.2): " +
+          "entity_subtypes[] and action_classes[]. The data-architect " +
+          "reviews this at install time.",
+      });
+    }
+
     // ui_components cross-check: agents/ui-handlers/{name}.md must exist
     if (listing.ui_components) {
       for (const comp of listing.ui_components) {
@@ -709,6 +725,13 @@ if (isMain) {
       .readdirSync(pluginsDir)
       .filter((n) => !n.startsWith("."))
       .filter((n) => isDirectory(path.join(pluginsDir, n)))
+      // Skip uninitialised scaffolds: a real plugin directory must have a
+      // `.claude-plugin/plugin.json` (every plugin starts with that file per
+      // the canonical layout). Empty dirs and `.gitkeep`-only stubs are not
+      // linted — they're not plugins yet.
+      .filter((n) =>
+        fileExists(path.join(pluginsDir, n, ".claude-plugin", "plugin.json")),
+      )
       .sort();
   }
 

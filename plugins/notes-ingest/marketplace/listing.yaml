@@ -41,3 +41,68 @@ developer:
   name: "AgntUX"
   url: "https://agntux.ai"
   github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: person
+      description: "Individuals named or mentioned in notes (meeting attendees, action-item owners, references)."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: company
+      description: "Organizations referenced in notes — customers, vendors, partners."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: project
+      description: "Named workstreams or codenames (often resolved via user.md → # Glossary)."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: topic
+      description: "Recurring themes, products, contracts, or research areas surfaced in notes."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: knowledge-update
+      description: "An informational signal extracted from a note (decision, fact, status update)."
+    - class: deadline
+      description: "A note carrying an explicit due date."
+    - class: response-needed
+      description: "A note flagging an open question or pending follow-up."
+    - class: other
+      description: "Escape hatch for items that don't fit the above; requires reason_detail."
+  cursor_semantics: "Filesystem mtime in milliseconds (epoch); start-of-run timestamp advances the cursor to avoid races with files modified during the run."
+  source_id_format: "Absolute file path under the configured notes directory."

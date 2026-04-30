@@ -15,18 +15,18 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const FEEDBACK_MD = join(PLUGIN_ROOT, "agents", "feedback.md");
+const FEEDBACK_MD = join(PLUGIN_ROOT, "agents", "pattern-feedback.md");
 
-describe("feedback agent file exists", () => {
-  it("agents/feedback.md exists", () => {
+describe("pattern-feedback agent file exists", () => {
+  it("agents/pattern-feedback.md exists", () => {
     expect(existsSync(FEEDBACK_MD)).toBe(true);
   });
 });
 
-describe("feedback agent frontmatter", () => {
-  it("has name: feedback", () => {
+describe("pattern-feedback agent frontmatter", () => {
+  it("has name: pattern-feedback", () => {
     const s = readFileSync(FEEDBACK_MD, "utf8");
-    expect(s).toMatch(/^name: feedback/m);
+    expect(s).toMatch(/^name: pattern-feedback/m);
   });
 
   it("description mentions pattern detection", () => {

@@ -39,8 +39,8 @@ generate action items. Add patterns to `## Always action-worthy` or `## Usually 
 ## Limitations
 
 - Processes `.md` and `.txt` files only. RTF, DOCX, PDF are skipped.
-- Flat directory only by default (no recursion). Nested structures are flagged in
-  `.state/notes/notes.md → ## Open questions` for future configuration.
+- Flat directory only by default (no recursion). Nested structures are surfaced
+  via `data/learnings/notes-ingest/sync.md → errors` for future configuration.
 - No OAuth or API keys required — reads directly from the local filesystem via the
   `@modelcontextprotocol/server-filesystem` MCP server.
 - Ships no UI components. Action items appear in agntux-core's triage UI.
