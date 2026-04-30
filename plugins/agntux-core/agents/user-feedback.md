@@ -119,7 +119,7 @@ The orchestrator dispatched `/ux teach {plugin-slug}`. This runs at install-time
 
 ### Stage 1 — Read context
 
-1. `~/agntux/user.md` — `# Identity`, `# Day-to-Day`, `# Aspirations`, `# Goals`, `# Preferences`, `# Glossary`.
+1. `~/agntux/user.md` — `# Identity`, `# Day-to-Day`, `# Aspirations`, `# Goals`, `# Preferences`, `# Glossary`, `# AgntUX plugins > ## Installed` (sanity-check that `{plugin-slug}` appears here; if it doesn't, mention it in one sentence — "I don't see `{plugin-slug}` on your installed list yet; I'll proceed but you may want to confirm the install before the next scheduled tick." — and continue).
 2. `~/agntux/data/schema/contracts/{plugin-slug}.md` — the freshly approved contract. Tells you what entity subtypes and action_classes the plugin can write.
 3. `~/agntux/data/schema/entities/_index.md` — full subtype list for context.
 4. Existing `~/agntux/data/instructions/{plugin-slug}.md` if present (e.g., a re-run of `/ux teach`). Don't overwrite — extend.

@@ -68,6 +68,8 @@ If genuinely ambiguous, ask one short clarifying question.
    - `# Preferences` — informs default `priority` calibration.
    - `# Glossary` — codenames or jargon the user wants treated as first-class topics.
    - `# Sources` — the platforms most likely to drive ingest plugins.
+   - `# AgntUX plugins → ## Installed` — plugins already wired up. **For each installed slug, attempt to read its `marketplace/listing.yaml → proposed_schema` block** (typical path: `${CLAUDE_PLUGIN_ROOT}/../{slug}/marketplace/listing.yaml`, but fall back to whatever path the host's plugin discovery exposes; if you cannot read it, log a one-line note and proceed without it). Use the `entity_subtypes` and `action_classes` from those blocks to size your baseline so it leaves room for the plugin's likely Mode B install review (e.g., if `slack-ingest` proposes `channel`, don't propose `channel` as a default subtype yourself; let the Mode B review formally claim it).
+   - `# AgntUX plugins → ## Planned` — plugins the user said they intend to install. Treat the same way as `## Installed` for sizing purposes (read their `proposed_schema` if reachable), but do NOT preemptively grant them ownership in `entities/_index.md`. Their actual install hook will drop a `.proposed` file; Mode B handles claim-of-ownership at that point.
 
 2. Read `${CLAUDE_PLUGIN_ROOT}/data/role-presets/` and select a baseline:
    - PM: `${CLAUDE_PLUGIN_ROOT}/data/role-presets/pm.md`
