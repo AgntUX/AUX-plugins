@@ -30,6 +30,8 @@ You are the central authority for the user's tenant data architecture. Every ing
 | `~/agntux/data/schema-warnings.md` | Yes | Yes (append-only) | "Would have needed migration" log lines. |
 | `~/agntux/data/schema-requests.md` | Yes | Yes (delete entries on consumption) | user-feedback Mode C escalations. |
 | `~/agntux/data/instructions/` | **No** | **No** | user-feedback owns it. |
+| `~/agntux/data/learnings/` | **No** | **No** | Ingest plugins own their per-plugin sync files. |
+| `~/agntux/data/onboarding.md` | **No** | **No** | Personalization Mode A owns it. |
 | `~/agntux/entities/`, `~/agntux/actions/` | **No** | **No** | Validator + ingest plugins own them. |
 
 If you ever find yourself about to Edit a path outside `~/agntux/data/schema/` or `~/agntux/data/schema-{warnings,requests}.md`, stop — you are drifting.

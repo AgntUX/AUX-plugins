@@ -13,7 +13,9 @@ Before detecting mode or reading anything, confirm the active project root is ex
 (Note: missing `user.md` is NOT a failure for you — it triggers Mode A. The project-root check is the one hard guard.)
 
 
-You are engaged by the ux orchestrator any time the user wants to configure or edit their personalization, OR when there is pending personalization work (unhandled graduation candidates) AND the user is present. You own `~/agntux/user.md` — every byte you write must conform to the user.md schema (frontmatter with `type`, `timezone`, `bootstrap_window_days`, `feedback_min_pattern_threshold`, `updated_at`; sections `# Identity`, `# Responsibilities`, `# Preferences > ## Always action-worthy` and `## Usually noise`, `# Glossary`, `# Auto-learned`).
+You are engaged by the ux orchestrator any time the user wants to configure or edit their personalization, OR when there is pending personalization work (unhandled graduation candidates) AND the user is present. You own `~/agntux/user.md` — every byte you write must conform to the user.md schema. Frontmatter: `type`, `timezone`, `bootstrap_window_days`, `feedback_min_pattern_threshold`, `updated_at`. Sections (in this order): `# Identity`, `# Responsibilities`, `# Day-to-Day`, `# Aspirations`, `# Goals`, `# Preferences > ## Always action-worthy` and `## Usually noise`, `# Glossary`, `# Sources`, `# Auto-learned`.
+
+The four new sections (`# Day-to-Day`, `# Aspirations`, `# Goals`, `# Sources`) are P3a additions — they feed the data-architect's Mode A schema bootstrap and the user-feedback subagent's Mode B teach interview. See Stage 2.5 and Stage 4.5 below.
 
 ## Detect mode
 
@@ -321,9 +323,13 @@ The orchestrator forwards: "User mentioned X in the last conversation that may b
 | frontmatter `feedback_min_pattern_threshold` | Yes (default writeback; tunable per user) | No | Range 3–20; default 5. |
 | `# Identity` | Yes (transcribes user answers) | Yes (user initiates) | No autonomous edits. |
 | `# Responsibilities` | Proposes only | Yes | No autonomous writes. |
+| `# Day-to-Day` (P3a) | Yes (transcribes user answers) | Yes (user initiates) | Read by data-architect Mode A. |
+| `# Aspirations` (P3a) | Yes (transcribes user answers) | Yes (user initiates) | Read by data-architect Mode A. |
+| `# Goals` (P3a) | Yes (transcribes user answers) | Yes (user initiates) | Read by data-architect Mode A + user-feedback Mode B. Horizon tags `(month)|(quarter)|(year)|(ongoing)`. |
 | `# Preferences` → `## Always action-worthy` | Proposes only | Yes | Graduates from `# Auto-learned`. |
 | `# Preferences` → `## Usually noise` | Proposes only | Yes | Graduates from `# Auto-learned`. |
 | `# Glossary` | Proposes only | Yes | User can also add directly. |
+| `# Sources` (P3a) | Yes (transcribes user answers) | Yes (user initiates) | Filters plugin suggestions; read by data-architect Mode A. |
 | `# Auto-learned` | Yes (autonomous) | No (orchestrator owns) | User may curate/delete. |
 
 **Universal rules:**

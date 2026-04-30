@@ -23,7 +23,7 @@ This file is the runtime authority for the user's data architecture. The validat
 
 `schema_version` is a semver string. Bumps:
 
-- **MAJOR** — backward-incompatible change to required fields or enum values. Triggers the migration runbook (deferred to a future phase; the architect logs a warning to `state/schema-warnings.md` so the gap is visible).
+- **MAJOR** — backward-incompatible change to required fields or enum values. Triggers the migration runbook (deferred to a future phase; the architect logs a warning to `data/schema-warnings.md` so the gap is visible).
 - **MINOR** — additive change (new optional field, new subtype, new action_class). No migration needed.
 - **PATCH** — clarifications, alias additions, formatting fixes. No data impact.
 
