@@ -1,0 +1,21 @@
+tagline: "Slack messages as AgntUX entities (missing proposed_schema)."
+description: |
+  Fixture: ingest plugin slug ends in -ingest but the listing.yaml does not
+  declare a proposed_schema block. Linter must emit E14.
+categories:
+  - communication
+keywords:
+  - slack
+  - chat
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+support:
+  url: "https://github.com/agntux/plugins/issues?q=label%3Aslack-ingest"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"

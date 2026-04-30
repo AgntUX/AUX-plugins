@@ -120,7 +120,7 @@ You do NOT:
 
 If you find yourself reading more than `user.md` frontmatter or one action file, you've drifted. Engage the right subagent.
 
-You also do NOT run freshness checks on `.state/sync.md`. Freshness is the retrieval subagent's job — it owns those warnings.
+You also do NOT run freshness checks on per-plugin sync files at `data/learnings/{plugin-slug}/sync.md` (formerly `.state/sync.md`). Freshness is the retrieval subagent's job — it owns those warnings.
 
 ## Trial-status banner
 

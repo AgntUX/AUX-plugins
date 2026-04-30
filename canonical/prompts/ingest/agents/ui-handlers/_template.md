@@ -37,7 +37,8 @@ Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
 
   {{plugin-slug}}                — kebab-case plugin slug; from manifest `name` field
   {{source-display-name}}        — human-readable label (e.g., "Slack"); from per-source spec
-  {{source-slug}}                — matches the `# {{source-slug}}` heading in .state/sync.md
+  {{source-slug}}                — short source identifier; appears in entity source maps,
+                                    action-item `source:` fields, and `data/learnings/{{plugin-slug}}/sync.md`
   {{ui-handler-name}}            — kebab-case handler name (e.g., "slack-thread"); from per-source spec
   {{ui-handler-display-name}}    — human-readable handler name (e.g., "Slack thread"); from per-source spec
   {{ui-name}}                    — view-tool root name (e.g., "thread", "channel-summary"); from per-source spec

@@ -1,0 +1,51 @@
+tagline: "Local Markdown notes, surfaced as AgntUX entities."
+description: |
+  Watches a local notes directory and synthesises people, companies,
+  projects, and topics into the AgntUX knowledge store.
+categories:
+  - productivity
+  - notes-knowledge
+keywords:
+  - notes
+  - markdown
+  - local-files
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "ux:notes-ingest"
+    purpose: "Scheduled task — fires the ingest agent on the user's chosen cadence."
+support:
+  url: "https://github.com/agntux/plugins/issues?q=label%3Anotes-ingest"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: person
+      description: "Individuals named or mentioned in notes."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+    - subtype: company
+      description: "Organizations referenced in notes."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+  action_classes:
+    - class: knowledge-update
+      description: "An informational signal extracted from a note."
+    - class: deadline
+      description: "A note carrying an explicit due date."
+  cursor_semantics: "Filesystem mtime in milliseconds (epoch)."
+  source_id_format: "Absolute file path under the configured notes directory."

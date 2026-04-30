@@ -1,0 +1,7 @@
+{
+  "name": "e14-missing-schema-ingest",
+  "version": "1.0.0",
+  "description": "Fixture: ingest plugin missing proposed_schema.",
+  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "license": "ELv2"
+}

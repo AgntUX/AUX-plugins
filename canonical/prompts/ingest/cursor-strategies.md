@@ -2,11 +2,16 @@
 
 This file is the canonical reference for cursor conventions used by per-source ingest plugins.
 P6's plugin generator reads this file when substituting `{{source-cursor-semantics}}` into the
-ingest subagent template and when documenting the cursor format in each plugin's
-`.state/notes/{{source-slug}}.md` seed content.
+ingest subagent template.
 
-Each entry covers: cursor type, where it is stored in `.state/sync.md`, how to advance it after
-a successful run, and how to recover when a gap or expiry is detected.
+Each entry covers: cursor type, where it is stored in the per-plugin sync file, how to advance
+it after a successful run, and how to recover when a gap or expiry is detected.
+
+> **P3a path note.** Every plugin owns a single sync file at
+> `~/agntux/data/learnings/{{plugin-slug}}/sync.md`. The legacy shared `.state/sync.md` and the
+> per-source `.state/notes/{{source-slug}}.md` learnings files are retired. Cursor + lock + the
+> bounded `errors` list (last 10 entries) are the entire writable surface; there is no separate
+> per-plugin "learnings.md".
 
 ---
 
@@ -19,11 +24,9 @@ Each Gmail mailbox has a single global history sequence. The `historyId` returne
 `users.history.list` represents "the state of the mailbox at this point in time." It is NOT
 a timestamp; it cannot be computed from one.
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/gmail-ingest/sync.md`
 
 ```markdown
-# gmail
-
 - cursor: "1234567890"     ← verbatim historyId string from the last successful fetch
 ```
 
@@ -38,7 +41,7 @@ After a successful `users.history.list` call:
 2. The new cursor is the **largest** `historyId` in the response (or the `historyId` field
    on the `users.history.list` response envelope if the array is empty — this represents
    the current head of the mailbox history).
-3. Write the new cursor to `.state/sync.md → # gmail → cursor` atomically.
+3. Write the new cursor to `data/learnings/gmail-ingest/sync.md` atomically.
 
 ### Recovering from a gap
 
@@ -47,18 +50,16 @@ After a successful `users.history.list` call:
 purges history after approximately 30 days) or was never valid.
 
 **Recovery procedure:**
-1. Read `last_success` from `.state/sync.md → # gmail`. If non-null, use it as a timestamp
-   lower bound: fetch messages with `q: "after:{YYYY/MM/DD}"` derived from `last_success`.
-2. If `last_success` is null (never successfully synced), fall back to the `bootstrap_window_days`
-   window from `user.md` frontmatter (default 30 days).
+1. Read `last_success` from `data/learnings/gmail-ingest/sync.md`. If non-null, use it as a
+   timestamp lower bound: fetch messages with `q: "after:{YYYY/MM/DD}"` derived from
+   `last_success`.
+2. If `last_success` is null (never successfully synced), fall back to the
+   `bootstrap_window_days` window from `user.md` frontmatter (default 30 days).
 3. Process the recovered messages as a bootstrap batch.
 4. After the batch completes, call `users.getProfile` to obtain the current `historyId` and
    write it as the new cursor. This re-anchors the cursor at the present.
-5. Append a learning:
-   ```
-   - historyId gap detected; recovered using timestamp fallback from last_success (learned {YYYY-MM-DD})
-   ```
-   to `.state/notes/gmail.md → ## Timestamp quirks`.
+5. Append a structured `historyid-gap` entry to `sync.md → errors` (last 10 entries kept) so
+   the staleness surfaces in the next `/ux` retrieval freshness check.
 
 **Do NOT reset cursor to null** — that would re-process up to `bootstrap_window_days` of mail
 on the next run and likely flood the action-item list.
@@ -74,11 +75,9 @@ Per-channel `ts` (timestamp string) — a Slack channel-message timestamp in the
 has its own independent cursor; Slack has no mailbox-wide sequence number comparable to Gmail's
 `historyId`.
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/slack-ingest/sync.md`
 
 ```markdown
-# slack
-
 - cursor: {"C01ABC": "1714043640.001200", "C02DEF": "1713990000.000000", "D03GHI": null}
 ```
 
@@ -86,7 +85,7 @@ The cursor value is a **JSON object serialised as a single-line string** (no new
 channel/DM IDs to their latest-processed `ts`. A channel whose value is `null` has been
 discovered but not yet bootstrapped. A channel not yet in the map has never been seen.
 
-Because `.state/sync.md` is markdown, store the object as an inline JSON string on the cursor
+Because the sync file is markdown, store the object as an inline JSON string on the cursor
 line. The ingest agent reads it with `JSON.parse(cursor)` (or equivalent) and writes it back
 with `JSON.stringify(obj)` (no pretty-printing).
 
@@ -96,7 +95,7 @@ After processing messages for a channel:
 
 1. Set `cursor_map[channel_id]` to the `ts` of the **newest** message processed in that channel.
 2. Serialise the updated map and write back to the `cursor` line.
-3. Write `.state/sync.md` atomically after all channels in the batch are advanced.
+3. Write the sync file atomically after all channels in the batch are advanced.
 
 Advance one channel at a time if processing sequentially; advance all at once at the end if
 processing in a single batch. Either is conformant — the cursor is only read at the start of
@@ -111,13 +110,15 @@ within range), OR the workspace admin has deleted old messages and the cursor re
 message that no longer exists.
 
 **Recovery procedure:**
-1. Read `last_success` from `.state/sync.md → # slack`. If non-null, compute a Unix timestamp
-   from `last_success` and use it as the `oldest` parameter for `conversations.history`.
+1. Read `last_success` from `data/learnings/slack-ingest/sync.md`. If non-null, compute a Unix
+   timestamp from `last_success` and use it as the `oldest` parameter for
+   `conversations.history`.
 2. If `last_success` is null, use the `bootstrap_window_days` window.
 3. For channels that have never been bootstrapped (`ts: null` in the cursor map), always use
    the `bootstrap_window_days` window regardless of `last_success`.
 4. After the recovery batch, advance the cursor map as normal.
-5. Append a learning to `.state/notes/slack.md → ## Timestamp quirks`.
+5. Append a `slack-ts-stale` entry (kind `source`) to `sync.md → errors` so the staleness
+   surfaces on the next `/ux`.
 
 **DM channels** use the same `ts`-based cursor. They appear in the cursor map with their
 `D`-prefixed channel ID (e.g., `"D03GHI"`).
@@ -137,11 +138,9 @@ ISO 8601 timestamp string — used as the `updated >= "{timestamp}"` clause in J
 Specifically: `"2026-04-25T18:00:00.000+0000"` (Jira Cloud's preferred format). The cursor
 represents "last time we successfully fetched; fetch everything updated after this."
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/jira-ingest/sync.md`
 
 ```markdown
-# jira
-
 - cursor: "2026-04-25T18:00:00.000+0000"
 ```
 
@@ -154,7 +153,7 @@ After a successful JQL query batch:
 
 1. Record the **start time of the current run** (not the timestamp of the newest issue — see
    note below) as the new cursor.
-2. Write to `.state/sync.md → # jira → cursor` atomically.
+2. Write to `data/learnings/jira-ingest/sync.md` atomically.
 
 **Why start-of-run, not newest-issue timestamp?** Jira issues can be updated milliseconds apart.
 Using the newest `updated` field as the cursor risks skipping issues updated in the same second
@@ -190,11 +189,9 @@ Folder-level `modifiedTime` timestamp — RFC 3339 string representing the most 
 `modifiedTime` seen across all files in the watched folders. Fetch is performed via
 `drive.files.list?q=modifiedTime > '{cursor}' and '{folderId}' in parents`.
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/gdrive-ingest/sync.md`
 
 ```markdown
-# gdrive
-
 - cursor: "2026-04-25T18:00:00Z"
 ```
 
@@ -208,7 +205,7 @@ After a successful fetch across all watched folders:
 
 1. Record the **start time of the current run** as the new cursor (same rationale as Jira —
    avoids edge-case skips for files modified in the last second of the window).
-2. Write to `.state/sync.md → # gdrive → cursor` atomically.
+2. Write to `data/learnings/gdrive-ingest/sync.md` atomically.
 
 ### Recovering from a gap
 
@@ -219,24 +216,24 @@ hundreds of results.
 1. Sort results by `modifiedTime ASC`. Process the oldest 200.
 2. Advance the cursor to the start-of-run timestamp.
 3. Exit; next run picks up the next 200.
-4. Append to `.state/notes/gdrive.md → ## Timestamp quirks` if the backlog was unexpectedly large.
+4. If the backlog was unexpectedly large, append a `gdrive-large-backlog` entry (kind `source`)
+   to `sync.md → errors`.
 
 **Symptom:** a watched folder has been deleted or the Drive permissions were revoked. The API
 returns a 404 or 403 for the folder.
 
 **Recovery procedure:**
-1. Log a structured error to `.state/sync.md → # gdrive → errors` with kind `source` and
-   message `"folder {folderId} not found or permission denied"`.
+1. Append a structured error to `data/learnings/gdrive-ingest/sync.md → errors` with kind
+   `source` and message `"folder {folderId} not found or permission denied"`.
 2. Skip that folder for this run; process other folders normally.
-3. Append to `.state/notes/gdrive.md → ## Open questions` so the personalization subagent can
-   ask the user to reconfigure the watched folders.
+3. Persistent failures surface to the user via retrieval's freshness check on the next `/ux`,
+   prompting them to reconfigure the watched folders.
 
 **GDrive change tokens (alternative):** Drive also offers a Changes API with a `pageToken`
 (change cursor). This is more efficient for high-volume drives but requires a separate
 `changes.getStartPageToken` bootstrap call. For simplicity, the default implementation uses
-the `modifiedTime` filter. If `.state/notes/gdrive.md → ## Timestamp quirks` records
-"high-volume drive, modifiedTime fetches timing out", the agent should note switching to
-the Changes API as an `## Open questions` item.
+the `modifiedTime` filter. If the user reports performance issues at scale, the `proposed_schema`
+on a future plugin version may opt in to the Changes API instead.
 
 ---
 
@@ -248,11 +245,9 @@ the Changes API as an `## Open questions` item.
 CRM API supports filtering contacts, companies, and deals by `lastmodifieddate` (v1) or
 `updatedAt` (v3). Use the v3 `updatedAt ≥ {cursor}` filter.
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/hubspot-ingest/sync.md`
 
 ```markdown
-# hubspot
-
 - cursor: "2026-04-25T18:00:00.000Z"
 ```
 
@@ -265,7 +260,7 @@ HubSpot's API accepts the same timestamp filter across all CRM objects.
 After a successful fetch of all object types:
 
 1. Use the **start time of the current run** as the new cursor (same rationale as Jira/GDrive).
-2. Write to `.state/sync.md → # hubspot → cursor` atomically.
+2. Write to `data/learnings/hubspot-ingest/sync.md` atomically.
 
 ### Recovering from a gap
 
@@ -280,8 +275,9 @@ query returns a large result set.
 **Symptom:** the cursor is null (bootstrap). Use `updatedAt ≥ now − bootstrap_window_days`.
 
 **HubSpot rate limiting note:** HubSpot enforces burst limits (100 req/10s for CRM APIs). If the
-fetch returns HTTP 429, log kind `network` with message `"HubSpot rate limit; retry next run"`,
-release the lock, and exit. The next scheduled run will continue from the same cursor.
+fetch returns HTTP 429, log kind `network` with message `"HubSpot rate limit; retry next run"`
+to `sync.md → errors`, release the lock, and exit. The next scheduled run will continue from the
+same cursor.
 
 **HubSpot pagination note:** HubSpot's v3 CRM API uses cursor-based pagination via the `after`
 paging token in the response. When paginating within a run, collect all pages up to the 200-item
@@ -298,11 +294,9 @@ File modification time (mtime) — RFC 3339 string representing the most recent 
 across all processed files in the watched directory. Fetch is performed by listing files in the
 watched directory and filtering for those with `mtime > cursor`.
 
-### Storage in `.state/sync.md`
+### Storage in `data/learnings/notes-ingest/sync.md`
 
 ```markdown
-# notes
-
 - cursor: "2026-04-25T18:00:00Z"
 ```
 
@@ -316,7 +310,7 @@ After successfully processing all files modified since the last cursor:
    - Using start-of-run (not the newest mtime in the batch) prevents a race where a file is
      modified during the run: the file would have `mtime > start-of-run` and would be caught
      on the next run.
-2. Write to `.state/sync.md → # notes → cursor` atomically.
+2. Write to `data/learnings/notes-ingest/sync.md` atomically.
 
 ### Recovering from a gap
 
@@ -334,21 +328,21 @@ folder migration). The list of modified files exceeds 200.
 **Symptom:** the watched directory has been moved or deleted.
 
 **Recovery procedure:**
-1. Log a structured error to `.state/sync.md → # notes → errors` with kind `source` and
-   message `"watched directory not found: {path}"`.
+1. Append a structured error to `data/learnings/notes-ingest/sync.md → errors` with kind
+   `source` and message `"watched directory not found: {path}"`.
 2. Release the lock and exit.
-3. Append to `.state/notes/notes.md → ## Open questions` so the personalization subagent can
-   ask the user to reconfigure the notes directory path in `.mcp.json`.
+3. Persistent failures surface to the user via retrieval's freshness check on the next `/ux`,
+   prompting them to reconfigure the notes directory path in `.mcp.json`.
 
 **File encoding note:** notes files may be UTF-8, UTF-8 BOM, or legacy encodings (RTF). The
 filesystem MCP server (`@modelcontextprotocol/server-filesystem`) returns file contents as
-UTF-8 where possible. If a file cannot be decoded, log kind `parse` and skip it; append to
-`## Timestamp quirks` so the pattern is visible.
+UTF-8 where possible. If a file cannot be decoded, log kind `parse` to `sync.md → errors` and
+skip the file.
 
 **Subdirectory handling:** the default implementation is flat (one directory, no recursion).
-If the user's notes are in a nested directory structure, the ingest agent should note the
-limitation in `.state/notes/notes.md → ## Open questions` and process only the top-level
-files. Recursive directory traversal is a potential future enhancement.
+Recursive directory traversal is a potential future enhancement; if the user requests it, the
+plugin author should add it as a configuration option in `.mcp.json` rather than expanding the
+agent prompt.
 
 ---
 
@@ -359,6 +353,6 @@ files. Recursive directory traversal is a potential future enhancement.
 | Gmail | `historyId` (opaque int string) | `"1234567890"` | End of batch (use response envelope historyId) | `historyNotFound` → timestamp fallback from `last_success` or bootstrap window; then re-anchor from `getProfile` |
 | Slack | Per-channel `ts` map (JSON object) | `{"C01": "1714043640.001200"}` | End of per-channel batch | Stale ts → use `last_success` Unix timestamp as `oldest`; null channel → bootstrap window |
 | Jira | `updated >=` JQL timestamp | `"2026-04-25T18:00:00.000+0000"` | Start of current run | Old cursor → normal catch-up (200-item batches); null → bootstrap window |
-| GDrive | Folder `modifiedTime` | `"2026-04-25T18:00:00Z"` | Start of current run | Old cursor → catch-up batches; deleted folder → log error, skip, note in Open questions |
+| GDrive | Folder `modifiedTime` | `"2026-04-25T18:00:00Z"` | Start of current run | Old cursor → catch-up batches; deleted folder → log error to sync.md → errors |
 | HubSpot | CRM `updatedAt` | `"2026-04-25T18:00:00.000Z"` | Start of current run | Old cursor → catch-up batches; 429 → log and exit, retry next run |
-| Filesystem | Directory `mtime` | `"2026-04-25T18:00:00Z"` | Start of current run | Null → bootstrap window; moved dir → log error, exit, note in Open questions |
+| Filesystem | Directory `mtime` | `"2026-04-25T18:00:00Z"` | Start of current run | Null → bootstrap window; moved dir → log error to sync.md → errors, exit |

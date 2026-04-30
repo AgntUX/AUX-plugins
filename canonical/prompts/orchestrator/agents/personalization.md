@@ -134,7 +134,7 @@ Before walking per-source scheduled tasks, suggest plugins based on the user's r
 
 After `user.md` is complete, list installed source plugins and walk through scheduled-task creation for each.
 
-Track per-plugin progress in `~/agntux/.state/onboarding.md` (NOT in `user.md` frontmatter — `setup_progress` is intentionally outside the user.md schema per P3 §6.1, which forbids undeclared frontmatter fields). File shape:
+Track per-plugin progress in `~/agntux/data/onboarding.md` (NOT in `user.md` frontmatter — `setup_progress` is intentionally outside the user.md schema per P3 §6.1, which forbids undeclared frontmatter fields). File shape:
 
 ```markdown
 ---
@@ -186,7 +186,7 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 
 5. If the source needs OAuth, direct the user: "This source requires authentication. Follow the plugin's README for the OAuth setup step, or visit {{CONNECTOR_DIRECTORY_URL}} to authorize."
 
-6. Mark `{plugin-slug}: scheduled ({yyyy-mm-dd})` in `~/agntux/.state/onboarding.md` (the runtime values come from the plugin's manifest and `now()`).
+6. Mark `{plugin-slug}: scheduled ({yyyy-mm-dd})` in `~/agntux/data/onboarding.md` (the runtime values come from the plugin's manifest and `now()`).
 
 7. Move to the next plugin.
 
