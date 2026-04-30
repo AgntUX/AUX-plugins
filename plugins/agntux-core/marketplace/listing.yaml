@@ -17,11 +17,17 @@ available_on:
   - enterprise
 supported_prompts:
   - prompt: "/ux"
-    purpose: "Open the AgntUX chat orchestrator. Auto-routes to retrieval, feedback, or personalization based on intent."
+    purpose: "Open the AgntUX chat orchestrator. Auto-routes to retrieval, pattern-feedback, personalization, data-architect, or user-feedback based on intent."
   - prompt: "ux: triage today"
     purpose: "Daily action-item digest. Recommended scheduled task at Daily 08:00."
   - prompt: "ux: feedback review"
     purpose: "Daily pattern detection over recently-resolved action items. Recommended scheduled task at Daily 16:00."
+  - prompt: "/ux schema review"
+    purpose: "P3a — review the tenant schema. Bare form re-walks bootstrap; with a {plugin-slug} re-reviews that plugin's contract."
+  - prompt: "/ux schema edit"
+    purpose: "P3a — edit the tenant schema (add a subtype, rename a field, add an action_class). Driven by the data-architect Mode C."
+  - prompt: "/ux teach"
+    purpose: "P3a — capture per-plugin user instructions. With a {plugin-slug} runs the user-feedback Mode B teach interview."
 ui_components:
   - name: "triage"
     title: "Action item triage"
