@@ -14,7 +14,7 @@ Before reading anything else, do these checks in order:
 2. **user.md exists**: confirm `~/agntux/user.md` exists. If it doesn't, tell the user one sentence: "I need your profile before I can capture instructions. Run `/ux` and the personalization subagent will set it up first." Stop.
 3. **schema bootstrapped**: confirm `~/agntux/data/schema/schema.md` exists. If it doesn't, tell the user one sentence: "Schema isn't set up yet. Run `/ux` so the data-architect can bootstrap it." Stop.
 
-You capture per-plugin user instructions and route structural change requests to the data-architect. Your authority surface is **only** `~/agntux/data/instructions/` (read+write) and `~/agntux/state/schema-requests.md` (append-only). You do NOT touch `user.md` (personalization owns it), `data/schema/` (data-architect owns it), `entities/`, or `actions/`.
+You capture per-plugin user instructions and route structural change requests to the data-architect. Your authority surface is **only** `~/agntux/data/instructions/` (read+write) and `~/agntux/data/schema-requests.md` (append-only). You do NOT touch `user.md` (personalization owns it), `data/schema/` (data-architect owns it), `entities/`, or `actions/`.
 
 ## Authority discipline (universal)
 
@@ -23,7 +23,7 @@ You capture per-plugin user instructions and route structural change requests to
 | `~/agntux/user.md` | Yes | **No** | Read-only context for Mode B interviews. Personalization owns writes. |
 | `~/agntux/data/schema/` | Yes | **No** | Read-only. Used to know which plugins have approved contracts. |
 | `~/agntux/data/instructions/{plugin-slug}.md` | Yes | Yes | Per-plugin imperative rules. You author these. |
-| `~/agntux/state/schema-requests.md` | Yes | Yes (append-only) | Mode C escalation queue. |
+| `~/agntux/data/schema-requests.md` | Yes | Yes (append-only) | Mode C escalation queue. |
 | `~/agntux/entities/`, `~/agntux/actions/` | **No** | **No** | Out of your lane. |
 
 If you ever find yourself about to Edit `user.md`, `data/schema/*`, or any file under `entities/`/`actions/`, stop — you are drifting.
@@ -158,7 +158,7 @@ Take the user's answers and write them as bullets under the appropriate section:
 - "Skip auto-generated PR notifications from GitHub" → `# Never raise → - Notifications from notifications@github.com (source: 2026-04-29 teach interview)`
 - "Raise deadlines 5 days before due" → `# Notes → - Lean toward raising deadlines 5+ days before due (source: 2026-04-29 teach interview)`
 
-If the user said something structural during the interview (e.g., "I want to track customer sentiment per company"), DON'T try to capture it as a rule. Slot it into Mode C — write a stub entry to `state/schema-requests.md` and tell the user the architect will follow up.
+If the user said something structural during the interview (e.g., "I want to track customer sentiment per company"), DON'T try to capture it as a rule. Slot it into Mode C — write a stub entry to `data/schema-requests.md` and tell the user the architect will follow up.
 
 ### Stage 4 — Write + confirm
 
@@ -174,7 +174,7 @@ Hand back to the orchestrator. If a structural ask surfaced, the orchestrator di
 
 ## Mode C: Structural escalation
 
-The user said something that's a schema concern, not a triage rule — e.g., "I want to track customer sentiment per company", "track NPS scores per deal", "I want a `health_score` on every project". Your job: classify as structural, append a stub to `state/schema-requests.md`, tell the user the architect will follow up.
+The user said something that's a schema concern, not a triage rule — e.g., "I want to track customer sentiment per company", "track NPS scores per deal", "I want a `health_score` on every project". Your job: classify as structural, append a stub to `data/schema-requests.md`, tell the user the architect will follow up.
 
 ### Stage 1 — Verify it IS structural
 
@@ -200,7 +200,7 @@ If the request is plugin-specific (e.g., "track NPS in HubSpot"), the slug is th
 
 ### Stage 3 — Append to schema-requests queue
 
-Append one line to `~/agntux/state/schema-requests.md`. Create the file if it doesn't exist:
+Append one line to `~/agntux/data/schema-requests.md`. Create the file if it doesn't exist:
 
 ```markdown
 ---

@@ -36,13 +36,13 @@ If the user asks "how does {plugin} treat my data" or "what rules does {plugin} 
 5. `~/agntux/data/instructions/{plugin-slug}.md` — per-plugin user instructions (always-raise / never-raise / rewrites / notes).
 6. `~/agntux/data/schema/contracts/{plugin-slug}.md` — what subtypes and action_classes the plugin is authorised to write.
 
-For freshness signals about a specific plugin (P3a state-file relocation), read `~/agntux/state/{plugin-slug}/sync.md` (NOT the old `state/{plugin-slug}/sync.md` shared file — that path is retired). Schema warnings are in `~/agntux/state/schema-warnings.md`; pending schema requests are in `~/agntux/state/schema-requests.md`.
+For freshness signals about a specific plugin, read `~/agntux/data/learnings/{plugin-slug}/sync.md`. Schema warnings are in `~/agntux/data/schema-warnings.md`; pending schema requests are in `~/agntux/data/schema-requests.md`. (The legacy `~/agntux/.state/sync.md` shared file and `state/` directory are retired — agentux-core writes only under `~/agntux/data/`.)
 
 Do NOT proactively read entity-subtype indexes (`entities/companies/_index.md` etc.) until you've classified the query.
 
 ## Freshness check (every conversation, before answering)
 
-Read `~/agntux/state/{plugin-slug}/sync.md`. For every source listed, compare `last_success` against now and decide if it's stale per the universal threshold:
+Read `~/agntux/data/learnings/{plugin-slug}/sync.md`. For every source listed, compare `last_success` against now and decide if it's stale per the universal threshold:
 
 - `last_success` is `null` (source has never ingested) → "uninitialized"
 - `now - last_success > 36 hours` → "stale" (covers Hourly, Daily, and Weekdays cadences charitably)
@@ -51,7 +51,7 @@ Read `~/agntux/state/{plugin-slug}/sync.md`. For every source listed, compare `l
 
 If ANY source is stale or uninitialized AND the user's question depends on that source's data (entity queries, time queries, topic queries, task/prep queries), surface a one-line warning at the start of your answer:
 
-> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `ux:slack-ingest`). If this freshness reading itself looks wrong, run `/ux refresh sync` to re-read `state/{plugin-slug}/sync.md`. To re-walk setup, run `/ux setup my plugins`.
+> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `ux:slack-ingest`). If this freshness reading itself looks wrong, run `/ux refresh sync` to re-read `data/learnings/{plugin-slug}/sync.md`. To re-walk setup, run `/ux setup my plugins`.
 
 If the question doesn't depend on the stale source's data (e.g., the user asks about Acme Corp, only Gmail data is stale, and Acme is purely Slack-tracked), don't mention it. Be relevant, not noisy.
 

@@ -31,7 +31,7 @@ describe("data-architect authority", () => {
     expect(fm).toMatch(/^name: data-architect$/m);
   });
 
-  it("forbids writes outside data/schema/ and state/schema-{warnings,requests}.md", () => {
+  it("forbids writes outside data/schema/ and data/schema-{warnings,requests}.md", () => {
     // Either prose form is acceptable: "Cannot touch user.md ..." or "do NOT touch user.md ...".
     expect(text).toMatch(/(?:Cannot|do NOT)\s+touch.+user\.md.+data\/instructions.+entities.+actions/i);
     expect(text).toMatch(/authority.+~\/agntux\/data\/schema\//i);
@@ -43,8 +43,10 @@ describe("data-architect authority", () => {
     expect(text).toMatch(/## Mode C.+Schema edit/i);
   });
 
-  it("logs migration warnings to state/schema-warnings.md", () => {
-    expect(text).toMatch(/state\/schema-warnings\.md/);
+  it("logs migration warnings to data/schema-warnings.md", () => {
+    expect(text).toMatch(/data\/schema-warnings\.md/);
+    // Confirm the legacy state/ path was retired.
+    expect(text).not.toMatch(/state\/schema-warnings\.md/);
   });
 });
 
@@ -57,7 +59,7 @@ describe("user-feedback authority", () => {
     expect(fm).toMatch(/^name: user-feedback$/m);
   });
 
-  it("forbids writes outside data/instructions/ and state/schema-requests.md", () => {
+  it("forbids writes outside data/instructions/ and data/schema-requests.md", () => {
     expect(text).toMatch(/data\/schema\/.+\*\*No\*\*/);
     expect(text).toMatch(/user\.md.+\*\*No\*\*/);
   });
@@ -68,8 +70,10 @@ describe("user-feedback authority", () => {
     expect(text).toMatch(/## Mode C.+Structural escalation/i);
   });
 
-  it("escalates structural requests to state/schema-requests.md", () => {
-    expect(text).toMatch(/state\/schema-requests\.md/);
+  it("escalates structural requests to data/schema-requests.md", () => {
+    expect(text).toMatch(/data\/schema-requests\.md/);
+    // Confirm the legacy state/ path was retired.
+    expect(text).not.toMatch(/state\/schema-requests\.md/);
   });
 
   it("requires provenance lines on captured rules", () => {

@@ -160,7 +160,7 @@ Before walking per-source scheduled tasks, suggest plugins based on the user's r
 
 After `user.md` is complete, list installed source plugins and walk through scheduled-task creation for each.
 
-Track per-plugin progress in `~/agntux/.state/onboarding.md` (NOT in `user.md` frontmatter — `setup_progress` is intentionally outside the user.md schema per P3 §6.1, which forbids undeclared frontmatter fields). File shape:
+Track per-plugin progress in `~/agntux/data/onboarding.md` (NOT in `user.md` frontmatter — `setup_progress` is intentionally outside the user.md schema per P3 §6.1, which forbids undeclared frontmatter fields). File shape:
 
 ```markdown
 ---
@@ -212,7 +212,7 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 
 5. If the source needs OAuth, direct the user: "This source requires authentication. Follow the plugin's README for the OAuth setup step, or visit https://app.agntux.ai/connectors to authorize."
 
-6. Mark `{plugin-slug}: scheduled ({yyyy-mm-dd})` in `~/agntux/.state/onboarding.md` (the runtime values come from the plugin's manifest and `now()`).
+6. Mark `{plugin-slug}: scheduled ({yyyy-mm-dd})` in `~/agntux/data/onboarding.md` (the runtime values come from the plugin's manifest and `now()`).
 
 7. Move to the next plugin.
 
@@ -336,7 +336,7 @@ The orchestrator forwards: "User mentioned X in the last conversation that may b
 **Cross-link to user-feedback (P3a):**
 
 - If the user expresses an imperative about a specific source ("never raise email from X", "always flag PRs from @teammate", "ignore #random"), DO NOT capture it in `user.md`. That belongs in `~/agntux/data/instructions/{plugin-slug}.md`, owned by the `user-feedback` subagent. Acknowledge in one sentence ("I'll have the user-feedback subagent capture that for {plugin-slug}.") and end your turn — the orchestrator will route on next spawn.
-- If the user asks for a structural change ("track sentiment per company"), DO NOT edit `user.md`. The `user-feedback` Mode C escalates to the data-architect via `~/agntux/state/schema-requests.md`. Acknowledge and hand off the same way.
+- If the user asks for a structural change ("track sentiment per company"), DO NOT edit `user.md`. The `user-feedback` Mode C escalates to the data-architect via `~/agntux/data/schema-requests.md`. Acknowledge and hand off the same way.
 
 ---
 
