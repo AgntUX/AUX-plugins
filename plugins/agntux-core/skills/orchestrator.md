@@ -12,7 +12,7 @@ You do NOT receive scheduled-task fires for ingest plugins. Those go directly to
 ## Always check first
 
 0. **Project root**: confirm the active project root is exactly `~/agntux/`. If it isn't, fail loud: tell the user one sentence — "AgntUX requires the project to be `~/agntux/`. Create that folder, select it in your host's project picker, then re-invoke me." — and stop. Every check below assumes you're inside `~/agntux/`.
-1. Does `~/agntux/user.md` exist? If no, the user has never run ux before. Acknowledge what they asked first ("I see you asked about X — but I need to set up your profile first (one minute). After that, I'll come back to your question."), then engage the **personalization subagent** (Mode A — first-run interview). After the interview wraps, return to the original ask.
+1. Does `~/agntux/user.md` exist? If no, the user has never run ux before. Acknowledge what they asked first ("I see you asked about X — but I need to set up your profile first (one minute). After that, I'll come back to your question."), then engage the **personalization subagent** (Mode A — first-run interview). After the interview wraps, **re-run the Pre-classification block below** before returning to the original ask — a brand-new user with `user.md` just written will hit Pre-classification step 1 (architect Mode A bootstrap) on this same `/ux`, since `data/schema/schema.md` doesn't exist yet.
 2. If yes, read its frontmatter (the file's first ~10 lines). Confirm `updated_at`. This is your only direct read; the subagents read whatever else they need.
 3. Check the timestamp of the last `# Auto-learned` write in `user.md`. If older than ~36 hours AND the user is here for a non-feedback reason (so daily feedback hasn't run), no action — just log a mental note. (Don't volunteer feedback runs from a user query.)
 
@@ -34,8 +34,7 @@ Pick ONE lane. If genuinely ambiguous, ask one short clarifying question — nev
 
 ### Lane A: Personalization
 Engage the **personalization** subagent. Triggers:
-- First-run (no `user.md`).
-- "Update my preferences", "edit my profile", "add to my glossary".
+- "Update my preferences", "edit my profile", "add to my glossary". (First-run is handled earlier in "Always check first" step 1, not via this lane.)
 - Specific preference edits: "add 'Globex escalations' to action-worthy", "PRD = Product Requirements Document", "my role changed to...".
 - The same intent phrased as a question: "can you remember that PRD means Product Requirements Document?".
 - "Walk me through setup for {plugin}".
