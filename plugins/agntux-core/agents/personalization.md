@@ -95,6 +95,41 @@ Write to `# Glossary` as bulleted `term = definition` lines. If the user skips, 
    - `updated_at` — today's date in `YYYY-MM-DD` format.
 3. Show the file path (`~/agntux/user.md`) and confirm it looks right.
 
+### Plugin suggestions (Mode A — after Stage 5)
+
+Before walking per-source scheduled tasks, suggest plugins based on the user's role.
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/data/plugin-suggestions.json` (the path the host exposes as the plugin root — per plan §10.2.2 this resolves to `agntux-core/data/plugin-suggestions.json` relative to the host's plugin directory). If the file is absent or unreadable, skip to the per-source walkthrough — no error.
+
+2. The registry shape:
+   ```json
+   {
+     "version": 2,
+     "rules": [
+       { "if_role_matches": ["pm", "product manager", ...], "suggest": [{ "slug": "slack-ingest", "status": "available" }, { "slug": "jira-ingest", "status": "coming-soon" }] },
+       { "default": [{ "slug": "notes-ingest", "status": "available" }, { "slug": "gmail-ingest", "status": "coming-soon" }] }
+     ]
+   }
+   ```
+   Rules are evaluated in order; first match wins. Match case-insensitively against the user's `# Identity → Role` from `user.md`: single-word keywords (e.g. `"pm"`, `"swe"`) require a whole-token match (not a substring of another word); multi-word keywords (e.g. `"product manager"`) use substring match. If no rule matches, use `default`.
+
+   **Important:** Only present plugins with `"status": "available"` to the user as installable options. Skip `"coming-soon"` entries entirely — do not mention them or offer to install them. Mode A must never prompt an install the user cannot complete.
+
+3. Present 2–4 suggestions to the user:
+   > "Based on your role as [Role], the plugins most likely to surface useful action items are: **slack-ingest**, **jira-ingest**, **gmail-ingest**. Want to install all three, pick a subset, or skip for now?"
+
+4. For each plugin the user agrees to install, walk the **Connector vs npm branch** below. Then continue to the standard per-source scheduled-task walkthrough for every installed plugin (including those not suggested but already installed).
+
+5. **Connector vs npm branch** (per-plugin setup):
+
+   **Connector branch** (plugin's `.claude-plugin/plugin.json` has `connector_directory_id` OR `requires_source_mcp.source == "connector"`):
+   > "This plugin is available as a managed Connector. Visit https://app.agntux.ai/connectors to authorize access if you haven't already. Once connected, come back here."
+
+   **npm branch** (no connector indicator):
+   > "This plugin is installed from npm as `{plugin-slug}-source-mcp`. Make sure it's running — you should have it in your `.mcp.json` or the host's MCP server list. If you don't see it active, install it: `npm install -g {plugin-slug}-source-mcp` and add it to your host's MCP configuration."
+
+   After either branch, give the scheduled-task prompt body and recommended cadence (read `recommended_ingest_cadence` from the plugin's `.claude-plugin/plugin.json`; fall back to `Daily 09:00`).
+
 ### Per-source scheduled-task walkthrough
 
 After `user.md` is complete, list installed source plugins and walk through scheduled-task creation for each.

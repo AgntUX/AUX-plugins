@@ -53,6 +53,18 @@ function regenerate(): void {
     const pluginJsonPath = path.join(pluginDir, ".claude-plugin", "plugin.json");
     const listingYamlPath = path.join(pluginDir, "marketplace", "listing.yaml");
 
+    // Skip plugin stubs that lack both marketplace/listing.yaml AND
+    // .claude-plugin/plugin.json — these are placeholder directories not yet
+    // ready for the marketplace (e.g. slack-ingest pre-launch scaffold).
+    const hasListingYaml = fs.existsSync(listingYamlPath);
+    const hasPluginJson = fs.existsSync(pluginJsonPath);
+    if (!hasListingYaml && !hasPluginJson) {
+      process.stderr.write(
+        `Skipping ${slug}: missing both marketplace/listing.yaml and .claude-plugin/plugin.json\n`,
+      );
+      continue;
+    }
+
     // Read plugin.json — only used for the cadence-field migration warning
     let pluginJson: Record<string, unknown> = {};
     try {
