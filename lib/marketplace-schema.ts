@@ -201,6 +201,48 @@ export const UiComponentSchema = z
   .strict();
 export type UiComponent = z.infer<typeof UiComponentSchema>;
 
+/**
+ * Proposed schema block (P3a §6.2) — declarative subtype + action_class
+ * vocabulary an ingest plugin claims at install time.
+ *
+ * The data-architect (in agntux-core) reviews this on first install:
+ * approve / rename / merge / refuse each entry, then writes the approved
+ * subset to ~/agntux/data/schema/contracts/{plugin-slug}.md. The runtime
+ * validator (validate-schema.mjs) reads the approved contract — never
+ * proposed_schema directly.
+ *
+ * Shape-only check: the marketplace linter doesn't verify subtypes against
+ * the user's tenant schema (that's runtime, per-user). It does require the
+ * field for any plugin whose category is `ingest` (handled by the lint-time
+ * pass in lint-plugin.ts, not this schema).
+ */
+export const ProposedEntitySubtypeSchema = z
+  .object({
+    subtype: z.string().regex(/^[a-z][a-z0-9-]*[a-z0-9]$/),
+    description: z.string().min(1).max(200),
+    required_frontmatter: z.array(z.string().min(1).max(40)).max(20).optional(),
+  })
+  .strict();
+export type ProposedEntitySubtype = z.infer<typeof ProposedEntitySubtypeSchema>;
+
+export const ProposedActionClassSchema = z
+  .object({
+    class: z.string().regex(/^[a-z][a-z0-9-]*[a-z0-9]$/),
+    description: z.string().min(1).max(200),
+  })
+  .strict();
+export type ProposedActionClass = z.infer<typeof ProposedActionClassSchema>;
+
+export const ProposedSchemaSchema = z
+  .object({
+    entity_subtypes: z.array(ProposedEntitySubtypeSchema).min(1).max(20),
+    action_classes: z.array(ProposedActionClassSchema).min(1).max(12),
+    cursor_semantics: z.string().min(1).max(200).optional(),
+    source_id_format: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+export type ProposedSchema = z.infer<typeof ProposedSchemaSchema>;
+
 /** Support block. P15 §3.1.1. */
 export const SupportSchema = z
   .object({
@@ -251,6 +293,7 @@ export const LISTING_KNOWN_KEYS = [
   "requires_source_mcp",
   "developer",
   "contributors",
+  "proposed_schema",
 ] as const;
 export type ListingKnownKey = (typeof LISTING_KNOWN_KEYS)[number];
 
@@ -300,6 +343,11 @@ export const ListingSchema = z
     requires_source_mcp: RequiresSourceMcpSchema.optional(),
     developer: DeveloperSchema,
     contributors: z.array(ContributorSchema).max(8).optional(),
+    /**
+     * Schema vocabulary the plugin proposes for the user's tenant (P3a §6.2).
+     * Optional in the schema; lint requires it for `category: ingest` plugins.
+     */
+    proposed_schema: ProposedSchemaSchema.optional(),
   })
   .passthrough()
   .superRefine((value, ctx) => {
@@ -455,6 +503,9 @@ export const MarketplaceSchemas = {
   Support: SupportSchema,
   Category: CategorySchema,
   AvailableOn: AvailableOnSchema,
+  ProposedSchema: ProposedSchemaSchema,
+  ProposedEntitySubtype: ProposedEntitySubtypeSchema,
+  ProposedActionClass: ProposedActionClassSchema,
   RESERVED_LISTING_FIELDS,
   LISTING_KNOWN_KEYS,
   AVAILABLE_ON_TIERS,
