@@ -103,7 +103,7 @@ describe("E1 — cold start: first action item appears", () => {
 // ---------------------------------------------------------------------------
 describe("E2 — pattern detection: 5 dismissals → # Auto-learned bullet", () => {
   it("feedback.md encodes the N-dismissals threshold rule", () => {
-    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "feedback.md"), "utf8");
+    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "pattern-feedback.md"), "utf8");
     // Verify the prompt encodes the pattern threshold
     expect(feedbackMd).toMatch(/feedback_min_pattern_threshold|threshold/i);
     expect(feedbackMd).toMatch(/default.*5|5.*default/i);
@@ -113,7 +113,7 @@ describe("E2 — pattern detection: 5 dismissals → # Auto-learned bullet", () 
   });
 
   it("feedback.md specifies dismissed status in 30-day scope", () => {
-    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "feedback.md"), "utf8");
+    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "pattern-feedback.md"), "utf8");
     expect(feedbackMd).toMatch(/dismissed/);
     expect(feedbackMd).toMatch(/30.day|30 day/i);
   });

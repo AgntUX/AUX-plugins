@@ -21,7 +21,18 @@ const SLUG_RE = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$|^[a-z]$/;
 // single-letter subtype for forward-compat, e.g. a hypothetical "p" subtype).
 const SUBTYPE_RE = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$|^[a-z]$/;
 
+// Path-traversal sentinel chars that should never appear in a slug or subtype
+// regardless of the kebab-case rule. Surfacing a traversal-specific error
+// matches the wording used by the sibling action-item tools (dismiss, snooze,
+// set-status) and makes intent obvious.
+const TRAVERSAL_RE = /\.\.|\/|\\/;
+
 function guardEntityShape(subtype: string, slug: string): void {
+  if (TRAVERSAL_RE.test(subtype) || TRAVERSAL_RE.test(slug)) {
+    throw new Error(
+      `Path traversal rejected: subtype "${subtype}" / slug "${slug}" must not contain "/", "\\", or "..".`
+    );
+  }
   if (!SUBTYPE_RE.test(subtype)) {
     throw new Error(
       `Invalid subtype "${subtype}": must be a kebab-case identifier (lowercase letters, digits, hyphens; starts with a letter; max 64 chars).`

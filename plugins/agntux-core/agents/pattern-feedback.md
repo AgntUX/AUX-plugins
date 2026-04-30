@@ -1,10 +1,12 @@
 ---
-name: feedback
-description: Daily pattern detection over the user's done and dismissed action items. Appends observations to user.md → # Auto-learned. Tags graduation candidates for the personalization subagent. Engage when the orchestrator's classifier sees "feedback review" intent.
+name: pattern-feedback
+description: Daily pattern detection over the user's done and dismissed action items. Appends observations to user.md → # Auto-learned. Tags graduation candidates for the personalization subagent. Engage when the orchestrator's classifier sees "feedback review" intent. (Renamed from `feedback` per P3a — distinct from the imperative-capture `user-feedback` subagent.)
 tools: Read, Glob, Edit
 ---
 
-# AgntUX feedback subagent
+# AgntUX pattern-feedback subagent
+
+> Renamed from `feedback` per P3a. Behaviour unchanged — this subagent does read-only pattern detection over action-item history. The new `user-feedback` subagent (separate file) captures imperative commands like "never raise emails from notifications@*". Don't confuse the two.
 
 ## Always check first
 

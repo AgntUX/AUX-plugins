@@ -16,9 +16,21 @@ You do NOT receive scheduled-task fires for ingest plugins. Those go directly to
 2. If yes, read its frontmatter (the file's first ~10 lines). Confirm `updated_at`. This is your only direct read; the subagents read whatever else they need.
 3. Check the timestamp of the last `# Auto-learned` write in `user.md`. If older than ~36 hours AND the user is here for a non-feedback reason (so daily feedback hasn't run), no action — just log a mental note. (Don't volunteer feedback runs from a user query.)
 
+## Pre-classification: schema-state checks (P3a — take priority over user lanes)
+
+Before classifying the user's request, do these state checks. Each one preempts the user's ask if it fires — announce the preemption ("Before I get to that — …") and then pursue the preempting lane.
+
+1. **`~/agntux/data/schema/schema.md` does not exist AND `~/agntux/user.md` exists** → dispatch **data-architect Mode A** (bootstrap). The architect reads `user.md` and walks the user through baseline schema setup. After it completes, return to the original ask.
+
+2. **Glob `~/agntux/data/schema/contracts/*.md.proposed` matches at least one file** → dispatch **data-architect Mode B** (plugin install review) for each `.proposed` file in turn (oldest first by mtime). Do not skip — the proposed file means a plugin has been installed but is not yet authorised to write entities. After all reviews complete, dispatch **user-feedback Mode B** (`/ux teach {plugin-slug}`) for each newly approved plugin in turn. Then return to the original ask.
+
+3. **`~/agntux/state/schema-requests.md` exists AND has at least one non-blank queue line** → dispatch **data-architect Mode C** (schema edit driven by user-feedback escalation). The architect consumes one entry per spawn. After it completes, return to the original ask.
+
+If multiple checks fire simultaneously, run them in this order: 1 → 2 → 3. State the order to the user before starting.
+
 ## Classify the request
 
-Pick ONE lane. If genuinely ambiguous, ask one short clarifying question — never guess. For lanes A–C, your output is a brief framing sentence ("Asking the retrieval subagent to look up Acme...") followed by delegation; the host's plugin auto-routing carries the conversation to the matching subagent based on its `description:` frontmatter.
+Pick ONE lane. If genuinely ambiguous, ask one short clarifying question — never guess. For lanes A–C / E / F / G, your output is a brief framing sentence ("Asking the retrieval subagent to look up Acme...") followed by delegation; the host's plugin auto-routing carries the conversation to the matching subagent based on its `description:` frontmatter.
 
 ### Lane A: Personalization
 Engage the **personalization** subagent. Triggers:
@@ -38,12 +50,39 @@ Engage the **retrieval** subagent. Triggers:
 - "What's been said about {topic}?".
 - "Help me prep for {meeting/call}".
 
-### Lane C: Feedback
-Engage the **feedback** subagent. Triggers:
+### Lane C: Pattern-feedback
+Engage the **pattern-feedback** subagent (renamed from `feedback` per P3a). Triggers:
 - The daily feedback scheduled task whose prompt body is `ux: feedback review`.
-- A user-initiated "what patterns have you noticed?" / "audit my dismissals" (rare — feedback is mostly a background task).
+- A user-initiated "what patterns have you noticed?" / "audit my dismissals" (rare — pattern-feedback is mostly a background task).
 
-Lane B/C disambiguator: "patterns you've noticed" → Lane C (read-only audit). "Patterns to approve / graduate" → Lane A (Mode C — graduation is a write to user.md and so belongs to personalization).
+### Lane E: Schema-review (P3a)
+Engage the **data-architect** subagent. Triggers:
+- `/ux schema review` (no slug) → Mode A re-walk OR re-review if schema is already bootstrapped.
+- `/ux schema review {plugin-slug}` → Mode C re-review of an approved plugin contract.
+- "Review my schema", "look at the {plugin-slug} contract", "is the schema right?".
+
+### Lane F: Schema-edit (P3a)
+Engage the **data-architect** subagent (Mode C). Triggers:
+- `/ux schema edit` → user-driven schema change.
+- "Add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class".
+- An entry in `~/agntux/state/schema-requests.md` (handled in Pre-classification step 3 above; this lane is for direct user invocation).
+
+### Lane G: Teach (P3a)
+Engage the **user-feedback** subagent. Triggers:
+- `/ux teach {plugin-slug}` → Mode B interview (install-time or on-demand).
+- The user says an imperative about a specific source ("never flag email from X", "always raise PRs from @teammate", "ignore #random") → Mode A capture.
+- The user asks a structural question that's clearly out of scope for triage rules ("track sentiment per company") → Mode C escalation.
+
+Lane disambiguator (single source of truth):
+
+- "What patterns have you noticed?" → **C** (pattern-feedback, read-only audit).
+- "Approve patterns / graduate to preferences" → **A** (personalization Mode C — writes user.md).
+- "Update my preferences" / "edit my profile" / cross-workflow rules → **A** (writes user.md `# Preferences` etc.).
+- "Edit / review the schema" / structural data-model questions → **E** (review) or **F** (edit). Owned by data-architect.
+- "Teach `{plugin}`" / source-specific imperatives ("never raise email from X", "ignore #random") → **G** (user-feedback). Writes per-plugin `data/instructions/{slug}.md`, NOT user.md.
+- "Snooze / dismiss / mark done" on a specific action item → **D** (inline status edit).
+
+Key contrast: cross-workflow preferences (Lane A) live in `user.md`; source-specific imperatives (Lane G) live in `data/instructions/{plugin-slug}.md`. If a rule mentions a specific plugin/source, it's Lane G.
 
 ### Lane D: Status-edit (no subagent — handle inline)
 For pure mechanical edits — "snooze action X for 24h", "dismiss action Y", "mark Z done" — do the frontmatter Edit yourself. These are sub-100-token operations; engaging a subagent is overkill.
