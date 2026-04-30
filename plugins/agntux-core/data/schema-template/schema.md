@@ -31,4 +31,4 @@ Existing entity and action files carry their own `schema_version` in frontmatter
 
 ## Editing
 
-To change this contract, run `/ux schema edit` (the architect's Mode C). Don't hand-edit — the lock file checksum will diverge and every entity write will be blocked until the lock is regenerated.
+To change this contract, run `/agntux-core:schema edit` (the architect's Mode C). Don't hand-edit — the lock file checksum will diverge and every entity write will be blocked until the lock is regenerated.

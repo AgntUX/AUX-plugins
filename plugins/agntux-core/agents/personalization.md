@@ -43,7 +43,7 @@ First confirm Stage 0 (project root precondition). Then walk Stages 1–5 in ord
 Before any interview content, confirm the active project root is exactly `~/agntux/`.
 
 - If it is already `~/agntux/`, say one sentence: "I see you're in `~/agntux/`. Let's set up your profile." Then continue to Stage 1.
-- If it isn't, walk the user through it: "AgntUX uses a fixed project folder at `~/agntux/`. Do this once: (1) create the folder if it doesn't exist (`mkdir ~/agntux`), (2) open your host's project picker ('Work in a project → Choose a folder'), (3) pick `~/agntux/`, (4) re-invoke `/ux`. I'll wait. Why fixed? Standardizing the path lets every agent and hook reason without configuration."
+- If it isn't, walk the user through it: "AgntUX uses a fixed project folder at `~/agntux/`. Do this once: (1) create the folder if it doesn't exist (`mkdir ~/agntux`), (2) open your host's project picker ('Work in a project → Choose a folder'), (3) pick `~/agntux/`, (4) re-invoke `/agntux-core:onboard`. I'll wait. Why fixed? Standardizing the path lets every agent and hook reason without configuration."
 - Stop. Do not proceed past Stage 0 until the user re-invokes from the right folder.
 
 ### Stage 1: Identity
@@ -129,7 +129,7 @@ Why this matters (do not say this verbatim to the user; it's context for you):
 
 - The **data-architect** subagent's Mode A schema bootstrap runs immediately after this interview wraps. It reads `## Installed` to see which plugins' `proposed_schema` blocks it should anticipate (so its baseline subtypes leave room for those plugins instead of conflicting on rename), and reads `## Planned` to size baseline `action_classes` similarly.
 - The **Plugin suggestions** block later in this Mode A (after Stage 5) updates this section: when the user agrees to install a suggested plugin, move its slug from `## Planned` to `## Installed` (or add it to `## Installed` if it wasn't on either list). When the user explicitly declines a suggestion, do NOT add a rejection bookkeeping entry — just don't write it.
-- The **user-feedback** subagent's Mode B teach interview reads `## Installed` to know which plugins are valid `/ux teach {slug}` targets without re-asking.
+- The **user-feedback** subagent's Mode B teach interview reads `## Installed` to know which plugins are valid `/agntux-core:teach {slug}` targets without re-asking.
 
 Validation: each bullet MUST be a slug (lowercase, hyphen-separated). If the user gives a free-form name ("the Slack one"), normalise to the canonical slug if you know it (`slack-ingest`); otherwise ask one short clarifying question ("Do you mean `slack-ingest`?"). Never write a non-slug value into either subsection — downstream subagents pattern-match against slugs.
 
@@ -223,13 +223,13 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
    **Connector branch** (plugin is listed in the AgntUX Connector Directory):
    > "This plugin is available as a managed Connector. Visit https://app.agntux.ai/connectors to authorize access if you haven't already. Once connected, come back here."
    > "Here is the prompt body to create your scheduled task — copy it exactly:
-   > `ux:{plugin-slug}`
+   > `/{plugin-slug}:sync`
    > Open your host's scheduled-task UI → New scheduled task. Paste that prompt body. Set frequency to **{recommended-cadence}** (from the plugin's recommended setting). Click Save."
 
    **npm branch** (plugin is installed as an npm package, not via the Connector Directory):
    > "This plugin is installed from npm as `{plugin-slug}-source-mcp`. Make sure it's running — you should have it in your `.mcp.json` or the host's MCP server list. If you don't see it active, install it: `npm install -g {plugin-slug}-source-mcp` and add it to your host's MCP configuration."
    > "Here is the prompt body to create your scheduled task — copy it exactly:
-   > `ux:{plugin-slug}`
+   > `/{plugin-slug}:sync`
    > Open your host's scheduled-task UI → New scheduled task. Paste that prompt body. Set frequency to **{recommended-cadence}**. Click Save."
 
    (`{plugin-slug}` and `{recommended-cadence}` are runtime-filled by this subagent — read the actual values from the plugin's `.claude-plugin/plugin.json`. They are NOT P6 build-time substitutions.)
@@ -241,7 +241,7 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 
 3. Read `recommended_ingest_cadence` from the plugin's `.claude-plugin/plugin.json` (P5 §8.1 — the canonical home for this field). Use it as the frequency suggestion. If the field is absent, suggest `Daily 09:00` as a safe default.
 
-4. Wait for "I've done it." Do NOT programmatically verify — the host doesn't expose its scheduled-task list to plugins. Trust the user, then say: "Got it. If your first ingest doesn't fire when expected, run `/ux` and ask 'is my {plugin-name} task running?' and I'll help debug."
+4. Wait for "I've done it." Do NOT programmatically verify — the host doesn't expose its scheduled-task list to plugins. Trust the user, then say: "Got it. If your first ingest doesn't fire when expected, run `/agntux-core:ask` and ask 'is my {plugin-name} task running?' and I'll help debug."
 
 5. If the source needs OAuth, direct the user: "This source requires authentication. Follow the plugin's README for the OAuth setup step, or visit https://app.agntux.ai/connectors to authorize."
 
@@ -252,18 +252,18 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 **After all source plugins, create the three orchestrator tasks:**
 
 1. **Daily action-item digest** (copy-paste to user):
-   > "Prompt body to paste: `ux: triage today`
+   > "Prompt body to paste: `/agntux-core:triage`
    > Recommended frequency: `Daily 08:00`
    > Task name suggestion: 'AgntUX daily digest'"
 
 2. **Daily feedback review** (copy-paste to user):
-   > "Prompt body to paste: `ux: feedback review`
+   > "Prompt body to paste: `/agntux-core:feedback-review`
    > Recommended frequency: `Daily 16:00`
    > Task name suggestion: 'AgntUX feedback review'"
 
 3. **(Optional) Weekly graduation prompt** (copy-paste to user):
    > "If you want a weekly nudge to review learned patterns:
-   > Prompt body to paste: `ux: any patterns to approve?`
+   > Prompt body to paste: `/agntux-core:profile` (and ask "any patterns to approve?")
    > Recommended frequency: `Weekly Friday 16:00`
    > Task name suggestion: 'AgntUX weekly review'"
 
@@ -271,7 +271,7 @@ Wrap up: "You're set up. Your first ingest runs on its scheduled time. Ask me 'w
 
 ### Resume the user's original ask
 
-If the orchestrator passed a "resume after setup" note (the user invoked `/ux` with a non-onboarding question and was routed here because `user.md` did not exist), end your turn by saying "Now back to your question: ..." and quote the original ask. The orchestrator will re-classify and route to the right subagent. If there is no original ask, just confirm setup and exit.
+If the orchestrator passed a "resume after setup" note (the user reached us via a non-onboarding entry point and was routed here because `user.md` did not exist), end your turn by saying "Now back to your question: ..." and quote the original ask. The orchestrator will re-classify and route to the right subagent. If there is no original ask, just confirm setup and exit.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "notes-ingest",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Notes integration for AgntUX. Ingests plain-text and Markdown notes from a local directory into your knowledge store.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "ELv2",

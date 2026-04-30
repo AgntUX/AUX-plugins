@@ -9,6 +9,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - (next-version changes go here)
 
+## [3.0.0] — 2026-04-30
+
+### Changed (BREAKING)
+- The flat `skills/orchestrator.md` (`/ux`) is **removed**. The Claude Code plugin spec requires skills under `skills/` to be directories shaped as `skills/{name}/SKILL.md`; flat files were silently dropped, so `/ux` never registered.
+- The orchestrator's logic is now distributed across eight named skills under `skills/`:
+  - `/agntux-core:onboard` — first-run interview + schema bootstrap chain
+  - `/agntux-core:profile` — personalization edits (Modes B/C/D)
+  - `/agntux-core:teach {plugin-slug}` — per-plugin instruction capture (user-feedback)
+  - `/agntux-core:triage` — daily action-item digest (retrieval Pattern A)
+  - `/agntux-core:schema [review|edit] [plugin-slug]` — data-architect Modes B/C
+  - `/agntux-core:sync {plugin-slug}` — cross-plugin sync alias (re-dispatches to per-plugin sync)
+  - `/agntux-core:ask` — catch-all classifier (retrieval Patterns B–E, inline status edits, click-time `ux:` slot drafting)
+  - `/agntux-core:feedback-review` — daily pattern detection (background; `disable-model-invocation: true`)
+- Scheduled-task bodies must be migrated:
+  - `ux: triage today` → `/agntux-core:triage`
+  - `ux: feedback review` → `/agntux-core:feedback-review`
+- Description-driven auto-dispatch: each new skill front-loads its trigger phrases in
+  `description:` so Claude's built-in skill auto-invocation routes natural-language prompts
+  ("what's hot", "edit my profile") to the right skill without the user typing the slash
+  command. `/agntux-core:ask` is the residual classifier for ambiguous prompts.
+
+### Added
+- `skills/_preconditions.md` — shared, non-invocable preconditions block referenced by every entry-point skill (project-root check, `user.md` exists, schema bootstrap state, `.proposed` contracts queue, schema-requests queue, trial-status banner).
+
+### Migration
+
+| Old prompt body | New prompt body |
+|---|---|
+| `/ux` | `/agntux-core:ask` (or speak naturally — auto-dispatches) |
+| `/ux schema review` | `/agntux-core:schema review` |
+| `/ux schema edit` | `/agntux-core:schema edit` |
+| `/ux teach {slug}` | `/agntux-core:teach {slug}` |
+| `ux: triage today` | `/agntux-core:triage` |
+| `ux: feedback review` | `/agntux-core:feedback-review` |
+
+The `ux:` prefix is **retained** for click-time drafting (`host_prompt` payloads with
+`{propose_reply}`, `{summary}`, etc.) — that is a host-protocol detail, not a user
+command, and it routes through `/agntux-core:ask`.
+
 ## [2.0.0] — 2026-04-29
 
 ### Added

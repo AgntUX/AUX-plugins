@@ -17,11 +17,13 @@ in your notes so nothing falls through the cracks.
 
 ## Install
 
-1. Install **AgntUX Core** first (`/ux` → follow setup). This plugin requires it.
+1. Install **AgntUX Core** first and run `/agntux-core:onboard`. This plugin requires it.
 2. Install **Notes Ingest** from the marketplace.
 3. Create your notes directory: `mkdir -p ~/agntux/notes/`
-4. Set up a scheduled task in your host with prompt body `ux:notes-ingest` at **Daily 09:00**
+4. Set up a scheduled task in your host with prompt body `/notes-ingest:sync` at **Daily 09:00**
    (or your preferred cadence). The plugin will populate your knowledge store on the first run.
+5. To trigger a sync manually, run `/notes-ingest:sync` (or
+   `/agntux-core:sync notes-ingest` from the core namespace).
 
 ## Configuration
 

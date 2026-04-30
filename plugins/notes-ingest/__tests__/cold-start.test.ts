@@ -71,7 +71,7 @@ describe("plugin manifest", () => {
   it("plugin.json has required fields", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, unknown>;
     expect(manifest.name).toBe("notes-ingest");
-    expect(manifest.version).toBe("1.0.0");
+    expect(manifest.version).toBe("2.0.0");
     expect(typeof manifest.description).toBe("string");
     expect(manifest.license).toBe("ELv2");
   });
@@ -130,14 +130,14 @@ describe("hooks shape (ingest variant)", () => {
 
 describe("agent prompt substitution", () => {
   const ingestMd = join(PLUGIN_ROOT, "agents", "ingest.md");
-  const orchestratorMd = join(PLUGIN_ROOT, "skills", "orchestrator.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
 
   it("agents/ingest.md exists", () => {
     expect(existsSync(ingestMd)).toBe(true);
   });
 
-  it("skills/orchestrator.md exists", () => {
-    expect(existsSync(orchestratorMd)).toBe(true);
+  it("skills/sync/SKILL.md exists", () => {
+    expect(existsSync(syncSkill)).toBe(true);
   });
 
   it("ingest.md has no unsubstituted {{placeholder}} tokens (word-char content only)", () => {
@@ -148,8 +148,8 @@ describe("agent prompt substitution", () => {
     expect(matches).toHaveLength(0);
   });
 
-  it("orchestrator.md has no unsubstituted {{placeholder}} tokens (word-char content only)", () => {
-    const src = readMd(orchestratorMd);
+  it("sync skill has no unsubstituted {{placeholder}} tokens (word-char content only)", () => {
+    const src = readMd(syncSkill);
     // Match {{word-content}} — real template placeholders like {{plugin-slug}}.
     // Excludes literal {{...}} prose examples which use non-word chars.
     const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
@@ -167,9 +167,12 @@ describe("agent prompt substitution", () => {
     expect(src).toContain("mcp__filesystem__list_directory");
   });
 
-  it("orchestrator.md declares Lane B unused", () => {
-    const src = readMd(orchestratorMd);
-    expect(src).toContain("(this plugin ships no UI components — Lane B is unused)");
+  it("sync skill is registered as a directory-shaped skill (Claude Code spec)", () => {
+    // Flat skills/{name}.md files are silently dropped by the host's plugin
+    // discovery; the spec requires skills/{name}/SKILL.md. Verify the dir form.
+    const flatForm = join(PLUGIN_ROOT, "skills", "orchestrator.md");
+    expect(existsSync(flatForm)).toBe(false);
+    expect(existsSync(syncSkill)).toBe(true);
   });
 });
 
