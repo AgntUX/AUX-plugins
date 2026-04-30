@@ -78,6 +78,55 @@ describe("Mode A: first-run interview stages", () => {
     expect(s).toMatch(/feedback_min_pattern_threshold/);
     expect(s).toMatch(/updated_at/);
   });
+
+  it("Stage 4.6: AgntUX plugins interview", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/Stage 4\.6/);
+    expect(s).toMatch(/AgntUX (ingest )?plugins/);
+    expect(s).toMatch(/already (have )?installed|already installed/i);
+    expect(s).toMatch(/plan to install|want to install/i);
+  });
+
+  it("Stage 4.6: writes Installed and Planned subsections", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/## Installed/);
+    expect(s).toMatch(/## Planned/);
+    expect(s).toMatch(/lowercase, hyphenated/i);
+  });
+
+  it("Stage 4.6: skip-with-empty-section discipline (no placeholders)", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/heading only/);
+    expect(s).toMatch(/do NOT add placeholder bullets|don.{1,3}t add placeholder/i);
+  });
+});
+
+describe("Plugin suggestions block updates # AgntUX plugins", () => {
+  it("step renumbering is consistent (step 7 = Connector vs npm branch)", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    // Step 7 must reference Connector vs npm branch as its content
+    expect(s).toMatch(/7\.\s+\*\*Connector vs npm branch\*\*/);
+    // Step 5 must reference step 7 (not "below" alone)
+    expect(s).toMatch(/step 7|in step 7/);
+  });
+
+  it("filters suggestions against ## Installed and ## Planned", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/Filter the suggestion list/);
+    expect(s).toMatch(/already on `## Installed`/);
+    expect(s).toMatch(/already on `## Planned`/);
+  });
+
+  it("promotes Planned → Installed on install confirmation", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/add the slug to `## Installed`/);
+    expect(s).toMatch(/remove from `## Planned`/);
+  });
+
+  it("declined plugins do NOT log rejection bookkeeping", () => {
+    const s = readFileSync(PERSONALIZATION_MD, "utf8");
+    expect(s).toMatch(/Do NOT add rejection bookkeeping/);
+  });
 });
 
 describe("Mode A: synthetic user input → resulting user.md fields", () => {

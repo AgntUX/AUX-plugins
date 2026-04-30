@@ -116,7 +116,45 @@ describe("personalization Mode A extension", () => {
     expect(text).toMatch(/# Sources/);
   });
 
+  it("adds Stage 4.6 (AgntUX plugins) with Installed/Planned subsections", () => {
+    expect(text).toMatch(/Stage 4\.6/);
+    expect(text).toMatch(/# AgntUX plugins/);
+    expect(text).toMatch(/## Installed/);
+    expect(text).toMatch(/## Planned/);
+  });
+
   it("cross-links to user-feedback for imperatives", () => {
     expect(text).toMatch(/user-feedback/);
+  });
+});
+
+describe("data-architect reads AgntUX plugins for schema sizing", () => {
+  const text = readAgent("data-architect.md");
+
+  it("Mode A Stage 1 reads # AgntUX plugins → ## Installed and ## Planned", () => {
+    expect(text).toMatch(/# AgntUX plugins.*## Installed/s);
+    expect(text).toMatch(/# AgntUX plugins.*## Planned/s);
+  });
+
+  it("Mode A does not preemptively grant ownership for Planned plugins", () => {
+    expect(text).toMatch(/Planned[\s\S]*do NOT preemptively grant.+ownership/);
+  });
+
+  it("Mode A sizes baseline using each plugin's proposed_schema (with fallback)", () => {
+    expect(text).toMatch(/proposed_schema/);
+    expect(text).toMatch(/log a one-line note and proceed without it/);
+  });
+});
+
+describe("user-feedback Mode B sanity-checks the teach target", () => {
+  const text = readAgent("user-feedback.md");
+
+  it("reads # AgntUX plugins → ## Installed in Stage 1", () => {
+    expect(text).toMatch(/# AgntUX plugins[^\n]*## Installed/);
+  });
+
+  it("warns (but does not block) when teach target slug is not on Installed", () => {
+    expect(text).toMatch(/I don.{1,3}t see `\{plugin-slug\}`/);
+    expect(text).toMatch(/proceed|continue/);
   });
 });
