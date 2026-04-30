@@ -173,9 +173,9 @@ export type RequiresSourceMcp = z.infer<typeof RequiresSourceMcpSchema>;
  * The `.refine()` below enforces both prefixes; `.startsWith().or()` would
  * accept a leading prefix only, which is what we want here.
  *
- * `min(3)` is intentional: `/ux` is 3 chars and `ux:` is 3 chars, so the
- * minimum length must accommodate both prefixes (the prompt body itself can
- * be empty for the bare-orchestrator entry like `/ux`).
+ * `min(3)` is intentional: `/ux` and `ux:` are both 3 chars, and the
+ * shortest valid `/{plugin-slug}:` form would be `/x:` (also 3+). The prompt
+ * body itself can be empty for bare-namespace entries.
  */
 export const SupportedPromptSchema = z
   .object({
@@ -183,9 +183,16 @@ export const SupportedPromptSchema = z
       .string()
       .min(3)
       .max(200)
-      .refine((v) => v.startsWith("ux:") || v.startsWith("/ux"), {
-        message: 'prompt must start with "ux:" or "/ux"',
-      }),
+      .refine(
+        (v) =>
+          v.startsWith("ux:") ||
+          v.startsWith("/ux") ||
+          /^\/[a-z][a-z0-9-]*:/.test(v),
+        {
+          message:
+            'prompt must start with "ux:", "/ux", or "/{plugin-slug}:"',
+        },
+      ),
     purpose: z.string().min(1).max(200),
   })
   .strict();

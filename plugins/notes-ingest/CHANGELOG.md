@@ -9,6 +9,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - (next-version changes go here)
 
+## [2.0.0] — 2026-04-30
+
+### Changed (BREAKING)
+- The flat `skills/orchestrator.md` is **removed** and replaced with `skills/sync/SKILL.md`. The previous file shape (`skills/{name}.md`) is silently dropped by the Claude Code plugin spec — only `skills/{name}/SKILL.md` directories register. The plugin's scheduled-task dispatch path was therefore broken in 1.0.0.
+- The cross-plugin routing layer (Lane B for UI rendering) is gone — this plugin ships no UI components, so the lane was unused. The orchestrator collapsed to a single dispatch: run an ingest pass.
+- The scheduled-task prompt body must be migrated:
+  - `ux:notes-ingest` → `/notes-ingest:sync`
+
+### Added
+- `/notes-ingest:sync` — manual or scheduled ingest. Preserves project-root and
+  `user.md` gates from the prior orchestrator and dispatches to the `ingest`
+  subagent. Also reachable as `/agntux-core:sync notes-ingest`.
+
 ## [1.0.0] — 2026-04-28
 
 ### Added
