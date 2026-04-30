@@ -17,7 +17,7 @@ This file is the runtime authority for the user's data architecture. The validat
 - Action classes: see `actions/_index.md`.
 - Per-plugin contracts: see `contracts/{plugin-slug}.md`.
 - Deterministic digest: `schema.lock.json` (regenerated on every architect write).
-- Migration warnings: `~/agntux/state/schema-warnings.md` (architect-emitted log of changes that would have needed migration).
+- Migration warnings: `~/agntux/data/schema-warnings.md` (architect-emitted log of changes that would have needed migration).
 
 ## Versioning
 

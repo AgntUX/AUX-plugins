@@ -24,7 +24,7 @@ Before classifying the user's request, do these state checks. Each one preempts 
 
 2. **Glob `~/agntux/data/schema/contracts/*.md.proposed` matches at least one file** → dispatch **data-architect Mode B** (plugin install review) for each `.proposed` file in turn (oldest first by mtime). Do not skip — the proposed file means a plugin has been installed but is not yet authorised to write entities. After all reviews complete, dispatch **user-feedback Mode B** (`/ux teach {plugin-slug}`) for each newly approved plugin in turn. Then return to the original ask.
 
-3. **`~/agntux/state/schema-requests.md` exists AND has at least one non-blank queue line** → dispatch **data-architect Mode C** (schema edit driven by user-feedback escalation). The architect consumes one entry per spawn. After it completes, return to the original ask.
+3. **`~/agntux/data/schema-requests.md` exists AND has at least one non-blank queue line** → dispatch **data-architect Mode C** (schema edit driven by user-feedback escalation). The architect consumes one entry per spawn. After it completes, return to the original ask.
 
 If multiple checks fire simultaneously, run them in this order: 1 → 2 → 3. State the order to the user before starting.
 
@@ -65,7 +65,7 @@ Engage the **data-architect** subagent. Triggers:
 Engage the **data-architect** subagent (Mode C). Triggers:
 - `/ux schema edit` → user-driven schema change.
 - "Add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class".
-- An entry in `~/agntux/state/schema-requests.md` (handled in Pre-classification step 3 above; this lane is for direct user invocation).
+- An entry in `~/agntux/data/schema-requests.md` (handled in Pre-classification step 3 above; this lane is for direct user invocation).
 
 ### Lane G: Teach (P3a)
 Engage the **user-feedback** subagent. Triggers:
@@ -159,7 +159,7 @@ You do NOT:
 
 If you find yourself reading more than `user.md` frontmatter or one action file, you've drifted. Engage the right subagent.
 
-You also do NOT run freshness checks on `.state/sync.md`. Freshness is the retrieval subagent's job — it owns those warnings.
+You also do NOT run freshness checks on per-plugin sync files at `data/learnings/{plugin-slug}/sync.md` (formerly `.state/sync.md`). Freshness is the retrieval subagent's job — it owns those warnings.
 
 ## Trial-status banner
 

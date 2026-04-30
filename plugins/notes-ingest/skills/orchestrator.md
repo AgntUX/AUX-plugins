@@ -48,7 +48,7 @@ For Lane A (an ingest run is about to happen, so staleness is being repaired rig
 
 For Lane B (UI rendering), run this check before engaging any view tool.
 
-Read `~/agntux/.state/sync.md`. Find the `# notes` section. Compare `last_success` against the current time using this table:
+Read `~/agntux/data/learnings/notes-ingest/sync.md`. Compare `last_success` against the current time using this table:
 
 | `recommended_ingest_cadence` | Stale threshold |
 |---|---|
@@ -86,7 +86,7 @@ Pick exactly ONE lane based on the prompt body (after the host has stripped the 
 - `run notes-ingest` / `run ingest`
 - Any imperative that refers to syncing or ingesting data from this source.
 
-Engage the **ingest subagent** (namespace `notes-ingest:ingest`). Frame the request and let the host's plugin auto-routing carry the conversation to the subagent's fresh context window. The subagent reads its state, fetches new items, synthesises entities and action items conformant to P3 schemas, advances the cursor, and writes learnings.
+Engage the **ingest subagent** (namespace `notes-ingest:ingest`). Frame the request and let the host's plugin auto-routing carry the conversation to the subagent's fresh context window. The subagent reads its state, fetches new items, synthesises entities and action items conformant to P3 schemas, and advances the cursor.
 
 Do NOT do the ingest work yourself. Your job is routing.
 

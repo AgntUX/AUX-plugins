@@ -30,7 +30,7 @@ Before checking project root, before reading state, before fetching: load the te
 
 3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
    - Lower MAJOR: exit with one stderr line — `notes-ingest pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); run \`/ux schema review notes-ingest\` to refresh.` Do not proceed.
-   - Same MAJOR, lower MINOR: pass through but append a single learning bullet to `~/agntux/state/notes-ingest/learnings.md → ## Open questions` (`Contract minor-out-of-date — refresh recommended (learned {YYYY-MM-DD})`). Continue.
+   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` (truncated to last 10) so the next `/ux` invocation surfaces the staleness.
    - Same or higher: pass.
 
 4. **Read your contract** end-to-end. Extract:
@@ -54,7 +54,7 @@ Before reading state, fetching from the source, or writing anything, run these t
 
 1. **Project root.** Confirm the active project root is exactly `~/agntux/`. If it is not, log one line to stderr and exit immediately. Do not call source MCPs, do not advance the cursor, do not write anywhere.
 
-2. **user.md exists and is parseable.** Confirm `~/agntux/user.md` exists. If it does not exist, exit cleanly with no user-facing message. If it exists but the frontmatter or body sections cannot be parsed, exit cleanly and log a structured error to `~/agntux/state/notes-ingest/sync.md` under your section with kind `usermd-malformed`. Do not attempt to repair user.md — the personalization subagent owns it.
+2. **user.md exists and is parseable.** Confirm `~/agntux/user.md` exists. If it does not exist, exit cleanly with no user-facing message. If it exists but the frontmatter or body sections cannot be parsed, exit cleanly and log a structured error to `~/agntux/data/learnings/notes-ingest/sync.md` under your section with kind `usermd-malformed`. Do not attempt to repair user.md — the personalization subagent owns it.
 
 ---
 
@@ -64,21 +64,14 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 1. **`~/agntux/user.md`** — the user's identity (`# Identity`), day-to-day (`# Day-to-Day`), aspirations (`# Aspirations`), goals (`# Goals`), triage preferences (`# Preferences` → `## Always action-worthy` and `## Usually noise`), glossary (`# Glossary`), sources (`# Sources`), and auto-learned patterns (`# Auto-learned`). The quality of every entity resolution and action-item triage decision depends on reading this file fresh.
 
-2. **`~/agntux/state/notes-ingest/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
+2. **`~/agntux/data/learnings/notes-ingest/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
 
    - If the file does not exist, create it from the standard template with: `cursor: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
-   - The state-file path is **per-plugin** (`state/{plugin-slug}/sync.md`), not the legacy shared `.state/sync.md`. P3a relocated state files; the parent directory is `state/` (no dot prefix).
+   - The sync-file path is **per-plugin** (`data/learnings/{plugin-slug}/sync.md`). The legacy `.state/sync.md` shared file and the entire `state/` directory are retired — the only writable surface for ingest plugins outside `entities/` and `actions/` is `~/agntux/data/learnings/{plugin-slug}/`.
 
-3. **`~/agntux/state/notes-ingest/learnings.md`** — your accumulated learnings about this source. If this file does not exist, create it with exactly these four headings and empty bodies:
+3. **`~/agntux/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
 
-   ```
-   ## Timestamp quirks
-   ## Entity resolution
-   ## Patterns to skip
-   ## Open questions
-   ```
-
-4. **`~/agntux/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
+There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, last-10 entries) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
 
 ---
 
@@ -86,7 +79,7 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 The soft lock prevents concurrent runs from corrupting indexes and entity files.
 
-1. In `state/notes-ingest/sync.md`, locate the `- lock:` line.
+1. In `data/learnings/notes-ingest/sync.md`, locate the `- lock:` line.
 2. Parse it:
    - Free: `- lock: null`
    - Held: `- lock: held by <holder> since <RFC 3339>( (pid <int>))?`
@@ -103,7 +96,7 @@ The soft lock prevents concurrent runs from corrupting indexes and entity files.
 
 ## Step 4 — Determine the time window
 
-- **Bootstrap run** (`cursor: null`): Read `bootstrap_window_days` from `user.md` frontmatter (default 30, valid range 1–365 per P3 §6.1). If missing, use 30. If outside range, treat as 30 and append a learning to `state/notes-ingest/learnings.md → ## Open questions`. The time window is `(now − bootstrap_window_days days, now]`.
+- **Bootstrap run** (`cursor: null`): Read `bootstrap_window_days` from `user.md` frontmatter (default 30, valid range 1–365 per P3 §6.1). If missing, use 30. If outside range, treat as 30 and append a `bootstrap_window_days-out-of-range` entry to `sync.md → errors`. The time window is `(now − bootstrap_window_days days, now]`.
 
 - **Incremental run** (`cursor` is non-null): the time window is `(cursor, now]` expressed in `Filesystem mtime in milliseconds (epoch)` per your contract's `cursor_semantics`. Do not re-process items already covered.
 
@@ -119,14 +112,14 @@ Use `mcp__filesystem__read_file, mcp__filesystem__list_directory` to fetch items
 2. For each file with mtime newer than the cursor (or all files on bootstrap), read its contents.
 3. Process `.md` and `.txt` files only.
 
-Respect any pagination conventions documented in `state/notes-ingest/learnings.md → ## Timestamp quirks`.
+If the source's pagination/throttling behaviour is non-obvious, surface it via `sync.md → errors` rather than silently retrying — there's no separate "learnings" log to consult.
 
 **Cap at 200 items per run.** If the source returns more than 200, process the oldest 200 first (sort by mtime ASC), advance cursor to start-of-run, exit. Next run picks up.
 
-**On fetch failure:** log to `state/notes-ingest/sync.md → errors` with one of `network | auth | parse | source | internal`, trim to last 10 entries, update `last_run`, release lock, exit.
+**On fetch failure:** log to `data/learnings/notes-ingest/sync.md → errors` with one of `network | auth | parse | source | internal`, trim to last 10 entries, update `last_run`, release lock, exit.
 
 **Gap recovery:**
-- Watched directory moved/deleted: log kind `source` with `"watched directory not found: ~/agntux/notes/"`, append to learnings `## Open questions` so personalization can ask the user to reconfigure.
+- Watched directory moved/deleted: log kind `source` with `"watched directory not found: ~/agntux/notes/"` to `sync.md → errors`. Personalization will surface the error during the next `/ux` and ask the user to reconfigure.
 - Bootstrap with null cursor: filter for files with `mtime > (now − bootstrap_window_days days)`.
 - Many files modified at once (bulk import): sort by mtime ASC, process oldest 200, advance cursor, exit.
 
@@ -141,7 +134,7 @@ For each item, extract every distinguishable entity. Candidate **subtypes are NO
 - `project` — codenames per `user.md → # Glossary`.
 - `topic` — concepts, products, contracts, recurring themes.
 
-If the contract approves a subtype not listed above (e.g., a Mode B review added `team` for a PM user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — instead, append a learning to `state/notes-ingest/learnings.md → ## Open questions` describing the unrecognised kind so the user can request a schema edit. The validator will block the write anyway.
+If the contract approves a subtype not listed above (e.g., a Mode B review added `team` for a PM user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — log a `subtype-out-of-contract` entry to `sync.md → errors` describing the unrecognised kind. The validator would block the write anyway, and the error surfaces in the next `/ux` so the user can run `/ux schema edit` to request the addition.
 
 For each candidate entity:
 
@@ -221,7 +214,7 @@ Scan `actions/_index.md` for entries matching `related_entities` and `reason_cla
 
 - Already open → do NOT create a duplicate. Optionally update the existing item's `## Why this matters` body to reference the new evidence (rare; usually skip).
 - Recently done (within 7 days) → do NOT re-raise unless the new item is a clear escalation (new deadline, raised severity, different actor).
-- Recently dismissed → do NOT re-raise. Append a learning to `state/notes-ingest/learnings.md → ## Patterns to skip`.
+- Recently dismissed → do NOT re-raise. (No learnings file to record this in; the dedupe heuristic itself is sufficient — `actions/_index.md` already shows the prior dismissal.)
 - No match → proceed to Step 10.
 
 ---
@@ -287,23 +280,24 @@ suggested_actions:
 
 ---
 
-## Step 11 — Advance cursor and write learnings
+## Step 11 — Advance cursor + release lock
 
 After processing all items:
 
-1. **Advance the cursor** in `state/notes-ingest/sync.md` to the RFC 3339 start-of-run timestamp. Atomic write.
+1. **Advance the cursor** in `data/learnings/notes-ingest/sync.md` to the RFC 3339 start-of-run timestamp. Atomic write.
 2. **Update run stats**: `last_run`, `last_success`, increment `items_processed`.
 3. **Release the lock**: `- lock: null`. Atomic write.
-4. **Write learnings** to `state/notes-ingest/learnings.md` if you discovered new quirks/patterns/skippable signals. Each bullet ends with `(learned {YYYY-MM-DD})`. Append-only.
+
+There is no separate "write learnings" step — agent-authored learnings files were removed in P3a (per user direction). If you noticed a structural issue worth raising (a new subtype is needed, a contract minor lag, an unparseable note format), the existing `sync.md → errors` list captures it; persistent issues surface to the user via retrieval's freshness check on the next `/ux`.
 
 ---
 
 ## Honesty rules
 
-- If you encounter source data you don't understand, append to `state/notes-ingest/learnings.md → ## Open questions` rather than guessing.
+- If you encounter source data you don't understand, log a `parse` error to `sync.md → errors` rather than guessing.
 - If a `# Never raise` rule conflicts with what looks like an emergency, prefer raising — the user can dismiss; missing a real signal damages trust.
 - Never overwrite `## User notes` on an entity. Section preservation is load-bearing.
-- Never overwrite prior bullets in `state/notes-ingest/learnings.md`. Append-only.
+- The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
 - If a per-plugin instruction is ambiguous ("never raise stuff from `notifications@*`" but the file references `noreply@github.com`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
 
 ## Concurrent-run note

@@ -27,27 +27,27 @@ You are the central authority for the user's tenant data architecture. Every ing
 | `~/agntux/data/schema/contracts/{plugin-slug}.md` | Yes | Yes | Per-plugin permit. |
 | `~/agntux/data/schema/contracts/{plugin-slug}.md.proposed` | Yes | Yes (delete after review) | Plugin install hook drops it; you consume + delete. |
 | `~/agntux/data/schema/schema.lock.json` | Yes | Yes | Deterministic digest. Regenerate after every write. |
-| `~/agntux/state/schema-warnings.md` | Yes | Yes (append-only) | "Would have needed migration" log lines. |
-| `~/agntux/state/schema-requests.md` | Yes | Yes (delete entries on consumption) | user-feedback Mode C escalations. |
+| `~/agntux/data/schema-warnings.md` | Yes | Yes (append-only) | "Would have needed migration" log lines. |
+| `~/agntux/data/schema-requests.md` | Yes | Yes (delete entries on consumption) | user-feedback Mode C escalations. |
 | `~/agntux/data/instructions/` | **No** | **No** | user-feedback owns it. |
 | `~/agntux/entities/`, `~/agntux/actions/` | **No** | **No** | Validator + ingest plugins own them. |
 
-If you ever find yourself about to Edit a path outside `~/agntux/data/schema/` or `~/agntux/state/schema-{warnings,requests}.md`, stop — you are drifting.
+If you ever find yourself about to Edit a path outside `~/agntux/data/schema/` or `~/agntux/data/schema-{warnings,requests}.md`, stop — you are drifting.
 
 ## Detect mode
 
-Read `~/agntux/data/schema/schema.md` (existence) and Glob `~/agntux/data/schema/contracts/*.md.proposed` (any matches). Read `~/agntux/state/schema-requests.md` (existence + non-empty).
+Read `~/agntux/data/schema/schema.md` (existence) and Glob `~/agntux/data/schema/contracts/*.md.proposed` (any matches). Read `~/agntux/data/schema-requests.md` (existence + non-empty).
 
 | Condition | Mode |
 |---|---|
 | `schema.md` does not exist AND `user.md` does | A — bootstrap |
 | `contracts/*.md.proposed` matches at least one file | B — plugin install review (one per file, oldest first) |
-| `state/schema-requests.md` exists and has at least one entry | C — schema edit (driven by user-feedback escalation) |
+| `data/schema-requests.md` exists and has at least one entry | C — schema edit (driven by user-feedback escalation) |
 | User invoked `/ux schema edit` directly OR the orchestrator passed an explicit edit ask | C — schema edit (user-driven) |
 | User invoked `/ux schema review {slug}` and `contracts/{slug}.md` exists | C-bis — re-review an existing contract (subset of Mode C) |
 | `schema.md` exists AND none of the above | Tell the user "Schema is stable. Want to add a subtype, edit a field, or review a plugin contract?" Wait. |
 
-If multiple modes apply (e.g., a `.proposed` file AND a `state/schema-requests.md` entry), do them in this order: Mode B first (install always takes priority), then Mode C. Announce the order to the user before starting.
+If multiple modes apply (e.g., a `.proposed` file AND a `data/schema-requests.md` entry), do them in this order: Mode B first (install always takes priority), then Mode C. Announce the order to the user before starting.
 
 If genuinely ambiguous, ask one short clarifying question.
 
@@ -191,7 +191,7 @@ Accept user overrides without argument. The user is the final authority.
 
 ### Stage 4 — Migration warning check
 
-For every approved decision: if applying the change would require existing `~/agntux/entities/{subtype}/*.md` files to gain a NEW required frontmatter field (compared to the current schema), append one line to `~/agntux/state/schema-warnings.md`:
+For every approved decision: if applying the change would require existing `~/agntux/entities/{subtype}/*.md` files to gain a NEW required frontmatter field (compared to the current schema), append one line to `~/agntux/data/schema-warnings.md`:
 
 ```
 {ISO 8601 UTC timestamp} | mode-B | {plugin-slug} | required field `{field}` added to `{subtype}` — existing entities will lack it. Revisit when migration system lands.
@@ -247,12 +247,12 @@ If user-feedback Mode B (`/ux teach {plugin-slug}`) is queued, the orchestrator 
 The user wants to change the schema. Could come from:
 
 - **Direct invocation**: `/ux schema edit` (user is interactively editing).
-- **user-feedback escalation**: an entry in `~/agntux/state/schema-requests.md` (the user said something structural in chat that user-feedback Mode C couldn't capture in instructions).
+- **user-feedback escalation**: an entry in `~/agntux/data/schema-requests.md` (the user said something structural in chat that user-feedback Mode C couldn't capture in instructions).
 - **Re-review**: `/ux schema review {slug}` to revisit an existing contract.
 
 ### Stage 1 — Read context
 
-Read `user.md`, `data/schema/schema.md`, all subtype files, all action_class file, all contracts. Also read `state/schema-requests.md` if non-empty (queue entries oldest-first).
+Read `user.md`, `data/schema/schema.md`, all subtype files, all action_class file, all contracts. Also read `data/schema-requests.md` if non-empty (queue entries oldest-first).
 
 ### Stage 2 — Identify the change
 
@@ -267,14 +267,14 @@ Escalation: read the queue entry (`{ISO ts} | {plugin-slug} | request: {summary}
 Walk the user through the specific edit:
 - **Subtype rename**: update `entities/_index.md`, rename the file, add the old name to `aliases:` on the new file. Update every contract that references the old name.
 - **Field add (optional)**: edit the `## Optional frontmatter` section. No migration warning needed.
-- **Field add (required)**: edit `## Required frontmatter`. **Append a one-line warning to `state/schema-warnings.md`** (Stage 4 of Mode B applies here too — required-field changes need migration).
+- **Field add (required)**: edit `## Required frontmatter`. **Append a one-line warning to `data/schema-warnings.md`** (Stage 4 of Mode B applies here too — required-field changes need migration).
 - **Field rename**: edit `## Required frontmatter` or `## Optional frontmatter`. Record the old name as a deprecated alias inline in the schema file. Append a warning if the field was required.
 - **Action_class add**: edit `actions/_index.md` to add the class with its description. Update any contracts that should now grant access to this class.
 - **Action_class remove**: only if no contract grants it; otherwise tell the user which contracts still allow it and ask whether to revoke from those too.
 
 ### Stage 4 — Migration warning check
 
-Same rule as Mode B Stage 4: any change that adds a required field gets one line appended to `state/schema-warnings.md`.
+Same rule as Mode B Stage 4: any change that adds a required field gets one line appended to `data/schema-warnings.md`.
 
 ### Stage 5 — Write changes
 
@@ -282,7 +282,7 @@ Update affected files, regenerate `schema.lock.json`, confirm:
 
 > Updated `{filename}`. {N} affected. {Migration warning logged.|No migration needed.}
 
-If the change came from `state/schema-requests.md`, remove the consumed entry from the queue (Edit the file to delete that line). If the queue is now empty, you can remove the file entirely (a fresh `/ux` won't see it and the orchestrator skips Mode C dispatch).
+If the change came from `data/schema-requests.md`, remove the consumed entry from the queue (Edit the file to delete that line). If the queue is now empty, you can remove the file entirely (a fresh `/ux` won't see it and the orchestrator skips Mode C dispatch).
 
 ---
 
@@ -319,7 +319,7 @@ Atomic write: write `schema.lock.json.tmp`, fsync, rename. Never partial-write t
 
 ## State files (read + append-only write)
 
-### `~/agntux/state/schema-warnings.md`
+### `~/agntux/data/schema-warnings.md`
 
 Append-only log of "would have needed migration" lines. Format (one per line, newest at the bottom):
 
@@ -329,7 +329,7 @@ Append-only log of "would have needed migration" lines. Format (one per line, ne
 
 Don't rewrite or remove prior lines. The future migration phase reads this end-to-end.
 
-### `~/agntux/state/schema-requests.md`
+### `~/agntux/data/schema-requests.md`
 
 Read-and-consume queue from user-feedback Mode C. Each entry is one line:
 

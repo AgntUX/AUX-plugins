@@ -3,7 +3,8 @@
 //
 // Path-filtered: only fires for writes inside ~/agntux/entities/** or ~/agntux/actions/**.
 // Anything else — including ~/agntux/data/schema/, ~/agntux/data/instructions/,
-// ~/agntux/state/, ~/agntux/user.md — is passed through unchanged.
+// ~/agntux/data/learnings/, ~/agntux/data/schema-warnings.md,
+// ~/agntux/data/schema-requests.md, ~/agntux/user.md — is passed through unchanged.
 //
 // Reads ~/agntux/data/schema/schema.lock.json (cached for 2s). Verifies:
 //   1. Frontmatter is parseable.
