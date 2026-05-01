@@ -13,7 +13,7 @@
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "description": "The AgntUX orchestrator.",
-      "version": "1.0.0",
+      "version": "3.0.0",
       "author": {
         "name": "AgntUX"
       },
@@ -26,6 +26,25 @@
         "triage"
       ],
       "category": "meta"
+    },
+    {
+      "name": "notes-ingest",
+      "source": "./plugins/notes-ingest",
+      "description": "Notes integration for AgntUX. Ingests plain-text and Markdown notes from a local directory into your knowledge store.",
+      "version": "2.0.0",
+      "author": {
+        "name": "AgntUX"
+      },
+      "homepage": "https://agntux.ai/plugins/notes-ingest",
+      "license": "Elastic-2.0",
+      "keywords": [
+        "notes",
+        "markdown",
+        "local-files",
+        "knowledge-base",
+        "obsidian"
+      ],
+      "category": "productivity"
     }
   ]
 }
