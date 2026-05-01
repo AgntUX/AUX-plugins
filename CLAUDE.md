@@ -1,4 +1,4 @@
-# CLAUDE.md — agntux/plugins
+# CLAUDE.md — AgntUX/AUX-plugins
 
 This is the public AgntUX plugin marketplace. Every plugin in `plugins/` is a
 host plugin distributed via `.claude-plugin/marketplace.json` at the repo root.
@@ -8,7 +8,7 @@ host plugin distributed via `.claude-plugin/marketplace.json` at the repo root.
 ## Repo Layout
 
 ```
-agntux/plugins/
+AgntUX/AUX-plugins/
 ├── .claude-plugin/marketplace.json    # Plugin index for the host's marketplace mechanism (CI-regenerated)
 ├── .claude/                           # Maintainer slash commands and skills
 ├── canonical/                         # Byte-frozen hook bundle + prompt templates + mcp-server templates

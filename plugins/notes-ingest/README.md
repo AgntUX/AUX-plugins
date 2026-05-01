@@ -73,5 +73,5 @@ Elastic License v2 (ELv2). See the `LICENSE` file for details.
 
 ## Support
 
-- Bugs and proposals: https://github.com/agntux/plugins/issues?q=label%3Anotes-ingest
+- Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues?q=label%3Anotes-ingest
 - Email: support@agntux.ai

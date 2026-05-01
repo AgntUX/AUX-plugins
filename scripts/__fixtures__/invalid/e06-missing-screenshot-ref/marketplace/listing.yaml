@@ -16,7 +16,7 @@ screenshot_order:
   - 01-overview.png
   - 02-nonexistent.png
 support:
-  url: "https://github.com/agntux/plugins/issues"
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
   email: "support@agntux.ai"
 developer:
   name: "AgntUX"

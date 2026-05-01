@@ -1,4 +1,4 @@
-# Contributing to agntux/plugins
+# Contributing to AgntUX/AUX-plugins
 
 ## External Contributions
 
@@ -8,7 +8,7 @@ branches. External contributor onboarding is tracked in P14 and will be
 enabled in a future milestone.
 
 If you have a plugin proposal, open an issue using the
-[Plugin Proposal template](https://github.com/agntux/plugins/issues/new?template=plugin_proposal.yml).
+[Plugin Proposal template](https://github.com/AgntUX/AUX-plugins/issues/new?template=plugin_proposal.yml).
 
 ---
 
@@ -34,20 +34,20 @@ Common operations have dedicated slash commands under `.claude/commands/`:
 
 The `main` branch is the canonical publish surface. The following branch
 protection rules MUST be applied by a repo admin. They cannot be applied
-without admin access to `github.com/agntux/plugins`.
+without admin access to `github.com/AgntUX/AUX-plugins`.
 
 **To apply via the GitHub CLI (requires admin token):**
 
 ```bash
 # 1) One-time repo settings
-gh repo edit agntux/plugins \
+gh repo edit AgntUX/AUX-plugins \
   --enable-issues \
   --enable-merge-commit \
   --enable-squash-merge \
   --enable-rebase-merge=false
 
 # 2) Branch protection rule
-gh api repos/agntux/plugins/branches/main/protection \
+gh api repos/AgntUX/AUX-plugins/branches/main/protection \
   --method PUT \
   --field required_status_checks='{"strict":true,"contexts":["lint","hook-hash-check","version-check"]}' \
   --field enforce_admins=true \

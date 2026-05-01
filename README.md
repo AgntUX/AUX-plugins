@@ -1,4 +1,4 @@
-# agntux/plugins
+# AgntUX/AUX-plugins
 
 Public AgntUX plugin marketplace. Read by the host's marketplace mechanism.
 
@@ -11,7 +11,7 @@ marketplace once and install plugins from it — the host handles the rest.
 ## Add to Claude Code
 
 ```
-/plugin marketplace add agntux/plugins
+/plugin marketplace add AgntUX/AUX-plugins
 /plugin install agntux-core@agntux
 ```
 
@@ -89,5 +89,5 @@ is not legal advice; the `LICENSE` file governs.
 
 ## Issues / Support
 
-- GitHub Issues: <https://github.com/agntux/plugins/issues>
+- GitHub Issues: <https://github.com/AgntUX/AUX-plugins/issues>
 - Email: <support@agntux.ai>

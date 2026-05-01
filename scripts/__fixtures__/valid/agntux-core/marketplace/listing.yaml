@@ -27,7 +27,7 @@ ui_components:
     title: "Action item triage"
     purpose: "The primary inline UI. Shows priority-sorted open action items with snooze / dismiss / done buttons."
 support:
-  url: "https://github.com/agntux/plugins/issues?q=label%3Aagntux-core"
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-core"
   email: "support@agntux.ai"
 developer:
   name: "AgntUX"

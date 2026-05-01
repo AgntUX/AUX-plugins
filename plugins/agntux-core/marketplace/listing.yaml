@@ -44,7 +44,7 @@ screenshot_order:
   - "02-action-detail.png"
   - "03-personalization.png"
 support:
-  url: "https://github.com/agntux/plugins/issues?q=label%3Aagntux-core"
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-core"
   email: "support@agntux.ai"
 requires_plugins: []
 developer:
