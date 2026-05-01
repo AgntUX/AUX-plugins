@@ -4,11 +4,11 @@
  * SHARED SOURCE OF TRUTH for the AgntUX marketplace `listing.yaml` schema.
  *
  * This file is imported by:
- *   - the marketplace-repo linter at agntux/plugins/scripts/lint-marketplace-metadata.ts (T11)
+ *   - the marketplace-repo linter at AgntUX/AUX-plugins/scripts/lint-marketplace-metadata.ts (T11)
  *   - the website at agntux/website/lib/marketplace-schema.ts (T36)
  *
  * Per P15 §3 / §5.3, the schema is normative. Edits here ripple to both consumers
- * and require coordinated PRs in agntux/plugins and agntux/website.
+ * and require coordinated PRs in AgntUX/AUX-plugins and agntux/website.
  *
  * Reserved-field + unknown-key policy (P15 §3.1.3 / §10.2):
  *
@@ -53,7 +53,7 @@ export const PluginSlugRe = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 /**
  * Connector slug: same shape as plugin slug.
  *
- * Shape-only check. Existence in `agntux/plugins/canonical/connectors.json`
+ * Shape-only check. Existence in `AgntUX/AUX-plugins/canonical/connectors.json`
  * is enforced by the linter (T11) — see P15.AMEND.2. The schema deliberately
  * does NOT have access to the canonical registry; that lookup belongs to the
  * lint-time pass that already runs in the marketplace repo.
@@ -135,7 +135,7 @@ export type Contributor = z.infer<typeof ContributorSchema>;
  * Two shapes:
  *   - `connector` (default, preferred): host-provided Connector marketplace entry.
  *     Note: `connector_slug` shape is checked here; existence in
- *     `agntux/plugins/canonical/connectors.json` is verified by the T11
+ *     `AgntUX/AUX-plugins/canonical/connectors.json` is verified by the T11
  *     linter (P15.AMEND.2).
  *   - `npm`     (fallback): npm package
  */
@@ -480,7 +480,7 @@ export type E13Code = typeof E13_CODE;
 
 /**
  * Shape of `marketplace/index.json` — CI-generated aggregate of every
- * listing.yaml at agntux/plugins. Read by the website at request time.
+ * listing.yaml at AgntUX/AUX-plugins. Read by the website at request time.
  */
 export const AggregateIndexSchema = z
   .object({

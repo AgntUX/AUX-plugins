@@ -77,5 +77,5 @@ Elastic License v2 (ELv2). See LICENSE for details.
 
 ## Support
 
-- Bugs and proposals: https://github.com/agntux/plugins/issues
+- Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues
 - License: see the LICENSE file at the repo root.

@@ -34,7 +34,7 @@ body:
       label: Steps to reproduce
       description: Minimum steps to trigger the bug.
       placeholder: |
-        1. Install plugin via `/plugin marketplace add agntux/plugins`
+        1. Install plugin via `/plugin marketplace add AgntUX/AUX-plugins`
         2. Run prompt `<example>`
         3. ...
     validations:

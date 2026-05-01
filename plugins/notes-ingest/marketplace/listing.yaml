@@ -28,7 +28,7 @@ supported_prompts:
   - prompt: "/notes-ingest:sync"
     purpose: "Run a notes-ingest pass now (manual) or on schedule. Recommended scheduled task at Daily 09:00."
 support:
-  url: "https://github.com/agntux/plugins/issues?q=label%3Anotes-ingest"
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Anotes-ingest"
   email: "support@agntux.ai"
 requires_plugins:
   - agntux-core

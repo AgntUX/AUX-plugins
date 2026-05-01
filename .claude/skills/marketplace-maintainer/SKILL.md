@@ -12,7 +12,7 @@ triggers:
 
 # Marketplace Maintainer Skill
 
-You are operating `agntux/plugins` as a maintainer. This skill inlines the runbooks that are otherwise spread across P7 (`please-study-these-plans-fuzzy-valley.md`) and P15 (`p15-marketplace-metadata.md`) so you don't have to context-switch into plan documents during an incident.
+You are operating `AgntUX/AUX-plugins` as a maintainer. This skill inlines the runbooks that are otherwise spread across P7 (`please-study-these-plans-fuzzy-valley.md`) and P15 (`p15-marketplace-metadata.md`) so you don't have to context-switch into plan documents during an incident.
 
 ## PR review checklist (P7 §7.3)
 
