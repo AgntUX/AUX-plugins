@@ -18,18 +18,18 @@ Every run, numbered steps 0–11, must execute in order. Each step is described 
 
 Before checking project root, before reading state, before fetching: load the tenant contract and per-plugin instructions.
 
-1. **`~/agntux/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-core:onboard` and the data-architect bootstraps.
+1. **`~/agntux/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-onboard` and the data-architect bootstraps.
 
 2. **`~/agntux/data/schema/contracts/notes-ingest.md`** — your plugin's approved permit. If this file does not exist, the user has installed `notes-ingest` but not run the data-architect Mode B install review yet. Exit with one stderr line and no user-facing message:
 
    ```
-   notes-ingest pre-flight: contracts/notes-ingest.md missing — run `/agntux-core:schema review notes-ingest` to authorise this plugin.
+   notes-ingest pre-flight: contracts/notes-ingest.md missing — run `/agntux-schema review notes-ingest` to authorise this plugin.
    ```
 
    Do NOT proceed without an approved contract. Do NOT advance the cursor. Do NOT write entities or actions. The next scheduled run will retry; if the contract is in place by then, it'll pick up from where it left off.
 
 3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
-   - Lower MAJOR: exit with one stderr line — `notes-ingest pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); run \`/agntux-core:schema review notes-ingest\` to refresh.` Do not proceed.
+   - Lower MAJOR: exit with one stderr line — `notes-ingest pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); run \`/agntux-schema review notes-ingest\` to refresh.` Do not proceed.
    - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` (truncated to last 10) so the next AgntUX session surfaces the staleness.
    - Same or higher: pass.
 
@@ -134,7 +134,7 @@ For each item, extract every distinguishable entity. Candidate **subtypes are NO
 - `project` — codenames per `user.md → # Glossary`.
 - `topic` — concepts, products, contracts, recurring themes.
 
-If the contract approves a subtype not listed above (e.g., a Mode B review added `team` for a PM user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — log a `subtype-out-of-contract` entry to `sync.md → errors` describing the unrecognised kind. The validator would block the write anyway, and the error surfaces in the next AgntUX session so the user can run `/agntux-core:schema edit` to request the addition.
+If the contract approves a subtype not listed above (e.g., a Mode B review added `team` for a PM user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — log a `subtype-out-of-contract` entry to `sync.md → errors` describing the unrecognised kind. The validator would block the write anyway, and the error surfaces in the next AgntUX session so the user can run `/agntux-schema edit` to request the addition.
 
 For each candidate entity:
 

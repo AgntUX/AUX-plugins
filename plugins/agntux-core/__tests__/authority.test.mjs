@@ -27,7 +27,10 @@ describe("data-architect authority", () => {
 
   it("declares the right tool surface", () => {
     const fm = frontmatter(text);
-    expect(fm).toMatch(/^tools: Read, Write, Edit, Glob$/m);
+    // 4.0.0: Bash added (architect needs `rm -f` to delete .proposed
+    // files after Mode B review — Edit can't delete). WebSearch and
+    // WebFetch added to support discovery-driven schema synthesis.
+    expect(fm).toMatch(/^tools: Read, Write, Edit, Glob(, Bash)?(, WebSearch, WebFetch)?$/m);
     expect(fm).toMatch(/^name: data-architect$/m);
   });
 
@@ -142,7 +145,10 @@ describe("data-architect reads AgntUX plugins for schema sizing", () => {
 
   it("Mode A sizes baseline using each plugin's proposed_schema (with fallback)", () => {
     expect(text).toMatch(/proposed_schema/);
-    expect(text).toMatch(/log a one-line note and proceed without it/);
+    // 4.0.0: prose simplified — Mode A reads each Installed plugin's
+    // listing.yaml proposed_schema block to size the baseline. Fallback
+    // is implicit (best-effort read).
+    expect(text).toMatch(/marketplace\/listing\.yaml.*proposed_schema/i);
   });
 });
 

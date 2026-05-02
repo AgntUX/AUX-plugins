@@ -1,18 +1,18 @@
 ---
-name: schema
-description: Review or edit the AgntUX tenant schema (`~/agntux/data/schema/`). Use for "review my schema", "look at the {plugin-slug} contract", "is the schema right?", "add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class", or `/agntux-core:schema review|edit [plugin-slug]`. Owned by the data-architect subagent.
+name: agntux-schema
+description: Review or edit the AgntUX tenant schema (`~/agntux/data/schema/`). Use for "review my schema", "look at the {plugin-slug} contract", "is the schema right?", "add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class", or `/agntux-schema review|edit [plugin-slug]`. Owned by the data-architect subagent.
 argument-hint: "[review|edit] [plugin-slug]"
 ---
 
-# `/agntux-core:schema` — schema review and edit
+# `/agntux-schema` — schema review and edit
 
 Lane: explicit user-driven schema review or edit. Pending plugin
 install reviews (`.proposed` contracts) and queued schema requests
 fire automatically through `_preconditions.md` checks 3–4 on every
-entry-point skill invocation — `/agntux-core:schema` does not need
+entry-point skill invocation — `/agntux-schema` does not need
 to (and should not) duplicate that dispatch. Use this skill only
 when the user says "review my schema", "edit the schema", or
-typed `/agntux-core:schema ...` directly.
+typed `/agntux-schema ...` directly.
 
 ## Preconditions
 
@@ -36,9 +36,9 @@ free-text edit ("add a `health_score` field to `company`",
 ## Out of scope
 
 - Per-plugin instructions (always/never rules) → use
-  `/agntux-core:teach {slug}`.
+  `/agntux-teach {slug}`.
 - Cross-workflow preferences (action-worthy, noise, glossary) → use
-  `/agntux-core:profile`.
+  `/agntux-profile`.
 - Pending `.proposed` plugin contracts and queued schema-requests
   fire automatically via `_preconditions.md` — do NOT route through
   this skill.

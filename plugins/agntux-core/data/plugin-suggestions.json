@@ -1,28 +1,9 @@
 {
-  "version": 2,
-  "_comment": "status field: 'available' = installable now; 'coming-soon' = not yet in marketplace. Mode A skips coming-soon slugs when presenting install suggestions.",
-  "rules": [
-    {
-      "if_role_matches": ["pm", "product manager", "product owner", "director of product", "vp of product", "head of product"],
-      "suggest": [
-        { "slug": "slack-ingest", "status": "coming-soon" },
-        { "slug": "jira-ingest", "status": "coming-soon" },
-        { "slug": "gmail-ingest", "status": "coming-soon" }
-      ]
-    },
-    {
-      "if_role_matches": ["swe", "software engineer", "software developer", "engineer", "developer", "engineering manager", "tech lead", "staff engineer", "principal engineer", "backend engineer", "frontend engineer", "full stack engineer", "devops", "platform engineer"],
-      "suggest": [
-        { "slug": "jira-ingest", "status": "coming-soon" },
-        { "slug": "github-ingest", "status": "coming-soon" },
-        { "slug": "slack-ingest", "status": "coming-soon" }
-      ]
-    },
-    {
-      "default": [
-        { "slug": "notes-ingest", "status": "available" },
-        { "slug": "gmail-ingest", "status": "coming-soon" }
-      ]
-    }
+  "version": 3,
+  "_comment": "Default suggestion list. The architect filters this against the user's discovery context (~/agntux/user.md → # Discovery / discovery_summary / # Sources) and may also recommend connectors directly from discovery answers — the registry is just a starting point. status: 'available' = installable now; 'coming-soon' = skip silently.",
+  "default": [
+    { "slug": "notes-ingest", "status": "available" },
+    { "slug": "gmail-ingest", "status": "coming-soon" },
+    { "slug": "slack-ingest", "status": "coming-soon" }
   ]
 }

@@ -197,7 +197,7 @@ function main() {
   try {
     lock = readSchemaLock();
   } catch (e) {
-    reject(`schema.lock.json is unreadable: ${e.message}. Run \`/ux schema review\` to regenerate.`);
+    reject(`schema.lock.json is unreadable: ${e.message}. Run \`/agntux-schema review\` to regenerate.`);
   }
   if (!lock) pass();
 

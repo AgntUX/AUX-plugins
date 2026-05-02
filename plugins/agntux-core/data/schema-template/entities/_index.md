@@ -18,7 +18,7 @@ The "Owning plugins" column is filled in by the data-architect when each plugin'
 
 ## Adding a subtype
 
-User-driven: `/agntux-core:schema edit`, ask the architect to add the subtype.
+User-driven: `/agntux-schema edit`, ask the architect to add the subtype.
 
 Plugin-driven: a plugin's `marketplace/listing.yaml → proposed_schema → entity_subtypes` block proposes the subtype at install; the architect reviews in Mode B.
 
