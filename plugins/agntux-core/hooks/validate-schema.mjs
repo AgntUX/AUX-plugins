@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 // PreToolUse: validate Write/Edit operations against the user's tenant schema (P3a §3).
 //
-// Path-filtered: only fires for writes inside ~/agntux/entities/** or ~/agntux/actions/**.
-// Anything else — including ~/agntux/data/schema/, ~/agntux/data/instructions/,
-// ~/agntux/data/learnings/, ~/agntux/data/schema-warnings.md,
-// ~/agntux/data/schema-requests.md, ~/agntux/user.md — is passed through unchanged.
+// Path-filtered: only fires for writes inside <agntux project root>/entities/**
+// or <agntux project root>/actions/**. Anything else — including
+// <root>/data/schema/, <root>/data/instructions/, <root>/data/learnings/,
+// <root>/data/schema-warnings.md, <root>/data/schema-requests.md,
+// <root>/user.md — is passed through unchanged. The project root is the nearest
+// ancestor directory named `agntux` (case-insensitive), falling back to
+// `~/agntux`.
 //
-// Reads ~/agntux/data/schema/schema.lock.json (cached for 2s). Verifies:
+// Reads <root>/data/schema/schema.lock.json (cached for 2s). Verifies:
 //   1. Frontmatter is parseable.
 //   2. Required fields per schema (subtype-specific + the universal set).
 //   3. `subtype` is in the lock's entity_subtypes AND in the writing plugin's
@@ -25,14 +28,14 @@
 // the host shows it to the agent so it can correct and retry.
 
 import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, basename, dirname, sep } from "node:path";
 import { parseFrontmatter } from "./lib/frontmatter.mjs";
 import { readSchemaLock, checkSubtypeAllowed, checkActionClassAllowed } from "./lib/schema-lock.mjs";
+import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
 
-const AGNTUX_ROOT = join(homedir(), "agntux");
-const ENTITIES_ROOT = join(AGNTUX_ROOT, "entities");
-const ACTIONS_ROOT = join(AGNTUX_ROOT, "actions");
+const AGNTUX_ROOT = resolveAgntuxRoot();
+const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
+const ACTIONS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "actions") : null;
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 const SOURCE_TO_PLUGIN_RE = /^[a-z][a-z0-9-]*$/;
@@ -56,6 +59,7 @@ function pass() {
 
 function inScope(filePath) {
   if (typeof filePath !== "string") return null;
+  if (!ENTITIES_ROOT || !ACTIONS_ROOT) return null; // no project root resolved
   if (basename(filePath) === "_index.md") return null; // index files are hook-managed, not agent-written
   if (filePath.startsWith(ENTITIES_ROOT + sep)) return "entity";
   if (filePath.startsWith(ACTIONS_ROOT + sep)) return "action";
@@ -197,7 +201,7 @@ function main() {
   try {
     lock = readSchemaLock();
   } catch (e) {
-    reject(`schema.lock.json is unreadable: ${e.message}. Run \`/agntux-schema review\` to regenerate.`);
+    reject(`schema.lock.json is unreadable: ${e.message}. Run \`/ux schema review\` to regenerate.`);
   }
   if (!lock) pass();
 
