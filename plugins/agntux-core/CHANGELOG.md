@@ -7,7 +7,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
-- (next-version changes go here)
+- `resolveAgntuxRoot()` shared resolver in `hooks/lib/agntux-root.mjs`
+  + TS twin in `mcp-server/src/agntux-root.ts`. Hooks and MCP servers now
+  agree on the AgntUX project root (any directory named `agntux`,
+  case-insensitive, falling back to `~/agntux`). 8 unit tests pass.
+- `personalization` Stage 0 rewritten as a 5-step discover/Glob/mkdir
+  flow with a one-time `~/agntux-code/` → `~/agntux/` migration aid.
+
+### Changed
+- Hook libraries (`scope.mjs`, `schema-lock.mjs`) and ingest hooks
+  (`maintain-index.mjs`, `validate-schema.mjs`) route path resolution
+  through `resolveAgntuxRoot()` so they reach data the user has,
+  regardless of which `agntux/` directory they cwd from.
+- MCP tools (`dismiss`, `pivot`, `snooze`, `set-status`) use the new
+  `expectedAgntuxRoot()` for path-traversal guards (string-only, no FS).
+- ~140 prompt/doc/test references swept from literal `~/agntux/` to the
+  `<agntux project root>/` placeholder for consistency with the resolver.
 
 ## [4.1.0] — 2026-05-02
 

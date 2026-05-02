@@ -146,7 +146,7 @@ describe("_sources.json dedup", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Gap 2(c) — Path-filter: write event for a file outside ~/agntux/ produces
+// Gap 2(c) — Path-filter: write event for a file outside <agntux project root>/ produces
 // no _index.md write (hook exits silently).
 // ---------------------------------------------------------------------------
 
@@ -193,7 +193,7 @@ describe("atomic rename smoke test", () => {
 // ---------------------------------------------------------------------------
 
 describe("action index write", () => {
-  it("writes _index.md for action files inside ~/agntux/actions/", () => {
+  it("writes _index.md for action files inside <agntux project root>/actions/", () => {
     const id = "2026-04-25-test-action";
     writeActionFile(actionsRoot, id);
     const filePath = join(actionsRoot, `${id}.md`);

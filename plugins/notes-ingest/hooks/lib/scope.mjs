@@ -5,16 +5,18 @@
 // unrelated work in other projects when the AgntUX licence is invalid.
 
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { resolve, sep } from "node:path";
 import { AGNTUX_PLUGIN_SLUGS as IMPORTED_SLUGS } from "./agntux-plugins.mjs";
+import { resolveAgntuxRoot } from "./agntux-root.mjs";
 
-// User's data directory — the only path AgntUX writes to. Resolved once at
-// module load (P2 §4.11.1). Trailing separator ensures `~/agntux2/` does NOT
-// match `~/agntux/`.
-const AGNTUX_ROOT = resolve(homedir(), "agntux") + sep;
+// Resolved once at module load (P2 §4.11.1 — the hook spawns one process per
+// tool call so module-load = invocation start; process.cwd() can't change
+// underneath us). Trailing separator ensures `~/agntux2/` does NOT match
+// `~/agntux/`. The override mechanism below lets tests redirect this without
+// touching the filesystem.
+const RESOLVED_ROOT = resolveAgntuxRoot();
+const RESOLVED_ROOT_WITH_SEP = RESOLVED_ROOT ? RESOLVED_ROOT + sep : null;
 
-// Test override: lets tests redirect AGNTUX_ROOT without touching the home dir.
 let AGNTUX_ROOT_OVERRIDE = null;
 let STDIN_OVERRIDE = null;
 let SLUGS_OVERRIDE = null;
@@ -34,7 +36,7 @@ export function _setPluginSlugsForTesting(slugs) {
 }
 
 function agntuxRoot() {
-  return AGNTUX_ROOT_OVERRIDE || AGNTUX_ROOT;
+  return AGNTUX_ROOT_OVERRIDE || RESOLVED_ROOT_WITH_SEP;
 }
 
 function slugs() {
@@ -66,7 +68,9 @@ export function readToolContext() {
 //
 // Three cases:
 //   (a) mcp__{slug}__* where slug is in AGNTUX_PLUGIN_SLUGS  -> in-scope
-//   (b) Read/Write/Edit/Glob/Grep with a path under ~/agntux/ -> in-scope
+//   (b) Read/Write/Edit/Glob/Grep with a path under the AgntUX project root
+//       (the nearest ancestor named `agntux`, falling back to `~/agntux`)
+//       -> in-scope
 //   (c) Anything else                                         -> out-of-scope
 export function isAgntuxScoped(ctx) {
   if (!ctx || typeof ctx !== "object") {
@@ -79,7 +83,8 @@ export function isAgntuxScoped(ctx) {
     return true; // conservative
   }
 
-  // RULE 1: Filesystem tools — in-scope only when targeting ~/agntux/.
+  // RULE 1: Filesystem tools — in-scope only when targeting the AgntUX
+  // project root (nearest ancestor named `agntux`, fallback `~/agntux`).
   // Hooks.json matcher restricts to Write|Edit so Read|Glob|Grep is DORMANT
   // under the current bundle (the hook never fires for those tools). Kept
   // here so a future hooks.json matcher widening doesn't require a scope.mjs
@@ -93,7 +98,9 @@ export function isAgntuxScoped(ctx) {
     if (typeof fp !== "string" || fp.length === 0) return false;
     let abs;
     try { abs = resolve(fp); } catch { return false; }
-    return (abs + sep).startsWith(agntuxRoot());
+    const root = agntuxRoot();
+    if (!root) return false; // no project root resolved → silent passthrough
+    return (abs + sep).startsWith(root);
   }
 
   // RULE 2: MCP tools — in-scope only for AgntUX plugin slugs.

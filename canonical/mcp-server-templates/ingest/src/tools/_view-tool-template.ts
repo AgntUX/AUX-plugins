@@ -12,7 +12,7 @@
 //
 // The only tools/calls allowed are:
 //   - Returning structuredContent + resourceUri + _meta (see return shape below)
-//   - Reading ~/agntux/user.md at call time to apply preference ordering
+//   - Reading <agntux project root>/user.md at call time to apply preference ordering
 //     (P5 §7.3 "Personalization" rule — demote noise items to bottom, don't hide)
 //
 // Naming convention: {verb_root}_view where verb_root matches the view_tool
@@ -51,7 +51,7 @@ export const viewToolDescriptor = {
       // Forwarded from the action item for use in follow-up intent templates.
       action_id: {
         type: "string",
-        description: "Action item ID from ~/agntux/actions/. Forwarded into structuredContent.",
+        description: "Action item ID from <agntux project root>/actions/. Forwarded into structuredContent.",
       },
     },
     required: ["source_ref"],

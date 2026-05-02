@@ -15,7 +15,7 @@ shared knowledge store and orchestration layer that other plugins depend on.
 
 ## Configuration
 
-Configure your preferences in `~/agntux/user.md`. This file controls how the orchestrator
+Configure your preferences in `<agntux project root>/user.md`. This file controls how the orchestrator
 prioritizes action items and manages your workflow.
 
 ## Limitations

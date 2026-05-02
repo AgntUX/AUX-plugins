@@ -8,7 +8,7 @@ schema_version: "1.0.0"
 This is the architect agent's design playbook. It is **not** a switch
 statement. It tells the architect HOW to think when synthesising a
 custom starter schema for the user from their discovery answers
-(`~/agntux/user.md → # Discovery`). The personalization agent also
+(`<agntux project root>/user.md → # Discovery`). The personalization agent also
 reads it during Stage 0.5 to decide which discovery questions to ask.
 
 The rubric is reference material — never selectable, never user-facing.

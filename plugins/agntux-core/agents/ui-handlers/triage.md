@@ -38,7 +38,7 @@ Handles interactions from the `ui://triage` MCP resource. The triage component d
 
 ## Responsibilities
 
-- Surface the top open action items from `~/agntux/actions/_index.md`.
+- Surface the top open action items from `<agntux project root>/actions/_index.md`.
 - Respond to snooze, dismiss, and done button clicks by calling the appropriate MCP tool (`snooze`, `dismiss`, `set_status`).
 - After each mutation, refresh the action item list.
 

@@ -18,13 +18,13 @@ Before doing anything else (and after the trial-status banner from
 `_preconditions.md` § A, if both files apply), check:
 
 1. **Pending plugin contracts** — Glob
-   `~/agntux/data/schema/contracts/*.md.proposed`. If any match, emit
+   `<agntux project root>/data/schema/contracts/*.md.proposed`. If any match, emit
    one informational line:
 
    > 📐 {N} new plugin{s} awaiting schema review. Run `/agntux-schema review` when convenient.
 
 2. **Queued schema-change requests** — read
-   `~/agntux/data/schema-requests.md` if it exists. If it has any
+   `<agntux project root>/data/schema-requests.md` if it exists. If it has any
    non-blank lines, emit one informational line:
 
    > 📐 {N} pending schema change request{s}. Run `/agntux-schema edit` when convenient.

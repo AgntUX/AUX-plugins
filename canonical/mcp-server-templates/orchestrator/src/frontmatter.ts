@@ -4,7 +4,6 @@
 // body are preserved verbatim.
 
 const FM_OPEN = /^---\n/;
-const FM_CLOSE = /\n---\n/;
 
 /**
  * Apply a patch to the frontmatter of a markdown file.

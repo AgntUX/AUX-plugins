@@ -55,7 +55,7 @@ test("isAgntuxScoped: mcp__other-plugin__tool -> false", () => {
   } finally { teardown(); }
 });
 
-test("isAgntuxScoped: Write under ~/agntux/ -> true", () => {
+test("isAgntuxScoped: Write under <agntux project root>/ -> true", () => {
   setupSlugs();
   try {
     const fp = resolve(homedir(), "agntux", "entities", "acme.md");
