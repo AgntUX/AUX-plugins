@@ -13,36 +13,36 @@ between ingest plugins to keep your data fresh and organized.
 Install AgntUX Core first before installing any other AgntUX plugin. It provides the
 shared knowledge store and orchestration layer that other plugins depend on.
 
-After installing, run `/agntux-core:onboard` once to create your `~/agntux/user.md` profile
+After installing, run `/agntux-onboard` once to create your `~/agntux/user.md` profile
 and bootstrap the tenant schema.
 
 ## Quickstart
 
 | Command | Purpose |
 |---|---|
-| `/agntux-core:onboard` | First-run interview + schema bootstrap. Run once. |
-| `/agntux-core:profile` | Edit preferences, glossary, identity, sources. |
-| `/agntux-core:teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
-| `/agntux-core:triage` | "What should I look at?" daily action-item digest. |
-| `/agntux-core:schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
-| `/agntux-core:sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin. |
-| `/agntux-core:ask "..."` | Catch-all for natural-language queries and inline status edits. |
-| `/agntux-core:feedback-review` | Background pattern detection over resolved actions (scheduled task target). |
+| `/agntux-onboard` | First-run interview + schema bootstrap. Run once. |
+| `/agntux-profile` | Edit preferences, glossary, identity, sources. |
+| `/agntux-teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
+| `/agntux-triage` | "What should I look at?" daily action-item digest. |
+| `/agntux-schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
+| `/agntux-sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin. |
+| `/agntux-ask "..."` | Catch-all for natural-language queries and inline status edits. |
+| `/agntux-feedback-review` | Background pattern detection over resolved actions (scheduled task target). |
 
 You can also speak naturally — Claude auto-dispatches to the right skill from each
-skill's description (e.g. saying "what's hot today" routes to `/agntux-core:triage`).
+skill's description (e.g. saying "what's hot today" routes to `/agntux-triage`).
 
 ## Recommended scheduled tasks
 
 | Task | Prompt body | Cadence |
 |---|---|---|
-| Daily action-item digest | `/agntux-core:triage` | Daily 08:00 |
-| Daily feedback review | `/agntux-core:feedback-review` | Daily 16:00 |
+| Daily action-item digest | `/agntux-triage` | Daily 08:00 |
+| Daily feedback review | `/agntux-feedback-review` | Daily 16:00 |
 
 ## Configuration
 
 Configure your preferences in `~/agntux/user.md`. This file controls how the orchestrator
-prioritizes action items and manages your workflow. Run `/agntux-core:profile` to edit it.
+prioritizes action items and manages your workflow. Run `/agntux-profile` to edit it.
 
 ## Limitations
 

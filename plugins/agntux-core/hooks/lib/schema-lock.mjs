@@ -111,7 +111,7 @@ export function checkSubtypeAllowed(lock, pluginSlug, subtype) {
   if (!contract) {
     return {
       ok: false,
-      reason: `plugin \`${pluginSlug}\` has no approved contract — run \`/ux schema review ${pluginSlug}\` first`,
+      reason: `plugin \`${pluginSlug}\` has no approved contract — run \`/agntux-schema review ${pluginSlug}\` first`,
     };
   }
   if (!contract.allowed_subtypes.includes(subtype)) {
@@ -140,7 +140,7 @@ export function checkActionClassAllowed(lock, pluginSlug, actionClass) {
   if (!contract) {
     return {
       ok: false,
-      reason: `plugin \`${pluginSlug}\` has no approved contract — run \`/ux schema review ${pluginSlug}\` first`,
+      reason: `plugin \`${pluginSlug}\` has no approved contract — run \`/agntux-schema review ${pluginSlug}\` first`,
     };
   }
   if (

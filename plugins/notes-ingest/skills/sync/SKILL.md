@@ -7,7 +7,7 @@ description: Run a notes-ingest pass now (or on schedule). Reads schema and per-
 
 Lane: a single notes-ingest pass. Backed by the recommended scheduled
 task whose prompt body is `/notes-ingest:sync` at `Daily 09:00`. Also
-the target of `/agntux-core:sync notes-ingest`.
+the target of `/agntux-sync notes-ingest`.
 
 ## Always check first
 
@@ -29,7 +29,7 @@ Check whether `~/agntux/user.md` exists.
 not been installed and configured yet. Print this message verbatim
 and stop:
 
-> "This plugin needs AgntUX Core to be installed and configured first. Install agntux-core from the marketplace, run `/agntux-core:onboard` to set up your profile, then come back."
+> "This plugin needs AgntUX Core to be installed and configured first. Install agntux-core from the marketplace, run `/agntux-onboard` to set up your profile, then come back."
 
 Do NOT touch source data, do NOT create entity files, do NOT advance
 any cursor.
@@ -38,7 +38,7 @@ any cursor.
 (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed:**
 print this message and stop:
 
-> "user.md looks malformed. Run `/agntux-core:profile` and ask to fix your profile, then re-fire this scheduled task."
+> "user.md looks malformed. Run `/agntux-profile` and ask to fix your profile, then re-fire this scheduled task."
 
 Do not attempt to repair user.md — the personalization subagent
 owns it.

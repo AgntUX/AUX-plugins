@@ -102,30 +102,37 @@ describe("Mode A: first-run interview stages", () => {
 });
 
 describe("Plugin suggestions block updates # AgntUX plugins", () => {
-  it("step renumbering is consistent (step 7 = Connector vs npm branch)", () => {
+  // 4.0.0 simplified the post-Stage-5 plugin-suggestions block. The
+  // numbered Connector-vs-npm-branch step was folded into the per-source
+  // scheduled-task walkthrough (which still includes the branch logic).
+  // The block now lives downstream of a Connect-your-sources gate and a
+  // Per-plugin onboarding interview. Tests below verify the surviving
+  // semantics, not the old step numbering.
+
+  it("plugin-suggestions block + per-source walkthrough still document Connector vs npm branch", () => {
     const s = readFileSync(PERSONALIZATION_MD, "utf8");
-    // Step 7 must reference Connector vs npm branch as its content
-    expect(s).toMatch(/7\.\s+\*\*Connector vs npm branch\*\*/);
-    // Step 5 must reference step 7 (not "below" alone)
-    expect(s).toMatch(/step 7|in step 7/);
+    expect(s).toMatch(/Connector branch/);
+    expect(s).toMatch(/npm branch/);
   });
 
   it("filters suggestions against ## Installed and ## Planned", () => {
     const s = readFileSync(PERSONALIZATION_MD, "utf8");
-    expect(s).toMatch(/Filter the suggestion list/);
-    expect(s).toMatch(/already on `## Installed`/);
+    // Phrasing simplified in 4.0.0 — drop already-installed slugs;
+    // re-confirm already-planned slugs.
+    expect(s).toMatch(/Drop any slug already on `## Installed`/);
     expect(s).toMatch(/already on `## Planned`/);
   });
 
   it("promotes Planned → Installed on install confirmation", () => {
     const s = readFileSync(PERSONALIZATION_MD, "utf8");
-    expect(s).toMatch(/add the slug to `## Installed`/);
+    expect(s).toMatch(/add to `## Installed`/);
     expect(s).toMatch(/remove from `## Planned`/);
   });
 
   it("declined plugins do NOT log rejection bookkeeping", () => {
     const s = readFileSync(PERSONALIZATION_MD, "utf8");
-    expect(s).toMatch(/Do NOT add rejection bookkeeping/);
+    // 4.0.0: phrasing simplified to "Do NOT write rejection bookkeeping".
+    expect(s).toMatch(/Do NOT (add|write) rejection bookkeeping/);
   });
 });
 

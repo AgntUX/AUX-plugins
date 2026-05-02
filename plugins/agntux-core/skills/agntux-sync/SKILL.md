@@ -1,14 +1,20 @@
 ---
-name: sync
-description: Cross-plugin sync alias — discoverable shortcut from the agntux-core namespace that re-dispatches to a per-plugin sync command (`/agntux-core:sync notes-ingest` → `/notes-ingest:sync`). Use only when the user explicitly types `/agntux-core:sync {plugin-slug}` or asks "how do I trigger an ingest from the core namespace?". Plain "sync my notes" / "ingest now" requests should auto-dispatch to the per-plugin command directly (e.g. `/notes-ingest:sync`), not this alias.
+name: agntux-sync
+description: Cross-plugin sync alias — discoverable shortcut from the agntux-core namespace that re-dispatches to a per-plugin sync command (`/agntux-sync notes-ingest` → `/notes-ingest:sync`). Use only when the user explicitly types `/agntux-sync {plugin-slug}` or asks "how do I trigger an ingest from the core namespace?". Plain "sync my notes" / "ingest now" requests should auto-dispatch to the per-plugin command directly (e.g. `/notes-ingest:sync`), not this alias.
 argument-hint: "[plugin-slug]"
 ---
 
-# `/agntux-core:sync` — cross-plugin sync alias
+# `/agntux-sync` — cross-plugin sync alias
 
 Lane: thin alias so users can manually trigger an ingest pass without
 remembering each plugin's namespace. The actual work happens in the
 per-plugin sync command (e.g. `/notes-ingest:sync`).
+
+## Schema-drift preflight
+
+Run [`_preflight.md`](../_preflight.md). For scheduled-task fires
+where no user is present, skip the preflight per `_preflight.md`'s
+background-mode carve-out.
 
 ## Preconditions
 

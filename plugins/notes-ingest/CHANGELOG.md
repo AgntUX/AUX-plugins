@@ -20,7 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - `/notes-ingest:sync` — manual or scheduled ingest. Preserves project-root and
   `user.md` gates from the prior orchestrator and dispatches to the `ingest`
-  subagent. Also reachable as `/agntux-core:sync notes-ingest`.
+  subagent. Also reachable as `/agntux-sync notes-ingest`.
 
 ## [1.0.0] — 2026-04-28
 

@@ -9,26 +9,107 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - (next-version changes go here)
 
+## [4.0.0] — 2026-05-01
+
+### Changed (BREAKING)
+- Every named skill is renamed with the `agntux-` prefix to avoid
+  slash-command collisions with other plugins on hosts that don't
+  auto-namespace by plugin slug:
+  - `/agntux-core:onboard` → `/agntux-onboard`
+  - `/agntux-core:profile` → `/agntux-profile`
+  - `/agntux-core:teach {plugin-slug}` → `/agntux-teach {plugin-slug}`
+  - `/agntux-core:triage` → `/agntux-triage`
+  - `/agntux-core:schema [review|edit] [plugin-slug]` → `/agntux-schema [review|edit] [plugin-slug]`
+  - `/agntux-core:sync {plugin-slug}` → `/agntux-sync {plugin-slug}`
+  - `/agntux-core:ask` → `/agntux-ask`
+  - `/agntux-core:feedback-review` → `/agntux-feedback-review`
+- Scheduled-task bodies must be migrated again — replace every
+  `/agntux-core:*` reference in your existing scheduled tasks with
+  the matching `/agntux-*` form.
+
+### Added
+- **Open-ended discovery interview.** `personalization` Mode A now
+  opens with a single anchor question ("What do you want AgntUX to
+  help you with?") and runs 3–6 adaptive follow-ups guided by
+  `data/schema-design-rubric.md`. The first-run flow no longer
+  assumes the user is a knowledge worker with an employer.
+- `data/schema-design-rubric.md` — the architect's design playbook.
+  Replaces the old role-preset library with shape-based guidance and
+  illustrative patterns (knowledge-worker, marketing/community,
+  healthcare, research, founder).
+- **Schema synthesis in the user's vocabulary.** The data-architect
+  presents what it'll keep track of in plain language ("your care
+  team", "your campaigns", "people you work with") rather than
+  technical subtype names. Internal canonical files are unchanged.
+- **Connect-your-connectors gate.** After schema bootstrap, the
+  personalization agent prompts the user to authorize connectors in
+  Customize → Connectors, then enumerates what's connected and runs
+  per-plugin onboarding for each.
+- **Per-plugin onboarding interview** at install. ≤5 plain-language
+  questions per plugin, captured to
+  `~/agntux/data/instructions/{plugin-slug}.md` (status `draft` →
+  `final` lifecycle).
+- **Re-entrant `/agntux-onboard`.** Running it again after first-run
+  detects new `.proposed` contracts (or instructions stubs missing)
+  and walks the per-plugin onboarding only — no destructive rewrite
+  unless the user explicitly says "redo from scratch".
+- **Deterministic wrap-up.** State machine emits one of four
+  end-of-onboarding messages with an actionable next step.
+- **Stage 1.5 People.** Conditional capture of important people
+  decided from discovery context. Subsection names are
+  vocabulary-driven, not enum-fixed.
+- **Schema-drift preflight.** Every entry-point skill emits a
+  one-line nudge when there are pending `.proposed` contracts or
+  queued schema-requests. Informational; doesn't block.
+- **More signal channels into `data/schema-requests.md`.**
+  Personalization Mode D, retrieval (failure-to-bind),
+  pattern-feedback (graduation), and per-plugin onboarding interviews
+  can now append schema-change requests in addition to user-feedback
+  Mode C.
+- **Timezone moved into Stage 1** (Identity) with system-clock
+  auto-detect — it was previously bundled into Stage 5.
+
+### Removed
+- `data/role-presets/{default,pm,swe,sales}.md`. The architect no
+  longer matches role-strings against a preset library; it
+  synthesises a custom starter schema from discovery answers using
+  the rubric. Illustrative content from the four presets has been
+  folded into `data/schema-design-rubric.md` §4.
+
+### Migration
+
+| Old prompt body | New prompt body |
+|---|---|
+| `/agntux-core:onboard` | `/agntux-onboard` |
+| `/agntux-core:profile` | `/agntux-profile` |
+| `/agntux-core:teach {slug}` | `/agntux-teach {slug}` |
+| `/agntux-core:triage` | `/agntux-triage` |
+| `/agntux-core:schema review` | `/agntux-schema review` |
+| `/agntux-core:schema edit` | `/agntux-schema edit` |
+| `/agntux-core:sync {slug}` | `/agntux-sync {slug}` |
+| `/agntux-core:ask` | `/agntux-ask` |
+| `/agntux-core:feedback-review` | `/agntux-feedback-review` |
+
 ## [3.0.0] — 2026-04-30
 
 ### Changed (BREAKING)
 - The flat `skills/orchestrator.md` (`/ux`) is **removed**. The Claude Code plugin spec requires skills under `skills/` to be directories shaped as `skills/{name}/SKILL.md`; flat files were silently dropped, so `/ux` never registered.
 - The orchestrator's logic is now distributed across eight named skills under `skills/`:
-  - `/agntux-core:onboard` — first-run interview + schema bootstrap chain
-  - `/agntux-core:profile` — personalization edits (Modes B/C/D)
-  - `/agntux-core:teach {plugin-slug}` — per-plugin instruction capture (user-feedback)
-  - `/agntux-core:triage` — daily action-item digest (retrieval Pattern A)
-  - `/agntux-core:schema [review|edit] [plugin-slug]` — data-architect Modes B/C
-  - `/agntux-core:sync {plugin-slug}` — cross-plugin sync alias (re-dispatches to per-plugin sync)
-  - `/agntux-core:ask` — catch-all classifier (retrieval Patterns B–E, inline status edits, click-time `ux:` slot drafting)
-  - `/agntux-core:feedback-review` — daily pattern detection (background; `disable-model-invocation: true`)
+  - `/agntux-onboard` — first-run interview + schema bootstrap chain
+  - `/agntux-profile` — personalization edits (Modes B/C/D)
+  - `/agntux-teach {plugin-slug}` — per-plugin instruction capture (user-feedback)
+  - `/agntux-triage` — daily action-item digest (retrieval Pattern A)
+  - `/agntux-schema [review|edit] [plugin-slug]` — data-architect Modes B/C
+  - `/agntux-sync {plugin-slug}` — cross-plugin sync alias (re-dispatches to per-plugin sync)
+  - `/agntux-ask` — catch-all classifier (retrieval Patterns B–E, inline status edits, click-time `ux:` slot drafting)
+  - `/agntux-feedback-review` — daily pattern detection (background; `disable-model-invocation: true`)
 - Scheduled-task bodies must be migrated:
-  - `ux: triage today` → `/agntux-core:triage`
-  - `ux: feedback review` → `/agntux-core:feedback-review`
+  - `ux: triage today` → `/agntux-triage`
+  - `ux: feedback review` → `/agntux-feedback-review`
 - Description-driven auto-dispatch: each new skill front-loads its trigger phrases in
   `description:` so Claude's built-in skill auto-invocation routes natural-language prompts
   ("what's hot", "edit my profile") to the right skill without the user typing the slash
-  command. `/agntux-core:ask` is the residual classifier for ambiguous prompts.
+  command. `/agntux-ask` is the residual classifier for ambiguous prompts.
 
 ### Added
 - `skills/_preconditions.md` — shared, non-invocable preconditions block referenced by every entry-point skill (project-root check, `user.md` exists, schema bootstrap state, `.proposed` contracts queue, schema-requests queue, trial-status banner).
@@ -37,16 +118,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 | Old prompt body | New prompt body |
 |---|---|
-| `/ux` | `/agntux-core:ask` (or speak naturally — auto-dispatches) |
-| `/ux schema review` | `/agntux-core:schema review` |
-| `/ux schema edit` | `/agntux-core:schema edit` |
-| `/ux teach {slug}` | `/agntux-core:teach {slug}` |
-| `ux: triage today` | `/agntux-core:triage` |
-| `ux: feedback review` | `/agntux-core:feedback-review` |
+| `/ux` | `/agntux-ask` (or speak naturally — auto-dispatches) |
+| `/ux schema review` | `/agntux-schema review` |
+| `/ux schema edit` | `/agntux-schema edit` |
+| `/ux teach {slug}` | `/agntux-teach {slug}` |
+| `ux: triage today` | `/agntux-triage` |
+| `ux: feedback review` | `/agntux-feedback-review` |
 
 The `ux:` prefix is **retained** for click-time drafting (`host_prompt` payloads with
 `{propose_reply}`, `{summary}`, etc.) — that is a host-protocol detail, not a user
-command, and it routes through `/agntux-core:ask`.
+command, and it routes through `/agntux-ask`.
 
 ## [2.0.0] — 2026-04-29
 

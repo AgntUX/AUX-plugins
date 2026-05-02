@@ -26,14 +26,14 @@ const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(PLUGIN_ROOT, "skills");
 
 const NAMED_SKILLS = [
-  "onboard",
-  "profile",
-  "teach",
-  "triage",
-  "schema",
-  "sync",
-  "ask",
-  "feedback-review",
+  "agntux-onboard",
+  "agntux-profile",
+  "agntux-teach",
+  "agntux-triage",
+  "agntux-schema",
+  "agntux-sync",
+  "agntux-ask",
+  "agntux-feedback-review",
 ] as const;
 
 function readFrontmatter(skillPath: string): Record<string, string> {
@@ -63,7 +63,7 @@ describe("agntux-core skills directory structure", () => {
   });
 
   for (const name of NAMED_SKILLS) {
-    describe(`/agntux-core:${name}`, () => {
+    describe(`/${name}`, () => {
       const dirPath = join(SKILLS_DIR, name);
       const skillPath = join(dirPath, "SKILL.md");
 
@@ -83,18 +83,18 @@ describe("agntux-core skills directory structure", () => {
 });
 
 describe("agntux-core skills frontmatter conventions", () => {
-  it("/agntux-core:feedback-review opts out of model auto-invocation", () => {
+  it("/agntux-feedback-review opts out of model auto-invocation", () => {
     // Per spec: pattern-feedback runs only on schedule or by direct
     // user slash invocation. Auto-dispatching it from natural-language
     // chat would be surprising.
-    const skillPath = join(SKILLS_DIR, "feedback-review", "SKILL.md");
+    const skillPath = join(SKILLS_DIR, "agntux-feedback-review", "SKILL.md");
     const fm = readFrontmatter(skillPath);
     expect(fm["disable-model-invocation"]).toBe("true");
   });
 
   it("argument-taking skills declare an argument-hint", () => {
     // /teach, /schema, /sync take a plugin slug or sub-command.
-    for (const name of ["teach", "schema", "sync"]) {
+    for (const name of ["agntux-teach", "agntux-schema", "agntux-sync"]) {
       const fm = readFrontmatter(join(SKILLS_DIR, name, "SKILL.md"));
       expect(
         fm["argument-hint"],
@@ -105,7 +105,7 @@ describe("agntux-core skills frontmatter conventions", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 3.0.0 (the breaking skill-split)", () => {
+  it("plugin.json is at version 4.0.0 (the agntux- prefix rename)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -115,6 +115,6 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("3.0.0");
+    expect(manifest.version).toBe("4.0.0");
   });
 });

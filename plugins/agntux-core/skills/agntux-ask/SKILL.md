@@ -1,11 +1,16 @@
 ---
-name: ask
+name: agntux-ask
 description: Catch-all entry point for AgntUX. Use for natural-language questions that don't match a more specific skill — entity lookups ("what do we know about Acme?", "tell me about @jane"), time-window queries ("what happened this week?"), topic queries ("what's been said about pricing?"), meeting prep ("help me prep for my 1:1 with Sam"), inline status edits ("snooze action X for 24h", "dismiss Y", "mark Z done"), and any ambiguous "I want to do something" prompt. ALSO handles every host-routed click-time prompt that begins with the literal `ux:` prefix and contains a slot placeholder — `{propose_reply}`, `{summary}`, `{draft_body}`, `{propose_comment}`, `{highlight_ids}` — drafting the slot value before the host re-dispatches. Routes all `ux: Use the {plugin-slug} plugin to ...` prompts when no more specific skill claims them.
 ---
 
-# `/agntux-core:ask` — residual classifier and catch-all
+# `/agntux-ask` — residual classifier and catch-all
 
-Lane: anything not matched by `/agntux-core:{onboard,profile,teach,triage,schema,sync,feedback-review}`. This is the "I don't know what to type" entry point and the fallback for ambiguous natural language.
+Lane: anything not matched by `/agntux-{onboard,profile,teach,triage,schema,sync,feedback-review}`. This is the "I don't know what to type" entry point and the fallback for ambiguous natural language.
+
+## Schema-drift preflight
+
+Run [`_preflight.md`](../_preflight.md). Informational nudges only —
+don't block on either check.
 
 ## Preconditions
 
@@ -76,12 +81,12 @@ file's worth of reading, you've drifted — engage retrieval.
   inline (above).
 - "What patterns have you noticed?" / "audit my dismissals" →
   background pattern-feedback (rare — usually scheduled). Suggest
-  `/agntux-core:feedback-review` if user wants to invoke directly.
+  `/agntux-feedback-review` if user wants to invoke directly.
 - Anything that mentions a specific plugin or source ("never raise
-  email from X") → suggest `/agntux-core:teach {slug}`.
+  email from X") → suggest `/agntux-teach {slug}`.
 - Cross-workflow preferences ("add to my glossary") → suggest
-  `/agntux-core:profile`.
-- Schema/data-model edits → suggest `/agntux-core:schema`.
+  `/agntux-profile`.
+- Schema/data-model edits → suggest `/agntux-schema`.
 
 If genuinely ambiguous, ask one short clarifying question — never
 guess.

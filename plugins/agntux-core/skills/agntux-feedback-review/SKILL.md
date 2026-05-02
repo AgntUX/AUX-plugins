@@ -1,15 +1,21 @@
 ---
-name: feedback-review
-description: Daily pattern-detection pass over recently done and dismissed action items. Appends observations to `user.md → # Auto-learned` and tags graduation candidates for the personalization subagent. Background flow — fired by a scheduled task whose prompt body is `/agntux-core:feedback-review`. Users can also invoke directly to audit dismissals on demand.
+name: agntux-feedback-review
+description: Daily pattern-detection pass over recently done and dismissed action items. Appends observations to `user.md → # Auto-learned` and tags graduation candidates for the personalization subagent. Background flow — fired by a scheduled task whose prompt body is `/agntux-feedback-review`. Users can also invoke directly to audit dismissals on demand.
 disable-model-invocation: true
 ---
 
-# `/agntux-core:feedback-review` — daily pattern detection
+# `/agntux-feedback-review` — daily pattern detection
 
 Lane: read-only pattern detection over the user's done + dismissed
 action items in the last 30 days. Background flow — Claude must NOT
 auto-invoke this skill from natural language. The user (or a
 scheduled task) explicitly fires it.
+
+## Schema-drift preflight
+
+Run [`_preflight.md`](../_preflight.md). For scheduled-task fires
+where no user is present, skip the preflight per `_preflight.md`'s
+background-mode carve-out.
 
 ## Preconditions
 
@@ -33,7 +39,7 @@ Recommended scheduled-task cadence: `Daily 16:00`.
 ## Out of scope
 
 - Conversational graduation review ("any patterns to approve?") →
-  use `/agntux-core:profile`. That dispatches personalization Mode C,
+  use `/agntux-profile`. That dispatches personalization Mode C,
   which reads the candidates this skill has tagged.
-- Per-plugin instruction capture → `/agntux-core:teach {slug}`.
-- Cross-workflow preference edits → `/agntux-core:profile`.
+- Per-plugin instruction capture → `/agntux-teach {slug}`.
+- Cross-workflow preference edits → `/agntux-profile`.

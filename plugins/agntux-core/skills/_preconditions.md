@@ -61,14 +61,14 @@ picker, then re-invoke me." — and stop.
 If the file does not exist, the user has never onboarded.
 Acknowledge their original ask in one sentence ("I see you asked
 about X — but I need to set up your profile first."), then chain
-into `/agntux-core:onboard`. After onboarding completes, re-run
+into `/agntux-onboard`. After onboarding completes, re-run
 these preconditions before returning to the user's original ask —
 a brand-new `user.md` will trip the schema-bootstrap check below
 on the next pass.
 
 If the file exists but its frontmatter or required body sections
 (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed,
-say "Your `user.md` looks malformed. Run `/agntux-core:profile` to
+say "Your `user.md` looks malformed. Run `/agntux-profile` to
 fix it." and stop. (Do NOT attempt to repair it yourself —
 personalization owns it.)
 
@@ -85,11 +85,33 @@ original ask.
 
 Glob `~/agntux/data/schema/contracts/*.md.proposed`. If at least one
 file matches, a plugin has been installed but is not yet authorised.
-Announce the preemption and dispatch the **data-architect subagent
-in Mode B** for each `.proposed` file in turn (oldest first by
-mtime). After all reviews complete, dispatch `/agntux-core:teach
-{plugin-slug}` for each newly approved plugin. Then return to the
-original ask.
+The dispatch depends on whether per-plugin onboarding (the
+personalization-owned interview that writes `data/instructions/`) has
+already run for that plugin:
+
+For each `.proposed` file (oldest first by mtime):
+
+- **Case A — `data/instructions/{plugin-slug}.md` does not exist OR
+  has frontmatter `status: draft`**: per-plugin onboarding never
+  finished. Dispatch the **personalization subagent in Mode A-bis**
+  (new-plugins walkthrough). Mode A-bis runs the per-plugin
+  onboarding interview, which itself dispatches architect Mode B at
+  the right moment. Do NOT dispatch architect Mode B directly here —
+  that would bypass the user-facing interview and write a contract
+  without the user's instructions context.
+- **Case B — `data/instructions/{plugin-slug}.md` exists with
+  `status: final`**: onboarding finished but architect Mode B was
+  interrupted. Dispatch the **data-architect subagent in Mode B**
+  directly to consume the `.proposed` file. The architect reads the
+  finalized instructions alongside the proposal, then deletes the
+  `.proposed` file (`rm -f`).
+
+After all `.proposed` files are processed, return to the original
+ask.
+
+This precondition is NOT invoked from `/agntux-onboard` (which
+explicitly opts out — see that skill's own pre-checks). Every other
+entry-point skill DOES run this check.
 
 ### 4. Schema-requests queue
 

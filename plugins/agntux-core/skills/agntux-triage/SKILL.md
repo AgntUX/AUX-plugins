@@ -1,14 +1,20 @@
 ---
-name: triage
-description: Show the user what's hot — top open action items sorted by priority. Use for "what's hot", "what should I look at", "what's on my plate", "triage me", "show me my action items", "what should I do today", "daily digest", or when a scheduled task fires `/agntux-core:triage`.
+name: agntux-triage
+description: Show the user what's hot — top open action items sorted by priority. Use for "what's hot", "what should I look at", "what's on my plate", "triage me", "show me my action items", "what should I do today", "daily digest", or when a scheduled task fires `/agntux-triage`.
 ---
 
-# `/agntux-core:triage` — daily action-item digest
+# `/agntux-triage` — daily action-item digest
 
 Lane: pattern-A retrieval — answer "what should I look at?" without
 the user naming a specific entity, time window, topic, or meeting.
 Backed by the daily scheduled task whose prompt body is
-`/agntux-core:triage`.
+`/agntux-triage`.
+
+## Schema-drift preflight
+
+Run [`_preflight.md`](../_preflight.md). For scheduled-task fires
+where no user is present, skip the preflight per `_preflight.md`'s
+background-mode carve-out.
 
 ## Preconditions
 
@@ -32,7 +38,7 @@ frame and dispatch.
 ## Out of scope
 
 - Entity-specific lookups ("what do we know about Acme?") → use
-  `/agntux-core:ask`.
+  `/agntux-ask`.
 - Time-window queries ("what happened this week?") → use
-  `/agntux-core:ask`.
-- Status edits ("snooze action X") → use `/agntux-core:ask`.
+  `/agntux-ask`.
+- Status edits ("snooze action X") → use `/agntux-ask`.

@@ -56,7 +56,7 @@ Before creating a new entity file, an ingest agent MUST:
 If `_sources.json` is lost or suspected stale, the user can rebuild it:
 
 ```
-/agntux-core:ask "rebuild the entity sources index"
+/agntux-ask "rebuild the entity sources index"
 ```
 
 The orchestrator walks every `entities/**/*.md` file, reads `sources:` frontmatter,
