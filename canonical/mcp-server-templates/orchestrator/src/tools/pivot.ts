@@ -5,13 +5,15 @@
 //      This rejects malformed inputs (containing `/`, `..`, control chars,
 //      shell metacharacters, etc.) BEFORE they reach the host_prompt.
 //   2. Boundary check: the resolved entity path must stay within
-//      ~/agntux/entities/. This is defense-in-depth — the shape check above
-//      should already eliminate every input that could escape.
+//      <agntux project root>/entities/. This is defense-in-depth — the shape
+//      check above should already eliminate every input that could escape.
 
-import { homedir } from "node:os";
 import { join, resolve, relative } from "node:path";
+import { expectedAgntuxRoot } from "../agntux-root.js";
 
-const ENTITIES_DIR = join(homedir(), "agntux", "entities");
+function entitiesDir(): string {
+  return join(expectedAgntuxRoot(), "entities");
+}
 
 // Kebab-case identifier per P3 §1.4: lowercase letters/digits/hyphens, must
 // start with a letter, max 64 chars. Rejects underscores, slashes, dots,
@@ -35,12 +37,13 @@ function guardEntityShape(subtype: string, slug: string): void {
 }
 
 function guardEntityPath(subtype: string, slug: string): void {
-  // Resolve the entity path and confirm it stays within ~/agntux/entities/.
-  const resolved = resolve(ENTITIES_DIR, subtype, `${slug}.md`);
-  const rel = relative(ENTITIES_DIR, resolved);
+  // Resolve the entity path and confirm it stays within <root>/entities/.
+  const dir = entitiesDir();
+  const resolved = resolve(dir, subtype, `${slug}.md`);
+  const rel = relative(dir, resolved);
   if (rel.startsWith("..") || resolve(rel) === rel) {
     throw new Error(
-      `Path traversal rejected: subtype "${subtype}" / slug "${slug}" resolves outside ~/agntux/entities/`
+      `Path traversal rejected: subtype "${subtype}" / slug "${slug}" resolves outside <agntux project root>/entities/`
     );
   }
 }
