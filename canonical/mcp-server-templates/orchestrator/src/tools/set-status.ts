@@ -10,7 +10,7 @@ function guardPath(id: string): string {
   const resolved = resolve(ACTIONS_DIR, `${id}.md`);
   const rel = relative(ACTIONS_DIR, resolved);
   if (rel.startsWith("..") || resolve(rel) === rel) {
-    throw new Error(`Path traversal rejected: id "${id}" resolves outside ~/agntux/actions/`);
+    throw new Error(`Path traversal rejected: id "${id}" resolves outside ~/agntux-code/actions/`);
   }
   return resolved;
 }

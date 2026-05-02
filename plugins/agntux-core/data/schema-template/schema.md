@@ -7,7 +7,7 @@ authored_by: data-architect
 
 # AgntUX tenant master contract
 
-This file is the runtime authority for the user's data architecture. The validator hook (`agntux-core/hooks/validate-schema.mjs`) reads `schema.lock.json` (the deterministic digest derived from this directory) on every Write/Edit to `~/agntux/entities/**` and `~/agntux/actions/**` and rejects writes that violate the contract.
+This file is the runtime authority for the user's data architecture. The validator hook (`agntux-core/hooks/validate-schema.mjs`) reads `schema.lock.json` (the deterministic digest derived from this directory) on every Write/Edit to `~/agntux-code/entities/**` and `~/agntux-code/actions/**` and rejects writes that violate the contract.
 
 **Authority:** the data-architect subagent (in agntux-core) is the only writer. Plugins read this file at run-start; they never edit it. The validator hook reads `schema.lock.json` only.
 
@@ -17,7 +17,7 @@ This file is the runtime authority for the user's data architecture. The validat
 - Action classes: see `actions/_index.md`.
 - Per-plugin contracts: see `contracts/{plugin-slug}.md`.
 - Deterministic digest: `schema.lock.json` (regenerated on every architect write).
-- Migration warnings: `~/agntux/data/schema-warnings.md` (architect-emitted log of changes that would have needed migration).
+- Migration warnings: `~/agntux-code/data/schema-warnings.md` (architect-emitted log of changes that would have needed migration).
 
 ## Versioning
 

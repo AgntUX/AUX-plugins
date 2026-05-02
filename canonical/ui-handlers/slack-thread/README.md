@@ -36,7 +36,7 @@ Runtime `{single-curly}` tokens (NOT substituted by P6 — filled at host/orches
 | `{ids}` | `operational.verb_phrases[]` | Space-separated message IDs to highlight |
 | `{text}` | `operational.verb_phrases[]` | Orchestrator-drafted reply text |
 | `{propose_reply}` | Action item `host_prompt` slot | Filled by agntux-core click-time drafting (P9 D1) |
-| `{action_id}` | Send intent body | Action item file slug from `~/agntux/actions/` |
+| `{action_id}` | Send intent body | Action item file slug from `~/agntux-code/actions/` |
 
 ---
 
@@ -127,7 +127,7 @@ Steps:
 3. From the response, capture `{ ts, permalink }`.
 4. If the post failed, surface a one-line message to the user:
    "Couldn't send Slack reply: <reason>. The action item is unchanged." STOP.
-5. Edit ~/agntux/actions/{action_id}.md:
+5. Edit ~/agntux-code/actions/{action_id}.md:
    - Frontmatter: set `status: done` and `completed_at: <ISO now>`.
    - Body: append `## Resolution log` section if absent; append bullet:
      - <ISO now> — Sent reply via slack. permalink: <permalink>

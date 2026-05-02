@@ -5,7 +5,7 @@ schema_version: "1.0.0"
 subtype: topic
 aliases: [Project Mango, Mango]
 sources:
-  notes: "~/agntux/notes/2026-04-25-acme.md"
+  notes: "~/agntux-code/notes/2026-04-25-acme.md"
 tags: [project, acme, expansion]
 created_at: 2026-04-25
 updated_at: 2026-04-25

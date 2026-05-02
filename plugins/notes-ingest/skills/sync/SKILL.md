@@ -13,17 +13,17 @@ the target of `/agntux-core:sync notes-ingest`.
 
 ### Project root
 
-Confirm the active project root is exactly `~/agntux/`. If it is not,
+Confirm the active project root is exactly `~/agntux-code/`. If it is not,
 fail loud — print exactly one sentence:
 
-> "AgntUX plugins require the project to be `~/agntux/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
+> "AgntUX plugins require the project to be `~/agntux-code/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
 
 Stop immediately. Do NOT touch source data, do NOT call source MCPs,
 do NOT advance any cursor.
 
 ### AgntUX orchestrator gate
 
-Check whether `~/agntux/user.md` exists.
+Check whether `~/agntux-code/user.md` exists.
 
 **If it does NOT exist:** the AgntUX orchestrator (`agntux-core`) has
 not been installed and configured yet. Print this message verbatim
@@ -73,7 +73,7 @@ You do NOT:
   job.
 - Author proposed replies, summaries, or other UI content — this
   plugin ships no UI components.
-- Edit files under `~/agntux/` — only the ingest subagent does that.
+- Edit files under `~/agntux-code/` — only the ingest subagent does that.
 - Create, enable, disable, or delete scheduled tasks — those are a
   host-UI-only primitive.
 

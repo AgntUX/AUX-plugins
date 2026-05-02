@@ -1,8 +1,8 @@
-// Helper for reading + verifying ~/agntux/data/schema/schema.lock.json.
+// Helper for reading + verifying ~/agntux-code/data/schema/schema.lock.json.
 // Used by validate-schema.mjs (PreToolUse) and the data-architect subagent.
 //
 // The lock is the deterministic digest of the markdown source files under
-// ~/agntux/data/schema/. The architect regenerates it on every write; the
+// ~/agntux-code/data/schema/. The architect regenerates it on every write; the
 // validator reads it on every entity/action write.
 //
 // P3a §6.1 specifies the shape:

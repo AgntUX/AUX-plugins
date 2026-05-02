@@ -214,7 +214,7 @@ export type UiComponent = z.infer<typeof UiComponentSchema>;
  *
  * The data-architect (in agntux-core) reviews this on first install:
  * approve / rename / merge / refuse each entry, then writes the approved
- * subset to ~/agntux/data/schema/contracts/{plugin-slug}.md. The runtime
+ * subset to ~/agntux-code/data/schema/contracts/{plugin-slug}.md. The runtime
  * validator (validate-schema.mjs) reads the approved contract — never
  * proposed_schema directly.
  *

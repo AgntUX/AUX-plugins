@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // PreToolUse: validate Write/Edit operations against the user's tenant schema (P3a §3).
 //
-// Path-filtered: only fires for writes inside ~/agntux/entities/** or ~/agntux/actions/**.
-// Anything else — including ~/agntux/data/schema/, ~/agntux/data/instructions/,
-// ~/agntux/data/learnings/, ~/agntux/data/schema-warnings.md,
-// ~/agntux/data/schema-requests.md, ~/agntux/user.md — is passed through unchanged.
+// Path-filtered: only fires for writes inside ~/agntux-code/entities/** or ~/agntux-code/actions/**.
+// Anything else — including ~/agntux-code/data/schema/, ~/agntux-code/data/instructions/,
+// ~/agntux-code/data/learnings/, ~/agntux-code/data/schema-warnings.md,
+// ~/agntux-code/data/schema-requests.md, ~/agntux-code/user.md — is passed through unchanged.
 //
-// Reads ~/agntux/data/schema/schema.lock.json (cached for 2s). Verifies:
+// Reads ~/agntux-code/data/schema/schema.lock.json (cached for 2s). Verifies:
 //   1. Frontmatter is parseable.
 //   2. Required fields per schema (subtype-specific + the universal set).
 //   3. `subtype` is in the lock's entity_subtypes AND in the writing plugin's

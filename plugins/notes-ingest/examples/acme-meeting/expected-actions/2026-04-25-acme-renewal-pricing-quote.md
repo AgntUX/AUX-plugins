@@ -7,7 +7,7 @@ priority: high
 reason_class: deadline
 created_at: 2026-04-25T00:00:00Z
 source: notes
-source_ref: "~/agntux/notes/2026-04-25-acme.md"
+source_ref: "~/agntux-code/notes/2026-04-25-acme.md"
 related_entities:
   - companies/acme-corp
   - people/john-smith-acme
@@ -20,7 +20,7 @@ dismissed_at: null
 suggested_actions:
   - label: "View renewal note"
     host_prompt: |
-      ux: Use the notes-ingest plugin to view note ~/agntux/notes/2026-04-25-acme.md.
+      ux: Use the notes-ingest plugin to view note ~/agntux-code/notes/2026-04-25-acme.md.
   - label: "Snooze 24h"
     host_prompt: |
       ux: Use the agntux-core plugin to snooze action item 2026-04-25-acme-renewal-pricing-quote for 24 hours.

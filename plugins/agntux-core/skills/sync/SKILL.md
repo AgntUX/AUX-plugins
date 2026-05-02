@@ -28,7 +28,7 @@ slug (e.g., `notes-ingest`).
    `/notes-ingest:sync` or `notes-ingest:sync` by mistake.
 2. **Empty?** If the result is empty, look up installed plugins —
    read the `# AgntUX plugins > ## Installed` section of
-   `~/agntux/user.md`. If that section is missing or empty (older
+   `~/agntux-code/user.md`. If that section is missing or empty (older
    `user.md` predating P3a), say so and ask the user which plugin
    to sync. Stop.
 3. **Not installed?** If the slug does not match a line in

@@ -8,7 +8,7 @@ Each entry covers: cursor type, where it is stored in the per-plugin sync file, 
 it after a successful run, and how to recover when a gap or expiry is detected.
 
 > **P3a path note.** Every plugin owns a single sync file at
-> `~/agntux/data/learnings/{{plugin-slug}}/sync.md`. The legacy shared `.state/sync.md` and the
+> `~/agntux-code/data/learnings/{{plugin-slug}}/sync.md`. The legacy shared `.state/sync.md` and the
 > per-source `.state/notes/{{source-slug}}.md` learnings files are retired. Cursor + lock + the
 > bounded `errors` list (last 10 entries) are the entire writable surface; there is no separate
 > per-plugin "learnings.md".

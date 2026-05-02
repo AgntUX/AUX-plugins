@@ -1,6 +1,6 @@
 ---
 name: teach
-description: Capture per-plugin instructions ("never raise email from notifications@*", "always raise PRs from @teammate", "ignore #random"). Source-specific imperatives go to `~/agntux/data/instructions/{plugin-slug}.md` — not `user.md`. Use when the user wants to teach a plugin a rule, says "teach notes-ingest about X", or runs `/agntux-core:teach {plugin-slug}` for the install-time / on-demand interview.
+description: Capture per-plugin instructions ("never raise email from notifications@*", "always raise PRs from @teammate", "ignore #random"). Source-specific imperatives go to `~/agntux-code/data/instructions/{plugin-slug}.md` — not `user.md`. Use when the user wants to teach a plugin a rule, says "teach notes-ingest about X", or runs `/agntux-core:teach {plugin-slug}` for the install-time / on-demand interview.
 argument-hint: "[plugin-slug]"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "[plugin-slug]"
 
 Lane: any rule that names a specific plugin or source. Cross-workflow
 preferences belong in `/agntux-core:profile` (writes `user.md`); rules
-here live in `~/agntux/data/instructions/{plugin-slug}.md`.
+here live in `~/agntux-code/data/instructions/{plugin-slug}.md`.
 
 ## Preconditions
 
@@ -33,7 +33,7 @@ inbound prompt and `$ARGUMENTS`:
   imperative and captures the rule.
 - **Mode C** — user asked for something structural ("track sentiment
   per company") that isn't a per-plugin instruction. Subagent
-  escalates to `~/agntux/data/schema-requests.md` for the
+  escalates to `~/agntux-code/data/schema-requests.md` for the
   data-architect to handle on the next dispatch.
 
 Pass `$ARGUMENTS` through verbatim. If `$ARGUMENTS` is missing and

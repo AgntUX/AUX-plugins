@@ -6,7 +6,7 @@ updated_at: {{generated_at}}
 
 # Action item contract
 
-Action items are stored at `~/agntux/actions/{YYYY-MM-DD}-{slug-suffix}.md` and indexed in `~/agntux/actions/_index.md`. The validator (`hooks/validate-schema.mjs`) checks every action write against this contract.
+Action items are stored at `~/agntux-code/actions/{YYYY-MM-DD}-{slug-suffix}.md` and indexed in `~/agntux-code/actions/_index.md`. The validator (`hooks/validate-schema.mjs`) checks every action write against this contract.
 
 ## Required frontmatter
 

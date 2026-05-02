@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PostToolUse: maintain _index.md files in ~/agntux/entities/ and ~/agntux/actions/.
-// Path-filtered: exits silently for changes outside ~/agntux/.
+// PostToolUse: maintain _index.md files in ~/agntux-code/entities/ and ~/agntux-code/actions/.
+// Path-filtered: exits silently for changes outside ~/agntux-code/.
 // Deterministic: regex parsing, no LLM. P3 §5.3 + §5.5 are normative.
 
 import { readFileSync, writeFileSync, renameSync, existsSync, fsyncSync, openSync, closeSync, readdirSync } from "node:fs";

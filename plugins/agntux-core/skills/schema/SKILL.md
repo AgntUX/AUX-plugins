@@ -1,6 +1,6 @@
 ---
 name: schema
-description: Review or edit the AgntUX tenant schema (`~/agntux/data/schema/`). Use for "review my schema", "look at the {plugin-slug} contract", "is the schema right?", "add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class", or `/agntux-core:schema review|edit [plugin-slug]`. Owned by the data-architect subagent.
+description: Review or edit the AgntUX tenant schema (`~/agntux-code/data/schema/`). Use for "review my schema", "look at the {plugin-slug} contract", "is the schema right?", "add a `health_score` field to `company`", "rename `theme` to `topic`", "add an `awaiting-customer` action class", or `/agntux-core:schema review|edit [plugin-slug]`. Owned by the data-architect subagent.
 argument-hint: "[review|edit] [plugin-slug]"
 ---
 

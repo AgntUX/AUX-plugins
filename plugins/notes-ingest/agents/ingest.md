@@ -18,9 +18,9 @@ Every run, numbered steps 0–11, must execute in order. Each step is described 
 
 Before checking project root, before reading state, before fetching: load the tenant contract and per-plugin instructions.
 
-1. **`~/agntux/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-core:onboard` and the data-architect bootstraps.
+1. **`~/agntux-code/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-core:onboard` and the data-architect bootstraps.
 
-2. **`~/agntux/data/schema/contracts/notes-ingest.md`** — your plugin's approved permit. If this file does not exist, the user has installed `notes-ingest` but not run the data-architect Mode B install review yet. Exit with one stderr line and no user-facing message:
+2. **`~/agntux-code/data/schema/contracts/notes-ingest.md`** — your plugin's approved permit. If this file does not exist, the user has installed `notes-ingest` but not run the data-architect Mode B install review yet. Exit with one stderr line and no user-facing message:
 
    ```
    notes-ingest pre-flight: contracts/notes-ingest.md missing — run `/agntux-core:schema review notes-ingest` to authorise this plugin.
@@ -38,7 +38,7 @@ Before checking project root, before reading state, before fetching: load the te
    - `# Allowed action classes` — the only `reason_class` values you may write.
    - Any aliases or merges noted in `# Notes`.
 
-5. **`~/agntux/data/instructions/notes-ingest.md`** — your per-plugin user instructions. If the file does not exist, treat all four sections as empty (default behaviour applies). If it exists, parse:
+5. **`~/agntux-code/data/instructions/notes-ingest.md`** — your per-plugin user instructions. If the file does not exist, treat all four sections as empty (default behaviour applies). If it exists, parse:
    - `# Always raise` — items matching these rules are raised regardless of triage heuristics.
    - `# Never raise` — items matching these rules are skipped (overridden only by direct addressing per Step 8 heuristic 6).
    - `# Rewrites` — transformation rules to apply when composing action items.
@@ -52,9 +52,9 @@ You will use the contract during entity creation (Step 6) and action writing (St
 
 Before reading state, fetching from the source, or writing anything, run these two checks in order:
 
-1. **Project root.** Confirm the active project root is exactly `~/agntux/`. If it is not, log one line to stderr and exit immediately. Do not call source MCPs, do not advance the cursor, do not write anywhere.
+1. **Project root.** Confirm the active project root is exactly `~/agntux-code/`. If it is not, log one line to stderr and exit immediately. Do not call source MCPs, do not advance the cursor, do not write anywhere.
 
-2. **user.md exists and is parseable.** Confirm `~/agntux/user.md` exists. If it does not exist, exit cleanly with no user-facing message. If it exists but the frontmatter or body sections cannot be parsed, exit cleanly and log a structured error to `~/agntux/data/learnings/notes-ingest/sync.md` under your section with kind `usermd-malformed`. Do not attempt to repair user.md — the personalization subagent owns it.
+2. **user.md exists and is parseable.** Confirm `~/agntux-code/user.md` exists. If it does not exist, exit cleanly with no user-facing message. If it exists but the frontmatter or body sections cannot be parsed, exit cleanly and log a structured error to `~/agntux-code/data/learnings/notes-ingest/sync.md` under your section with kind `usermd-malformed`. Do not attempt to repair user.md — the personalization subagent owns it.
 
 ---
 
@@ -62,14 +62,14 @@ Before reading state, fetching from the source, or writing anything, run these t
 
 Read these files on **every** run. Do not cache values between runs; treat each file as authoritative on each invocation.
 
-1. **`~/agntux/user.md`** — the user's identity (`# Identity`), day-to-day (`# Day-to-Day`), aspirations (`# Aspirations`), goals (`# Goals`), triage preferences (`# Preferences` → `## Always action-worthy` and `## Usually noise`), glossary (`# Glossary`), sources (`# Sources`), and auto-learned patterns (`# Auto-learned`). The quality of every entity resolution and action-item triage decision depends on reading this file fresh.
+1. **`~/agntux-code/user.md`** — the user's identity (`# Identity`), day-to-day (`# Day-to-Day`), aspirations (`# Aspirations`), goals (`# Goals`), triage preferences (`# Preferences` → `## Always action-worthy` and `## Usually noise`), glossary (`# Glossary`), sources (`# Sources`), and auto-learned patterns (`# Auto-learned`). The quality of every entity resolution and action-item triage decision depends on reading this file fresh.
 
-2. **`~/agntux/data/learnings/notes-ingest/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
+2. **`~/agntux-code/data/learnings/notes-ingest/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
 
    - If the file does not exist, create it from the standard template with: `cursor: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
-   - The sync-file path is **per-plugin** (`data/learnings/{plugin-slug}/sync.md`). The legacy `.state/sync.md` shared file and the entire `state/` directory are retired — the only writable surface for ingest plugins outside `entities/` and `actions/` is `~/agntux/data/learnings/{plugin-slug}/`.
+   - The sync-file path is **per-plugin** (`data/learnings/{plugin-slug}/sync.md`). The legacy `.state/sync.md` shared file and the entire `state/` directory are retired — the only writable surface for ingest plugins outside `entities/` and `actions/` is `~/agntux-code/data/learnings/{plugin-slug}/`.
 
-3. **`~/agntux/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
+3. **`~/agntux-code/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
 
 There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, last-10 entries) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
 
@@ -108,7 +108,7 @@ The cursor is stored as an RFC 3339 string representing the most recent file mti
 
 Use `mcp__filesystem__read_file, mcp__filesystem__list_directory` to fetch items in the time window:
 
-1. List files in `~/agntux/notes/` (the configured notes directory).
+1. List files in `~/agntux-code/notes/` (the configured notes directory).
 2. For each file with mtime newer than the cursor (or all files on bootstrap), read its contents.
 3. Process `.md` and `.txt` files only.
 
@@ -119,7 +119,7 @@ If the source's pagination/throttling behaviour is non-obvious, surface it via `
 **On fetch failure:** log to `data/learnings/notes-ingest/sync.md → errors` with one of `network | auth | parse | source | internal`, trim to last 10 entries, update `last_run`, release lock, exit.
 
 **Gap recovery:**
-- Watched directory moved/deleted: log kind `source` with `"watched directory not found: ~/agntux/notes/"` to `sync.md → errors`. Personalization will surface the error during the next AgntUX session and ask the user to reconfigure.
+- Watched directory moved/deleted: log kind `source` with `"watched directory not found: ~/agntux-code/notes/"` to `sync.md → errors`. Personalization will surface the error during the next AgntUX session and ask the user to reconfigure.
 - Bootstrap with null cursor: filter for files with `mtime > (now − bootstrap_window_days days)`.
 - Many files modified at once (bulk import): sort by mtime ASC, process oldest 200, advance cursor, exit.
 
@@ -141,7 +141,7 @@ For each candidate entity:
 1. **Derive the slug.** Apply P3 §2.4: lowercase, NFKD strip diacritics, hyphenate, trim, ≤64 chars.
 
 2. **Lookup-before-write (normative — always do this before creating a new entity file):**
-   a. `Read(~/agntux/entities/_sources.json)`. Treat not-found as empty lookup table.
+   a. `Read(~/agntux-code/entities/_sources.json)`. Treat not-found as empty lookup table.
    b. Look up `(subtype, source: "notes", source_id: "{file-path}")` in `entries`.
    c. If found: open existing entity at `entities/{subtype}/{slug}.md` and proceed to Step 7. Do NOT create a new file.
    d. If not found: search secondary identifiers (Grep on slug, then on natural-language variations). If a match is found, resolve and add the new variation as an alias. Do NOT create a new file.
@@ -221,7 +221,7 @@ Scan `actions/_index.md` for entries matching `related_entities` and `reason_cla
 
 ## Step 10 — Write the action item
 
-Write `~/agntux/actions/{YYYY-MM-DD}-{slug-suffix}.md` conformant to the tenant schema.
+Write `~/agntux-code/actions/{YYYY-MM-DD}-{slug-suffix}.md` conformant to the tenant schema.
 
 **`reason_class` MUST be in your contract's `# Allowed action classes`.** The validator hook rejects any other value. Common allowed classes for notes-ingest are typically `knowledge-update`, `deadline`, `response-needed`, `other` — verify against your contract from Step 0.
 
@@ -311,8 +311,8 @@ You do NOT:
 - Create/edit scheduled tasks — host-UI primitive.
 - Draft proposed replies or summaries — agntux-core does this at click-time.
 - Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
-- Write to `~/agntux/data/schema/` or `~/agntux/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
-- Read or write outside `~/agntux/` (with the obvious exception of fetching notes content via `mcp__filesystem__*` from the user-configured notes directory).
+- Write to `~/agntux-code/data/schema/` or `~/agntux-code/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
+- Read or write outside `~/agntux-code/` (with the obvious exception of fetching notes content via `mcp__filesystem__*` from the user-configured notes directory).
 
 If you're reaching for a tool not listed in your declared tool surface, stop — you're drifting.
 

@@ -1,11 +1,11 @@
 ---
 name: profile
-description: Edit the user's AgntUX profile (`~/agntux/user.md`) — cross-workflow preferences, glossary terms, identity, responsibilities, sources, generic action-worthy/noise rules, "remember PRD means Product Requirements Document", "my role changed". Also handles graduation review ("any patterns to approve?") and proactive captures from the orchestrator. Use for "edit my profile" / "update my preferences" / "add to my glossary" intents that do NOT mention a specific plugin or source. Source-specific imperatives ("never raise email from X", "ignore #random") go to `/agntux-core:teach` instead.
+description: Edit the user's AgntUX profile (`~/agntux-code/user.md`) — cross-workflow preferences, glossary terms, identity, responsibilities, sources, generic action-worthy/noise rules, "remember PRD means Product Requirements Document", "my role changed". Also handles graduation review ("any patterns to approve?") and proactive captures from the orchestrator. Use for "edit my profile" / "update my preferences" / "add to my glossary" intents that do NOT mention a specific plugin or source. Source-specific imperatives ("never raise email from X", "ignore #random") go to `/agntux-core:teach` instead.
 ---
 
 # `/agntux-core:profile` — personalization edits
 
-Lane: any edit to `~/agntux/user.md`. Cross-workflow rules and
+Lane: any edit to `~/agntux-code/user.md`. Cross-workflow rules and
 identity live here; per-plugin/per-source rules go through
 `/agntux-core:teach` instead.
 

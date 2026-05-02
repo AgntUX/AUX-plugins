@@ -3,7 +3,7 @@
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
-      "description": "Installs first; everything else hangs off it. Maintains your `~/agntux/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
+      "description": "Installs first; everything else hangs off it. Maintains your `~/agntux-code/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
       "categories": [
         "meta"
       ],

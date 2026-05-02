@@ -1,6 +1,6 @@
 tagline: "The AgntUX orchestrator. Triages action items and queries your knowledge store."
 description: |
-  Installs first; everything else hangs off it. Maintains your ~/agntux/
+  Installs first; everything else hangs off it. Maintains your ~/agntux-code/
   knowledge store, triages action items per your user.md preferences,
   and keeps _index.md files in sync as ingest plugins write new data.
 categories:

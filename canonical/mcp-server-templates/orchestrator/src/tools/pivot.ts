@@ -5,7 +5,7 @@
 //      This rejects malformed inputs (containing `/`, `..`, control chars,
 //      shell metacharacters, etc.) BEFORE they reach the host_prompt.
 //   2. Boundary check: the resolved entity path must stay within
-//      ~/agntux/entities/. This is defense-in-depth — the shape check above
+//      ~/agntux-code/entities/. This is defense-in-depth — the shape check above
 //      should already eliminate every input that could escape.
 
 import { homedir } from "node:os";
@@ -35,12 +35,12 @@ function guardEntityShape(subtype: string, slug: string): void {
 }
 
 function guardEntityPath(subtype: string, slug: string): void {
-  // Resolve the entity path and confirm it stays within ~/agntux/entities/.
+  // Resolve the entity path and confirm it stays within ~/agntux-code/entities/.
   const resolved = resolve(ENTITIES_DIR, subtype, `${slug}.md`);
   const rel = relative(ENTITIES_DIR, resolved);
   if (rel.startsWith("..") || resolve(rel) === rel) {
     throw new Error(
-      `Path traversal rejected: subtype "${subtype}" / slug "${slug}" resolves outside ~/agntux/entities/`
+      `Path traversal rejected: subtype "${subtype}" / slug "${slug}" resolves outside ~/agntux-code/entities/`
     );
   }
 }

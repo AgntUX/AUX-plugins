@@ -4,7 +4,7 @@ description: Helper reminder for ingest agents — lookup-before-write protocol 
 
 # `entities/_sources.json` — lookup-before-write reminder
 
-The orchestrator (`agntux-core`) maintains `~/agntux/entities/_sources.json` as a
+The orchestrator (`agntux-core`) maintains `~/agntux-code/entities/_sources.json` as a
 derived lookup table that maps `(subtype, source, source_id)` triples to entity
 slugs. Every ingest plugin MUST consult this file before creating a new entity to
 avoid the duplicate-entity failure mode where two plugins each create separate
@@ -34,7 +34,7 @@ the source natively emits an integer.
 
 Before creating a new entity file, an ingest agent MUST:
 
-1. `Read(~/agntux/entities/_sources.json)` — or note its absence (empty tree is fine).
+1. `Read(~/agntux-code/entities/_sources.json)` — or note its absence (empty tree is fine).
 2. Search `entries` for a row matching `(subtype, source, source_id)`.
 3. **Match found** → open the existing entity at `entities/{subtype}/{slug}.md` and
    merge updates:

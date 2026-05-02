@@ -11,7 +11,7 @@ import { AGNTUX_PLUGIN_SLUGS as IMPORTED_SLUGS } from "./agntux-plugins.mjs";
 
 // User's data directory — the only path AgntUX writes to. Resolved once at
 // module load (P2 §4.11.1). Trailing separator ensures `~/agntux2/` does NOT
-// match `~/agntux/`.
+// match `~/agntux-code/`.
 const AGNTUX_ROOT = resolve(homedir(), "agntux") + sep;
 
 // Test override: lets tests redirect AGNTUX_ROOT without touching the home dir.
@@ -66,7 +66,7 @@ export function readToolContext() {
 //
 // Three cases:
 //   (a) mcp__{slug}__* where slug is in AGNTUX_PLUGIN_SLUGS  -> in-scope
-//   (b) Read/Write/Edit/Glob/Grep with a path under ~/agntux/ -> in-scope
+//   (b) Read/Write/Edit/Glob/Grep with a path under ~/agntux-code/ -> in-scope
 //   (c) Anything else                                         -> out-of-scope
 export function isAgntuxScoped(ctx) {
   if (!ctx || typeof ctx !== "object") {
@@ -79,7 +79,7 @@ export function isAgntuxScoped(ctx) {
     return true; // conservative
   }
 
-  // RULE 1: Filesystem tools — in-scope only when targeting ~/agntux/.
+  // RULE 1: Filesystem tools — in-scope only when targeting ~/agntux-code/.
   // Hooks.json matcher restricts to Write|Edit so Read|Glob|Grep is DORMANT
   // under the current bundle (the hook never fires for those tools). Kept
   // here so a future hooks.json matcher widening doesn't require a scope.mjs
