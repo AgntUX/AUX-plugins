@@ -1,11 +1,9 @@
 {
   "mcpServers": {
     "notes-fs": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "${HOME}/agntux/notes"
+        "${CLAUDE_PLUGIN_ROOT}/bin/notes-fs.mjs"
       ]
     }
   }

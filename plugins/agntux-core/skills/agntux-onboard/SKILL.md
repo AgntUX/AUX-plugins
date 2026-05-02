@@ -19,7 +19,7 @@ potentially confusing mid-flow.
 It DOES check the `schema-requests.md` queue once at the top of the
 turn:
 
-- Read `~/agntux/data/schema-requests.md` if it exists — if any
+- Read `<agntux project root>/data/schema-requests.md` if it exists — if any
   non-blank lines, emit: "📐 {N} pending schema change request{s}.
   Run `/agntux-schema edit` when convenient." Do not block.
 
@@ -35,8 +35,8 @@ re-entry. Run only these guards:
    fires.
 
 2. **Project root** — confirm the active project root is exactly
-   `~/agntux/`. If it isn't, say "AgntUX requires the project to be
-   `~/agntux/`. Create that folder, select it in your host's project
+   `<agntux project root>/`. If it isn't, say "AgntUX requires the project to be
+   `<agntux project root>/`. Create that folder, select it in your host's project
    picker, then re-invoke me." and stop.
 
 3. **DO NOT run `_preconditions.md` checks 2, 3, or 4** here. This
@@ -75,7 +75,7 @@ re-entry. Run only these guards:
    / aspirations / goals) → Stage 3 (preferences) → Stage 4
    (glossary) → Stage 4.5 (sources, populated from discovery) →
    Stage 4.6 (plugins) → Stage 5 (finalize) and writes
-   `~/agntux/user.md` end-to-end.
+   `<agntux project root>/user.md` end-to-end.
 
 2. **Stage 5.5 (architect Mode A — schema bootstrap).** After
    `user.md` is finalized, personalization dispatches the
@@ -96,7 +96,7 @@ re-entry. Run only these guards:
 5. On "ready", personalization enumerates connected plugins (union of
    `# AgntUX plugins → ## Installed` and any `.proposed` contracts on
    disk) and runs the **Per-plugin onboarding interview** for each:
-   - Stub `~/agntux/data/instructions/{plugin-slug}.md` with
+   - Stub `<agntux project root>/data/instructions/{plugin-slug}.md` with
      `status: draft` first.
    - Ask up to 5 plain-language questions.
    - Capture answers into the instructions file; flip

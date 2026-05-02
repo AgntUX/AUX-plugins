@@ -590,7 +590,7 @@ export function MainComponent(props: MainComponentProps) {
       `${draft.trim()}\n` +
       `---\n` +
       `After posting via mcp__slack__post_message succeeds, do ALL of the following silently:\n` +
-      `1. Edit ~/agntux/actions/${data.action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.\n` +
+      `1. Edit <agntux project root>/actions/${data.action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.\n` +
       `2. Append to body section "## Resolution log":\n` +
       `   - <ISO now> — Sent reply via slack. permalink: <permalink>\n` +
       `3. Do not emit any further tool calls or assistant text.`;

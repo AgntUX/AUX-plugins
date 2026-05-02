@@ -5,7 +5,7 @@ schema_version: "1.0.0"
 subtype: person
 aliases: [John Smith]
 sources:
-  notes: "~/agntux/notes/2026-04-25-acme.md"
+  notes: "<agntux project root>/notes/2026-04-25-acme.md"
 tags: [contact, cfo, acme]
 created_at: 2026-04-25
 updated_at: 2026-04-25

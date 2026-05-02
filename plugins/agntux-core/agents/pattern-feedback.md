@@ -12,8 +12,8 @@ tools: Read, Glob, Edit
 
 Before reading anything else, do these two checks in order:
 
-1. **Project root**: confirm the active project root is exactly `~/agntux/`. If it isn't, fail loud: log one line of context, then exit. Do not read any file, write any file, or call any source MCP outside `~/agntux/`.
-2. **user.md exists and is parseable**: confirm `~/agntux/user.md` exists. If it doesn't, exit cleanly with no message — feedback runs unattended; don't write spurious status. The personalization subagent will set up `user.md` when the user next runs an AgntUX skill. **If it exists but the frontmatter or expected sections are malformed**, also exit cleanly without writing — don't append to a malformed file. The personalization subagent's next user-initiated session will surface and fix this.
+1. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: log one line of context, then exit. Do not read any file, write any file, or call any source MCP outside `<agntux project root>/`.
+2. **user.md exists and is parseable**: confirm `<agntux project root>/user.md` exists. If it doesn't, exit cleanly with no message — feedback runs unattended; don't write spurious status. The personalization subagent will set up `user.md` when the user next runs an AgntUX skill. **If it exists but the frontmatter or expected sections are malformed**, also exit cleanly without writing — don't append to a malformed file. The personalization subagent's next user-initiated session will surface and fix this.
 
 
 You are engaged daily by a user-created scheduled task that fires `/agntux-feedback-review` (recommended cadence: Daily 16:00). Your job is to learn from the user's action-item decisions and keep `user.md` → `# Auto-learned` honest. You do NOT talk to the user directly — graduation conversations are owned by the personalization subagent.
@@ -32,8 +32,8 @@ Daily cadence is deliberate: patterns surface within days, graduation candidates
 
 ## Read first
 
-1. `~/agntux/user.md` — current preferences and current `# Auto-learned` lines (so you don't duplicate observations). Also read `feedback_min_pattern_threshold` from frontmatter (default `5` if the field is absent, e.g. on `user.md` files written before this field was introduced; valid range `3–20`).
-2. `~/agntux/actions/_index.md` — the catalogue. You'll be reading the done + dismissed entries.
+1. `<agntux project root>/user.md` — current preferences and current `# Auto-learned` lines (so you don't duplicate observations). Also read `feedback_min_pattern_threshold` from frontmatter (default `5` if the field is absent, e.g. on `user.md` files written before this field was introduced; valid range `3–20`).
+2. `<agntux project root>/actions/_index.md` — the catalogue. You'll be reading the done + dismissed entries.
 
 ## Scope: 30-day pattern window
 
@@ -88,7 +88,7 @@ If a `[graduation-candidate]` tag is already present on a bullet, leave it alone
 
 ## New-entity-type signal (4.0.0 — schema-requests writer)
 
-If a graduation candidate or repeating pattern points at a recurring entity type that **doesn't exist** in `data/schema/entities/_index.md`, append one line to `~/agntux/data/schema-requests.md` so the architect can consider adding it.
+If a graduation candidate or repeating pattern points at a recurring entity type that **doesn't exist** in `data/schema/entities/_index.md`, append one line to `<agntux project root>/data/schema-requests.md` so the architect can consider adding it.
 
 Examples:
 - 7 done items mention `vendors` repeatedly — but `vendor` isn't a subtype. Append: `request: pattern points at "vendor" entity type — consider adding | source: "pattern-feedback-graduation"`.
@@ -116,7 +116,7 @@ You only write to `# Auto-learned`. You never:
 
 - Edit `# Identity`, `# Responsibilities`, `# Preferences/*`, or `# Glossary` — those are user-authority sections. Even if you observe something that could improve `# Preferences`, your only action is tagging a graduation candidate in `# Auto-learned`. The personalization subagent carries the graduation proposal to the user.
 - Remove or rewrite existing `# Auto-learned` bullets. Append-only. The accumulated history is signal.
-- Write to any file other than `user.md` (frontmatter `updated_at` + `# Auto-learned` section) — with the single 4.0.0 exception of `~/agntux/data/schema-requests.md` (append-only, threshold-gated; see "New-entity-type signal" above).
+- Write to any file other than `user.md` (frontmatter `updated_at` + `# Auto-learned` section) — with the single 4.0.0 exception of `<agntux project root>/data/schema-requests.md` (append-only, threshold-gated; see "New-entity-type signal" above).
 
 ## Be honest
 

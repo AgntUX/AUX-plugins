@@ -53,7 +53,7 @@ Steps:
 4. If the post failed (HTTP error, rate limit, channel archived), surface a one-line
    message to the user: "Couldn't send Slack reply: <reason>. The action item is
    unchanged." Do not edit the file. STOP.
-5. Edit `~/agntux/actions/{action_id}.md`:
+5. Edit `<agntux project root>/actions/{action_id}.md`:
    - Frontmatter: set `status: done` and `completed_at: <ISO now>`. Leave all other
      fields untouched.
    - Body: append a new `## Resolution log` section if it does not exist; append
@@ -72,7 +72,7 @@ User confirmed sending this Slack reply to thread {thread_ts} in channel {channe
 {final reply text}
 ---
 After posting via mcp__slack__post_message succeeds, do ALL of the following silently:
-1. Edit ~/agntux/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
+1. Edit <agntux project root>/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
 2. Append to body section "## Resolution log":
    - <ISO now> — Sent reply via slack. permalink: <permalink>
 3. Do not emit any further tool calls or assistant text.
@@ -102,7 +102,7 @@ Steps:
 3. Capture `{ ts, permalink }`.
 4. If the post failed, surface: "Couldn't send Slack message: <reason>. The action item
    is unchanged." STOP.
-5. Edit `~/agntux/actions/{action_id}.md`: set `status: done`, `completed_at: <ISO now>`;
+5. Edit `<agntux project root>/actions/{action_id}.md`: set `status: done`, `completed_at: <ISO now>`;
    append resolution log bullet.
 6. Return no further tool calls or assistant text.
 

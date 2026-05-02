@@ -37,7 +37,7 @@ describe("data-architect authority", () => {
   it("forbids writes outside data/schema/ and data/schema-{warnings,requests}.md", () => {
     // Either prose form is acceptable: "Cannot touch user.md ..." or "do NOT touch user.md ...".
     expect(text).toMatch(/(?:Cannot|do NOT)\s+touch.+user\.md.+data\/instructions.+entities.+actions/i);
-    expect(text).toMatch(/authority.+~\/agntux\/data\/schema\//i);
+    expect(text).toMatch(/authority.+<agntux project root>\/data\/schema\//i);
   });
 
   it("documents Modes A, B, and C", () => {

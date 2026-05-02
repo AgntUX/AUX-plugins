@@ -9,7 +9,7 @@ in your notes so nothing falls through the cracks.
 
 ## What it does
 
-- Reads Markdown and plain-text files from a configurable local directory (default: `~/agntux/notes/`).
+- Reads Markdown and plain-text files from a configurable local directory (default: `<agntux project root>/notes/`).
 - Extracts entities: people named in meeting notes, companies referenced, project codenames from your glossary, recurring topics.
 - Triages action items: deadlines, response-needed signals, risk flags — per your `user.md` preferences.
 - Uses filesystem mtime as the cursor so only new or modified notes are processed on each run.
@@ -19,7 +19,7 @@ in your notes so nothing falls through the cracks.
 
 1. Install **AgntUX Core** first and run `/agntux-onboard`. This plugin requires it.
 2. Install **Notes Ingest** from the marketplace.
-3. Create your notes directory: `mkdir -p ~/agntux/notes/`
+3. Create your notes directory: `mkdir -p <agntux project root>/notes/`
 4. Set up a scheduled task in your host with prompt body `/notes-ingest:sync` at **Daily 09:00**
    (or your preferred cadence). The plugin will populate your knowledge store on the first run.
 5. To trigger a sync manually, run `/notes-ingest:sync` (or
@@ -27,15 +27,15 @@ in your notes so nothing falls through the cracks.
 
 ## Configuration
 
-**Notes directory:** by default the plugin reads from `~/agntux/notes/`. To point it at a
+**Notes directory:** by default the plugin reads from `<agntux project root>/notes/`. To point it at a
 different directory (e.g., your Obsidian vault), edit `.mcp.json` inside the plugin directory
 and change the path argument to `@modelcontextprotocol/server-filesystem`.
 
 **Bootstrap window:** on the first run the plugin ingests files modified within the last 30
-days. To change this, add `bootstrap_window_days: N` to the frontmatter of `~/agntux/user.md`.
+days. To change this, add `bootstrap_window_days: N` to the frontmatter of `<agntux project root>/user.md`.
 Valid range: 1–365.
 
-**Triage preferences:** edit `~/agntux/user.md` → `# Preferences` to control which notes
+**Triage preferences:** edit `<agntux project root>/user.md` → `# Preferences` to control which notes
 generate action items. Add patterns to `## Always action-worthy` or `## Usually noise`.
 
 ## Limitations
