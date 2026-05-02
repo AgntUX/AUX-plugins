@@ -9,6 +9,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - (next-version changes go here)
 
+## [2.1.0] — 2026-05-02
+
+### Changed
+- Pre-flight error messages and user-facing prompts updated to use
+  the new bare `/agntux-*` slash-command form (per `agntux-core` 4.0.0):
+  `/agntux-onboard`, `/agntux-schema review notes-ingest`,
+  `/agntux-schema edit`, `/agntux-profile`. The previous
+  `/agntux-core:*` form still resolves on hosts that auto-prefix by
+  plugin slug, but the bare form works on every host. Existing users
+  with old scheduled tasks should migrate per `agntux-core` 4.0.0's
+  migration table.
+
 ## [2.0.0] — 2026-04-30
 
 ### Changed (BREAKING)
