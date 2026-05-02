@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "_comment": "Default suggestion list. The architect filters this against the user's discovery context (~/agntux/user.md → # Discovery / discovery_summary / # Sources) and may also recommend connectors directly from discovery answers — the registry is just a starting point. status: 'available' = installable now; 'coming-soon' = skip silently.",
+  "_comment": "Default suggestion list. The architect filters this against the user's discovery context (<agntux project root>/user.md → # Discovery / discovery_summary / # Sources) and may also recommend connectors directly from discovery answers — the registry is just a starting point. status: 'available' = installable now; 'coming-soon' = skip silently.",
   "default": [
     { "slug": "notes-ingest", "status": "available" },
     { "slug": "gmail-ingest", "status": "coming-soon" },

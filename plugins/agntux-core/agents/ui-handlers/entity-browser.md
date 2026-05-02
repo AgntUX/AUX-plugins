@@ -34,12 +34,12 @@ operational:
 
 # entity-browser UI handler
 
-Handles interactions from the `ui://entity-browser` MCP resource. The entity browser allows users to navigate the `~/agntux/entities/` knowledge store.
+Handles interactions from the `ui://entity-browser` MCP resource. The entity browser allows users to navigate the `<agntux project root>/entities/` knowledge store.
 
 ## Responsibilities
 
-- List entity subtypes and their entry counts from `~/agntux/entities/_index.md`.
-- Display entity details from `~/agntux/entities/{subtype}/{slug}.md` when a user selects an entry.
+- List entity subtypes and their entry counts from `<agntux project root>/entities/_index.md`.
+- Display entity details from `<agntux project root>/entities/{subtype}/{slug}.md` when a user selects an entry.
 - Handle pivot requests by calling `pivot(subtype, slug)` to navigate between related entities.
 
 ## Tool surface

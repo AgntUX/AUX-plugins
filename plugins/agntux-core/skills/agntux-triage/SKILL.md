@@ -26,7 +26,7 @@ missing — don't write spurious status.)
 ## Dispatch
 
 Engage the **retrieval** subagent. The subagent's first read is
-`~/agntux/actions/_index.md` (priority-sorted snapshot of open
+`<agntux project root>/actions/_index.md` (priority-sorted snapshot of open
 actions); it then expands selected items by reading their action
 files and the `## Summary` of any `related_entities[]`.
 
