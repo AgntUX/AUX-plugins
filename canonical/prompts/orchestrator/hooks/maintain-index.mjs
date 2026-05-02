@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-// PostToolUse: maintain _index.md files in ~/agntux-code/entities/ and ~/agntux-code/actions/.
-// Path-filtered: exits silently for changes outside ~/agntux-code/.
-// Deterministic: regex parsing, no LLM. P3 §5.3 + §5.5 are normative.
+// PostToolUse: maintain _index.md files in <agntux project root>/entities/ and
+// <agntux project root>/actions/. Path-filtered: exits silently for changes
+// outside the project root. Deterministic: regex parsing, no LLM.
+// P3 §5.3 + §5.5 are normative. The project root is the nearest ancestor
+// directory named `agntux` (case-insensitive), falling back to `~/agntux`.
 
 import { readFileSync, writeFileSync, renameSync, existsSync, fsyncSync, openSync, closeSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, dirname, basename, sep } from "node:path";
 import { parseFrontmatter } from "./lib/frontmatter.mjs";
 import { deriveSummary } from "./lib/summary.mjs";
+import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
 
-const AGNTUX_ROOT = join(homedir(), "agntux");
-const ENTITIES_ROOT = join(AGNTUX_ROOT, "entities");
-const ACTIONS_ROOT = join(AGNTUX_ROOT, "actions");
+const AGNTUX_ROOT = resolveAgntuxRoot();
+const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
+const ACTIONS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "actions") : null;
 
 function readToolContext() {
   try {
@@ -23,6 +25,7 @@ function readToolContext() {
 
 function inScope(filePath) {
   if (typeof filePath !== "string") return null;
+  if (!ENTITIES_ROOT || !ACTIONS_ROOT) return null; // no project root resolved
   if (basename(filePath) === "_index.md") return null; // never re-emit on our own writes
   if (filePath.startsWith(ENTITIES_ROOT + sep)) return "entities";
   if (filePath.startsWith(ACTIONS_ROOT + sep)) return "actions";

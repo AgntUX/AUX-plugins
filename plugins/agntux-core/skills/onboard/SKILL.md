@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: First-run setup for AgntUX. Creates `~/agntux-code/user.md` (identity, responsibilities, day-to-day, aspirations, goals, preferences, glossary, sources, plugins) via a guided interview, then bootstraps the tenant schema. Use when the user says "onboard me", "set me up", "get started with AgntUX", "first-time setup", "redo onboarding", "start over", or when any other agntux-core skill detects `user.md` is missing.
+description: First-run setup for AgntUX. Creates `<agntux project root>/user.md` (identity, responsibilities, day-to-day, aspirations, goals, preferences, glossary, sources, plugins) via a guided interview, then bootstraps the tenant schema. Use when the user says "onboard me", "set me up", "get started with AgntUX", "first-time setup", "redo onboarding", "start over", or when any other agntux-core skill detects `user.md` is missing.
 ---
 
 # `/agntux-core:onboard` — first-run interview
@@ -21,11 +21,11 @@ NOT run the full preconditions block. Run only these guards:
    re-onboarding, it must fire.
 
 2. **Project root** — confirm the active project root is exactly
-   `~/agntux-code/`. If it isn't, say "AgntUX requires the project to be
-   `~/agntux-code/`. Create that folder, select it in your host's project
+   `<agntux project root>/`. If it isn't, say "AgntUX requires the project to be
+   `<agntux project root>/`. Create that folder, select it in your host's project
    picker, then re-invoke me." and stop.
 
-3. **`user.md` already exists?** — if `~/agntux-code/user.md` already
+3. **`user.md` already exists?** — if `<agntux project root>/user.md` already
    exists, this is a re-onboarding request. The user must have said
    "redo onboarding" / "start over" / similar to land here, since
    the description-driven dispatch wouldn't pick `/onboard` for an
@@ -40,10 +40,10 @@ NOT run the full preconditions block. Run only these guards:
 1. Engage the **personalization** subagent in **Mode A** (first-run
    interview). It walks Stages 0–5 (identity, responsibilities,
    day-to-day, aspirations, goals, preferences, glossary, sources,
-   AgntUX plugins) and writes `~/agntux-code/user.md` end-to-end.
+   AgntUX plugins) and writes `<agntux project root>/user.md` end-to-end.
 2. When personalization returns, engage the **data-architect**
    subagent in **Mode A** (schema bootstrap). It reads `user.md`
-   and proposes the baseline `~/agntux-code/data/schema/schema.md`,
+   and proposes the baseline `<agntux project root>/data/schema/schema.md`,
    per-subtype contracts, and `actions/_index.md`.
 3. After the architect completes, tell the user: "You're set up.
    Try `/agntux-core:triage` to see what's hot, or

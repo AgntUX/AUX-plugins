@@ -6,8 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Added
-- (next-version changes go here)
+### Changed
+- `.mcp.json` now invokes a small Node wrapper (`bin/notes-fs.mjs`) that
+  resolves the AgntUX project root at startup and forwards
+  `<root>/notes` to `@modelcontextprotocol/server-filesystem`. Removes
+  the hard-coded `${HOME}/agntux/notes` arg, which was incorrect on hosts
+  that don't expand `${HOME}` (Windows) and brittle when the user's
+  project lives outside `~/agntux/`. Resolution: nearest ancestor named
+  `agntux` (case-insensitive), fallback `~/agntux`.
 
 ## [2.0.0] — 2026-04-30
 

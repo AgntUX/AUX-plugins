@@ -135,7 +135,7 @@ User confirmed sending this Slack reply to thread {thread_ts} in channel {channe
 {final reply text — verbatim from textarea}
 ---
 After posting via mcp__slack__post_message succeeds, do ALL of the following silently:
-1. Edit ~/agntux-code/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
+1. Edit <agntux project root>/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
 2. Append to body section "## Resolution log":
    - <ISO now> — Sent reply via slack. permalink: <permalink from step 0>
 3. Do not emit any further tool calls or assistant text.

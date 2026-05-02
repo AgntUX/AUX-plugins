@@ -1,6 +1,6 @@
 tagline: "The AgntUX orchestrator. Triages action items and queries your knowledge store."
 description: |
-  Installs first; everything else hangs off it. Maintains your `~/agntux-code/`
+  Installs first; everything else hangs off it. Maintains your `<agntux project root>/`
   knowledge store, triages action items per your `user.md` preferences,
   and keeps `_index.md` files in sync as ingest plugins write new data.
 categories:
@@ -17,7 +17,7 @@ available_on:
   - enterprise
 supported_prompts:
   - prompt: "/agntux-core:onboard"
-    purpose: "First-run interview and schema bootstrap. Creates ~/agntux-code/user.md and the tenant schema."
+    purpose: "First-run interview and schema bootstrap. Creates <agntux project root>/user.md and the tenant schema."
   - prompt: "/agntux-core:profile"
     purpose: "Edit your AgntUX profile — preferences, glossary, identity, sources, action-worthy/noise rules."
   - prompt: "/agntux-core:teach"

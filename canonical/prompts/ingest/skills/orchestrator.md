@@ -1,6 +1,6 @@
 ---
 name: {{plugin-slug}}
-description: {{source-display-name}} integration for AgntUX. Routes ingest scheduled tasks to the ingest subagent and routes UI rendering requests from ux to the right view tool. Always checks that ~/agntux-code/user.md exists before acting.
+description: {{source-display-name}} integration for AgntUX. Routes ingest scheduled tasks to the ingest subagent and routes UI rendering requests from ux to the right view tool. Always checks that <agntux project root>/user.md exists before acting.
 ---
 
 <!--
@@ -35,15 +35,15 @@ Before dispatching anything, run TWO checks in order:
 
 ### Check 1 — Project root
 
-Confirm the active project root is exactly `~/agntux-code/`. If it is not, fail loud — print exactly one sentence:
+Confirm the active project root is exactly `<agntux project root>/`. If it is not, fail loud — print exactly one sentence:
 
-> "AgntUX plugins require the project to be `~/agntux-code/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
+> "AgntUX plugins require the project to be `<agntux project root>/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
 
 Stop immediately. Do NOT touch source data, do NOT call source MCPs, do NOT advance any cursor.
 
 ### Check 2 — AgntUX orchestrator gate
 
-Check whether `~/agntux-code/user.md` exists.
+Check whether `<agntux project root>/user.md` exists.
 
 **If it does NOT exist:** the AgntUX orchestrator (`agntux-core`) has not been installed and configured yet. Print this message verbatim and stop:
 
@@ -67,7 +67,7 @@ For Lane A (an ingest run is about to happen, so staleness is being repaired rig
 
 For Lane B (UI rendering), run this check before engaging any view tool.
 
-Read `~/agntux-code/data/learnings/{{plugin-slug}}/sync.md`. Compare `last_success` against the current time using this table:
+Read `<agntux project root>/data/learnings/{{plugin-slug}}/sync.md`. Compare `last_success` against the current time using this table:
 
 | `recommended_ingest_cadence` | Stale threshold |
 |---|---|
@@ -132,7 +132,7 @@ If you cannot classify the prompt into Lane A or Lane B, tell the user what this
 You do NOT:
 - Fetch data from {{source-display-name}}'s MCP — that is the ingest subagent's job.
 - Author proposed replies, summaries, or other UI content — that is agntux-core's job (it has cross-plugin context and `user.md` preferences).
-- Edit files under `~/agntux-code/` — only the ingest subagent does that.
+- Edit files under `<agntux project root>/` — only the ingest subagent does that.
 - Create, enable, disable, or delete scheduled tasks — those are a host-UI-only primitive.
 
 ## Routing mechanics

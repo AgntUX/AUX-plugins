@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-04-29T05:46:53.482Z",
+  "generated_at": "2026-05-02T18:49:23.982Z",
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
-      "description": "Installs first; everything else hangs off it. Maintains your `~/agntux-code/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
+      "description": "Installs first; everything else hangs off it. Maintains your `<agntux project root>/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
       "categories": [
         "meta"
       ],
@@ -21,15 +21,35 @@
       ],
       "supported_prompts": [
         {
-          "prompt": "/ux",
-          "purpose": "Open the AgntUX chat orchestrator. Auto-routes to retrieval, feedback, or personalization based on intent."
+          "prompt": "/agntux-core:onboard",
+          "purpose": "First-run interview and schema bootstrap. Creates <agntux project root>/user.md and the tenant schema."
         },
         {
-          "prompt": "ux: triage today",
+          "prompt": "/agntux-core:profile",
+          "purpose": "Edit your AgntUX profile — preferences, glossary, identity, sources, action-worthy/noise rules."
+        },
+        {
+          "prompt": "/agntux-core:teach",
+          "purpose": "Capture per-plugin instructions. With a {plugin-slug} runs the install-time / on-demand teach interview."
+        },
+        {
+          "prompt": "/agntux-core:triage",
           "purpose": "Daily action-item digest. Recommended scheduled task at Daily 08:00."
         },
         {
-          "prompt": "ux: feedback review",
+          "prompt": "/agntux-core:schema",
+          "purpose": "Review or edit the tenant schema. Bare form re-walks; `review {slug}` re-reviews a contract; `edit` drives a user-initiated change."
+        },
+        {
+          "prompt": "/agntux-core:sync",
+          "purpose": "Cross-plugin sync alias. `/agntux-core:sync {plugin-slug}` re-dispatches to the per-plugin sync command."
+        },
+        {
+          "prompt": "/agntux-core:ask",
+          "purpose": "Catch-all for natural-language queries — entity lookups, time-window questions, topic queries, meeting prep, status edits."
+        },
+        {
+          "prompt": "/agntux-core:feedback-review",
           "purpose": "Daily pattern detection over recently-resolved action items. Recommended scheduled task at Daily 16:00."
         }
       ],
@@ -90,8 +110,8 @@
       ],
       "supported_prompts": [
         {
-          "prompt": "ux:notes-ingest",
-          "purpose": "Scheduled task — fires the ingest agent on the user's chosen cadence (recommended: Daily 09:00)."
+          "prompt": "/notes-ingest:sync",
+          "purpose": "Run a notes-ingest pass now (manual) or on schedule. Recommended scheduled task at Daily 09:00."
         }
       ],
       "support": {
@@ -111,6 +131,94 @@
         "name": "AgntUX",
         "url": "https://agntux.ai",
         "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "person",
+            "description": "Individuals named or mentioned in notes (meeting attendees, action-item owners, references).",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "company",
+            "description": "Organizations referenced in notes — customers, vendors, partners.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "project",
+            "description": "Named workstreams or codenames (often resolved via user.md → # Glossary).",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "topic",
+            "description": "Recurring themes, products, contracts, or research areas surfaced in notes.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "knowledge-update",
+            "description": "An informational signal extracted from a note (decision, fact, status update)."
+          },
+          {
+            "class": "deadline",
+            "description": "A note carrying an explicit due date."
+          },
+          {
+            "class": "response-needed",
+            "description": "A note flagging an open question or pending follow-up."
+          },
+          {
+            "class": "other",
+            "description": "Escape hatch for items that don't fit the above; requires reason_detail."
+          }
+        ],
+        "cursor_semantics": "Filesystem mtime in milliseconds (epoch); start-of-run timestamp advances the cursor to avoid races with files modified during the run.",
+        "source_id_format": "Absolute file path under the configured notes directory."
       }
     }
   }

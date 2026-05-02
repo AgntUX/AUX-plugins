@@ -1,16 +1,20 @@
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve, relative } from "node:path";
 import { setFrontmatter } from "../frontmatter.js";
+import { expectedAgntuxRoot } from "../agntux-root.js";
 
-const ACTIONS_DIR = join(homedir(), "agntux", "actions");
 const VALID_STATUSES = new Set(["open", "snoozed", "done", "dismissed"]);
 
+function actionsDir(): string {
+  return join(expectedAgntuxRoot(), "actions");
+}
+
 function guardPath(id: string): string {
-  const resolved = resolve(ACTIONS_DIR, `${id}.md`);
-  const rel = relative(ACTIONS_DIR, resolved);
+  const dir = actionsDir();
+  const resolved = resolve(dir, `${id}.md`);
+  const rel = relative(dir, resolved);
   if (rel.startsWith("..") || resolve(rel) === rel) {
-    throw new Error(`Path traversal rejected: id "${id}" resolves outside ~/agntux-code/actions/`);
+    throw new Error(`Path traversal rejected: id "${id}" resolves outside <agntux project root>/actions/`);
   }
   return resolved;
 }

@@ -142,7 +142,7 @@ action (e.g., Send button). Each intent key below MUST appear as a
 {Verbatim user-edited content}
 ---
 After {expected source MCP call} succeeds, do ALL of the following silently:
-1. Edit ~/agntux-code/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
+1. Edit <agntux project root>/actions/{action_id}.md — set status=done and completed_at=<ISO now> in frontmatter.
 2. Append to body section "## Resolution log":
    - <ISO now> — {action description}. {result details}
 3. Do not emit any further tool calls or assistant text.

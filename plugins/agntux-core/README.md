@@ -13,7 +13,7 @@ between ingest plugins to keep your data fresh and organized.
 Install AgntUX Core first before installing any other AgntUX plugin. It provides the
 shared knowledge store and orchestration layer that other plugins depend on.
 
-After installing, run `/agntux-core:onboard` once to create your `~/agntux-code/user.md` profile
+After installing, run `/agntux-core:onboard` once to create your `<agntux project root>/user.md` profile
 and bootstrap the tenant schema.
 
 ## Quickstart
@@ -41,7 +41,7 @@ skill's description (e.g. saying "what's hot today" routes to `/agntux-core:tria
 
 ## Configuration
 
-Configure your preferences in `~/agntux-code/user.md`. This file controls how the orchestrator
+Configure your preferences in `<agntux project root>/user.md`. This file controls how the orchestrator
 prioritizes action items and manages your workflow. Run `/agntux-core:profile` to edit it.
 
 ## Limitations

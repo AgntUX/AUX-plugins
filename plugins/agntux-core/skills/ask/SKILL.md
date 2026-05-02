@@ -18,11 +18,11 @@ orchestrator-authored slot placeholders — `{propose_reply}`,
 `{summary}`, `{draft_body}`, `{propose_comment}`, `{highlight_ids}` —
 fill the slot before routing.
 
-1. Identify which `~/agntux-code/actions/{id}.md` the prompt belongs to
+1. Identify which `<agntux project root>/actions/{id}.md` the prompt belongs to
    (join key: `{ref}` token + `source_ref`). If you can't disambiguate,
    fall back to the most recently active action item.
 2. Read the action item's body and frontmatter (`related_entities[]`).
-3. Read `~/agntux-code/user.md` (`# Identity`, `# Glossary`, `# Auto-learned`).
+3. Read `<agntux project root>/user.md` (`# Identity`, `# Glossary`, `# Auto-learned`).
 4. For each entity in `related_entities[]`, read its `## Summary`.
 5. Draft the slot value:
    - `{propose_reply}` — ≤2 sentences in the user's voice, matching
@@ -44,7 +44,7 @@ fill the slot before routing.
 For pure mechanical edits — "snooze action X for 24h", "dismiss Y",
 "mark Z done" — do the frontmatter Edit yourself.
 
-1. Read `~/agntux-code/actions/{id}.md`. If it doesn't exist, say so in
+1. Read `<agntux project root>/actions/{id}.md`. If it doesn't exist, say so in
    one sentence and stop.
 2. If `status` already matches the request, tell the user and don't
    write.

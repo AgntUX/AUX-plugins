@@ -5,6 +5,27 @@ host plugin distributed via `.claude-plugin/marketplace.json` at the repo root.
 
 ---
 
+## AgntUX Project Root
+
+User data lives in **any directory named `agntux`** (case-insensitive). At
+runtime, hooks and MCP servers resolve the project root by:
+
+1. Walking up from the host's `process.cwd()` for the nearest ancestor whose
+   lowercased basename is `agntux`.
+2. Falling back to `<home>/agntux` if no walk-up match.
+3. Returning null (hooks passthrough) or a best-guess path (MCP guards) if
+   neither exists.
+
+The single resolver is `canonical/hooks/lib/agntux-root.mjs`
+(`resolveAgntuxRoot()`); the orchestrator MCP server has a TS twin at
+`canonical/mcp-server-templates/orchestrator/src/agntux-root.ts`. **Never
+hardcode `~/agntux-code/` or `homedir() + "agntux"` in new code** — always
+go through the resolver. Prompts and docs that need to reference the path
+should write `<agntux project root>/...` (or `<root>/...` once defined in
+the prompt).
+
+---
+
 ## Repo Layout
 
 ```

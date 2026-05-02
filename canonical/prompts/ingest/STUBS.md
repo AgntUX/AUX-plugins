@@ -63,7 +63,7 @@ block (per P3a §6.2). They are NOT `{{...}}` placeholders that get inlined into
 agent prompts.
 
 At run-start, the ingest subagent reads the contract at
-`~/agntux-code/data/schema/contracts/{{plugin-slug}}.md` (Step 0 of `agents/ingest.md`)
+`<agntux project root>/data/schema/contracts/{{plugin-slug}}.md` (Step 0 of `agents/ingest.md`)
 and uses the contract's allowed subtypes + action classes as its writable
 vocabulary. The validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks
 any write that diverges. **Never inline subtype or action_class lists into

@@ -12,8 +12,10 @@
 //
 // The only tools/calls allowed are:
 //   - Returning structuredContent + resourceUri + _meta (see return shape below)
-//   - Reading ~/agntux-code/user.md at call time to apply preference ordering
-//     (P5 §7.3 "Personalization" rule — demote noise items to bottom, don't hide)
+//   - Reading <agntux project root>/user.md at call time to apply preference
+//     ordering (P5 §7.3 "Personalization" rule — demote noise items to bottom,
+//     don't hide). The project root is the nearest ancestor directory named
+//     `agntux` (case-insensitive), falling back to `~/agntux`.
 //
 // Naming convention: {verb_root}_view where verb_root matches the view_tool
 // declared in the corresponding agents/ui-handlers/{name}.md operational manifest.
@@ -51,7 +53,7 @@ export const viewToolDescriptor = {
       // Forwarded from the action item for use in follow-up intent templates.
       action_id: {
         type: "string",
-        description: "Action item ID from ~/agntux-code/actions/. Forwarded into structuredContent.",
+        description: "Action item ID from <agntux project root>/actions/. Forwarded into structuredContent.",
       },
     },
     required: ["source_ref"],

@@ -1,8 +1,10 @@
-// Helper for reading + verifying ~/agntux-code/data/schema/schema.lock.json.
+// Helper for reading + verifying <agntux project root>/data/schema/schema.lock.json.
 // Used by validate-schema.mjs (PreToolUse) and the data-architect subagent.
+// The project root is the nearest ancestor directory named `agntux`
+// (case-insensitive), falling back to `~/agntux`.
 //
 // The lock is the deterministic digest of the markdown source files under
-// ~/agntux-code/data/schema/. The architect regenerates it on every write; the
+// <root>/data/schema/. The architect regenerates it on every write; the
 // validator reads it on every entity/action write.
 //
 // P3a §6.1 specifies the shape:
@@ -16,12 +18,12 @@
 // lock-file rewrite must be picked up within a few seconds — set to 2s.
 
 import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveAgntuxRoot } from "./agntux-root.mjs";
 
-const AGNTUX_ROOT = join(homedir(), "agntux");
-const SCHEMA_DIR = join(AGNTUX_ROOT, "data", "schema");
-const LOCK_PATH = join(SCHEMA_DIR, "schema.lock.json");
+const AGNTUX_ROOT = resolveAgntuxRoot();
+const SCHEMA_DIR = AGNTUX_ROOT ? join(AGNTUX_ROOT, "data", "schema") : null;
+const LOCK_PATH = SCHEMA_DIR ? join(SCHEMA_DIR, "schema.lock.json") : null;
 
 const CACHE_TTL_MS = 2_000;
 let cached = null; // { lock, mtime, readAt }
@@ -32,7 +34,7 @@ let cached = null; // { lock, mtime, readAt }
  * Throws when the lock exists but is malformed (validator must block until the architect fixes it).
  */
 export function readSchemaLock() {
-  if (!existsSync(LOCK_PATH)) {
+  if (!LOCK_PATH || !existsSync(LOCK_PATH)) {
     cached = null;
     return null;
   }

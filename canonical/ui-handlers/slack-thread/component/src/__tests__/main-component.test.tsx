@@ -209,7 +209,7 @@ describe('Send intent assembly (P9 §8.3)', () => {
     // Silent persistence instruction (P9 §8.3, verbatim last line)
     expect(sentText).toContain('3. Do not emit any further tool calls or assistant text.');
     // Action item edit step
-    expect(sentText).toContain('Edit ~/agntux-code/actions/2026-04-25-acme-friday-call.md');
+    expect(sentText).toContain('Edit <agntux project root>/actions/2026-04-25-acme-friday-call.md');
     expect(sentText).toContain('status=done');
     expect(sentText).toContain('completed_at=<ISO now>');
     // Resolution log

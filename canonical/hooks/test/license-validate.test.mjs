@@ -175,7 +175,7 @@ test("maybeSpawnBgRefresh: cooldown elapsed (>60s) -> spawn allowed", () => {
   } finally { cleanup(dir); }
 });
 
-test("decide: file Write under ~/agntux-code/ with valid cache -> allow", () => {
+test("decide: file Write under ~/agntux/ with valid cache -> allow", () => {
   const { dir } = setup();
   try {
     const claims = defaultClaims();
@@ -187,7 +187,7 @@ test("decide: file Write under ~/agntux-code/ with valid cache -> allow", () => 
   } finally { cleanup(dir); }
 });
 
-test("decide: file Write outside ~/agntux-code/ -> allow (out of scope) regardless of cache", () => {
+test("decide: file Write outside ~/agntux/ -> allow (out of scope) regardless of cache", () => {
   const { dir } = setup();
   try {
     const fp = resolve(homedir(), "projects", "my-app", "src", "x.ts");
