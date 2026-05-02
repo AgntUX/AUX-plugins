@@ -219,13 +219,14 @@ describe("Pass 6 — real plugin trees", () => {
     expect(findings).toHaveLength(0);
   });
 
-  it("agntux-core stub handlers emit W03 warnings only (no errors)", () => {
+  it("agntux-core handlers (triage, entity-browser) pass clean — real operational manifests, no W03 warnings", () => {
     const findings: Finding[] = [];
     const pluginDir = path.join(repoRoot, "plugins", "agntux-core");
     pass6HandlerFrontmatter("agntux-core", pluginDir, repoRoot, findings);
     expect(errors(findings)).toHaveLength(0);
-    // Both triage.md and entity-browser.md are stubs — expect W03 warnings
-    expect(warnings(findings).length).toBeGreaterThan(0);
-    expect(codes(warnings(findings)).every((c) => c === "W03")).toBe(true);
+    // Per CHANGELOG 4.1.0, both triage.md and entity-browser.md now ship
+    // full operational: manifests, so the W03 stub-handler warning no
+    // longer fires for them.
+    expect(warnings(findings)).toHaveLength(0);
   });
 });

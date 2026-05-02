@@ -24,6 +24,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - ~140 prompt/doc/test references swept from literal `~/agntux/` to the
   `<agntux project root>/` placeholder for consistency with the resolver.
 
+### Fixed
+- Onboarding opener no longer narrates internal architecture
+  ("subagent", "Mode A", "dispatch"). Replaced with a single AgntUX
+  voice and a brief welcome.
+- Project-root precondition no longer short-circuits before Stage 0.
+  Stage 0 owns folder discovery, mkdir-prompt, and the picker
+  instruction — and now leads with the explicit "AgntUX uses a folder
+  named `agntux`" framing instead of the generic "select a folder"
+  copy.
+- Plugin suggestions are fenced to the AgntUX marketplace. Slugs are
+  validated against `${CLAUDE_PLUGIN_ROOT}/../{slug}/marketplace/listing.yaml`;
+  Anthropic / built-in / third-party plugins are never recommended.
+  Discovery-surfaced needs without AgntUX coverage are stated honestly
+  ("there isn't an AgntUX plugin for {source} yet — it's on the
+  roadmap").
+- Scheduled-task creation now uses the host's scheduled-task tool
+  directly (Cowork supports this). Task bodies are bare slash commands
+  with no preamble or source-pull instructions. Copy/paste fallback
+  retained for hosts that don't expose the tool.
+- Mode B cadence-change is now a direct edit through the host's
+  scheduled-task tool, no longer a "you have to do it yourself" deflect.
+- `agents/retrieval.md` no longer claims scheduled tasks are
+  host-UI-only — it routes management to personalization Mode B.
+- Onboarding wrap-up State A fires one immediate `/agntux-sync` per
+  installed plugin so the user's first triage call has data, then
+  points the user at the AgntUX Triage UI and suggests clicking an
+  action item to surface the source-specific plugin UI.
+- `skills/agntux-triage/SKILL.md` carries a defensive note: triage
+  reads only the ingested store at `<root>/actions/_index.md`; any
+  prompt-body instruction to "pull from {source}" is ignored.
+
 ## [4.1.0] — 2026-05-02
 
 ### Added
