@@ -9,6 +9,70 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - (next-version changes go here)
 
+## [4.1.0] — 2026-05-02
+
+### Added
+- `data/schema-design-rubric.md` §1a — canonical banned-words list
+  (`subtype`, `schema`, `frontmatter`, `action_class`, `contract`,
+  `lock file`) plus plain-language replacement table. Single source
+  of truth for the no-jargon rule; `data-architect.md` and
+  `personalization.md` reference it instead of duplicating.
+- `skills/_preflight.md` — shared schema-drift preflight (the one-line
+  nudge for pending `.proposed` contracts and queued schema-requests).
+  Six user-facing skills now reference it instead of inlining.
+- Stage 0.5 explicit `discovery_summary` confirmation step.
+  Personalization shows the LLM-composed summary back to the user
+  ("Here's how I'm reading your situation: …") and waits for approval
+  before saving. Resolves the user-authority gap on a paraphrased
+  frontmatter field.
+- Stage 5.5 (architect Mode A — schema bootstrap) wired explicitly
+  into the `/agntux-onboard` first-run dispatch. Closes the gap where
+  Mode B was being dispatched before any schema existed.
+- Mode A-bis re-entry now scans a third disjunct: instructions files
+  with `status: draft` (interrupted onboarding). Without this, an
+  interrupted per-plugin interview left the plugin in limbo with no
+  recovery short of `/agntux-teach`.
+- `(needs-clarification)` handling in architect Mode A: when
+  discovery is too sparse even after the fallback question, write a
+  minimal generic baseline plus an invitation to refine via
+  `/agntux-schema edit` later. No flow blocking.
+- Malformed `marketplace/listing.yaml` handling in personalization's
+  per-plugin onboarding (missing / YAML-garbage / partial-fields all
+  handled with explicit fallbacks).
+- `recommended_ingest_cadence` value space documented (5 valid
+  shapes; malformed values fall back to `Daily 09:00` with a user
+  note).
+- `agents/ui-handlers/{triage,entity-browser}.md` gain real
+  `operational:` manifests (verb_phrases, view_tool, resource_uri,
+  structured_content_schema, follow_up_intents, degraded_states).
+  Clears the W03 stub-handler warnings.
+
+### Changed
+- `data-architect` tool surface: `+ Bash` (needed for `rm -f` to
+  delete `.proposed` files after Mode B; Edit alone can't unlink),
+  `+ WebSearch` and `+ WebFetch` (synthesis aid during Mode A).
+- `data-architect` Mode B Stage 5: explicit `rm -f` of the
+  `.proposed` file plus a re-Glob verification step. Without
+  deletion, the schema-drift nudge fires forever.
+- `_preconditions.md` check #3 (pending `.proposed` contracts) now
+  case-splits: missing or `status: draft` instructions →
+  personalization Mode A-bis (per-plugin onboarding); `status: final`
+  instructions → architect Mode B directly. Prevents bypassing the
+  per-plugin interview.
+- `_preconditions.md` documents that `/agntux-onboard` opts out of
+  checks 2/3/4 (handles them inline via the new flow).
+- `data-architect` Mode A Stage 4 / Mode C Stage 4: migration warning
+  is unconditional on required-field adds — no `entities/` scan
+  needed (architect doesn't have read authority there).
+- `user-feedback` Mode B reframed as on-demand refresh only;
+  install-time onboarding is owned by personalization Mode A's
+  per-plugin interview.
+
+### Fixed
+- `mcp-server` is now installable and buildable (`@modelcontextprotocol/sdk`
+  was missing from runtime deps); 4 pre-existing e2e smoke-test
+  failures resolved.
+
 ## [4.0.0] — 2026-05-01
 
 ### Changed (BREAKING)
