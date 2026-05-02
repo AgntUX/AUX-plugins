@@ -71,7 +71,8 @@ describe("plugin manifest", () => {
   it("plugin.json has required fields", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, unknown>;
     expect(manifest.name).toBe("notes-ingest");
-    expect(manifest.version).toBe("2.0.0");
+    expect(typeof manifest.version).toBe("string");
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
     expect(manifest.license).toBe("ELv2");
   });

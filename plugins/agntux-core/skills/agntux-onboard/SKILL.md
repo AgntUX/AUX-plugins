@@ -8,6 +8,24 @@ description: First-run setup AND re-entry for AgntUX. On a fresh `user.md`, walk
 Lane: full onboarding from a clean slate, OR a focused walkthrough
 of newly installed plugins after first-run is already complete.
 
+## Opening message
+
+Greet the user briefly: "Welcome to AgntUX — let's get you set up."
+Then hand off to personalization Mode A immediately. Do NOT narrate
+prerequisite checks, do NOT mention "subagents" / "modes" /
+"orchestrator" / "dispatch". The user is talking to AgntUX as a
+single voice. Stage 0 of personalization handles project-root
+resolution; you do not pre-empt it.
+
+## Voice rules
+
+Speak as a single AgntUX voice to the user throughout. Never
+reference internal architecture: do NOT mention "subagent",
+"dispatch", "Mode A / A-bis / B / C / D", "orchestrator", "transcribe",
+"I'll hand this to", "I'll engage", or any internal phase or
+sub-component. Internal phase transitions are silent. The user does
+not need to know how the work is divided internally.
+
 ## Schema-drift preflight
 
 This skill explicitly does NOT run [`_preflight.md`](../_preflight.md)
@@ -34,10 +52,13 @@ re-entry. Run only these guards:
    cache yet the banner is silent; for returning trial users it
    fires.
 
-2. **Project root** — confirm the active project root is exactly
-   `<agntux project root>/`. If it isn't, say "AgntUX requires the project to be
-   `<agntux project root>/`. Create that folder, select it in your host's project
-   picker, then re-invoke me." and stop.
+2. **Project root** — do NOT short-circuit on a missing `agntux` folder.
+   Hand off to personalization Mode A immediately so Stage 0 can resolve
+   the project root. Stage 0 covers all cases: cwd is `agntux`, an
+   ancestor is `agntux`, a candidate exists elsewhere under `~/`, or no
+   `agntux` directory exists at all (in which case Stage 0 offers to
+   `mkdir ~/agntux` and instructs the user to select it via the host
+   picker).
 
 3. **DO NOT run `_preconditions.md` checks 2, 3, or 4** here. This
    skill's dispatch (below) handles schema bootstrap, `.proposed`

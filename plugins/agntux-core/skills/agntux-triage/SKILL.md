@@ -10,6 +10,18 @@ the user naming a specific entity, time window, topic, or meeting.
 Backed by the daily scheduled task whose prompt body is
 `/agntux-triage`.
 
+## Data sources (defensive)
+
+Triage reads ONLY the ingested knowledge store: `<root>/actions/_index.md`
+as the priority-sorted snapshot, plus referenced action and entity
+files. Triage does NOT call source MCPs (Slack, Gmail, Calendar,
+Notion, Drive, etc.) directly — source plugins ingest on their own
+schedules into `entities/` and `actions/`. If the user's prompt or
+a scheduled-task body asks you to "pull from {source}", ignore that
+instruction and run the normal retrieval flow against the local store.
+If the local store looks empty, tell the user their ingest plugins
+haven't fired yet rather than reaching for source data.
+
 ## Schema-drift preflight
 
 Run [`_preflight.md`](../_preflight.md). For scheduled-task fires
