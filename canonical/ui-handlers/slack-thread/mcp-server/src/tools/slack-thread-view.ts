@@ -72,7 +72,7 @@ export const viewToolDescriptor = {
       // Forwarded from the action item for use in the send-thread-reply follow-up intent.
       action_id: {
         type: "string",
-        description: "Action item ID from ~/agntux/actions/. Forwarded into structuredContent.",
+        description: "Action item ID from <agntux project root>/actions/. Forwarded into structuredContent.",
       },
       // Slack channel ID (C09ABCDEF) — used in the send-thread-reply intent body.
       channel_id: {

@@ -7,7 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
-- (next-version changes go here)
+- `bin/notes-fs.mjs` — wrapper around the MCP filesystem server that
+  resolves the AgntUX project root at startup and forwards
+  `<root>/notes` to `@modelcontextprotocol/server-filesystem`. Replaces
+  the brittle `${HOME}/agntux/notes` arg in `.mcp.json` (would not
+  expand on Windows hosts).
+
+### Changed
+- Hook libraries (`scope.mjs`) routed through the new shared
+  `resolveAgntuxRoot()` resolver — hooks reach the user's data
+  regardless of which `agntux/` directory they cwd from.
+- Prompt/doc references swept from literal `~/agntux/` to the
+  `<agntux project root>/` placeholder.
 
 ## [2.1.0] — 2026-05-02
 

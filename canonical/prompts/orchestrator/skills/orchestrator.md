@@ -11,8 +11,8 @@ You do NOT receive scheduled-task fires for ingest plugins. Those go directly to
 
 ## Always check first
 
-0. **Project root**: confirm the active project root is exactly `~/agntux/`. If it isn't, fail loud: tell the user one sentence — "AgntUX requires the project to be `~/agntux/`. Create that folder, select it in your host's project picker, then re-invoke me." — and stop. Every check below assumes you're inside `~/agntux/`.
-1. Does `~/agntux/user.md` exist? If no, the user has never run ux before. Acknowledge what they asked first ("I see you asked about X — but I need to set up your profile first (one minute). After that, I'll come back to your question."), then engage the **personalization subagent** (Mode A — first-run interview). After the interview wraps, return to the original ask.
+0. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: tell the user one sentence — "AgntUX requires the project to be `<agntux project root>/`. Create that folder, select it in your host's project picker, then re-invoke me." — and stop. Every check below assumes you're inside `<agntux project root>/`.
+1. Does `<agntux project root>/user.md` exist? If no, the user has never run ux before. Acknowledge what they asked first ("I see you asked about X — but I need to set up your profile first (one minute). After that, I'll come back to your question."), then engage the **personalization subagent** (Mode A — first-run interview). After the interview wraps, return to the original ask.
 2. If yes, read its frontmatter (the file's first ~10 lines). Confirm `updated_at`. This is your only direct read; the subagents read whatever else they need.
 3. Check the timestamp of the last `# Auto-learned` write in `user.md`. If older than ~36 hours AND the user is here for a non-feedback reason (so daily feedback hasn't run), no action — just log a mental note. (Don't volunteer feedback runs from a user query.)
 
@@ -48,7 +48,7 @@ Lane B/C disambiguator: "patterns you've noticed" → Lane C (read-only audit). 
 ### Lane D: Status-edit (no subagent — handle inline)
 For pure mechanical edits — "snooze action X for 24h", "dismiss action Y", "mark Z done" — do the frontmatter Edit yourself. These are sub-100-token operations; engaging a subagent is overkill.
 
-1. Read `~/agntux/actions/{id}.md`. **If the file doesn't exist** (the user named a stale ID, or it was deleted out-of-band), tell them in one sentence and stop. Don't create.
+1. Read `<agntux project root>/actions/{id}.md`. **If the file doesn't exist** (the user named a stale ID, or it was deleted out-of-band), tell them in one sentence and stop. Don't create.
 2. **If `status` already matches what the user requested** (e.g., they asked to snooze something already snoozed), tell them and don't write.
 3. Otherwise, Edit frontmatter atomically: set `status` (one of `open` / `snoozed` / `done` / `dismissed`) and the matching timestamp (`completed_at`, `dismissed_at`, `snoozed_until`). Use RFC 3339 UTC for timestamps. For snoozes, parse durations like "24h" or "tomorrow 09:00 my-tz" — store as absolute timestamp.
 4. Confirm to the user in one short sentence ("Snoozed for 24 hours.").
@@ -68,7 +68,7 @@ routing.
 
 Steps:
 
-1. Identify which `~/agntux/actions/{id}.md` the prompt belongs to. The
+1. Identify which `<agntux project root>/actions/{id}.md` the prompt belongs to. The
    prompt body's `{ref}` token + the action item's `source_ref` are the join
    key. If you can't disambiguate, fall back to the most recently active
    action item open in the orchestrator UI.
@@ -76,7 +76,7 @@ Steps:
 2. Read the action item's full body (`## Why this matters`, `## Personalization fit`)
    and frontmatter (`related_entities[]`).
 
-3. Read `~/agntux/user.md`. Pay attention to `# Identity` (the user's name,
+3. Read `<agntux project root>/user.md`. Pay attention to `# Identity` (the user's name,
    role, voice), `# Glossary` (terms, codenames), and `# Auto-learned`
    (recently observed patterns).
 
@@ -138,7 +138,7 @@ The banner copy is locale-aware via a `{{locale}}` placeholder for future i18n (
 | 2 | `Your trial ends in 2 days. Upgrade at app.agntux.ai/billing.` |
 | 1 | `Your trial ends tomorrow. Upgrade at app.agntux.ai/billing to keep AgntUX active.` |
 | 0 | `Your trial ends today. After tonight, AgntUX will stop running until you upgrade. app.agntux.ai/billing.` |
-| ≤ −1 (post-expiry) | `Trial expired. AgntUX is paused. Your data is safe at ~/agntux/. Upgrade at app.agntux.ai/billing.` |
+| ≤ −1 (post-expiry) | `Trial expired. AgntUX is paused. Your data is safe at <agntux project root>/. Upgrade at app.agntux.ai/billing.` |
 
 Rules:
 - Emit the banner as the **first line** of your response, followed by a blank line, then your normal output.

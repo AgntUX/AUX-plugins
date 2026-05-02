@@ -5,7 +5,7 @@
  *
  * 4.0.0 change: role-based rules are gone. The registry is a single
  * default-suggestion list. The architect filters this list against the
- * user's discovery context (`~/agntux/user.md → # Discovery /
+ * user's discovery context (`<agntux project root>/user.md → # Discovery /
  * discovery_summary / # Sources`) and may also recommend connectors
  * directly from discovery answers — the registry is just a starting point.
  *

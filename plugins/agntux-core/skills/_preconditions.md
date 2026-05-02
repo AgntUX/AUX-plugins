@@ -29,7 +29,7 @@ the user is on a trial plan).
 | 2 | `Your trial ends in 2 days. Upgrade at app.agntux.ai/billing.` |
 | 1 | `Your trial ends tomorrow. Upgrade at app.agntux.ai/billing to keep AgntUX active.` |
 | 0 | `Your trial ends today. After tonight, AgntUX will stop running until you upgrade. app.agntux.ai/billing.` |
-| ≤ −1 (post-expiry) | `Trial expired. AgntUX is paused. Your data is safe at ~/agntux/. Upgrade at app.agntux.ai/billing.` |
+| ≤ −1 (post-expiry) | `Trial expired. AgntUX is paused. Your data is safe at <agntux project root>/. Upgrade at app.agntux.ai/billing.` |
 
 Rules:
 - Emit the banner as the **first line** of your response, followed
@@ -51,12 +51,12 @@ the prerequisite.
 
 ### 0. Project root
 
-Confirm the active project root is exactly `~/agntux/`. If it isn't,
+Confirm the active project root is exactly `<agntux project root>/`. If it isn't,
 fail loud — say one sentence: "AgntUX requires the project to be
-`~/agntux/`. Create that folder, select it in your host's project
+`<agntux project root>/`. Create that folder, select it in your host's project
 picker, then re-invoke me." — and stop.
 
-### 1. `~/agntux/user.md` exists and parses
+### 1. `<agntux project root>/user.md` exists and parses
 
 If the file does not exist, the user has never onboarded.
 Acknowledge their original ask in one sentence ("I see you asked
@@ -74,7 +74,7 @@ personalization owns it.)
 
 ### 2. Schema bootstrapped
 
-If `~/agntux/data/schema/schema.md` does not exist AND `user.md`
+If `<agntux project root>/data/schema/schema.md` does not exist AND `user.md`
 exists, the schema has never been bootstrapped. Announce the
 preemption ("Before I get to that — your tenant schema isn't set up
 yet.") and dispatch the **data-architect subagent in Mode A**
@@ -83,7 +83,7 @@ original ask.
 
 ### 3. Pending plugin contracts
 
-Glob `~/agntux/data/schema/contracts/*.md.proposed`. If at least one
+Glob `<agntux project root>/data/schema/contracts/*.md.proposed`. If at least one
 file matches, a plugin has been installed but is not yet authorised.
 The dispatch depends on whether per-plugin onboarding (the
 personalization-owned interview that writes `data/instructions/`) has
@@ -115,7 +115,7 @@ entry-point skill DOES run this check.
 
 ### 4. Schema-requests queue
 
-If `~/agntux/data/schema-requests.md` exists AND has at least one
+If `<agntux project root>/data/schema-requests.md` exists AND has at least one
 non-blank queue line, dispatch the **data-architect subagent in
 Mode C** (schema edit driven by user-feedback escalation). The
 architect consumes one entry per spawn. After it completes, return
