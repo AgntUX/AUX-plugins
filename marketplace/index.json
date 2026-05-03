@@ -81,19 +81,19 @@
         "github_handle": "agntux"
       }
     },
-    "notes-ingest": {
-      "tagline": "Turn your local Markdown notes into an AgntUX knowledge store.",
-      "description": "Watches a local notes directory (Obsidian vault, Markdown folder, plain\ntext files) and extracts people, companies, projects, and topics as\nAgntUX entities. Action items surface deadlines, follow-ups, and open\nquestions so nothing falls through the cracks.\n",
+    "agntux-slack": {
+      "tagline": "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts.",
+      "description": "Watches every Slack channel and DM you have access to, captures DMs,\n@mentions, and active threads, and extracts people, companies, projects,\nand topics as AgntUX entities. Action items surface response-needed\nsignals, deadlines, and decisions buried in long threads. On request,\ndrafts replies (or thread summaries) in chat and asks you to confirm\nbefore sending — the actual `slack_send_message`, `slack_schedule_message`,\nand `slack_create_canvas` calls only happen after you say \"yes\".\n",
       "categories": [
-        "productivity",
-        "notes-knowledge"
+        "communication",
+        "productivity"
       ],
       "keywords": [
-        "notes",
-        "markdown",
-        "local-files",
-        "knowledge-base",
-        "obsidian"
+        "slack",
+        "dms",
+        "threads",
+        "mentions",
+        "action-items"
       ],
       "available_on": [
         "trial",
@@ -102,30 +102,29 @@
         "enterprise"
       ],
       "data_ingested": [
-        "Markdown (.md) and plain-text (.txt) files in the configured notes directory",
-        "People mentioned by name (meeting notes, introductions, action items)",
-        "Companies and organisations referenced in notes",
-        "Projects and codenames from the user's glossary",
-        "Topics, concepts, and recurring themes"
+        "DMs (1:1) and group DMs in your workspace",
+        "@mentions of you in any channel you have access to",
+        "Threads where you are OP or have replied",
+        "Channel messages in any channel you have authored in recently",
+        "Pinned messages and canvases referenced from monitored channels"
       ],
       "supported_prompts": [
         {
-          "prompt": "/notes-ingest:sync",
-          "purpose": "Run a notes-ingest pass now (manual) or on schedule. Recommended scheduled task at Daily 09:00."
+          "prompt": "/agntux-slack:sync",
+          "purpose": "Run an agntux-slack pass now (manual) or on schedule. Recommended scheduled task at Hourly."
         }
       ],
       "support": {
-        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Anotes-ingest",
+        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-slack",
         "email": "support@agntux.ai"
       },
       "requires_plugins": [
         "agntux-core"
       ],
       "requires_source_mcp": {
-        "source": "npm",
-        "package_name": "@modelcontextprotocol/server-filesystem",
-        "install_url": "https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem",
-        "display_name": "Filesystem MCP"
+        "source": "connector",
+        "connector_slug": "slack",
+        "display_name": "Slack"
       },
       "developer": {
         "name": "AgntUX",
@@ -136,7 +135,7 @@
         "entity_subtypes": [
           {
             "subtype": "person",
-            "description": "Individuals named or mentioned in notes (meeting attendees, action-item owners, references).",
+            "description": "Slack users — DM partners, channel co-authors, mentioned colleagues. Email from profile is the cross-source alias.",
             "required_frontmatter": [
               "id",
               "type",
@@ -152,7 +151,7 @@
           },
           {
             "subtype": "company",
-            "description": "Organizations referenced in notes — customers, vendors, partners.",
+            "description": "Organizations referenced in Slack — vendors, customers, partners surfaced via shared links or named in messages.",
             "required_frontmatter": [
               "id",
               "type",
@@ -168,7 +167,7 @@
           },
           {
             "subtype": "project",
-            "description": "Named workstreams or codenames (often resolved via user.md → # Glossary).",
+            "description": "Workstreams or codenames mentioned in channels and threads (often resolved via user.md → # Glossary).",
             "required_frontmatter": [
               "id",
               "type",
@@ -184,7 +183,7 @@
           },
           {
             "subtype": "topic",
-            "description": "Recurring themes, products, contracts, or research areas surfaced in notes.",
+            "description": "Recurring themes, products, or initiatives surfaced across multiple Slack threads.",
             "required_frontmatter": [
               "id",
               "type",
@@ -201,24 +200,74 @@
         ],
         "action_classes": [
           {
-            "class": "knowledge-update",
-            "description": "An informational signal extracted from a note (decision, fact, status update)."
-          },
-          {
             "class": "deadline",
-            "description": "A note carrying an explicit due date."
+            "description": "A Slack message carrying an explicit due date or time-bound ask."
           },
           {
             "class": "response-needed",
-            "description": "A note flagging an open question or pending follow-up."
+            "description": "A DM, @mention, vote/poll, or thread reply that expects a response from the user."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "An informational signal extracted from a Slack thread (decision, status update, pinned message)."
+          },
+          {
+            "class": "risk",
+            "description": "Outage/incident/security signal in a monitored ops or security channel; @here / @channel pings to high-stakes channels."
+          },
+          {
+            "class": "opportunity",
+            "description": "Competitor or market signal in a sales/marketing channel; prospect activity or partnership cues."
           },
           {
             "class": "other",
             "description": "Escape hatch for items that don't fit the above; requires reason_detail."
           }
         ],
-        "cursor_semantics": "Filesystem mtime in milliseconds (epoch); start-of-run timestamp advances the cursor to avoid races with files modified during the run.",
-        "source_id_format": "Absolute file path under the configured notes directory."
+        "cursor_semantics": "Single JSON map (one line) under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts).",
+        "source_id_format": "`<channel_id>#<thread_ts>` for thread-rooted artefacts; `<channel_id>#<ts>` for non-threaded messages."
+      }
+    },
+    "plugin-toolkit": {
+      "tagline": "Authoring + maintainer toolkit for AgntUX plugins — skills, agents, runbooks.",
+      "description": "Authoring and maintainer toolkit. `/plugin-toolkit:author` is a slim\norchestrator delegating to 7 specialist agents (manifest, ingest\nprompt, source semantics, draft flow, tests, invariants, release).\n`/plugin-toolkit:maintain` inlines maintainer runbooks (PR review,\nrollback, kill-switch, canonical-hook updates, secret rotation).\nAuto-triggers on plugin metadata edits; load-bearing rules stay\ninline so every agent inherits them.\n",
+      "categories": [
+        "developer-tools"
+      ],
+      "keywords": [
+        "agntux",
+        "plugin-author",
+        "marketplace",
+        "tooling",
+        "skills"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/plugin-toolkit:author",
+          "purpose": "Authoring orchestrator. Auto-triggers on plugins/{slug}/ edits; delegates to 7 specialist agents."
+        },
+        {
+          "prompt": "/plugin-toolkit:maintain",
+          "purpose": "Maintainer runbooks: PR review, rollback, kill-switch, canonical-hook update, secret rotation, CI map."
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aplugin-toolkit",
+        "email": "support@agntux.ai"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
       }
     },
     "slack-ingest": {

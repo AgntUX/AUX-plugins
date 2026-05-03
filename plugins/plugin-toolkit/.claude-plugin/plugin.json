@@ -1,0 +1,7 @@
+{
+  "name": "plugin-toolkit",
+  "version": "0.1.0",
+  "description": "Authoring and maintainer toolkit for the AgntUX plugin marketplace. Bundles the /plugin-toolkit:author orchestrator (with 7 specialist agents) and the /plugin-toolkit:maintain runbook skill.",
+  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "license": "ELv2"
+}

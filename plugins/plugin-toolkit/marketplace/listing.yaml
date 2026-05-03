@@ -1,0 +1,36 @@
+tagline: "Authoring + maintainer toolkit for AgntUX plugins — skills, agents, runbooks."
+description: |
+  Authoring and maintainer toolkit. `/plugin-toolkit:author` is a slim
+  orchestrator delegating to 7 specialist agents (manifest, ingest
+  prompt, source semantics, draft flow, tests, invariants, release).
+  `/plugin-toolkit:maintain` inlines maintainer runbooks (PR review,
+  rollback, kill-switch, canonical-hook updates, secret rotation).
+  Auto-triggers on plugin metadata edits; load-bearing rules stay
+  inline so every agent inherits them.
+categories:
+  - developer-tools
+keywords:
+  - agntux
+  - plugin-author
+  - marketplace
+  - tooling
+  - skills
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "/plugin-toolkit:author"
+    purpose: "Authoring orchestrator. Auto-triggers on plugins/{slug}/ edits; delegates to 7 specialist agents."
+  - prompt: "/plugin-toolkit:maintain"
+    purpose: "Maintainer runbooks: PR review, rollback, kill-switch, canonical-hook update, secret rotation, CI map."
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aplugin-toolkit"
+  email: "support@agntux.ai"
+requires_plugins:
+  - agntux-core
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
