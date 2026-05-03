@@ -56,6 +56,35 @@ fail loud — say one sentence: "AgntUX requires the project to be
 `<agntux project root>/`. Create that folder, select it in your host's project
 picker, then re-invoke me." — and stop.
 
+### 0.5. Plugin reconciliation (auto-correct, never blocks)
+
+**Skip this check if `user.md` does not exist or fails to parse** — check 1
+below handles that case by routing to `/agntux-onboard`, which has its own
+reconciliation pass in Mode A-bis. Trying to read `## Installed` from a
+missing or malformed file would log noise without recovering anything.
+
+Run `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
+If the tool resolves, call it to get the host's installed plugin list and compare
+against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
+
+- **Auto-update `## Installed`** to add any installed plugins missing from the
+  list. This is a mechanical sync — `## Installed` is no longer the source of
+  truth. The `data/instructions/{slug}.md` files and the host's plugin list
+  jointly are. Update frontmatter `updated_at`.
+- **Detect newly-onboarded plugins** — installed plugins that lack a
+  `data/instructions/{slug}.md` file (or whose file has `status: draft`).
+- **If running `/agntux-onboard`**: hand the newly-detected set to Mode A-bis
+  via Set 2 (installed-without-instructions). The skill's normal flow walks
+  per-plugin onboarding for each.
+- **If running any other `/agntux-*` command** AND there is at least one
+  newly-detected plugin: emit one nudge line at the top of the response —
+  `📦 N new AgntUX plugin(s) detected ({slug-list}). Run /agntux-onboard to walk through them.` —
+  and continue with the user's actual request. Do NOT block.
+
+If `mcp__plugins__list_plugins` does not resolve, log nothing and continue.
+Stage 4.6 / Mode A-bis falls back to the union-of-three-sets computation
+described in `personalization.md`.
+
 ### 1. `<agntux project root>/user.md` exists and parses
 
 If the file does not exist, the user has never onboarded.
@@ -125,4 +154,6 @@ to the original ask.
 
 If multiple checks fire simultaneously, run them in this order:
 2 → 3 → 4. State the order to the user before starting. Check 1
-(missing or malformed `user.md`) preempts everything else.
+(missing or malformed `user.md`) preempts everything else. Check 0.5
+(plugin reconciliation) is non-blocking — it auto-corrects state and may
+emit one informational nudge line, but never short-circuits the flow.

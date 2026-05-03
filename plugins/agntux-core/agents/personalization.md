@@ -66,18 +66,25 @@ The AgntUX project is any directory named `agntux` (case-insensitive). Resolve i
 
 3. **Any ancestor of `cwd` is named `agntux`** → use the nearest one. Tell the user: "Working in the agntux project at {root}, found above your current directory. Let's set up your profile." Continue to Stage 0.5.
 
-4. **Otherwise**, search for candidates with the host's `Glob` tool, capped at depth 4 below `os.homedir()`:
-   - Pattern: `**/agntux` (lowercase). On macOS and Windows the FS is case-insensitive so this finds `Agntux`, `AGNTUX` for free. On Linux, also try `**/Agntux` and `**/AGNTUX`. Filter results to directories.
+4. **Otherwise**, prefer the Cowork directory-request ladder over a homedir Glob (Glob is sandboxed to the connected folder in Cowork hosts and will fail with "is outside this session's connected folders"):
 
-   - **0 results** → ask: "I couldn't find a folder named `agntux` anywhere under your home folder. AgntUX uses one to store everything it learns about you — the convention is `~/agntux`. Want me to create one for you at `~/agntux`?"
-     - If yes: `mkdir ~/agntux` (use the platform-appropriate path — `~/agntux` on macOS/Linux, `%USERPROFILE%\agntux` on Windows). Then tell the user: "Created `~/agntux`. Open your host's project picker ('Work in a project → Choose a folder'), select that folder, and re-invoke `/agntux-onboard`. I'll resume from here." Stop.
+   a. **Try the Cowork directory-request tool first.** Run `ToolSearch({query: "select:mcp__cowork__request_cowork_directory", max_results: 1})`. If the tool resolves, call it with `{path: "~/agntux"}` (or the platform-appropriate equivalent). Cowork prompts the user with the native UI ("Claude would like to Cowork in: /Users/<user>/agntux"). On approval, the host re-points cwd to the approved directory; on the next turn — or immediately if the host re-evaluates cwd in the same turn — Stage 0 resumes from step 1 (basename check). Stop here for this turn. If the user declines, fall through to step 4b.
+
+   b. **Cowork tool unavailable, OR user declined the request** → ask: "I couldn't find a folder named `agntux` anywhere I can reach. AgntUX uses one to store everything it learns about you — the convention is `~/agntux`. Want me to create one for you at `~/agntux`?"
+     - If yes: `mkdir ~/agntux` (use the platform-appropriate path — `~/agntux` on macOS/Linux, `%USERPROFILE%\agntux` on Windows). If the Cowork tool is available, immediately re-issue `mcp__cowork__request_cowork_directory({path: "~/agntux"})` so the user can approve in the same flow. Otherwise tell the user: "Created `~/agntux`. Open your host's project picker ('Work in a project → Choose a folder'), select that folder, and re-invoke `/agntux-onboard`. I'll resume from here." Stop.
      - If no: "Okay — without an `agntux` directory I can't set up your profile. Let me know when you're ready." Stop.
 
-   - **1 result** → tell the user: "Found a folder named `agntux` at {path}. AgntUX uses it to store everything it learns about you. Open your host's project picker, select that folder, and re-invoke `/agntux-onboard`. I'll resume from here." Stop. (Agents cannot change the host's selected project from within a turn — the picker is the source of truth.)
+   c. **Last-resort Glob** (only when both 4a and 4b have been exhausted, e.g. running outside Cowork in a vanilla CLI host without sandboxing): search with the host's `Glob` tool, capped at depth 4 below `os.homedir()`. Pattern: `**/agntux` (lowercase). On macOS and Windows the FS is case-insensitive so this finds `Agntux`, `AGNTUX` for free. On Linux, also try `**/Agntux` and `**/AGNTUX`. Filter results to directories.
 
-   - **2+ results** → list them numbered, ask: "I found multiple folders named `agntux` — AgntUX uses one to store everything it learns about you. Which should I use? 1. {path-a}, 2. {path-b}, … Reply with the number." After they pick, give the same "open the host's project picker, select {chosen-path}, and re-invoke me" message. Stop.
+     - **0 results** → fall back to step 4b (offer to create `~/agntux`).
+     - **1 result** → tell the user: "Found a folder named `agntux` at {path}. AgntUX uses it to store everything it learns about you. Open your host's project picker, select that folder, and re-invoke `/agntux-onboard`. I'll resume from here." Stop.
+     - **2+ results** → list them numbered, ask: "I found multiple folders named `agntux` — AgntUX uses one to store everything it learns about you. Which should I use? 1. {path-a}, 2. {path-b}, … Reply with the number." After they pick, give the same "open the host's project picker, select {chosen-path}, and re-invoke me" message. Stop.
 
-5. **Migration aid (one-time)**: if the resolution above lands on `~/agntux` but a directory at `~/agntux-code/` ALSO exists with `user.md`, `data/`, `entities/`, or `actions/` populated, ask: "I noticed you have AgntUX data at `~/agntux-code/`. Earlier versions used that path; the current rule is any directory named `agntux`. Want me to: (a) rename `~/agntux-code/` → `~/agntux/`, or (b) leave both alone — you can keep using either by re-selecting it in the host's project picker?" Recommendation: (a). On confirm, run the platform-appropriate rename (`mv` on macOS/Linux, `Move-Item` on Windows) and tell the user to re-select the new folder.
+   If Glob itself errors with "is outside this session's connected folders" (Cowork sandbox kicked in), do NOT treat that as fatal — fall through to step 4b instead. The error means Glob would have found nothing reachable anyway.
+
+5. **Migration aid (one-time)**: if `~/agntux-code/` exists with populated `user.md` / `data/` / `entities/` / `actions/`, check whether `~/agntux/` ALSO exists and is populated.
+   - **Only `~/agntux-code/` exists (or `~/agntux/` is empty)**: ask "I noticed you have AgntUX data at `~/agntux-code/`. Earlier versions used that path; the current rule is any directory named `agntux`. Want me to: (a) rename `~/agntux-code/` → `~/agntux/`, or (b) leave it alone — you can keep using `~/agntux-code/` by re-selecting it in the host's project picker?" **Recommendation: (a).** On confirm, run the platform-appropriate rename (`mv` on macOS/Linux, `Move-Item` on Windows) and tell the user to re-select the new folder.
+   - **Both exist and both are populated**: do NOT auto-rename — `mv ~/agntux-code/ ~/agntux/` would fail. Ask: "You have AgntUX data in both `~/agntux-code/` and `~/agntux/`. Which should I use as the canonical project root? (a) `~/agntux-code/` (legacy path), (b) `~/agntux/` (current convention)? After you pick, I'll tell you the manual merge steps if anything in the unselected folder still matters." Wait for the user. Do not perform the merge; emit the steps and let them run.
 
 ### Stage 0.5: Discovery (open-ended)
 
@@ -222,13 +229,13 @@ Write the confirmed list to `# Sources` as a bulleted list of platform names ver
 
 Ask:
 
-> **AgntUX plugins**: Which AgntUX ingest plugins do you already have installed? (Check `~/.claude/plugins/` or your host's plugin manager — examples: `notes-ingest`, `slack-ingest`, `gmail-ingest`. Skip if none yet.)
+> **AgntUX plugins**: Which AgntUX ingest plugins do you already have installed? (Check `~/.claude/plugins/` or your host's plugin manager — examples: `agntux-slack`, `agntux-gmail`. Skip if none yet.)
 >
 > Are there any AgntUX plugins you already know you want to install during setup based on what we've talked about? I can suggest more in a moment.
 
 Write the user's answers to a `# AgntUX plugins` section with two subsections, in this exact order:
 
-- `## Installed` — slug-only entries, lowercase, hyphenated (e.g. `- slack-ingest`). Heading-only if none.
+- `## Installed` — slug-only entries, lowercase, hyphenated (e.g. `- agntux-slack`). Heading-only if none. Auto-reconciled at the start of every `/agntux-*` command — see `_preconditions.md`. Plugin authors don't need to manage this themselves.
 - `## Planned` — slug-only entries. Heading-only if none.
 
 Validate slugs (lowercase, hyphen-separated). Free-form names ("the Slack one") get one short normalisation prompt. Never write a non-slug into either subsection — downstream subagents pattern-match.
@@ -351,7 +358,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/../{plugin-slug}/marketplace/listing.yaml` (best-eff
 3. **Usually ignore.** "Anything from {source} you'd usually rather I ignore?"
 4. **Fit to your situation.** Looking at the user's discovery summary plus the plugin's `tagline`/`purpose`, ask one source-tailored question — e.g. "I see {source} can pull in {plain-language summary of what it carries}; anything in particular you want me to watch for given {discovery context}?"
 5. **Source-specific quirk.** Generated from the plugin's tagline and the user's situation. Examples:
-   - `slack-ingest` + knowledge-worker: "Any specific channels I should pay extra attention to?"
+   - `agntux-slack` + knowledge-worker: "Any specific channels I should pay extra attention to?"
    - `gmail-ingest` + caregiver: "Should I treat emails from medical providers as urgent by default?"
    - `reddit-ingest` + marketer: "Specific subreddits or topic keywords where you want me to watch closely for engagement opportunities?"
 
@@ -394,7 +401,7 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 **For each installed source plugin:**
 
 1. Determine the prompt body and cadence:
-   - **Body:** the bare slash command for that plugin's sync (e.g., `/notes-ingest:sync`). Nothing else — no preamble, no source list, no instructions about what to pull. The body is consumed verbatim when the task fires.
+   - **Body:** the bare slash command for that plugin's sync (e.g., `/agntux-slack:sync`). Nothing else — no preamble, no source list, no instructions about what to pull. The body is consumed verbatim when the task fires.
    - **Cadence:** read `recommended_ingest_cadence` from the plugin's `.claude-plugin/plugin.json`. **Expected format:** human-readable cadence string matching one of these shapes:
      - `Hourly` / `Every 4 hours` / `Every N hours` (where N is 1–23)
      - `Daily HH:MM` (24-hour clock, e.g. `Daily 09:00`)
@@ -402,14 +409,22 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
      - `Weekly {Monday|Tuesday|...} HH:MM`
      - `Monthly day-D HH:MM` (e.g. `Monthly day-1 09:00` for first of month)
 
-     If the value doesn't match any of these shapes, treat it as malformed and default to `Daily 09:00`. If `recommended_ingest_cadence` is absent entirely, default to `Daily 09:00` silently.
+     If the value doesn't match any of these shapes, treat it as malformed and default to `Daily 04:00`. If `recommended_ingest_cadence` is absent entirely, default to `Daily 04:00` silently.
+
+     **Peak-hours guard.** If the resolved cadence is `Daily HH:MM` or `Weekly … HH:MM` and `HH` falls in the peak window 06–11 local time (weekdays), shift to the nearest off-peak hour and log one line. Recommended off-peak slot for daily ingests is `04:00` (overnight); for daily user-facing tasks it's `13:00` (just after peak). Do NOT shift `Hourly` cadences — hourly tasks must run across all hours.
    - **Name:** `'AgntUX {plugin-name} ingest'`.
 
 2. **Pre-flight: connector / npm setup.** Before creating the task, ensure the source's runtime is wired up:
    - **Connector branch** (`connector_directory_id` is set OR `requires_source_mcp.source == "connector"`): if the user hasn't authorized the connector yet, point them at https://app.agntux.ai/connectors and wait for "ready".
    - **npm branch** (no connector indicator): if the source MCP isn't already in `.mcp.json` / the host's MCP server list, tell the user to install it (`npm install -g {plugin-slug}-source-mcp`) and add it to their host's MCP configuration before continuing.
 
-3. Create the scheduled task by calling the host's scheduled-task creation tool. (Cowork exposes this — the specific tool name is discovered at runtime via the host's tool list. Common names: `mcp__cowork__create_scheduled_task`, `cowork_schedule_create`, or a similarly-named host MCP tool. Match by capability: 'create scheduled task with prompt body, cadence, name'. Prefer the one whose schema accepts a `prompt_body` and a `cadence` field.)
+3. Create the scheduled task using the host's scheduled-task tool. Resolve and call it explicitly:
+
+   a. Discover the tools: `ToolSearch({query: "select:mcp__scheduled-tasks__create_scheduled_task,mcp__scheduled-tasks__list_scheduled_tasks", max_results: 5})`. If the tools resolve, proceed to (b). If they do not resolve, try one more keyword search: `ToolSearch({query: "scheduled task create cadence prompt", max_results: 5})` and pick the closest match by capability ('create scheduled task with prompt body, cadence, name'). If no match, fall through to step 4 (graceful degradation).
+
+   b. **Idempotency check.** Call `mcp__scheduled-tasks__list_scheduled_tasks` (or the resolved equivalent). If a task already exists with the same name (`'AgntUX {plugin-name} ingest'`), skip creation and tell the user "Already scheduled — {existing-task-name} ({cadence}). Skipping." Move to the next plugin.
+
+   c. **Create.** Call `mcp__scheduled-tasks__create_scheduled_task({prompt_body: "/{plugin-slug}:sync", cadence: "{cadence}", name: "AgntUX {plugin-name} ingest"})`. On schema-not-found or tool-call error, fall through to step 4 (graceful degradation).
 
 4. **Graceful degradation.** If no such tool is available in the current host (e.g., a non-Cowork host), fall back to the legacy copy/paste flow. Tell the user: "I can't create this task automatically in your host — here's the prompt body to paste:"
 
@@ -424,13 +439,13 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 
 6. Move to the next plugin.
 
-**After all source plugins, create the orchestrator tasks** — same pattern (agent calls host's scheduled-task tool directly; copy/paste fallback if unavailable):
+**After all source plugins, create the orchestrator tasks** — same pattern (resolve via ToolSearch, idempotency-check via `list_scheduled_tasks`, create via `create_scheduled_task`; copy/paste fallback if unavailable). All defaults are off-peak (peak is weekdays 06:00–11:59 local):
 
-1. **Daily action-item digest** — body `/agntux-triage`, cadence `Daily 08:00`, name `'AgntUX daily digest'`.
+1. **Daily action-item digest** — body `/agntux-triage`, cadence `Daily 13:00` (just after peak ends — user gets it for afternoon work), name `'AgntUX daily digest'`.
 
-2. **Daily feedback review** — body `/agntux-feedback-review`, cadence `Daily 16:00`, name `'AgntUX feedback review'`.
+2. **Daily feedback review** — body `/agntux-feedback-review`, cadence `Daily 16:00` (already off-peak), name `'AgntUX feedback review'`.
 
-3. **(Optional) Weekly graduation prompt** — body `/agntux-profile any patterns to approve?`, cadence `Weekly Friday 16:00`, name `'AgntUX weekly review'`.
+3. **(Optional) Weekly graduation prompt** — body `/agntux-profile any patterns to approve?`, cadence `Weekly Friday 16:00` (already off-peak), name `'AgntUX weekly review'`.
 
 For each, attempt creation via the host's scheduled-task tool. On success, confirm: "Created scheduled task: {name} ({cadence})." On unavailability or failure, fall back to copy/paste — print the body verbatim, name the cadence and task name, and ask the user to create it in their host's scheduled-task UI.
 
@@ -446,20 +461,58 @@ Branch selection:
 
 **State A — fully set up** (every connected plugin has contract + instructions + scheduled task):
 
-Before emitting the State A message, run an initial-ingest pass. For each plugin in `# AgntUX plugins → ## Installed`, fire one `/agntux-sync {plugin-slug}` synchronously to seed the knowledge store with the user's `bootstrap_window_days` window of data. Run sequentially — plugins write to overlapping `entities/` and `actions/` paths, so parallel runs can race.
+**Consent gate before initial ingests.** Do NOT auto-fire `/agntux-sync` runs without asking. Initial ingests can take 5–15 minutes per plugin depending on volume; the user should be told what's about to happen and given the option to defer. Emit verbatim:
 
-Tell the user in one sentence per plugin: "Running first ingest for {plugin-name}…" and on completion "done — N items added." If a sync fails, surface the one-line error and continue (don't block wrap-up). Track which plugins succeeded vs. failed.
+> Initial ingests are about to seed your knowledge store with the last
+> {bootstrap_window_days} days of data from each source. Each ingest
+> can take 5–15 minutes depending on volume.
+>
+> Run them now? **(yes / no / one at a time)**
+>
+> Tip: if you say yes, open a new Cowork thread (or new tab) and keep
+> working — the ingests run in this thread in the background and you
+> don't have to wait.
 
-If every initial ingest succeeded, emit:
+Wait for the user's response.
+
+- **`yes`** → fire each `/agntux-sync {plugin-slug}` sequentially. Run one at a time — plugins write to overlapping `entities/` and `actions/` paths, so parallel runs can race. Tell the user one sentence per plugin: "Running first ingest for {plugin-name}…" and on completion "done — N items added." If a sync fails, surface the one-line error and continue (don't block wrap-up). Track which plugins succeeded vs. failed.
+
+- **`no`** → skip all initial ingests. Tell the user: "Skipping initial ingests. Your scheduled tasks will pick this up at their next tick. To force a sync now: `/{plugin-slug}:sync` for any single plugin, or `/agntux-sync {plugin-slug}` from the core namespace."
+
+- **`one at a time`** → repeat the consent prompt scoped to each plugin: "Run initial ingest for {plugin-name} now? (yes / no)". Skip on `no`; fire `/agntux-sync {plugin-slug}` synchronously on `yes`. Track three buckets: **fired-and-succeeded**, **fired-and-failed**, **declined**.
+
+Track three buckets across the consent flow: **fired-and-succeeded**, **fired-and-failed**, **declined-via-consent**. Pick the wrap-up branch based on which buckets are non-empty.
+
+**Branch — every fired ingest succeeded AND nothing was declined** (the all-`yes` happy path):
 
 > You're set up — initial ingests complete. From here:
-> 1. Each ingest plugin will run on its own cadence (next runs: {plugin}: {next-time}).
-> 2. Your daily digest fires at {Daily 08:00 user TZ}.
-> 3. Your feedback review fires at {Daily 16:00 user TZ}.
+> 1. Each ingest plugin will run on its own cadence (next runs: `{plugin}` at `{next-time}`).
+> 2. Your daily digest fires at `Daily 13:00` (user-local).
+> 3. Your feedback review fires at `Daily 16:00` (user-local).
 >
 > **Open the AgntUX Triage UI** in your host (Cowork: open the AgntUX panel → Triage) to see your action items. Click any item to open it — depending on the source, the source-specific plugin's UI surfaces (reply, snooze, dismiss, mark done). Try one now to see how the loop feels.
 
-If one or more initial ingests failed, fall through to State B.
+(Substitute the literal user-local times — `Daily 13:00` and `Daily 16:00` — into the message before emitting; the user's TZ comes from `user.md` frontmatter `timezone`.)
+
+**Branch — every fired ingest succeeded AND at least one plugin was declined-via-consent** (mixed `yes` / `no` from "one at a time"):
+
+> Initial ingests complete for `{fired-list}`; skipped `{declined-list}` per your choice. From here:
+> 1. Each ingest plugin runs on its own cadence (next runs: `{plugin}` at `{next-time}` — including the skipped ones).
+> 2. Your daily digest fires at `Daily 13:00` (user-local).
+> 3. Your feedback review fires at `Daily 16:00` (user-local).
+>
+> Run a one-off ingest any time with `/{plugin-slug}:sync` for any plugin you want to seed manually.
+
+**Branch — user said top-level `no`** (no ingests fired at all):
+
+> You're set up — scheduled tasks are in place but no initial ingest has run yet. From here:
+> 1. Each ingest plugin runs on its own cadence (next runs: `{plugin}` at `{next-time}`).
+> 2. Your daily digest fires at `Daily 13:00` (user-local).
+> 3. Your feedback review fires at `Daily 16:00` (user-local).
+>
+> Run a one-off ingest any time with `/{plugin-slug}:sync`.
+
+If one or more fired initial ingests failed (regardless of `yes` vs. `one at a time`), fall through to State B.
 
 **State B — connectors connected, some initial ingests didn't fire cleanly:**
 
@@ -491,14 +544,18 @@ If the orchestrator passed a "resume after setup" note (the user reached us via 
 
 The user re-invoked `/agntux-onboard` after first-run is already complete. Their `user.md` exists. Skip the user interview — they don't need to redo it.
 
-1. Glob `<agntux project root>/data/schema/contracts/*.md.proposed` AND read every `<agntux project root>/data/instructions/*.md`. The set of plugins needing onboarding is the **union** of these three:
+1. **Plugin reconciliation (run first, before any other step).** Run `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`. If the tool resolves, call it to get the host's installed plugin list and compare against `# AgntUX plugins → ## Installed`. Auto-update `## Installed` to add any installed plugins missing from the list (this is a mechanical sync — `## Installed` is no longer the source of truth) and update frontmatter `updated_at`. The reconciliation feeds Set 2 in step 2 below; without it, an installed-but-not-yet-listed plugin would be invisible. If the tool does not resolve, log nothing and proceed with the existing three sets unchanged. This step is also performed by `_preconditions.md` at the start of every `/agntux-*` command — running it again here is idempotent and intentional (the user might have just installed a plugin in the same session).
+
+2. Glob `<agntux project root>/data/schema/contracts/*.md.proposed` AND read every `<agntux project root>/data/instructions/*.md`. The set of plugins needing onboarding is the **union** of these three:
    - **Set 1**: plugins with a `.proposed` contract on disk (architect Mode B never ran).
-   - **Set 2**: plugins on `# AgntUX plugins → ## Installed` lacking a `data/instructions/{slug}.md` file (per-plugin onboarding never ran for them).
+   - **Set 2**: plugins on `# AgntUX plugins → ## Installed` lacking a `data/instructions/{slug}.md` file (per-plugin onboarding never ran for them). Includes any plugin auto-added by step 1's reconciliation.
    - **Set 3**: plugins whose `data/instructions/{slug}.md` exists but has frontmatter `status: draft` (per-plugin onboarding started but was interrupted before finalization).
 
    Set 3 is the recovery path for users who closed the host mid-interview. Without it, an interrupted onboarding leaves the plugin in limbo with no way to resume short of `/agntux-teach {slug}`.
-2. If the set is empty, tell the user: "Welcome back — every plugin you've installed already has its instructions. If you want to redo a specific one, run `/agntux-teach {slug}`. To completely rewrite your profile from scratch, say 'redo onboarding from scratch' explicitly." Exit.
-3. If the set is non-empty, walk through the **Per-plugin onboarding interview** for each plugin in the set, exactly as in Mode A. Then run the **Per-source scheduled-task walkthrough** for the new plugins only. Then **Deterministic wrap-up**.
+
+3. If the set is empty, tell the user: "Welcome back — every plugin you've installed already has its instructions. If you want to redo a specific one, run `/agntux-teach {slug}`. To completely rewrite your profile from scratch, say 'redo onboarding from scratch' explicitly." Exit.
+
+4. If the set is non-empty, walk through the **Per-plugin onboarding interview** for each plugin in the set, exactly as in Mode A. Then run the **Per-source scheduled-task walkthrough** for the new plugins only. Then run the **State A initial-sync consent gate** scoped to those new plugins (same prompt, same yes/no/one-at-a-time branches), so newly-onboarded plugins get the same opt-in treatment as first-run. Then **Deterministic wrap-up**.
 
 Do NOT re-run discovery, identity, preferences, or any other Stage from Mode A. The user did those already.
 

@@ -28,33 +28,14 @@
       "category": "meta"
     },
     {
-      "name": "notes-ingest",
-      "source": "./plugins/notes-ingest",
-      "description": "Notes integration for AgntUX. Ingests plain-text and Markdown notes from a local directory into your knowledge store.",
-      "version": "2.1.0",
-      "author": {
-        "name": "AgntUX"
-      },
-      "homepage": "https://agntux.ai/plugins/notes-ingest",
-      "license": "Elastic-2.0",
-      "keywords": [
-        "notes",
-        "markdown",
-        "local-files",
-        "knowledge-base",
-        "obsidian"
-      ],
-      "category": "productivity"
-    },
-    {
-      "name": "slack-ingest",
-      "source": "./plugins/slack-ingest",
+      "name": "agntux-slack",
+      "source": "./plugins/agntux-slack",
       "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "AgntUX"
       },
-      "homepage": "https://agntux.ai/plugins/slack-ingest",
+      "homepage": "https://agntux.ai/plugins/agntux-slack",
       "license": "Elastic-2.0",
       "keywords": [
         "slack",
@@ -64,6 +45,25 @@
         "action-items"
       ],
       "category": "communication"
+    },
+    {
+      "name": "plugin-toolkit",
+      "source": "./plugins/plugin-toolkit",
+      "description": "Authoring and maintainer toolkit for the AgntUX plugin marketplace. Bundles the /plugin-toolkit:author orchestrator (with 7 specialist agents) and the /plugin-toolkit:maintain runbook skill.",
+      "version": "0.1.0",
+      "author": {
+        "name": "AgntUX"
+      },
+      "homepage": "https://agntux.ai/plugins/plugin-toolkit",
+      "license": "Elastic-2.0",
+      "keywords": [
+        "agntux",
+        "plugin-author",
+        "marketplace",
+        "tooling",
+        "skills"
+      ],
+      "category": "developer-tools"
     }
   ]
 }

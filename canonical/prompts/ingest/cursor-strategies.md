@@ -66,7 +66,7 @@ on the next run and likely flood the action-item list.
 
 ---
 
-## Slack (`slack-ingest`)
+## Slack (`agntux-slack`)
 
 ### Cursor type
 
@@ -75,7 +75,7 @@ Per-channel `ts` (timestamp string) — a Slack channel-message timestamp in the
 has its own independent cursor; Slack has no mailbox-wide sequence number comparable to Gmail's
 `historyId`.
 
-### Storage in `data/learnings/slack-ingest/sync.md`
+### Storage in `data/learnings/agntux-slack/sync.md`
 
 ```markdown
 - cursor: {"C01ABC": "1714043640.001200", "C02DEF": "1713990000.000000", "D03GHI": null}
@@ -110,7 +110,7 @@ within range), OR the workspace admin has deleted old messages and the cursor re
 message that no longer exists.
 
 **Recovery procedure:**
-1. Read `last_success` from `data/learnings/slack-ingest/sync.md`. If non-null, compute a Unix
+1. Read `last_success` from `data/learnings/agntux-slack/sync.md`. If non-null, compute a Unix
    timestamp from `last_success` and use it as the `oldest` parameter for
    `conversations.history`.
 2. If `last_success` is null, use the `bootstrap_window_days` window.
@@ -286,7 +286,7 @@ batch is processed.
 
 ---
 
-## Filesystem / Notes (`notes-ingest` and similar)
+## Filesystem mtime cursors (generic — for any filesystem-backed plugin)
 
 ### Cursor type
 
@@ -294,7 +294,7 @@ File modification time (mtime) — RFC 3339 string representing the most recent 
 across all processed files in the watched directory. Fetch is performed by listing files in the
 watched directory and filtering for those with `mtime > cursor`.
 
-### Storage in `data/learnings/notes-ingest/sync.md`
+### Storage in `data/learnings/{plugin-slug}/sync.md`
 
 ```markdown
 - cursor: "2026-04-25T18:00:00Z"
@@ -310,7 +310,7 @@ After successfully processing all files modified since the last cursor:
    - Using start-of-run (not the newest mtime in the batch) prevents a race where a file is
      modified during the run: the file would have `mtime > start-of-run` and would be caught
      on the next run.
-2. Write to `data/learnings/notes-ingest/sync.md` atomically.
+2. Write to `data/learnings/{plugin-slug}/sync.md` atomically.
 
 ### Recovering from a gap
 
@@ -328,13 +328,13 @@ folder migration). The list of modified files exceeds 200.
 **Symptom:** the watched directory has been moved or deleted.
 
 **Recovery procedure:**
-1. Append a structured error to `data/learnings/notes-ingest/sync.md → errors` with kind
+1. Append a structured error to `data/learnings/{plugin-slug}/sync.md → errors` with kind
    `source` and message `"watched directory not found: {path}"`.
 2. Release the lock and exit.
 3. Persistent failures surface to the user via retrieval's freshness check on the next `/ux`,
-   prompting them to reconfigure the notes directory path in `.mcp.json`.
+   prompting them to reconfigure the watched directory path in `.mcp.json`.
 
-**File encoding note:** notes files may be UTF-8, UTF-8 BOM, or legacy encodings (RTF). The
+**File encoding note:** files may be UTF-8, UTF-8 BOM, or legacy encodings (RTF). The
 filesystem MCP server (`@modelcontextprotocol/server-filesystem`) returns file contents as
 UTF-8 where possible. If a file cannot be decoded, log kind `parse` to `sync.md → errors` and
 skip the file.

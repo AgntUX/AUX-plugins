@@ -1,7 +1,7 @@
 {
   "name": "@agntux/ingest-mcp-server-template",
   "version": "1.0.0",
-  "description": "Local stdio MCP server template for per-source ingest plugins (slack-ingest, gmail-ingest, etc.)",
+  "description": "Local stdio MCP server template for per-source ingest plugins (agntux-slack, agntux-gmail, etc.)",
   "type": "module",
   "engines": {
     "node": ">=18"

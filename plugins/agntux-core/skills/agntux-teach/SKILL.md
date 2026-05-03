@@ -1,6 +1,6 @@
 ---
 name: agntux-teach
-description: Capture per-plugin instructions ("never raise email from notifications@*", "always raise PRs from @teammate", "ignore #random"). Source-specific imperatives go to `<agntux project root>/data/instructions/{plugin-slug}.md` — not `user.md`. Use when the user wants to teach a plugin a rule, says "teach notes-ingest about X", or runs `/agntux-teach {plugin-slug}` for an on-demand refresh of an already-onboarded plugin's instructions. (First-time install-time onboarding is owned by `/agntux-onboard`'s per-plugin interview, not by this skill.)
+description: Capture per-plugin instructions ("never raise email from notifications@*", "always raise PRs from @teammate", "ignore #random"). Source-specific imperatives go to `<agntux project root>/data/instructions/{plugin-slug}.md` — not `user.md`. Use when the user wants to teach a plugin a rule, says "teach agntux-slack about X", or runs `/agntux-teach {plugin-slug}` for an on-demand refresh of an already-onboarded plugin's instructions. (First-time install-time onboarding is owned by `/agntux-onboard`'s per-plugin interview, not by this skill.)
 argument-hint: "[plugin-slug]"
 ---
 

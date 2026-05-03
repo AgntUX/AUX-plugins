@@ -5,11 +5,11 @@ import { fetchUIBundle, readRenderTokenFromLicense } from "./s3-fetch.js";
 
 // UI_PATHS maps ui:// URIs to the S3-relative paths for this plugin's UI bundles.
 // The generator (P6) substitutes one entry per UI component the plugin ships.
-// Example for slack-ingest:
+// Example for agntux-slack:
 //   "ui://thread": "thread/index.html",
 //   "ui://channel-summary": "channel-summary/index.html",
 //
-// Plugins with no UI components (e.g., notes-ingest) do not include this file.
+// Plugins with no UI components (e.g., agntux-notes) do not include this file.
 const UI_PATHS: Record<string, string> = {
   // {{ui-resource-entries}}
   // Expanded by P6 generator to one entry per UI component:

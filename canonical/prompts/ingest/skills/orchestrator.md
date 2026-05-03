@@ -105,6 +105,44 @@ Pick exactly ONE lane based on the prompt body (after the host has stripped the 
 - `run {{plugin-slug}}` / `run ingest`
 - Any imperative that refers to syncing or ingesting data from this source.
 
+**Pre-dispatch: resolve connector tool names (Cowork UUID prefix).** _This block applies only to plugins where `requires_source_mcp.source == "connector"`. Plugins with an npm-installed source MCP can skip this block — their tool names are stable._
+
+Cowork prefixes connector tools with a server-instance UUID (e.g.,
+`mcp__7f3a-uuid__{{source-slug}}_read_*`). The ingest subagent's frontmatter
+`tools:` list must contain the exact prefixed names, or the host will deny
+the calls and the run fails. Resolve them at dispatch:
+
+1. Use ToolSearch to discover the read tools your subagent needs (one keyword
+   query covers all of them — list the tool root names from
+   `{{source-mcp-tools}}` as keywords):
+   `ToolSearch({query: "<read-tool-1> <read-tool-2> …", max_results: 20})`
+
+2. Filter the results to **read-only** tools — drop any name containing
+   `_send_`, `_create_`, `_update_`, `_schedule_`, `_post_`, `_delete_`. The
+   ingest subagent must never receive a write tool.
+
+   **If the filtered set is empty** (ToolSearch returned only write tools,
+   or returned a non-{{source-display-name}} ranked match), do NOT dispatch
+   and do NOT edit frontmatter. Print the connector-not-loaded message
+   from step 6 and stop.
+
+3. Read `${CLAUDE_PLUGIN_ROOT}/agents/ingest.md` frontmatter `tools:` line.
+   Compare to the resolved names from step 2.
+
+4. **If the resolved names already match what's in frontmatter, skip the
+   edit** — the previous run's UUIDs are still current (the common case for
+   an hourly task running against a stable Cowork session). Proceed straight
+   to dispatch.
+
+5. Otherwise, edit the frontmatter `tools:` line to the new resolved set. Do
+   NOT restore the original tools line after the run — re-validation on the
+   next dispatch handles UUID rotation by triggering another edit.
+
+6. If ToolSearch returns zero hits for any required tool, do NOT dispatch.
+   Print: "{{source-display-name}} connector tools aren't loaded — open
+   Cowork's connector panel and verify {{source-display-name}} is connected,
+   then re-fire this skill." Stop.
+
 Engage the **ingest subagent** (namespace `{{plugin-slug}}:ingest`). Frame the request and let the host's plugin auto-routing carry the conversation to the subagent's fresh context window. The subagent reads its state, fetches new items, synthesises entities and action items conformant to P3 schemas, advances the cursor, and writes learnings.
 
 Do NOT do the ingest work yourself. Your job is routing.

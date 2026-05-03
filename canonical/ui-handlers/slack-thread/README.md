@@ -26,7 +26,7 @@ P6 substitutes these `{{kebab-case}}` tokens at plugin-generation time.
 
 | Placeholder | Where used | Example value |
 |---|---|---|
-| `{{plugin-slug}}` | `handler/slack-thread.md` frontmatter (`tools:` field), `ui-resources/slack-thread.ts` comments | `slack-ingest` |
+| `{{plugin-slug}}` | `handler/slack-thread.md` frontmatter (`tools:` field), `ui-resources/slack-thread.ts` comments | `agntux-slack` |
 
 Runtime `{single-curly}` tokens (NOT substituted by P6 — filled at host/orchestrator runtime):
 
@@ -44,10 +44,10 @@ Runtime `{single-curly}` tokens (NOT substituted by P6 — filled at host/orches
 
 ### 1. P6 substitution
 
-When the P6 generator produces a `slack-ingest` plugin, it:
+When the P6 generator produces a `agntux-slack` plugin, it:
 
 1. Copies `handler/slack-thread.md` to `agents/ui-handlers/slack-thread.md` and
-   replaces `{{plugin-slug}}` with `slack-ingest`.
+   replaces `{{plugin-slug}}` with `agntux-slack`.
 
 2. Merges the `slackThreadUIPaths` entry from `mcp-server/src/ui-resources/slack-thread.ts`
    into the plugin's `mcp-server/src/ui-resources.ts` `UI_PATHS` constant:
@@ -95,11 +95,11 @@ plugin's own local stdio MCP server:
       "args": ["-y", "@anthropic-ai/mcp-server-slack"],
       "env": { "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}" }
     },
-    "slack-ingest-ui": {
+    "agntux-slack-ui": {
       "command": "node",
       "args": ["mcp-server/dist/index.js"],
       "env": {
-        "PLUGIN_SLUG": "slack-ingest",
+        "PLUGIN_SLUG": "agntux-slack",
         "AGNTUX_DEV_MODE": "${AGNTUX_DEV_MODE:-0}"
       }
     }

@@ -51,7 +51,7 @@ Glob `<agntux project root>/data/learnings/*/sync.md` to enumerate per-plugin sy
 
 If ANY source is stale or uninitialized AND the user's question depends on that source's data (entity queries, time queries, topic queries, task/prep queries), surface a one-line warning at the start of your answer:
 
-> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/slack-ingest:sync`). If this freshness reading itself looks wrong, run `/agntux-ask` to refresh sync state to re-read the per-plugin sync files at `data/learnings/*/sync.md`. To re-walk setup, run `/agntux-profile` to walk through plugin setup.
+> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/agntux-slack:sync`). If this freshness reading itself looks wrong, run `/agntux-ask` to refresh sync state to re-read the per-plugin sync files at `data/learnings/*/sync.md`. To re-walk setup, run `/agntux-profile` to walk through plugin setup.
 
 If the question doesn't depend on the stale source's data (e.g., the user asks about Acme Corp, only Gmail data is stale, and Acme is purely Slack-tracked), don't mention it. Be relevant, not noisy.
 

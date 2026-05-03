@@ -20,7 +20,7 @@ import { getTestKeys, mintJwt, defaultClaims } from "./fixtures/test-key.mjs";
 
 _setPublicKeyForTesting(getTestKeys().publicKeyPem, "agntux-license-v1");
 
-const TEST_SLUGS = ["agntux-core", "slack-ingest"];
+const TEST_SLUGS = ["agntux-core", "agntux-slack"];
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "agntux-validate-test-"));

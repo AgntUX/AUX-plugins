@@ -70,7 +70,7 @@ schema in this run. Instead:
 
 1. Write a minimal generic baseline: subtypes `person` and `topic`,
    plus any subtype the user's `# Sources` strongly implies (e.g.,
-   `notes-ingest` in Sources → add `note` if it's not already an
+   `agntux-slack` in Sources → add `slack` if it's not already an
    alias of `topic`). Use the canonical six action classes only.
 2. Tell the user in plain language:
 

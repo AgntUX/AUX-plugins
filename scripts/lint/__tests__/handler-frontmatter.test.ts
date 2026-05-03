@@ -9,7 +9,7 @@
  *   - Failing fixtures: each missing a required field
  *   - Bad view_tool regex
  *   - Bad resource_uri prefix
- *   - Real plugin trees: slack-thread canonical, notes-ingest (no-op), agntux-core (stubs → W03 only)
+ *   - Real plugin trees: slack-thread canonical, agntux-slack (no-op — no ui-handlers/mcp-server), agntux-core (stubs → W03 only)
  */
 
 import { describe, it, expect } from "vitest";
@@ -212,10 +212,10 @@ describe("Pass 6 — real plugin trees", () => {
     expect(errors(findings)).toHaveLength(0);
   });
 
-  it("notes-ingest has no ui-handlers dir — pass6 is a no-op (zero findings)", () => {
+  it("agntux-slack has no ui-handlers dir — pass6 is a no-op (zero findings)", () => {
     const findings: Finding[] = [];
-    const pluginDir = path.join(repoRoot, "plugins", "notes-ingest");
-    pass6HandlerFrontmatter("notes-ingest", pluginDir, repoRoot, findings);
+    const pluginDir = path.join(repoRoot, "plugins", "agntux-slack");
+    pass6HandlerFrontmatter("agntux-slack", pluginDir, repoRoot, findings);
     expect(findings).toHaveLength(0);
   });
 

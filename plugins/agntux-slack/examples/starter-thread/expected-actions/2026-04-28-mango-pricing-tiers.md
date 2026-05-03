@@ -19,10 +19,10 @@ dismissed_at: null
 suggested_actions:
   - label: "Draft a reply"
     host_prompt: |
-      ux: Use the slack-ingest plugin to draft a reply for action 2026-04-28-mango-pricing-tiers.
+      ux: Use the agntux-slack plugin to draft a reply for action 2026-04-28-mango-pricing-tiers.
   - label: "Schedule a reply"
     host_prompt: |
-      ux: Use the slack-ingest plugin to draft a reply and schedule it for action 2026-04-28-mango-pricing-tiers.
+      ux: Use the agntux-slack plugin to draft a reply and schedule it for action 2026-04-28-mango-pricing-tiers.
   - label: "Open in Slack"
     host_prompt: |
       ux: Use the agntux-core plugin to print the Slack permalink for action 2026-04-28-mango-pricing-tiers.

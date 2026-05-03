@@ -216,7 +216,7 @@ export function pass6HandlerFrontmatter(
 ): void {
   const uiHandlersDir = path.join(pluginDir, "agents", "ui-handlers");
 
-  // No ui-handlers directory — no-op (notes-ingest case)
+  // No ui-handlers directory — no-op (e.g., agntux-slack case)
   if (!fs.existsSync(uiHandlersDir)) return;
 
   let entries: string[];

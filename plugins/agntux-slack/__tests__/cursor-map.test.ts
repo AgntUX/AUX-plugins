@@ -2,7 +2,7 @@
  * cursor-map.test.ts
  *
  * Validates the JSON cursor and tracked-threads map shape from
- * `data/learnings/slack-ingest/sync.md`. The maps are stored as single-line
+ * `data/learnings/agntux-slack/sync.md`. The maps are stored as single-line
  * JSON objects so that the surrounding markdown parser leaves them alone.
  *
  * The ingest agent calls `JSON.parse(cursor)` on the value and writes it back

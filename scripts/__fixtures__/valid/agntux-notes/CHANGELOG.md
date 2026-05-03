@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to notes-ingest are documented here.
+All notable changes to agntux-notes are documented here.
 
 ## [Unreleased]
 

@@ -64,7 +64,13 @@ re-entry. Run only these guards:
    skill's dispatch (below) handles schema bootstrap, `.proposed`
    contract review, and queued schema-requests inline as part of the
    normal onboarding flow. Running those preconditions would
-   short-circuit the flow with a redirect.
+   short-circuit the flow with a redirect. **DO run check 0.5 (plugin
+   reconciliation)** — it auto-syncs `## Installed` from the host's
+   `mcp__plugins__list_plugins` tool and seeds Mode A-bis's Set 2 with
+   any plugin the user has installed but not yet onboarded. This is the
+   primary auto-trigger for onboarding newly-installed plugins; the user
+   doesn't have to remember `/agntux-onboard` because every `/agntux-*`
+   command runs the same reconciliation and emits a nudge.
 
 4. **`user.md` already exists?**
 

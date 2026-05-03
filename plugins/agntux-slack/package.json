@@ -1,7 +1,7 @@
 {
-  "name": "@agntux/slack-ingest-plugin",
-  "version": "0.1.0",
-  "description": "Tests for the slack-ingest plugin",
+  "name": "@agntux/agntux-slack-plugin",
+  "version": "0.2.0",
+  "description": "Tests for the agntux-slack plugin",
   "private": true,
   "type": "module",
   "engines": {

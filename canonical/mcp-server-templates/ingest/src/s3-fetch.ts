@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from "no
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// {{plugin-slug}} is the per-source plugin's slug (e.g., "slack-ingest").
+// {{plugin-slug}} is the per-source plugin's slug (e.g., "agntux-slack").
 // The generator substitutes this at build time from the manifest name field.
 // CACHE_DIR is keyed per plugin slug so multiple ingest plugins' caches don't collide.
 const PLUGIN_SLUG = process.env.PLUGIN_SLUG ?? "{{plugin-slug}}";

@@ -28,10 +28,10 @@ data_ingested:
   - "Channel messages in any channel you have authored in recently"
   - "Pinned messages and canvases referenced from monitored channels"
 supported_prompts:
-  - prompt: "/slack-ingest:sync"
-    purpose: "Run a slack-ingest pass now (manual) or on schedule. Recommended scheduled task at Hourly."
+  - prompt: "/agntux-slack:sync"
+    purpose: "Run an agntux-slack pass now (manual) or on schedule. Recommended scheduled task at Hourly."
 support:
-  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aslack-ingest"
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-slack"
   email: "support@agntux.ai"
 requires_plugins:
   - agntux-core

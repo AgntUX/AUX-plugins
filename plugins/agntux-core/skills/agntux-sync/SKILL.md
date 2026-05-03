@@ -1,6 +1,6 @@
 ---
 name: agntux-sync
-description: Cross-plugin sync alias — discoverable shortcut from the agntux-core namespace that re-dispatches to a per-plugin sync command (`/agntux-sync notes-ingest` → `/notes-ingest:sync`). Use only when the user explicitly types `/agntux-sync {plugin-slug}` or asks "how do I trigger an ingest from the core namespace?". Plain "sync my notes" / "ingest now" requests should auto-dispatch to the per-plugin command directly (e.g. `/notes-ingest:sync`), not this alias.
+description: Cross-plugin sync alias — discoverable shortcut from the agntux-core namespace that re-dispatches to a per-plugin sync command (`/agntux-sync agntux-slack` → `/agntux-slack:sync`). Use only when the user explicitly types `/agntux-sync {plugin-slug}` or asks "how do I trigger an ingest from the core namespace?". Plain "sync my notes" / "ingest now" requests should auto-dispatch to the per-plugin command directly (e.g. `/agntux-slack:sync`), not this alias.
 argument-hint: "[plugin-slug]"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "[plugin-slug]"
 
 Lane: thin alias so users can manually trigger an ingest pass without
 remembering each plugin's namespace. The actual work happens in the
-per-plugin sync command (e.g. `/notes-ingest:sync`).
+per-plugin sync command (e.g. `/agntux-slack:sync`).
 
 ## Schema-drift preflight
 
@@ -27,11 +27,11 @@ fail-fast here is friendlier.)
 ## Dispatch
 
 Read `$ARGUMENTS` and normalise — expected to be a single plugin
-slug (e.g., `notes-ingest`).
+slug (e.g., `agntux-slack`).
 
 1. **Normalise** — trim whitespace and strip a leading slash, a
    trailing colon, and a trailing `:sync` if the user typed
-   `/notes-ingest:sync` or `notes-ingest:sync` by mistake.
+   `/agntux-slack:sync` or `agntux-slack:sync` by mistake.
 2. **Empty?** If the result is empty, look up installed plugins —
    read the `# AgntUX plugins > ## Installed` section of
    `<agntux project root>/user.md`. If that section is missing or empty (older

@@ -15,10 +15,10 @@ available_on:
   - team
   - enterprise
 supported_prompts:
-  - prompt: "ux:notes-ingest"
+  - prompt: "ux:agntux-notes"
     purpose: "Scheduled task — fires the ingest agent on the user's chosen cadence."
 support:
-  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Anotes-ingest"
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-notes"
   email: "support@agntux.ai"
 developer:
   name: "AgntUX"

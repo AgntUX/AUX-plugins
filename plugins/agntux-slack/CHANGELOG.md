@@ -1,10 +1,32 @@
 # Changelog
 
-All notable changes to slack-ingest are documented here.
+All notable changes to agntux-slack are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.2.0] — 2026-05-03
+
+### Changed
+- **BREAKING:** Renamed plugin slug `slack-ingest` → `agntux-slack`. The
+  new convention is that every AgntUX plugin slug starts with `agntux-`;
+  the `-ingest` suffix is retired. The slash command is now
+  `/agntux-slack:sync` (previously `/slack-ingest:sync`); subagent
+  namespaces are `agntux-slack:ingest` and `agntux-slack:draft`. Internal
+  data paths moved from `data/learnings/slack-ingest/` and
+  `data/instructions/slack-ingest.md` to `data/learnings/agntux-slack/`
+  and `data/instructions/agntux-slack.md`.
+
+### Added
+- `skills/sync/SKILL.md` resolves UUID-prefixed Slack connector tool
+  names via ToolSearch at dispatch time and injects them into the
+  ingest/draft subagents' frontmatter `tools:` line. Cowork registers
+  connector tools under a per-instance UUID, so the previous static
+  `tools:` list silently dropped every Slack call. Lane A filters
+  out write tools (read-only ingest); Lane B keeps them (the
+  chat-confirm-then-write draft flow needs them). Both lanes fail loud
+  if the post-filter set is empty.
 
 ## [0.1.0] — 2026-05-02
 
@@ -20,7 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   Drafts text in chat, shows the exact payload, asks for explicit yes/no,
   and only on `yes` calls `slack_send_message`, `slack_schedule_message`,
   or `slack_create_canvas`. No write tool fires without confirmation.
-- `skills/sync/SKILL.md` — `/slack-ingest:sync` routing skill. Also
+- `skills/sync/SKILL.md` — `/agntux-slack:sync` routing skill. Also
   dispatches inbound suggested-action prompts to `agents/draft.md`.
 - `proposed_schema` declaring `person`, `company`, `project`, `topic`
   entity subtypes and the canonical six action classes — `deadline`,

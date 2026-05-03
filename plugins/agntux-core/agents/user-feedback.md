@@ -54,9 +54,8 @@ The user said an imperative. Your job: classify, identify the plugin slug, appen
 1. The orchestrator may pass the slug if it can infer it (e.g., "never flag email from X" + only one email plugin installed → `gmail-ingest`).
 2. If no slug is passed, infer from the imperative:
    - "email" / "inbox" → search for installed email plugins (`gmail-ingest`, etc.) by checking `<agntux project root>/data/schema/contracts/`. If multiple match, ask: "Should this apply to {slug-1} or {slug-2}?" If only one matches, use it.
-   - "Slack" / "channel" / "DM" → `slack-ingest` (or whichever Slack plugin is installed).
-   - "ticket" / "Jira" / "issue" → `jira-ingest` (or equivalent).
-   - "notes" / "Obsidian" → `notes-ingest`.
+   - "Slack" / "channel" / "DM" → `agntux-slack` (or whichever Slack plugin is installed).
+   - "ticket" / "Jira" / "issue" → `agntux-jira` (or equivalent).
 3. If no plugin matches the imperative ("the user mentioned WhatsApp but no whatsapp-ingest plugin is installed"), tell the user: "I don't see a plugin that ingests WhatsApp. The instruction would only apply once you install one. Should I save it under a stub `whatsapp-ingest.md` so it's ready when you install, or skip for now?" Default to skip if they don't answer.
 
 ### Stage 2 — Classify the rule
@@ -253,7 +252,7 @@ Hand back to the orchestrator. The orchestrator's next dispatch will pick up the
 ```markdown
 ---
 type: plugin-instructions
-plugin: notes-ingest
+plugin: agntux-slack
 schema_version: "1.0.0"
 updated_at: 2026-04-29T14:22:00Z
 authored_by: user-feedback

@@ -1,11 +1,11 @@
 ---
 name: sync
-description: Run a slack-ingest pass now (or on schedule). Reads schema and per-plugin contract, fetches Slack messages since the last cursor, synthesises entities and action items, advances the cursor. Also dispatches inbound suggested-action prompts (`draft a reply`, `schedule a reply`, `summarise the thread`) to the draft subagent. Use for "sync slack", "ingest slack now", "refresh slack", or when a scheduled task fires `/slack-ingest:sync`, or when a `ux:` prompt routes back to slack-ingest from a suggested-action click.
+description: Run an agntux-slack pass now (or on schedule). Reads schema and per-plugin contract, fetches Slack messages since the last cursor, synthesises entities and action items, advances the cursor. Also dispatches inbound suggested-action prompts (`draft a reply`, `schedule a reply`, `summarise the thread`) to the draft subagent. Use for "sync slack", "ingest slack now", "refresh slack", or when a scheduled task fires `/agntux-slack:sync`, or when a `ux:` prompt routes back to agntux-slack from a suggested-action click.
 ---
 
-# `/slack-ingest:sync` — manual or scheduled ingest, plus suggested-action dispatch
+# `/agntux-slack:sync` — manual or scheduled ingest, plus suggested-action dispatch
 
-Lane: a single slack-ingest pass, or — if the inbound prompt is a suggested-action `ux:` body — a hand-off to `agents/draft.md`. Backed by the recommended scheduled task whose prompt body is `/slack-ingest:sync` at `Hourly`. Also the target of `/agntux-sync slack-ingest`.
+Lane: a single agntux-slack pass, or — if the inbound prompt is a suggested-action `ux:` body — a hand-off to `agents/draft.md`. Backed by the recommended scheduled task whose prompt body is `/agntux-slack:sync` at `Hourly`. Also the target of `/agntux-sync agntux-slack`.
 
 ## Always check first
 
@@ -44,10 +44,50 @@ Pick exactly ONE lane based on the prompt body (after the host has stripped the 
 ### Lane A — Ingest run
 
 **Triggers:**
-- The bare slash command `/slack-ingest:sync` (or `/agntux-sync slack-ingest`).
-- An imperative referring to syncing or ingesting Slack: "sync slack", "ingest slack data", "run slack-ingest", "refresh slack".
+- The bare slash command `/agntux-slack:sync` (or `/agntux-sync agntux-slack`).
+- An imperative referring to syncing or ingesting Slack: "sync slack", "ingest slack data", "run agntux-slack", "refresh slack".
 
-Engage the **ingest** subagent (namespace `slack-ingest:ingest`). Frame the request and let the host's plugin auto-routing carry the conversation to the subagent's fresh context window. The subagent reads its state, fetches new items, synthesises entities and action items conformant to the tenant schema, and advances the cursor. The ingest subagent is read-only and never calls Slack write tools.
+**Pre-dispatch: resolve Slack MCP tool names (Cowork UUID prefix)**
+
+Cowork prefixes connector tools with a server-instance UUID
+(e.g. `mcp__7f3a-uuid__slack_read_channel`). The ingest subagent's
+frontmatter `tools:` list must contain the exact prefixed names, or the
+host will deny the calls and the run fails. Resolve them at dispatch:
+
+1. Use ToolSearch to discover the read tools (one keyword query covers
+   all of them):
+   `ToolSearch({query: "slack_read_channel slack_read_thread slack_read_user_profile slack_search_public_and_private slack_search_channels slack_read_canvas", max_results: 20})`
+
+2. Filter the results to **read-only** tools — drop any name containing
+   `_send_`, `_create_`, `_update_`, `_schedule_`, `_post_`, `_delete_`.
+   The ingest subagent must never receive a write tool.
+
+   **If the filtered set is empty** (ToolSearch returned only write tools,
+   or returned a non-Slack ranked match), do NOT dispatch and do NOT
+   edit frontmatter. Print the same "tools aren't loaded" message as
+   the zero-hits guard below and stop.
+
+3. Read `${CLAUDE_PLUGIN_ROOT}/agents/ingest.md` frontmatter `tools:` line.
+   Compare to the resolved names from step 2.
+
+4. **If the resolved names already match what's in frontmatter, skip the
+   edit** — the previous run's UUIDs are still current (the common case
+   for an hourly task). Proceed straight to dispatch.
+
+5. Otherwise, edit the frontmatter `tools:` line to the new resolved set:
+   `tools: Read, Write, Edit, Glob, Grep, mcp__<uuid>__slack_read_channel, mcp__<uuid>__slack_read_thread, …`
+
+6. Dispatch the ingest subagent (Lane A normal flow). **Do NOT restore**
+   the original tools line after the run — the resolved names stay in
+   place. Stale UUIDs cause no harm because step 2 re-resolves and step 4
+   re-validates on every dispatch; a UUID rotation just triggers an edit
+   on the next run.
+
+If ToolSearch returns zero hits for any required tool, do NOT dispatch.
+Print: "Slack connector tools aren't loaded — open Cowork's connector
+panel and verify Slack is connected, then re-fire this skill." Stop.
+
+Engage the **ingest** subagent (namespace `agntux-slack:ingest`). Frame the request and let the host's plugin auto-routing carry the conversation to the subagent's fresh context window. The subagent reads its state, fetches new items, synthesises entities and action items conformant to the tenant schema, and advances the cursor. The ingest subagent is read-only and never calls Slack write tools.
 
 Do NOT do the ingest work yourself. Your job is routing.
 
@@ -55,13 +95,45 @@ Do NOT do the ingest work yourself. Your job is routing.
 
 **Triggers** — the inbound prompt body matches one of these patterns:
 
-- `Use the slack-ingest plugin to draft a reply for action {id}.`
-- `Use the slack-ingest plugin to draft a reply and schedule it for action {id}.`
-- `Use the slack-ingest plugin to summarise the thread for action {id} into a Slack canvas.`
+- `Use the agntux-slack plugin to draft a reply for action {id}.`
+- `Use the agntux-slack plugin to draft a reply and schedule it for action {id}.`
+- `Use the agntux-slack plugin to summarise the thread for action {id} into a Slack canvas.`
 
 These come from the `suggested_actions[].host_prompt` field on action items the ingest subagent wrote. The host re-routed them as a fresh `ux:` prompt back to this plugin.
 
-Engage the **draft** subagent (namespace `slack-ingest:draft`). The draft subagent:
+**Pre-dispatch: resolve Slack MCP tool names (Cowork UUID prefix)**
+
+Same resolve → compare → skip-or-edit pattern as Lane A, but with the
+**write** tools included. The draft subagent's confirmation gate
+(yes / no / edit) is the safety property — exposing the write tools is
+intentional.
+
+1. Use ToolSearch to discover the read AND write tools:
+   `ToolSearch({query: "slack_read_thread slack_read_user_profile slack_send_message slack_send_message_draft slack_schedule_message slack_create_canvas slack_update_canvas", max_results: 20})`
+
+2. Do NOT filter out write tools here — the draft subagent needs them.
+   But still verify the result set contains at least one read tool
+   (`slack_read_thread`, `slack_read_user_profile`) AND at least one
+   write tool (`slack_send_message`). If either category is missing,
+   do NOT dispatch — print the zero-hits message at the end of this
+   block and stop.
+
+3. Read `${CLAUDE_PLUGIN_ROOT}/agents/draft.md` frontmatter `tools:` line.
+   Compare to the resolved names from step 1.
+
+4. **If the resolved names already match, skip the edit.** Proceed
+   straight to dispatch.
+
+5. Otherwise, edit the frontmatter `tools:` line to include the
+   UUID-prefixed names alongside the base host tools.
+
+6. Dispatch the draft subagent. Do NOT restore the original tools line.
+
+If ToolSearch returns zero hits for the read tools, do NOT dispatch.
+Print: "Slack connector tools aren't loaded — open Cowork's connector
+panel and verify Slack is connected, then re-fire this action." Stop.
+
+Engage the **draft** subagent (namespace `agntux-slack:draft`). The draft subagent:
 
 1. Reads `<agntux project root>/actions/{id}.md`.
 2. Calls `slack_read_thread` for full thread context.
@@ -79,7 +151,7 @@ Do NOT do the drafting work yourself. The draft subagent owns the confirmation g
 
 ### Fallback
 
-If the prompt does not match Lane A or Lane B, tell the user what this plugin handles (`/slack-ingest:sync` for an ingest pass, suggested-action prompts on slack-ingest action items for the draft flow) and ask them to clarify. Do not guess. Do not call a Slack write tool from here under any circumstance.
+If the prompt does not match Lane A or Lane B, tell the user what this plugin handles (`/agntux-slack:sync` for an ingest pass, suggested-action prompts on agntux-slack action items for the draft flow) and ask them to clarify. Do not guess. Do not call a Slack write tool from here under any circumstance.
 
 ## Out of scope
 
@@ -92,6 +164,6 @@ You do NOT:
 
 ## Routing mechanics
 
-Plugin-bundled subagents are auto-discovered (namespaces `slack-ingest:ingest` and `slack-ingest:draft`). The host's plugin auto-routing engages them based on each subagent's `description:` frontmatter. Frame the request and let the host carry the conversation to the subagent in a fresh context window.
+Plugin-bundled subagents are auto-discovered (namespaces `agntux-slack:ingest` and `agntux-slack:draft`). The host's plugin auto-routing engages them based on each subagent's `description:` frontmatter. Frame the request and let the host carry the conversation to the subagent in a fresh context window.
 
-If your environment exposes a Task tool with `subagent_type` = `slack-ingest:ingest` or `slack-ingest:draft`, you may use it. Behaviour is the same either way.
+If your environment exposes a Task tool with `subagent_type` = `agntux-slack:ingest` or `agntux-slack:draft`, you may use it. Behaviour is the same either way.

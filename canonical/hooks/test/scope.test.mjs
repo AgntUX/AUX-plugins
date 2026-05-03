@@ -11,7 +11,7 @@ import {
   _setPluginSlugsForTesting,
 } from "../lib/scope.mjs";
 
-const TEST_SLUGS = ["agntux-core", "slack-ingest", "gmail-ingest"];
+const TEST_SLUGS = ["agntux-core", "agntux-slack", "agntux-gmail"];
 
 function setupSlugs() {
   _setPluginSlugsForTesting(TEST_SLUGS);
@@ -44,7 +44,7 @@ test("isAgntuxScoped: mcp__agntux-core__do_x -> true (in slug list)", () => {
   setupSlugs();
   try {
     assert.equal(isAgntuxScoped({ tool_name: "mcp__agntux-core__do_x" }), true);
-    assert.equal(isAgntuxScoped({ tool_name: "mcp__slack-ingest__fetch" }), true);
+    assert.equal(isAgntuxScoped({ tool_name: "mcp__agntux-slack__fetch" }), true);
   } finally { teardown(); }
 });
 

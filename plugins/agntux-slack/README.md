@@ -1,4 +1,4 @@
-# Slack Ingest
+# AgntUX Slack
 
 Turn your Slack workspace into an AgntUX knowledge store, and let Claude draft
 replies on demand — but only ever send them after you confirm.
@@ -28,25 +28,25 @@ replies on demand — but only ever send them after you confirm.
 
 1. Make sure the **Slack Connector** is connected to your host (e.g., via
    the Anthropic Connectors marketplace at `https://mcp.slack.com/mcp`).
-   Slack-ingest does not authenticate with Slack itself — it talks to
+   agntux-slack does not authenticate with Slack itself — it talks to
    the host-installed Slack MCP server.
 2. Install **AgntUX Core** if you haven't already.
-3. Install **Slack Ingest** from the marketplace.
+3. Install **AgntUX Slack** from the marketplace.
 4. Run `/agntux-onboard` (or re-run it if your tenant is already
-   onboarded). The flow handles slack-ingest's schema review automatically:
+   onboarded). The flow handles agntux-slack's schema review automatically:
    the host's plugin install hook drops a `.proposed` file under
    `<agntux project root>/data/schema/contracts/`, and personalization
    dispatches the data-architect's Mode B during the per-plugin
    interview. The architect writes the approved contract at
-   `<agntux project root>/data/schema/contracts/slack-ingest.md` and
+   `<agntux project root>/data/schema/contracts/agntux-slack.md` and
    deletes the `.proposed` file. **Zero manual schema-review steps.**
-5. Onboarding's State A wrap-up auto-fires `/agntux-sync slack-ingest`
+5. Onboarding's State A wrap-up auto-fires `/agntux-sync agntux-slack`
    for the first synchronous bootstrap; the ongoing schedule (Hourly)
    takes over after.
-6. To trigger a sync manually any time, run `/slack-ingest:sync` (or
-   `/agntux-sync slack-ingest` from the core namespace). To revisit the
+6. To trigger a sync manually any time, run `/agntux-slack:sync` (or
+   `/agntux-sync agntux-slack` from the core namespace). To revisit the
    architect's contract decisions later, run
-   `/agntux-schema review slack-ingest` (only needed if you want to
+   `/agntux-schema review agntux-slack` (only needed if you want to
    change the approved contract — it is NOT a required install step).
 
 ## Configuration
@@ -65,15 +65,15 @@ cursor map and is polled on every run.
 **First-run consent:** the discovery sweep uses
 `slack_search_public_and_private`, which the host requires you to
 approve on first call. If you see a `kind: auth` entry in
-`data/learnings/slack-ingest/sync.md → errors`, grant the connector's
-search permission in your host and re-run `/slack-ingest:sync`.
+`data/learnings/agntux-slack/sync.md → errors`, grant the connector's
+search permission in your host and re-run `/agntux-slack:sync`.
 
 **Triage preferences:** edit `<agntux project root>/user.md` →
 `# Preferences` to control which Slack messages generate action items.
 Add patterns to `## Always action-worthy` or `## Usually noise`. To
 allow specific bot messages (the default skips all bot traffic), add a
 per-plugin instruction in
-`<agntux project root>/data/instructions/slack-ingest.md` under
+`<agntux project root>/data/instructions/agntux-slack.md` under
 `# Always raise` — e.g., `bot_id:B01ABC` to allow a GitHub PR bot.
 
 ## Suggested-action flow
@@ -106,7 +106,7 @@ what I sent" path.
 - DMs and group DMs are covered. Multi-party DMs (`mpim`) work the same
   way as channels via the per-channel cursor map.
 - Bot messages are skipped by default. Add `bot_id:<id>` rules to
-  `data/instructions/slack-ingest.md → # Always raise` to allow specific
+  `data/instructions/agntux-slack.md → # Always raise` to allow specific
   apps.
 - Volume caps: 200 messages per channel per run, 10 action items per
   run. Hot threads update existing action items rather than spawning
@@ -127,13 +127,13 @@ see these two diverge:
 | File | Reason for divergence |
 |---|---|
 | `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. Substitution per P2 §8. |
-| `hooks/lib/agntux-plugins.mjs` | `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core", "slack-ingest"]`. Substitution per P2 §8. |
+| `hooks/lib/agntux-plugins.mjs` | `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core", "agntux-slack"]`. Substitution per P2 §8. |
 
 All other hook files (`hooks.json`, `license-check.mjs`, `license-validate.mjs`,
 `lib/{cache,device,jwt-verify,refresh,scope,ui,agntux-root}.mjs`) are byte-identical
 to canonical and pass `shasum -c` cleanly.
 
-Slack Ingest does NOT ship a local stdio MCP server (no UI components yet).
+AgntUX Slack does NOT ship a local stdio MCP server (no UI components yet).
 There is no `.mcp.json` either — the Slack connector is host-installed and
 declared via `requires_source_mcp: { source: connector, connector_slug: slack }`
 in `marketplace/listing.yaml`.
@@ -144,5 +144,5 @@ Elastic License v2 (ELv2). See the `LICENSE` file for details.
 
 ## Support
 
-- Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aslack-ingest
+- Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-slack
 - Email: support@agntux.ai
