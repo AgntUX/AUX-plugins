@@ -1,5 +1,5 @@
 ---
-name: marketplace-maintainer
+name: maintain
 description: Maintainer runbooks for the AgntUX plugin marketplace — PR review checklist, rollback runbook, kill-switch, canonical-hook updates, secret rotation, CI workflow map. Use when reviewing marketplace PRs or operating the repo at the root level.
 triggers:
   - file:.github/**
@@ -84,6 +84,7 @@ Never commit private key bytes. Never hand-edit a public-key entry's `kms_key_id
 
 ## Pointers
 
+- Sibling skill: `/plugin-toolkit:author` — authoring orchestrator + 7 specialist agents (manifest-author, ingest-prompt-author, source-semantics-advisor, draft-flow-author, tests-author, invariant-checker, release-checker). Maintainers can invoke individual agents (e.g., `release-checker`) when shepherding a PR.
 - `/add-plugin <slug>` — manual scaffolding (rare; most plugins arrive via P6 generator).
 - `/lint-plugin <slug>` — run linter and explain results.
 - `/bump-version <slug> <kind>` — apply the rubric.

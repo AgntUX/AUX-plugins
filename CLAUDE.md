@@ -117,7 +117,7 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
 ```bash
 npm install
 npm run lint:marketplace                             # Lint every plugin
-npm run lint:marketplace -- --plugin slack-ingest   # Lint one plugin
+npm run lint:marketplace -- --plugin agntux-slack    # Lint one plugin
 ```
 
 The linter is the same script CI runs. Local-passing means CI-passing.
@@ -148,10 +148,21 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/update-canonical-hooks` | Walk through the canonical-hook update runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
 
-The `.claude/skills/` directory contains two skill bundles:
+The `plugins/plugin-toolkit/` plugin bundles two namespaced skills under
+one ELv2 footprint:
 
-- `plugin-author/SKILL.md` — conventions for plugin authors
-- `marketplace-maintainer/SKILL.md` — runbooks for maintainers
+- `/plugin-toolkit:author` — authoring orchestrator that delegates to 7
+  specialist agents (manifest, ingest prompt, source semantics, draft
+  flow, tests, invariants, release). Auto-triggers on
+  `plugins/*/marketplace/listing.yaml`,
+  `plugins/*/.claude-plugin/plugin.json`, `plugins/*/CHANGELOG.md`,
+  `plugins/*/README.md`, `plugins/*/agents/*.md`, and
+  `plugins/*/skills/**/SKILL.md`.
+- `/plugin-toolkit:maintain` — maintainer runbooks (PR review,
+  rollback, kill-switch, canonical-hook update, secret rotation, CI
+  workflow map). Auto-triggers on `.github/**`, root `CHANGELOG.md`,
+  root `README.md`, and on issues labelled `regression`,
+  `kill-switch`, or `canonical-hook-rollout`.
 
 ---
 
