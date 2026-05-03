@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.2.0] — 2026-05-02
+
+### Changed
+- `data/plugin-suggestions.json` flips `slack-ingest` from `coming-soon`
+  to `available`, surfacing it during `/agntux-onboard`'s Plugin
+  Suggestions block. Coordinated change with the slack-ingest 0.1.0
+  release.
+- `hooks/lib/agntux-plugins.mjs` substituted slug list grows from
+  `["agntux-core"]` to `["agntux-core", "slack-ingest"]` so license
+  enforcement covers Slack-namespaced MCP calls. Coordinated change
+  with the slack-ingest 0.1.0 release.
+
 ### Added
 - `resolveAgntuxRoot()` shared resolver in `hooks/lib/agntux-root.mjs`
   + TS twin in `mcp-server/src/agntux-root.ts`. Hooks and MCP servers now

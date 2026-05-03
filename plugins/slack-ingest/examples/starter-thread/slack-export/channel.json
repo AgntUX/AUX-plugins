@@ -1,0 +1,31 @@
+{
+  "channels": [
+    {
+      "id": "C01PROJMANGO",
+      "name": "proj-mango",
+      "is_private": false,
+      "members": ["U01USER", "U02JOHN"]
+    },
+    {
+      "id": "D03JOHN",
+      "name": null,
+      "is_private": true,
+      "is_im": true,
+      "user": "U02JOHN"
+    }
+  ],
+  "users": [
+    {
+      "id": "U01USER",
+      "name": "you",
+      "real_name": "You (test user)",
+      "profile": { "email": "you@example.com" }
+    },
+    {
+      "id": "U02JOHN",
+      "name": "john.smith",
+      "real_name": "John Smith",
+      "profile": { "email": "john@acme.example.com" }
+    }
+  ]
+}
