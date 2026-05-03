@@ -27,11 +27,15 @@ describe("data-architect authority", () => {
 
   it("declares the right tool surface", () => {
     const fm = frontmatter(text);
-    // 4.0.0: Bash added (architect needs `rm -f` to delete .proposed
-    // files after Mode B review — Edit can't delete). WebSearch and
-    // WebFetch added to support discovery-driven schema synthesis.
-    expect(fm).toMatch(/^tools: Read, Write, Edit, Glob(, Bash)?(, WebSearch, WebFetch)?$/m);
+    // Mode B reads proposed_schema directly from each plugin's
+    // listing.yaml — no .proposed file deletion, so Bash is no
+    // longer required. WebSearch and WebFetch support discovery-
+    // driven schema synthesis in Mode A.
+    expect(fm).toMatch(/^tools: Read, Write, Edit, Glob, WebSearch, WebFetch$/m);
     expect(fm).toMatch(/^name: data-architect$/m);
+    // Lock in the Bash removal — re-adding it would re-introduce the
+    // `.proposed` file dance pattern.
+    expect(fm).not.toMatch(/Bash/);
   });
 
   it("forbids writes outside data/schema/ and data/schema-{warnings,requests}.md", () => {

@@ -110,15 +110,16 @@ yet.") and dispatch the **data-architect subagent in Mode A**
 (bootstrap from `user.md`). After it completes, return to the
 original ask.
 
-### 3. Pending plugin contracts
+### 3. Installed plugins lacking a contract
 
-Glob `<agntux project root>/data/schema/contracts/*.md.proposed`. If at least one
-file matches, a plugin has been installed but is not yet authorised.
-The dispatch depends on whether per-plugin onboarding (the
+For each slug under `<agntux project root>/user.md → # AgntUX plugins → ## Installed`,
+check whether `<agntux project root>/data/schema/contracts/{slug}.md` exists.
+If at least one is missing, the plugin has been installed but is not yet
+authorised. The dispatch depends on whether per-plugin onboarding (the
 personalization-owned interview that writes `data/instructions/`) has
 already run for that plugin:
 
-For each `.proposed` file (oldest first by mtime):
+For each missing-contract plugin (in `## Installed` order):
 
 - **Case A — `data/instructions/{plugin-slug}.md` does not exist OR
   has frontmatter `status: draft`**: per-plugin onboarding never
@@ -131,12 +132,13 @@ For each `.proposed` file (oldest first by mtime):
 - **Case B — `data/instructions/{plugin-slug}.md` exists with
   `status: final`**: onboarding finished but architect Mode B was
   interrupted. Dispatch the **data-architect subagent in Mode B**
-  directly to consume the `.proposed` file. The architect reads the
-  finalized instructions alongside the proposal, then deletes the
-  `.proposed` file (`rm -f`).
+  directly. The architect reads the proposal directly from the
+  plugin's `marketplace/listing.yaml → proposed_schema` block
+  alongside the finalized instructions and writes the approved
+  contract.
 
-After all `.proposed` files are processed, return to the original
-ask.
+After all missing-contract plugins are processed, return to the
+original ask.
 
 This precondition is NOT invoked from `/agntux-onboard` (which
 explicitly opts out — see that skill's own pre-checks). Every other

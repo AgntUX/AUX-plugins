@@ -32,10 +32,12 @@ Authoring a plugin means:
 
 - Filling in `marketplace/listing.yaml` so the website renders correctly
   and the architect can review the schema you propose.
-- Substituting the canonical agent template at
-  `canonical/prompts/ingest/agents/ingest.md` with your source's
-  specifics.
-- Writing the sync skill that routes scheduled-task fires to your agent.
+- Substituting the canonical sync-skill template at
+  `canonical/prompts/ingest/skills/sync/SKILL.md` (a top-level skill
+  with `context: fork` + `agent: general-purpose`, not a sub-agent)
+  with your source's specifics.
+- If your source has write tools, also authoring the sibling
+  `skills/draft/SKILL.md` (chat-confirm-then-write flow).
 - Copying the byte-frozen hook bundle from `canonical/hooks/`.
 - Authoring the README, CHANGELOG, screenshots, icon.
 - Writing tests that prove the plugin's shape conforms to the contract.
@@ -62,8 +64,7 @@ This is the load-bearing mental model. Every agent below references it.
 | `plugins/{slug}/marketplace/listing.yaml` | author-time | you |
 | `plugins/{slug}/marketplace/icon.png`, `screenshots/` | author-time | you |
 | `plugins/{slug}/README.md`, `CHANGELOG.md`, `LICENSE` | author-time | you (LICENSE is a stub — never replace) |
-| `plugins/{slug}/agents/*.md` | author-time | you (substituted from `canonical/prompts/ingest/agents/`) |
-| `plugins/{slug}/skills/{name}/SKILL.md` | author-time | you (substituted from `canonical/prompts/ingest/skills/`) |
+| `plugins/{slug}/skills/{name}/SKILL.md` | author-time | you (substituted from `canonical/prompts/ingest/skills/`) — top-level skills with `context: fork` + `agent: general-purpose`; sub-agents under `agents/` are retired for ingest plugins |
 | `plugins/{slug}/hooks/` | author-time | you (byte-frozen copy from `canonical/hooks/` with two substitutions) |
 | `plugins/{slug}/__tests__/*.ts` | author-time | you |
 | `plugins/{slug}/bin/` | author-time | you (only when needed for cross-platform path resolution) |
@@ -89,7 +90,6 @@ This is the load-bearing mental model. Every agent below references it.
 |---|---|
 | Connector authentication (OAuth, scopes) | host's Connectors UI |
 | Scheduled tasks (creation, edit, run-now) | host's scheduled-task tool |
-| Plugin install hook → drops `<root>/data/schema/contracts/{slug}.md.proposed` | host install pipeline |
 | Source MCP availability (`mcp__slack__*`, `mcp__gmail__*`, etc.) | host's MCP layer + the connector |
 
 If you find yourself authoring code in any path on the second or third
@@ -109,12 +109,18 @@ You do not own subtype names. The `data-architect` agent synthesises them
 from the user's discovery answers using the schema-design rubric. What
 this means:
 
-1. **At install time**, your `listing.yaml.proposed_schema` is the *hint*
-   the architect uses. The host install hook reads it and writes
-   `<root>/data/schema/contracts/{plugin-slug}.md.proposed`. The
-   architect's Mode B reviews — **approve / rename / merge / refuse**
-   each entry — and writes the approved contract to
-   `<root>/data/schema/contracts/{plugin-slug}.md`.
+1. **At install time**, your `listing.yaml.proposed_schema` block is the
+   *hint* the architect uses. Whenever an installed plugin has no
+   approved contract on disk yet, the architect's Mode B reads the
+   proposal directly from `<plugin-root>/marketplace/listing.yaml →
+   proposed_schema`, decides **approve / rename / merge / refuse** per
+   entry, and writes the approved contract to
+   `<root>/data/schema/contracts/{plugin-slug}.md`. There is no install
+   hook, no `.proposed` file, and no host-side side-channel — the
+   `listing.yaml` block is the source of truth, and personalization /
+   `_preconditions.md` enumerate missing-contract plugins by walking
+   `user.md → # AgntUX plugins → ## Installed` against the
+   `data/schema/contracts/` directory.
 2. **At runtime**, your ingest agent reads the **approved contract** at
    Step 0 of the canonical 12-step template. The validator hook
    (`plugins/agntux-core/hooks/validate-schema.mjs`) **blocks any write
@@ -135,8 +141,8 @@ inventing subtype hierarchies inside your plugin.
 
 For sources where the plugin can take action back into the source —
 reply to a Slack thread, draft a Gmail response, transition a Linear
-issue — every write call from your `agents/draft.md` (or any
-write-capable subagent) MUST be preceded by an explicit "yes" turn from
+issue — every write call from your `skills/draft/SKILL.md` (or any
+write-capable skill) MUST be preceded by an explicit "yes" turn from
 the user in the immediately preceding turn.
 
 Hard rules:
@@ -170,7 +176,7 @@ place (`tools: Read, Edit, Grep, Bash`); none has Write.
 | Agent | Owns | Triggers |
 |---|---|---|
 | `manifest-author` | `listing.yaml` schema, `proposed_schema` (entities + action_classes), `plugin.json` minimum, icon / screenshots / categories. | Editing `marketplace/listing.yaml`, `.claude-plugin/plugin.json`, marketplace assets. |
-| `ingest-prompt-author` | `agents/ingest.md` substitution from `canonical/prompts/ingest/`, `skills/{name}/SKILL.md` directory-shape trap. | Editing `plugins/*/agents/*.md`, `plugins/*/skills/**/SKILL.md`. |
+| `ingest-prompt-author` | `skills/sync/SKILL.md` substitution from `canonical/prompts/ingest/skills/sync/SKILL.md`, top-level-skill (`context: fork`) frontmatter shape, `skills/{name}/SKILL.md` directory-shape trap. | Editing `plugins/*/skills/**/SKILL.md`. |
 | `source-semantics-advisor` | Cursor strategies, threads / parent-child handling, volume caps & onboarding mode, `_sources.json` lookup-before-write. | Debugging duplicate entities, choosing cursor strategy, designing thread handling. |
 | `draft-flow-author` | Chat-confirm-then-write contract, drafting subagent (reads `templates/draft-subagent.md`), action-mutation MCP tools, `data/instructions/{slug}.md` read-only contract. | Sources with write tools (Slack send, Gmail send, Linear comment, etc.). |
 | `tests-author` | vitest skeletons (cold-start, cursor-map, thread-association, draft-flow, idempotent). | Editing `__tests__/*.ts`, pre-commit test pass. |

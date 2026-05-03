@@ -128,22 +128,28 @@ checklist by hand:
   `remark-gfm`.
 - [ ] No custom fields in `plugin.json` beyond host spec + the
   permitted `recommended_ingest_cadence`.
-- [ ] `recommended_ingest_cadence` is set and matches one of the
-  documented shapes (ingest plugins only).
+- [ ] `recommended_ingest_cadence` is set to a non-empty string
+  (ingest plugins only). The field is free-form — any phrasing that
+  describes the author's intended sync cadence is acceptable.
 - [ ] ELv2 `LICENSE` stub present and unmodified.
 - [ ] For `-ingest` slug: `proposed_schema` block is present with at
   least one `entity_subtype` and one `action_class`.
 - [ ] `proposed_schema.action_classes` uses the canonical six (or
   proposes novel classes only when the rubric supports them).
-- [ ] Agent prompt has zero unsubstituted `{{placeholder}}` tokens
-  (`grep '{{' plugins/{slug}/agents/ingest.md` returns nothing).
-- [ ] Skills use `skills/{name}/SKILL.md` directory shape (not flat).
+- [ ] Skill prompts have zero unsubstituted `{{placeholder}}` tokens
+  (`grep -E '\{\{[a-z-]+\}\}' plugins/{slug}/skills/sync/SKILL.md plugins/{slug}/skills/draft/SKILL.md`
+  returns nothing — only check `draft/SKILL.md` if the plugin ships it).
+- [ ] Skills use `skills/{name}/SKILL.md` directory shape (not flat) and
+  carry `context: fork` + `agent: general-purpose` frontmatter (no
+  `tools:` whitelist).
+- [ ] Legacy `agents/` directory is absent for ingest plugins (the
+  top-level-skill pattern replaced sub-agents).
 - [ ] `cold-start.test.ts` present and passing
   (`npm test` from the plugin directory).
 - [ ] If the plugin handles threads/comments:
   `thread-association.test.ts` present.
-- [ ] If the plugin uses source write tools: `agents/draft.md` present
-  and `draft-flow.test.ts` validates the confirmation gate.
+- [ ] If the plugin uses source write tools: `skills/draft/SKILL.md`
+  present and `draft-flow.test.ts` validates the confirmation gate.
 - [ ] Coordinated `agntux-core` changes are in the same PR or a linked
   sibling PR (delegate to `invariant-checker`).
 - [ ] Version bump matches the rubric (§3).

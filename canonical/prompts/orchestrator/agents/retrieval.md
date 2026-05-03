@@ -45,7 +45,7 @@ Do NOT proactively read entity-subtype indexes (`entities/companies/_index.md` e
 Glob `<agntux project root>/data/learnings/*/sync.md` to enumerate per-plugin sync files (P3a — there is no longer a single shared sync.md). For each match, read the file and compare its `last_success` against now to decide if it's stale per the universal threshold:
 
 - `last_success` is `null` (source has never ingested) → "uninitialized"
-- `now - last_success > 36 hours` → "stale" (covers Hourly, Daily, and Weekdays cadences charitably)
+- `now - last_success > 36 hours` → "stale" (covers sub-daily, daily, and weekdays-only cadences charitably; the threshold is intentionally cadence-agnostic — `recommended_ingest_cadence` is free-form authoring intent, not a fixed enum)
 - `now - last_success > 8 days` → "very stale" regardless of cadence
 - Otherwise → "fresh"
 

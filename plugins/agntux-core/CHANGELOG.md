@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.2.1] — 2026-05-03
+
+### Changed
+- **Architectural simplification: dropped the `.proposed` file dance.**
+  The previously documented "host install hook drops a `.proposed`
+  file" path was never implemented — and the `.proposed` filename was
+  pure indirection over `marketplace/listing.yaml → proposed_schema`,
+  which already carries the same machine-readable description. Mode B
+  now reads each plugin's proposal directly from
+  `${plugin-root}/marketplace/listing.yaml → proposed_schema`. The
+  trigger flips from "found a `.proposed` file" to "an installed
+  plugin lacks `data/schema/contracts/{slug}.md`". Plugin authors do
+  not need to do anything; ingest plugins behave identically from the
+  user's perspective once the architect catches up.
+- `agents/data-architect.md`: dropped `Bash` from the tool surface
+  (no `.proposed` file deletion, so `rm -f` is no longer required).
+  Mode B Stage 1 reads from the plugin's `listing.yaml` via the
+  `mcp__plugins__list_plugins` tool, with a conventional-layout
+  fallback (`${CLAUDE_PLUGIN_ROOT}/../{slug}/marketplace/listing.yaml`)
+  for hosts that don't expose it.
+- `agents/personalization.md` Mode A connector detection, Mode A-bis
+  set computation, schema-drift nudge, and deterministic wrap-up
+  state scan all switched from "Glob `*.md.proposed`" to "walk
+  `## Installed` and check `contracts/{slug}.md` existence".
+- `skills/_preconditions.md` check #3 + `skills/_preflight.md`
+  rewritten to enumerate installed-without-contract plugins instead
+  of `.proposed` files. `skills/agntux-onboard/SKILL.md` and
+  `skills/agntux-schema/SKILL.md` copy refreshed accordingly.
+- `__tests__/authority.test.mjs`: data-architect tool surface
+  expectation tightened to drop `Bash`.
+
 ## [4.2.0] — 2026-05-03
 
 ### Added

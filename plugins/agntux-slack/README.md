@@ -5,9 +5,10 @@ replies on demand — but only ever send them after you confirm.
 
 ## What it does
 
-- Reads every channel and DM you have access to, hourly. DMs, @mentions,
-  and active threads are time-sensitive — that's why the cadence is
-  Hourly, not Daily.
+- Reads every channel and DM you have access to, every 30 minutes
+  during weekday work hours (7am–10pm). DMs, @mentions, and active
+  threads are time-sensitive while you're working but don't need
+  overnight or weekend polling — quiet hours conserve tokens.
 - Extracts entities: Slack users (people), organisations referenced in
   shared links, workstreams from your `# Glossary`, and recurring topics.
 - Triages action items: response-needed (DMs, @mentions), deadlines,
@@ -33,16 +34,17 @@ replies on demand — but only ever send them after you confirm.
 2. Install **AgntUX Core** if you haven't already.
 3. Install **AgntUX Slack** from the marketplace.
 4. Run `/agntux-onboard` (or re-run it if your tenant is already
-   onboarded). The flow handles agntux-slack's schema review automatically:
-   the host's plugin install hook drops a `.proposed` file under
-   `<agntux project root>/data/schema/contracts/`, and personalization
-   dispatches the data-architect's Mode B during the per-plugin
-   interview. The architect writes the approved contract at
-   `<agntux project root>/data/schema/contracts/agntux-slack.md` and
-   deletes the `.proposed` file. **Zero manual schema-review steps.**
+   onboarded). The flow handles agntux-slack's schema review
+   automatically: personalization dispatches the data-architect's
+   Mode B during the per-plugin interview, and the architect reads
+   our schema proposal directly from
+   `plugins/agntux-slack/marketplace/listing.yaml → proposed_schema`,
+   walks you through it in plain language, and writes the approved
+   contract at `<agntux project root>/data/schema/contracts/agntux-slack.md`.
+   **Zero manual schema-review steps.**
 5. Onboarding's State A wrap-up auto-fires `/agntux-sync agntux-slack`
-   for the first synchronous bootstrap; the ongoing schedule (Hourly)
-   takes over after.
+   for the first synchronous bootstrap; the ongoing schedule
+   (every 30 min during weekday work hours) takes over after.
 6. To trigger a sync manually any time, run `/agntux-slack:sync` (or
    `/agntux-sync agntux-slack` from the core namespace). To revisit the
    architect's contract decisions later, run
@@ -78,12 +80,15 @@ per-plugin instruction in
 
 ## Suggested-action flow
 
-Action items raised by `agents/ingest.md` ship four buttons by default
-(`Draft a reply`, `Schedule a reply`, `Open in Slack`, `Snooze 24h`)
-plus a fifth (`Summarise to canvas`) for thread-summary-worthy items.
+Action items raised by `skills/sync/SKILL.md` ship four buttons by
+default (`Draft a reply`, `Schedule a reply`, `Open in Slack`,
+`Snooze 24h`) plus a fifth (`Summarise to canvas`) for
+thread-summary-worthy items.
 
 When you click `Draft a reply`, the host routes a `ux:` prompt back to
-this plugin. `agents/draft.md` then:
+this plugin. The host's description-based auto-routing matches the
+prompt against `skills/draft/SKILL.md` directly — there is no router
+skill or sub-agent in between. The draft skill then:
 
 1. Reads the action item to recover `source_ref` (always the parent
    `<channel_id>#<thread_ts>`) and related entities.
@@ -92,16 +97,26 @@ this plugin. `agents/draft.md` then:
 4. Drafts a body, shows it in chat with the channel name and the message
    it's replying to, and asks `Send this now? (yes / no / edit)`.
 5. On `yes`, calls `slack_send_message` with the exact body shown and
-   marks the action item `done`.
+   marks the action item `done` via `mcp__agntux-core__set_status`.
 
 No write tool is ever called without an explicit `yes` in the
 immediately preceding turn. There is no implicit "you said draft, here's
 what I sent" path.
 
+Both skills run with `context: fork` and `agent: general-purpose` per
+the [Claude Code skill docs](https://code.claude.com/docs/en/skills).
+This pattern gives each dispatch a fresh context (important for
+scheduled-task firings) without locking the skill to a frontmatter
+`tools:` whitelist — the general-purpose agent inherits the host's
+full tool surface, including the UUID-prefixed Cowork connector tools
+(`mcp__<uuid>__slack_*`). The previous "router skill + sub-agent"
+pattern is retired (it failed when Cowork blocked the dispatch-time
+frontmatter edit).
+
 ## Limitations
 
-- Reads only. The ingest pass writes nothing back to Slack. The draft
-  subagent is the only path that calls Slack write tools, and only after
+- Reads only. The sync skill writes nothing back to Slack. The draft
+  skill is the only path that calls Slack write tools, and only after
   explicit user confirmation.
 - DMs and group DMs are covered. Multi-party DMs (`mpim`) work the same
   way as channels via the per-channel cursor map.

@@ -198,14 +198,14 @@ No `${}`, `%s`, or other formats are used.
 | `{{PUBLIC_KEY_KID}}` | `hooks/lib/public-key.mjs` | P6 generator | Reads from `kms-public-keys.json` |
 | `{{PUBLIC_KEY_SPKI_PEM}}` | `hooks/lib/public-key.mjs` | P6 generator | Reads from `kms-public-keys.json` |
 | `["{{AGNTUX_PLUGIN_SLUGS}}"]` | `hooks/lib/agntux-plugins.mjs` | P6 generator | **Array-bracketed** — replace entire expression |
-| `{{plugin-slug}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `agntux-slack` (every AgntUX plugin slug starts with `agntux-`) |
-| `{{source-display-name}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `Apple Notes` |
-| `{{source-slug}}` | `prompts/ingest/ingest.md` | P6 generator | e.g. `notes` |
-| `{{recommended-cadence}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `Daily 09:00` |
-| `{{source-cursor-semantics}}` | `prompts/ingest/ingest.md` | P6 generator | e.g. `local-file modification time (RFC 3339)` |
-| `{{source-mcp-tools}}` | `prompts/ingest/ingest.md` | P6 generator | e.g. `the local filesystem MCP server` |
-| `{{ui-handler-trigger-list}}` | `prompts/ingest/orchestrator.md` | P6 generator | One bullet per UI component, or `(unused)` |
-| `{{plugin-version}}` | `prompts/ingest/ingest.md` | P6 generator | e.g. `1.0.0` |
+| `{{plugin-slug}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `agntux-slack` (every AgntUX plugin slug starts with `agntux-`) |
+| `{{source-display-name}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `Apple Notes` |
+| `{{source-slug}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `notes` |
+| `{{recommended-cadence}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `Every 30 min, 7am–10pm weekdays only` (free-form descriptive string) |
+| `{{source-cursor-semantics}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `local-file modification time (RFC 3339)` |
+| `{{source-mcp-tools}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `slack_read_channel, slack_read_thread` |
+| `{{ui-handler-trigger-list}}` | `prompts/ingest/agents/ui-handlers/_template.md` | P6 generator | One bullet per UI component, or `(unused)` |
+| `{{plugin-version}}` | `prompts/ingest/skills/sync/SKILL.md` | P6 generator | e.g. `1.0.0` |
 | `{{AGNTUX_APP_ID}}` | `mcp-server-templates/*/` | P6 generator | Per-plugin app ID |
 | `{{ui-name}}` | `mcp-server-templates/ingest/` | P6 generator | Per view tool, e.g. `thread` |
 

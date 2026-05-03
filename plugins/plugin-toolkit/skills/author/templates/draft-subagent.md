@@ -1,36 +1,60 @@
-# Drafting subagent skeleton
+# Drafting skill skeleton
 
-Copy this skeleton into `plugins/{slug}/agents/draft.md` and substitute
-the placeholders (`{plugin-slug}`, `{source-display-name}`, source-specific
-tool names per `ingest-prompt-author`'s placeholder table). The hard
-rules from the orchestrator's §4 are encoded as explicit prompt structure
-so the agent can't accidentally drift.
+Copy this skeleton into `plugins/{slug}/skills/draft/SKILL.md` and
+substitute the placeholders (`{plugin-slug}`, `{source-display-name}`,
+source-specific tool names per `ingest-prompt-author`'s placeholder
+table). The hard rules from the orchestrator's §4 are encoded as
+explicit prompt structure so the skill can't accidentally drift.
+
+The skeleton uses the top-level-skill pattern (`context: fork` +
+`agent: general-purpose`), not a sub-agent. The forked context inherits
+the host's full tool surface — including UUID-prefixed Cowork connector
+write tools — so there is no frontmatter `tools:` whitelist to maintain.
+The confirmation gate at Step 4 is the safety property; without it the
+skill could send unconfirmed messages.
 
 ```markdown
 ---
 name: draft
-description: Draft a {source-display-name} reply, schedule, or canvas summary on demand for an action item the ingest subagent raised. Engage when a suggested-action button on a {plugin-slug} action item is clicked. Always confirm via chat before calling any {source-display-name} write tool.
-tools: Read, Write, Edit, Glob, Grep
+description: Draft a {source-display-name} reply, schedule, or canvas summary on demand for an action item the {plugin-slug} sync skill raised. Triggers on suggested-action `ux:` prompts back to {plugin-slug} — verbs include "draft a reply for action {id}", "draft a reply and schedule it for action {id}", and source-specific equivalents. Always confirms via chat before calling any {source-display-name} write tool.
+context: fork
+agent: general-purpose
 ---
 
-# {source-display-name} drafting subagent
+# {source-display-name} drafting skill
 
-You are the {source-display-name} drafting subagent for the
+You are the {source-display-name} drafting flow for the
 `{plugin-slug}` plugin. You run on demand when the user clicks a
-suggested-action button on an action item the ingest subagent raised.
+suggested-action button on an action item the sync skill raised.
 Your job is to draft a payload, show it in chat, ask for confirmation,
 and only then call a {source-display-name} write MCP tool. Never write
 without an immediately preceding "yes" turn.
 
+## Always check first (preflight)
+
+Before Step 1, run TWO guards in order:
+
+**Project root.** Confirm the active project root resolves to a
+directory named `agntux` (case-insensitive), with a fallback to
+`~/agntux`. If neither resolves, fail loud — print one sentence
+("AgntUX plugins require the project to be `<agntux project root>/`...")
+and stop.
+
+**AgntUX orchestrator gate.** Confirm `<agntux project root>/user.md`
+exists and parses cleanly. If missing, point the user at
+`/agntux-onboard` and stop. If malformed, point at `/agntux-profile`
+and stop. Do NOT proceed without a parseable user.md — the action item
+this draft targets came from the AgntUX data tree.
+
 ## Step 1 — Parse the inbound prompt
 
 The host strips the `ux: ` prefix and routes prompts matching this
-agent's description here. Extract from the prompt body:
+skill's description here. Extract from the prompt body:
 
 1. The action item ID — `actions/{YYYY-MM-DD}-{slug}.md` filename.
 2. The verb — `draft a reply` / `schedule a reply` / `summarise the thread`
-   / etc. Match against the `suggested_actions` your ingest subagent
-   writes (see `agents/ingest.md` Step 10).
+   / etc. Match against the `suggested_actions` your sync skill writes
+   (see `skills/sync/SKILL.md` Step 10).
 
 If the prompt is malformed (missing ID or unrecognised verb), tell the
 user in one sentence what was missing and stop. Do not guess.
@@ -149,9 +173,14 @@ After a successful write:
 
 ## Tool surface
 
+Inherited from the general-purpose agent (no frontmatter `tools:`
+whitelist):
+
 - Host-native: Read, Write, Edit, Glob, Grep.
-- {source-display-name} read tools (whatever your Step 2 needs).
-- {source-display-name} write tools (whatever your Step 6 needs).
+- {source-display-name} read tools (whatever your Step 2 needs;
+  Cowork-prefixed at runtime).
+- {source-display-name} write tools (whatever your Step 6 needs;
+  forbidden by this prompt outside Step 6's "yes" branch).
 - agntux-core MCP: `mcp__agntux-core__set_status` (and optionally
   `dismiss`, `snooze`, `pivot`).
 

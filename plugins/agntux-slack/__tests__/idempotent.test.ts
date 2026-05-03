@@ -9,7 +9,7 @@
  * ingest agent twice and diff outputs. Because the agent is an LLM and
  * cannot run in-process, this test asserts:
  *
- *   1. ingest.md prompt explicitly documents the dedup mechanisms.
+ *   1. skills/sync/SKILL.md prompt explicitly documents the dedup mechanisms.
  *   2. The fixture has no duplicate `## Recent Activity` lines.
  *   3. No collision-suffix files (`-2.md`, `-3.md`) exist for the example
  *      thread.
@@ -35,35 +35,35 @@ function readMd(p: string): string {
 // Pass 1: ingest.md documents dedup mechanisms
 // ---------------------------------------------------------------------------
 
-describe("ingest prompt idempotency documentation", () => {
-  const ingestMd = join(PLUGIN_ROOT, "agents", "ingest.md");
+describe("sync skill idempotency documentation", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
 
-  it("ingest.md documents Lookup-before-write rule (Step 6)", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents Lookup-before-write rule (Step 6)", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("_sources.json");
     expect(src).toContain("Lookup-before-write");
   });
 
-  it("ingest.md documents Step 9 dedup against existing action items", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents Step 9 dedup against existing action items", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("Step 9");
     expect(src).toContain("Dedupe");
   });
 
-  it("ingest.md documents 'Already open' — do NOT create a duplicate", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents 'Already open' — do NOT create a duplicate", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("Already open");
     expect(src).toContain("do NOT create a duplicate");
   });
 
-  it("ingest.md documents 'Recently dismissed' — do NOT re-raise", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents 'Recently dismissed' — do NOT re-raise", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("Recently dismissed");
     expect(src).toContain("do NOT re-raise");
   });
 
-  it("ingest.md documents the parent-ts rule for thread dedup", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents the parent-ts rule for thread dedup", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("Dedup keys on parent");
   });
 });
@@ -130,8 +130,8 @@ describe("no duplicate action item files", () => {
 // ---------------------------------------------------------------------------
 
 describe("cursor advance is idempotent on a second run with no new replies", () => {
-  const ingestMd = join(PLUGIN_ROOT, "agents", "ingest.md");
-  const src = readMd(ingestMd);
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
 
   it("Step 11 documents advancing channel-shaped entries to the newest parent ts", () => {
     expect(src).toContain("Step 11");

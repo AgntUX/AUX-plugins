@@ -4,15 +4,17 @@
  * Structural test: verifies that the agntux-slack plugin's manifest, hooks,
  * agent prompts, and example fixture conform to the canonical shape.
  *
- * LIMITATION (per T18 pattern): the ingest agent is an LLM that cannot be
+ * LIMITATION (per T18 pattern): the ingest skill is an LLM that cannot be
  * invoked in-process. Instead, the test asserts:
- *   1. plugin.json carries the required fields including the Hourly cadence.
+ *   1. plugin.json carries the required fields including a non-empty
+ *      free-form recommended_ingest_cadence string.
  *   2. hooks/hooks.json has the ingest-variant shape (no PostToolUse).
- *   3. agents/ingest.md has no unsubstituted {{placeholder}} tokens, references
- *      the Slack read MCP tools, and is read-only.
- *   4. agents/draft.md exists, references the write tools, and codifies the
- *      "no write without explicit yes" rule.
- *   5. skills/sync/SKILL.md exists in the directory-shaped form.
+ *   3. skills/sync/SKILL.md has no unsubstituted {{placeholder}} tokens,
+ *      references the Slack read MCP tools, is read-only, and uses the
+ *      top-level-skill pattern (context: fork + general-purpose).
+ *   4. skills/draft/SKILL.md exists, references the write tools, and codifies
+ *      the "no write without explicit yes" rule.
+ *   5. Both skills live under directory-shaped paths (skills/{name}/SKILL.md).
  *   6. The example entity files conform to the P3 entity schema.
  *   7. The example action item conforms to the P3 action-item schema and uses
  *      the parent thread `(channel_id, thread_ts)` as `source_ref`.
@@ -71,9 +73,13 @@ describe("plugin manifest", () => {
     expect(manifest.license).toBe("ELv2");
   });
 
-  it("recommended_ingest_cadence is Hourly", () => {
+  it("recommended_ingest_cadence is a non-empty descriptive string", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, unknown>;
-    expect(manifest.recommended_ingest_cadence).toBe("Hourly");
+    expect(manifest.recommended_ingest_cadence).toBeTruthy();
+    expect(typeof manifest.recommended_ingest_cadence).toBe("string");
+    // The field is free-form (friendly cadence string, cron expression, or
+    // natural-language description); personalization reads it verbatim and
+    // hands it to the host's scheduled-task tool.
   });
 });
 
@@ -136,33 +142,35 @@ describe("hooks shape (ingest variant)", () => {
 // Pass 3: agent prompt substitution + read-only invariant
 // ---------------------------------------------------------------------------
 
-describe("ingest agent prompt", () => {
-  const ingestMd = join(PLUGIN_ROOT, "agents", "ingest.md");
-  const draftMd = join(PLUGIN_ROOT, "agents", "draft.md");
+describe("ingest skill prompt", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
-
-  it("agents/ingest.md exists", () => {
-    expect(existsSync(ingestMd)).toBe(true);
-  });
-
-  it("agents/draft.md exists", () => {
-    expect(existsSync(draftMd)).toBe(true);
-  });
+  const draftSkill = join(PLUGIN_ROOT, "skills", "draft", "SKILL.md");
 
   it("skills/sync/SKILL.md exists", () => {
     expect(existsSync(syncSkill)).toBe(true);
   });
 
-  it("ingest.md has no unsubstituted {{placeholder}} tokens", () => {
-    const src = readMd(ingestMd);
-    const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
-    expect(matches).toHaveLength(0);
+  it("skills/draft/SKILL.md exists", () => {
+    expect(existsSync(draftSkill)).toBe(true);
   });
 
-  it("draft.md has no unsubstituted {{placeholder}} tokens", () => {
-    const src = readMd(draftMd);
-    const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
-    expect(matches).toHaveLength(0);
+  it("legacy agents/ directory is removed (top-level-skill pattern)", () => {
+    const legacyAgents = join(PLUGIN_ROOT, "agents");
+    expect(existsSync(legacyAgents)).toBe(false);
+  });
+
+  it("sync skill uses context: fork + general-purpose (no tools: whitelist)", () => {
+    const fm = parseFrontmatter(readMd(syncSkill));
+    expect(fm["context"]).toBe("fork");
+    expect(fm["agent"]).toBe("general-purpose");
+    expect(fm["tools"]).toBeUndefined();
+  });
+
+  it("draft skill uses context: fork + general-purpose (no tools: whitelist)", () => {
+    const fm = parseFrontmatter(readMd(draftSkill));
+    expect(fm["context"]).toBe("fork");
+    expect(fm["agent"]).toBe("general-purpose");
+    expect(fm["tools"]).toBeUndefined();
   });
 
   it("sync skill has no unsubstituted {{placeholder}} tokens", () => {
@@ -171,41 +179,46 @@ describe("ingest agent prompt", () => {
     expect(matches).toHaveLength(0);
   });
 
-  it("ingest.md references the Slack read MCP tools", () => {
-    const src = readMd(ingestMd);
+  it("draft skill has no unsubstituted {{placeholder}} tokens", () => {
+    const src = readMd(draftSkill);
+    const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
+    expect(matches).toHaveLength(0);
+  });
+
+  it("sync skill references the Slack read MCP tools", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("slack_read_channel");
     expect(src).toContain("slack_read_thread");
     expect(src).toContain("slack_read_user_profile");
     expect(src).toContain("slack_search_public_and_private");
   });
 
-  it("ingest.md is declared read-only — never calls Slack write tools", () => {
-    const src = readMd(ingestMd);
+  it("sync skill is declared read-only — never calls Slack write tools", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("read-only");
     expect(src).toContain("Never call a Slack write tool");
   });
 
-  it("ingest.md uses the Slack-specific cursor semantics (per-channel ts map)", () => {
-    const src = readMd(ingestMd);
-    expect(src).toContain("Per-channel");
+  it("sync skill uses the Slack-specific cursor semantics (per-channel ts map)", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("ts");
     expect(src).toContain("JSON.parse");
   });
 
-  it("ingest.md documents the bootstrap_window_days override (7 default for Slack)", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents the bootstrap_window_days override (7 default for Slack)", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("bootstrap_window_days");
-    expect(src).toContain("default is 7 days");
+    expect(src).toContain("Slack-ingest default is 7 days");
   });
 
-  it("ingest.md documents the onboarding-mode 5-channel cap", () => {
-    const src = readMd(ingestMd);
+  it("sync skill documents the onboarding-mode 5-channel cap", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("onboarding-mode cap of 5 channels");
     expect(src).toContain("slack-onboarding-deferred");
   });
 
-  it("ingest.md proposes the canonical six action classes (no decision-needed)", () => {
-    const src = readMd(ingestMd);
+  it("sync skill proposes the canonical six action classes (no decision-needed)", () => {
+    const src = readMd(syncSkill);
     expect(src).toContain("`deadline`, `response-needed`, `knowledge-update`, `risk`, `opportunity`, `other`");
     // Every appearance of `decision-needed` in the prompt MUST be a negation.
     // Find every occurrence and confirm "no" or "folded" sits within ~30 chars.
@@ -216,13 +229,14 @@ describe("ingest agent prompt", () => {
     }
   });
 
-  it("ingest.md pre-flight exits cleanly and waits for architect Mode B (no manual /agntux-schema review nag)", () => {
-    const src = readMd(ingestMd);
-    // Mode B fires automatically per A1 — pre-flight exits cleanly and
-    // waits. (1) No manual nag, (2) the wait-and-retry behaviour is
-    // explicitly documented so the next scheduled run picks up.
+  it("sync skill pre-flight exits cleanly and points the user at /agntux-onboard for missing contracts", () => {
+    const src = readMd(syncSkill);
+    // No .proposed file dance — Mode B reads listing.yaml directly. The
+    // exit message routes to /agntux-onboard and documents the wait-and-
+    // retry behaviour.
     expect(src).not.toMatch(/run `\/agntux-schema review agntux-slack`/);
-    expect(src).toMatch(/awaiting data-architect Mode B|will retry on the next scheduled tick/i);
+    expect(src).not.toMatch(/host-dropped `?\.proposed`? file/);
+    expect(src).toMatch(/run `\/agntux-onboard`|will retry on the next scheduled tick/i);
   });
 
   it("sync skill registered as a directory-shaped skill (Claude Code spec)", () => {

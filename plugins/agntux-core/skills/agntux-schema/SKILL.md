@@ -7,12 +7,12 @@ argument-hint: "[review|edit] [plugin-slug]"
 # `/agntux-schema` — schema review and edit
 
 Lane: explicit user-driven schema review or edit. Pending plugin
-install reviews (`.proposed` contracts) and queued schema requests
-fire automatically through `_preconditions.md` checks 3–4 on every
-entry-point skill invocation — `/agntux-schema` does not need
-to (and should not) duplicate that dispatch. Use this skill only
-when the user says "review my schema", "edit the schema", or
-typed `/agntux-schema ...` directly.
+install reviews (installed plugins lacking a contract) and queued
+schema requests fire automatically through `_preconditions.md`
+checks 3–4 on every entry-point skill invocation —
+`/agntux-schema` does not need to (and should not) duplicate that
+dispatch. Use this skill only when the user says "review my
+schema", "edit the schema", or typed `/agntux-schema ...` directly.
 
 ## Preconditions
 
@@ -39,6 +39,6 @@ free-text edit ("add a `health_score` field to `company`",
   `/agntux-teach {slug}`.
 - Cross-workflow preferences (action-worthy, noise, glossary) → use
   `/agntux-profile`.
-- Pending `.proposed` plugin contracts and queued schema-requests
-  fire automatically via `_preconditions.md` — do NOT route through
-  this skill.
+- Pending plugin install reviews (installed plugins lacking a
+  contract) and queued schema-requests fire automatically via
+  `_preconditions.md` — do NOT route through this skill.
