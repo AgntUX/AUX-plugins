@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-03T18:52:10.610Z",
+  "generated_at": "2026-05-03T22:43:38.418Z",
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
@@ -111,7 +111,7 @@
       "supported_prompts": [
         {
           "prompt": "/agntux-slack:sync",
-          "purpose": "Run an agntux-slack pass now (manual) or on schedule. Recommended scheduled task at Hourly."
+          "purpose": "Run an agntux-slack pass now or on schedule. Recommended: every 30 min on weekdays 7am–10pm; chat is time-sensitive during work hours but doesn't need overnight or weekend runs."
         }
       ],
       "support": {
