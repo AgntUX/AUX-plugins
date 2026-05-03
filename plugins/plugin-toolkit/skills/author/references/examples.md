@@ -13,8 +13,10 @@ authority and structure from `agntux-slack`.
 
 ## What to copy from `agntux-slack`
 
-- `plugin.json` shape (with `recommended_ingest_cadence: "Hourly"` for
-  chat sources).
+- `plugin.json` shape (with a free-form descriptive
+  `recommended_ingest_cadence` — agntux-slack's value
+  `"Every 30 min, 7am–10pm weekdays — chat is time-sensitive during
+  work hours, quiet otherwise"` is a good model for a chat source).
 - `marketplace/listing.yaml` shape — categories, available_on,
   data_ingested, supported_prompts, requires_plugins, requires_source_mcp,
   developer, proposed_schema (entity_subtypes + canonical six
@@ -24,10 +26,12 @@ authority and structure from `agntux-slack`.
 - `hooks/` — byte-frozen copy from `canonical/hooks/` with the two
   documented substitutions (`lib/public-key.mjs`,
   `lib/agntux-plugins.mjs`).
-- `agents/ingest.md` — substituted canonical 12-step template.
-- `agents/draft.md` — chat-confirm-then-write subagent (skeleton
-  available at `templates/draft-subagent.md`).
-- `skills/sync/SKILL.md` — substituted canonical orchestrator.
+- `skills/sync/SKILL.md` — substituted canonical sync template; top-level
+  skill with `context: fork` + `agent: general-purpose` (no `tools:`
+  whitelist; the forked context inherits the host's full tool surface,
+  including UUID-prefixed connector tools).
+- `skills/draft/SKILL.md` — chat-confirm-then-write skill (same shape
+  as the sync skill; skeleton at `templates/draft-subagent.md`).
 - `__tests__/` — cold-start + thread-association + draft-flow tests.
 
 ## What NOT to copy verbatim
@@ -45,8 +49,8 @@ authority and structure from `agntux-slack`.
 
 | File | Demonstrates |
 |---|---|
-| `agents/ingest.md` (12-step template) | Cursor strategy, threads, lookup-before-write, contract-read at Step 0. |
-| `agents/draft.md` | Chat-confirm-then-write, `mcp__agntux-core__set_status` after write, action body Edit for Activity bullet. |
+| `skills/sync/SKILL.md` (12-step template) | `context: fork` top-level skill, cursor strategy, threads, lookup-before-write, contract-read at Step 0. |
+| `skills/draft/SKILL.md` | `context: fork` chat-confirm-then-write, `mcp__agntux-core__set_status` after write, action body Edit for Activity bullet. |
 | `marketplace/listing.yaml` | Comprehensive `proposed_schema` with cursor_semantics + source_id_format prose. |
 | `__tests__/thread-association.test.ts` | Parent-keying invariants. |
 | `__tests__/draft-flow.test.ts` | Confirmation-gate prompt-structure assertions. |

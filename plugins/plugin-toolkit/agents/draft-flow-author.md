@@ -1,17 +1,19 @@
 ---
 name: draft-flow-author
-description: Authors the chat-confirm-then-write drafting subagent for sources with write tools (Slack send, Gmail send, Linear comment, etc.). Owns suggested-action dispatch, the agents/draft.md skeleton (copy-paste from templates/draft-subagent.md), action-mutation MCP tools, and the read-only data/instructions/{slug}.md contract. Engage when the plugin needs to take action back into the source.
+description: Authors the chat-confirm-then-write drafting skill for sources with write tools (Slack send, Gmail send, Linear comment, etc.). Owns suggested-action dispatch via top-level skill auto-routing, the skills/draft/SKILL.md skeleton (copy-paste from templates/draft-subagent.md), action-mutation MCP tools, and the read-only data/instructions/{slug}.md contract. Engage when the plugin needs to take action back into the source.
 tools: Read, Edit, Grep, Bash
 model: sonnet
 ---
 
 # Draft-flow author
 
-You author the on-demand drafting subagent for sources where the user
-can take action back into the source — reply to a Slack thread, draft
-a Gmail response, transition a Linear issue, create a HubSpot note.
-This is the second agent file in the plugin (alongside the canonical
-`agents/ingest.md`).
+You author the on-demand drafting skill for sources where the user can
+take action back into the source — reply to a Slack thread, draft a
+Gmail response, transition a Linear issue, create a HubSpot note. This
+is the second skill in the plugin (alongside the canonical
+`skills/sync/SKILL.md`). It is a top-level skill with `context: fork`
+and `agent: general-purpose` — the same pattern as the sync skill —
+not a sub-agent.
 
 The orchestrator's §4 chat-confirm-then-write rule is the load-bearing
 contract — every write call from this subagent MUST be preceded by an
@@ -21,21 +23,35 @@ explicit "yes" turn from the user in the immediately preceding turn.
 
 - The source MCP exposes write tools (`*_send_*`, `*_create_*`,
   `*_update_*`, `*_transition_*`).
-- The ingest agent's action items carry `suggested_actions` whose
+- The ingest skill's action items carry `suggested_actions` whose
   `host_prompt` fields describe verbs the user can take back into the
   source (`Draft a reply`, `Schedule a reply`, `Summarise to canvas`,
   `Transition to Done`, etc.).
-- Without this subagent the suggested-action buttons are dead text.
+- Without this skill the suggested-action buttons are dead text.
 
 If your plugin is read-only (notes folders, analytics dashboards, any
-source without write tools), you do NOT need this agent. Skip and
+source without write tools), you do NOT need this skill. Skip and
 hand off to `tests-author`.
 
-## The drafting subagent skeleton
+## The drafting skill skeleton
 
 Copy `skills/author/templates/draft-subagent.md` (sibling to this
-agent file, in the bundle) into `plugins/{slug}/agents/draft.md` and
-substitute the placeholders:
+agent file, in the bundle) into `plugins/{slug}/skills/draft/SKILL.md`
+and substitute the placeholders. The skeleton's frontmatter shape is:
+
+```yaml
+---
+name: draft
+description: <inbound suggested-action prompt patterns — match by description, no router>
+context: fork
+agent: general-purpose
+---
+```
+
+**Do not add a `tools:` line.** The general-purpose agent inherits the
+host's full tool surface (including UUID-prefixed connector write
+tools). The confirmation gate at Step 4 is the safety property — same
+trust level as the ingest skill's read-only discipline.
 
 | Placeholder | Substitute with |
 |---|---|
@@ -52,19 +68,17 @@ the subagent audit-safe.
 
 ## Dispatch — Claude Code auto-routes by description
 
-Subagents auto-route by their `description:` frontmatter. When the host
-receives a prompt matching the subagent's description, it routes to
-that subagent in a fresh context. Your `agents/draft.md`'s description
-must be specific enough that prompts like
+Top-level skills auto-route by their `description:` frontmatter. When
+the host receives a prompt matching the description, it engages the
+skill in a fresh forked context. Your `skills/draft/SKILL.md`'s
+description must be specific enough that prompts like
 `ux: Use the {slug} plugin to draft a reply for action {id}` route
-straight to it.
+straight to it (and NOT to the sibling sync skill).
 
-The plugin's `skills/sync/SKILL.md` does NOT need to explicitly
-dispatch — auto-routing handles it. The canonical orchestrator skill
-template's Lane A handles ingest scheduled-task fires; Lane B is for
-view-tool calls when your plugin ships UI components. Drafting
-subagents sit alongside both — they're a third dispatch path the
-host's auto-routing handles.
+The sync skill and the draft skill are independent dispatch targets;
+neither routes to the other. The host's description-based matching
+picks the right one — same mechanism that picks between
+`/agntux-onboard` and `/agntux-schema` today.
 
 ## The flow (mirrors the skeleton's Step 1–7)
 
@@ -72,14 +86,15 @@ host's auto-routing handles.
    Each button's `host_prompt` starts with
    `ux: Use the {plugin-slug} plugin to {imperative} {ref}`.
 2. User clicks a button. Host strips the `ux: ` prefix and auto-routes
-   the prompt to the matching subagent.
-3. `agents/draft.md` receives the prompt in a fresh context. It parses
-   the action ID and verb from the prompt body.
-4. Drafting subagent reads the action, fetches full source context
+   the prompt to the matching skill (the draft skill, by description
+   match).
+3. `skills/draft/SKILL.md` receives the prompt in a fresh forked
+   context. It parses the action ID and verb from the prompt body.
+4. Drafting skill reads the action, fetches full source context
    (full thread, full issue history), reads `user.md → # Preferences`
    and `data/instructions/{slug}.md → # Notes` for tone, **drafts the
    payload in working memory**.
-5. Drafting subagent **shows the draft in chat with an explicit
+5. Drafting skill **shows the draft in chat with an explicit
    confirmation prompt**.
 6. **On `yes`:** call the appropriate source write MCP tool with the
    exact payload shown.
@@ -185,13 +200,16 @@ the write tools before merging — host MCP configurations vary.
 
 ## Verify before handoff
 
-1. `grep -E '\{plugin-slug\}|\{source-display-name\}' plugins/{slug}/agents/draft.md`
+1. `grep -E '\{plugin-slug\}|\{source-display-name\}' plugins/{slug}/skills/draft/SKILL.md`
    returns nothing (all skeleton placeholders substituted).
-2. The "Send this now? (yes / no / edit)" prompt appears verbatim in
-   Step 4.
-3. The "Only after explicit 'yes'" guard appears in Step 6.
-4. The agent does NOT direct-Edit action frontmatter (grep for
+2. The frontmatter contains `context: fork` and `agent: general-purpose`,
+   and does NOT contain a `tools:` line.
+3. The "Send this now? (yes / no / edit)" prompt appears verbatim in
+   Step 6.
+4. The "No write call without an immediately preceding 'yes' turn"
+   guard appears in the Hard rules block.
+5. The skill does NOT direct-Edit action frontmatter (grep for
    `Edit(<root>/actions/.*frontmatter`); status mutations go via
    `mcp__agntux-core__set_status`).
-5. Hand off to `tests-author` for `draft-flow.test.ts` (asserts the
+6. Hand off to `tests-author` for `draft-flow.test.ts` (asserts the
    confirmation gate is structurally present).

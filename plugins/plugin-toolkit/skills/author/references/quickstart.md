@@ -16,10 +16,9 @@ legacy `-ingest` suffix is retired):
    ├── README.md
    ├── package.json                  (vitest test harness)
    ├── vitest.config.ts
-   ├── agents/
-   │   └── ingest.md                 (substituted from canonical/prompts/ingest/agents/ingest.md)
    ├── skills/
-   │   └── sync/SKILL.md             (substituted from canonical/prompts/ingest/skills/orchestrator.md)
+   │   ├── sync/SKILL.md             (substituted from canonical/prompts/ingest/skills/sync/SKILL.md)
+   │   └── draft/SKILL.md            (only if the source has write tools; from templates/draft-subagent.md)
    ├── hooks/                        (copy byte-for-byte from canonical/hooks/, with two substitutions)
    ├── marketplace/
    │   ├── icon.png                  (512×512 PNG ≤ 512 KB)
@@ -29,20 +28,26 @@ legacy `-ingest` suffix is retired):
        ├── cold-start.test.ts
        └── (per-source tests as needed)
    ```
+   Note: there is no `agents/` directory — the ingest and draft flows
+   are top-level skills with `context: fork` + `agent: general-purpose`,
+   not sub-agents. The legacy sub-agent pattern is retired (Cowork
+   blocks the dispatch-time `tools:` edit it required for UUID-prefixed
+   connector tools).
 2. **Fill in `plugin.json`** (delegate to `manifest-author`). Set
-   `version: "0.1.0"` and `recommended_ingest_cadence` to one of the
-   documented cadence shapes.
+   `version: "0.1.0"` and `recommended_ingest_cadence` to a free-form
+   descriptive string (friendly cadence, cron expression, or natural
+   language) reflecting when your source actually produces signal.
 3. **Fill in `listing.yaml`** (delegate to `manifest-author`). Use the
    canonical six action classes. Don't invent fields; the linter
    rejects unknowns (E05) and reserved (E11).
-4. **Substitute `agents/ingest.md`** from
-   `canonical/prompts/ingest/agents/ingest.md` (delegate to
+4. **Substitute `skills/sync/SKILL.md`** from
+   `canonical/prompts/ingest/skills/sync/SKILL.md` (delegate to
    `ingest-prompt-author`). The 12-step procedure is canonical — don't
-   fork it.
-5. **Substitute `skills/sync/SKILL.md`** from
-   `canonical/prompts/ingest/skills/orchestrator.md` (delegate to
-   `ingest-prompt-author`). Watch for the directory-shape trap — Claude
-   Code silently drops `skills/{name}.md` flat files.
+   fork it. Watch for the directory-shape trap — Claude Code silently
+   drops `skills/{name}.md` flat files.
+5. **If the source has write tools, author `skills/draft/SKILL.md`**
+   from `templates/draft-subagent.md` (delegate to `draft-flow-author`).
+   Same `context: fork` + `agent: general-purpose` pattern.
 6. **Copy `hooks/`** byte-for-byte from `canonical/hooks/` (delegate to
    `invariant-checker` for verification). Substitute
    `lib/public-key.mjs` and `lib/agntux-plugins.mjs`. Verify with
@@ -57,7 +62,7 @@ legacy `-ingest` suffix is retired):
 10. **Open a PR.** Use `.github/PULL_REQUEST_TEMPLATE.md`.
 
 The `/scaffold-plugin {slug} {source-name}` command at
-`.claude/commands/scaffold-plugin.md` automates steps 1, 5, 6, and 7.
-You still author the listing fields, the agent prompt substitution,
-and the tests by hand because each requires source-specific judgment —
-and each has a specialist agent.
+`.claude/commands/scaffold-plugin.md` automates steps 1, 4, 6, and 7.
+You still author the listing fields, the per-source bits in the sync
+skill, and the tests by hand because each requires source-specific
+judgment — and each has a specialist agent.

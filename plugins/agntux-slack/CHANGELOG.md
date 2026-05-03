@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-03
+
+### Changed (BREAKING)
+- **Sub-agents converted to top-level skills with `context: fork` +
+  `agent: general-purpose`.** `agents/ingest.md` is now
+  `skills/sync/SKILL.md`; `agents/draft.md` is now
+  `skills/draft/SKILL.md`. The `agents/` directory is removed.
+  This is the load-bearing fix: Cowork prefixes connector tools with a
+  per-instance UUID, sub-agents must declare every tool in frontmatter
+  `tools:`, and Cowork blocked the previous router-skill's attempt to
+  edit the ingest sub-agent's `tools:` line at dispatch time — so the
+  sub-agent ran without the namespaced Slack tools and silently failed.
+  With `context: fork` + `agent: general-purpose` per the official
+  Claude Code skill docs, the forked context inherits the host's full
+  tool surface (including `mcp__<uuid>__slack_*`), no frontmatter edit
+  is needed, and the dispatch path is direct (host description-match
+  → skill, no router in between).
+- **Router pattern retired.** The previous `skills/sync/SKILL.md`
+  classified Lane A (ingest) vs Lane B (draft) and dispatched to the
+  matching sub-agent. With auto-routing, each skill matches its own
+  inbound prompts via its `description:` frontmatter directly — same
+  mechanism that picks between `/agntux-onboard` and `/agntux-schema`.
+  Lane B's UUID-resolution + frontmatter-edit dance is gone (lines
+  50–88 and 104–134 of the old SKILL.md).
+
+### Changed
+- `recommended_ingest_cadence` flipped from `"Hourly"` to
+  `"Every 30 min, 7am–10pm weekdays — chat is time-sensitive during
+  work hours, quiet otherwise"`. The field is now treated as free-form
+  authoring intent: personalization reads it verbatim and hands it to
+  the host's scheduled-task tool (which accepts cadence strings or
+  cron expressions). Old behaviour was 24/7 polling — wasteful
+  overnight and weekend runs for a chat source that only matters
+  during work hours. README and `marketplace/listing.yaml` copy
+  refreshed accordingly.
+- README's "Install" step rewritten to drop the fictional
+  "host-dropped `.proposed` file" claim. The architect's Mode B reads
+  this plugin's schema proposal directly from `marketplace/listing.yaml
+  → proposed_schema` during `/agntux-onboard`.
+- Step 0 contract-missing exit message changed from
+  "awaiting data-architect Mode B run" to "run `/agntux-onboard`;
+  will retry on the next scheduled tick" — `/agntux-onboard` is the
+  user-facing entry point that triggers Mode B.
+
+### Removed
+- `agents/ingest.md` (moved to `skills/sync/SKILL.md`).
+- `agents/draft.md` (moved to `skills/draft/SKILL.md`).
+- `agents/` directory.
+- The Lane B pre-dispatch UUID-resolution block in the previous
+  `skills/sync/SKILL.md` router (no longer needed).
+
 ## [0.2.0] — 2026-05-03
 
 ### Changed

@@ -6,9 +6,9 @@ allowed-tools: Bash(cp *), Bash(mkdir *), Bash(ls *), Bash(cat *), Bash(shasum *
 
 You are scaffolding a new AgntUX ingest plugin. The slug and source display
 name are in `$ARGUMENTS` — expected format: `<slug> <Source Display Name>`,
-e.g. `linear-ingest Linear` or `gmail-ingest Gmail`.
+e.g. `agntux-linear Linear` or `agntux-gmail Gmail`.
 
-Read `.claude/skills/plugin-author/SKILL.md` end-to-end before doing
+Read `plugins/plugin-toolkit/skills/author/SKILL.md` end-to-end before doing
 anything that mutates the tree. That skill is the spec for what you're
 about to scaffold; this command is its automation half.
 
@@ -17,9 +17,9 @@ about to scaffold; this command is its automation half.
 1. Split `$ARGUMENTS` on the first whitespace: `{slug} {display_name}`.
 2. Validate the slug:
    - Matches `^[a-z][a-z0-9-]*[a-z0-9]$` (PluginSlugRe).
-   - Ends in `-ingest` (per the marketplace convention; lint code E14 fires
-     on `proposed_schema` for this slug suffix).
-   - The implicit `{source-slug}` is the slug minus the `-ingest` suffix.
+   - Starts with `agntux-` (per the marketplace convention; lint code E14
+     fires on `proposed_schema` for this slug shape).
+   - The implicit `{source-slug}` is the slug minus the `agntux-` prefix.
 3. Validate the display name:
    - 1–40 chars (`requires_source_mcp.display_name` constraint).
    - Title case typical (e.g., `Linear`, `Gmail`, `Slack`, `Notes`).
@@ -42,7 +42,7 @@ Suggest `/lint-plugin {slug}` if they meant to work on the existing plugin.
 Tell the user what you're about to do:
 
 > I'll scaffold `plugins/{slug}/` based on `plugins/agntux-slack/` (the
-> minimal reference). Source-specific bits — agent prompt placeholders,
+> minimal reference). Source-specific bits — sync skill placeholders,
 > action class proposals, suggested actions — get sensible defaults you'll
 > need to refine before opening a PR. Continue?
 
@@ -54,11 +54,20 @@ Mirror `plugins/agntux-slack/` minus the source-specific files. For each
 target file below, prefer Read-then-Write (so you see what you're copying).
 For the byte-frozen hooks, use Bash `cp` to preserve bytes exactly.
 
+There is **no `agents/` directory**. The ingest and (optional) drafting
+flows are top-level skills with `context: fork` + `agent: general-purpose`,
+not sub-agents. The legacy sub-agent pattern is retired (Cowork blocks
+the dispatch-time `tools:` edit it required for UUID-prefixed connector
+tools).
+
 ### Step 1 — Directory skeleton
 
 ```
-mkdir -p plugins/{slug}/{.claude-plugin,agents,skills/sync,hooks/lib,marketplace/screenshots,__tests__}
+mkdir -p plugins/{slug}/{.claude-plugin,skills/sync,hooks/lib,marketplace/screenshots,__tests__}
 ```
+
+If the source has write tools (you'll add `skills/draft/SKILL.md` in
+Step 7), also `mkdir -p plugins/{slug}/skills/draft`.
 
 ### Step 2 — `.claude-plugin/plugin.json`
 
@@ -71,14 +80,18 @@ Write `plugins/{slug}/.claude-plugin/plugin.json`:
   "description": "{Display Name} integration for AgntUX. Ingests data from {Display Name} into your knowledge store.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "ELv2",
-  "recommended_ingest_cadence": "Daily 09:00"
+  "recommended_ingest_cadence": "Daily 04:00"
 }
 ```
 
-Tell the user: "Default cadence is `Daily 09:00`. If your source needs
-faster (Hourly for chat, Every 4 hours for incident channels) or slower
-(Weekly for low-volume), edit `plugin.json` after scaffold completes. See
-SKILL.md §7.2."
+Tell the user: "`recommended_ingest_cadence` is free-form descriptive
+text — replace `Daily 04:00` with whatever phrasing best matches when
+your source actually produces signal the user cares about. Examples:
+`Hourly` (only if overnight signal is load-bearing — incident channels,
+security feeds), `Every 30 min, 7am–10pm weekdays only` (chat during
+work hours; quiet otherwise; conserves tokens), `Weekly Friday 16:00`
+(low-volume weekly summary), `0,30 7-22 * * 1-5` (cron syntax). See
+`plugins/plugin-toolkit/agents/manifest-author.md` for the rubric."
 
 ### Step 3 — `LICENSE`
 
@@ -112,7 +125,7 @@ preserving bytes:
 cp -R canonical/hooks/. plugins/{slug}/hooks/
 ```
 
-Then substitute the two exempt files (per SKILL.md §10.1):
+Then substitute the two exempt files (per `canonical/README.md`):
 
 **`plugins/{slug}/hooks/lib/public-key.mjs`** — Read
 `canonical/kms-public-keys.json` to get the current `kid` and `spki_pem`.
@@ -121,7 +134,9 @@ Edit the placeholders:
 - `{{PUBLIC_KEY_SPKI_PEM}}` → the real Ed25519 PEM string from the JSON.
 
 **`plugins/{slug}/hooks/lib/agntux-plugins.mjs`** — Edit:
-- `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core", "{slug}"]` (JSON array).
+- `["{{AGNTUX_PLUGIN_SLUGS}}"]` → `["agntux-core", "{slug}"]` (replace
+  the entire bracketed expression with a JSON array literal — see
+  `canonical/README.md` for the array-bracketed substitution rule).
 
 After substitution, verify the rest of `hooks/` matches canonical:
 
@@ -132,40 +147,54 @@ cd plugins/{slug}/hooks && shasum -a 256 -c ../../../canonical/hooks/checksums.t
 Every file should report `OK` except `lib/public-key.mjs` and
 `lib/agntux-plugins.mjs` which report `FAILED` (expected and documented).
 
-### Step 6 — `agents/ingest.md` (substituted from canonical)
+### Step 6 — `skills/sync/SKILL.md` (substituted from canonical)
 
-Read `canonical/prompts/ingest/agents/ingest.md`. Substitute these
-placeholders (per SKILL.md §8.1) and write to
-`plugins/{slug}/agents/ingest.md`:
+Read `canonical/prompts/ingest/skills/sync/SKILL.md`. Substitute these
+placeholders and write to `plugins/{slug}/skills/sync/SKILL.md`:
 
 | Placeholder | Substitute with |
 |---|---|
-| `{{plugin-slug}}` | `{slug}` (e.g., `linear-ingest`) |
+| `{{plugin-slug}}` | `{slug}` (e.g., `agntux-linear`) |
 | `{{plugin-version}}` | `0.1.0` |
 | `{{source-display-name}}` | `{Display Name}` (e.g., `Linear`) |
-| `{{source-slug}}` | `{slug}` minus `-ingest` (e.g., `linear`) |
-| `{{recommended-cadence}}` | `Daily 09:00` (matches plugin.json) |
-| `{{source-cursor-semantics}}` | **Stub: `<TODO: copy verbatim from canonical/prompts/ingest/cursor-strategies.md for your source; if your source isn't documented there, add a section in the same shape and coordinate with maintainers — see SKILL.md §11.1 and §17.4>`** |
-| `{{source-mcp-tools}}` | **Stub: `<TODO: comma-list of mcp__{source-slug}__* tools your agent calls; e.g. linear_list_issues, linear_get_issue, linear_list_projects>`** |
-| `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components — Lane B is unused)` |
+| `{{source-slug}}` | `{slug}` minus the `agntux-` prefix (e.g., `linear`) |
+| `{{recommended-cadence}}` | The same value you set in `plugin.json` (Step 2) |
+| `{{source-cursor-semantics}}` | **Stub: `<TODO: copy verbatim from canonical/prompts/ingest/cursor-strategies.md for your source; if your source isn't documented there, add a section in the same shape and coordinate with maintainers>`** |
+| `{{source-mcp-tools}}` | **Stub: `<TODO: comma-list of source MCP tool root names your skill calls; e.g. linear_list_issues, linear_get_issue, linear_list_projects — these are documentation only, not a tools: whitelist; the general-purpose agent inherits all tools at runtime>`** |
 
 Single-curly tokens (`{ref}`, `{N hours/days}`, `{imperative}`) are
 runtime-filled — leave them alone.
 
-Tell the user: "Two placeholders in `agents/ingest.md` are stubs marked
-TODO — `{{source-cursor-semantics}}` and `{{source-mcp-tools}}`. You must
-fill these before the cold-start test will pass. SKILL.md §11.1 explains
-the cursor strategies catalogue."
-
-### Step 7 — `skills/sync/SKILL.md` (substituted from canonical)
-
-Read `canonical/prompts/ingest/skills/orchestrator.md`. Apply the same
-placeholder substitutions (same table as Step 6) and write to
-`plugins/{slug}/skills/sync/SKILL.md`.
+The skill's frontmatter MUST end up with `context: fork` and
+`agent: general-purpose` and **no `tools:` line** (the canonical
+template already has the right shape; just substitute the placeholders).
 
 **Important:** the directory shape is `skills/sync/SKILL.md` (the file
 inside a `sync/` directory). A flat `skills/sync.md` is silently dropped
-by Claude Code's plugin spec — see SKILL.md §9.
+by Claude Code's plugin spec.
+
+Tell the user: "Two placeholders in `skills/sync/SKILL.md` are stubs
+marked TODO — `{{source-cursor-semantics}}` and `{{source-mcp-tools}}`.
+You must fill these before the cold-start test will pass.
+`canonical/prompts/ingest/cursor-strategies.md` (if present) explains
+the cursor strategies catalogue."
+
+### Step 7 — `skills/draft/SKILL.md` (only if the source has write tools)
+
+Skip this step for read-only sources (notes folders, analytics
+dashboards, any source without write tools).
+
+If the source has write tools (Slack send, Gmail send, Linear comment,
+HubSpot note, Jira transition, etc.), copy
+`plugins/plugin-toolkit/skills/author/templates/draft-subagent.md` (the
+fenced markdown block) into `plugins/{slug}/skills/draft/SKILL.md` and
+substitute the placeholders (`{plugin-slug}`, `{source-display-name}`,
+source-specific tool names per Step 2 of the skeleton).
+
+The drafting skill's frontmatter MUST end up with `context: fork` +
+`agent: general-purpose` + **no `tools:` line** (same shape as the sync
+skill). The chat-confirmation gate at Step 4 of the skeleton is the
+safety property — never weaken it.
 
 ### Step 8 — `marketplace/listing.yaml` (stub for the user to complete)
 
@@ -195,14 +224,14 @@ data_ingested:
   - "TODO: e.g. {Source} items you're assigned to or watching"
 supported_prompts:
   - prompt: "/{slug}:sync"
-    purpose: "Run a {Display Name} sync now (manual) or on schedule. Recommended Daily 09:00."
+    purpose: "Run a {Display Name} sync now (manual) or on schedule. TODO: describe your recommended cadence in plain language (≤200 chars)."
 support:
   url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3A{slug}"
   email: "support@agntux.ai"
 requires_plugins:
   - agntux-core
 requires_source_mcp:
-  # TODO: pick connector (preferred) or npm; see SKILL.md §5.3.
+  # TODO: pick connector (preferred) or npm.
   source: connector
   connector_slug: {source-slug}
   display_name: "{Display Name}"
@@ -210,7 +239,7 @@ developer:
   name: "AgntUX"
   github_handle: "agntux"
 proposed_schema:
-  # TODO: see SKILL.md §6 for guidance.
+  # TODO: see manifest-author for guidance.
   # entity_subtypes: propose person, company, project, topic unless your source
   #   genuinely needs different shapes. Don't propose source-specific subtypes
   #   like {source-slug}-channel — those are conversational artefacts, not entities.
@@ -277,15 +306,14 @@ cp plugins/agntux-slack/marketplace/screenshots/$(ls plugins/agntux-slack/market
 ```
 
 Tell the user: "Screenshot is a placeholder. Capture 1–3 real screenshots
-(1280×720 to 2560×1440, aspect 1.33–2.33, ≤2 MB each) before launch.
-SKILL.md §16.2 has guidance on what to capture."
+(1280×720 to 2560×1440, aspect 1.33–2.33, ≤2 MB each) before launch."
 
 ### Step 11 — `README.md` (stub)
 
 Write `plugins/{slug}/README.md`:
 
 ```markdown
-# {Display Name} Ingest
+# {Display Name}
 
 TODO: one-paragraph elevator pitch. Replace this with what your plugin does.
 
@@ -299,11 +327,11 @@ TODO: one-paragraph elevator pitch. Replace this with what your plugin does.
 ## Install
 
 1. Install **AgntUX Core** first and run `/agntux-onboard`. This plugin requires it.
-2. Install **{Display Name} Ingest** from the marketplace.
+2. Install **{Display Name}** from the marketplace.
 3. Authorise the {Display Name} connector in your host's **Customize → Connectors**.
-4. Set up a scheduled task in your host with prompt body `/{slug}:sync` at **Daily 09:00**
-   (or your preferred cadence).
-5. To trigger a sync manually, run `/{slug}:sync` (or `/agntux-sync {slug}` from the core namespace).
+4. Re-run `/agntux-onboard` (or run it for the first time) — the architect's Mode B reads our schema proposal directly from `marketplace/listing.yaml → proposed_schema`, walks you through it in plain language, and writes the approved contract.
+5. Set up a scheduled task in your host with prompt body `/{slug}:sync`. Cadence per your `recommended_ingest_cadence`.
+6. To trigger a sync manually, run `/{slug}:sync` (or `/agntux-sync {slug}` from the core namespace).
 
 ## Configuration
 
@@ -318,14 +346,14 @@ say so and remove this section.
 ## Known canonical-hook diffs
 
 Two files in `hooks/lib/` differ from `canonical/hooks/lib/` by design — every
-diff is a documented placeholder substitution per P2 §8. Verifiers running
+diff is a documented placeholder substitution. Verifiers running
 `shasum -c canonical/hooks/checksums.txt` from this plugin's `hooks/` directory
 see these two diverge:
 
 | File | Reason for divergence |
 |---|---|
-| `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. Substitution per P2 §8. |
-| `hooks/lib/agntux-plugins.mjs` | `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core", "{slug}"]`. Substitution per P2 §8. |
+| `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. |
+| `hooks/lib/agntux-plugins.mjs` | `["{{AGNTUX_PLUGIN_SLUGS}}"]` → `["agntux-core", "{slug}"]`. |
 
 All other hook files are byte-identical to canonical and pass `shasum -c`
 cleanly.
@@ -363,12 +391,12 @@ Use today's date (the agent should resolve this from the system clock).
 
 ### Step 13 — `__tests__/cold-start.test.ts`
 
-Write `plugins/{slug}/__tests__/cold-start.test.ts` using the skeleton
-from SKILL.md §14.1, substituted for the slug:
+Write `plugins/{slug}/__tests__/cold-start.test.ts` using this skeleton,
+substituted for the slug:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const PLUGIN_ROOT = join(__dirname, "..");
@@ -378,7 +406,9 @@ describe("manifest", () => {
     const m = JSON.parse(readFileSync(join(PLUGIN_ROOT, ".claude-plugin/plugin.json"), "utf-8"));
     expect(m.name).toBe("{slug}");
     expect(m.version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(m.recommended_ingest_cadence).toMatch(/^(Hourly|Daily|Weekdays|Weekly|Monthly|Every) /);
+    // recommended_ingest_cadence is free-form descriptive text.
+    expect(m.recommended_ingest_cadence).toBeTruthy();
+    expect(typeof m.recommended_ingest_cadence).toBe("string");
   });
 });
 
@@ -391,28 +421,38 @@ describe("hooks wiring", () => {
   });
 });
 
-describe("agent prompt substitution", () => {
-  it("no unsubstituted {{...}} placeholders remain", () => {
-    const p = readFileSync(join(PLUGIN_ROOT, "agents/ingest.md"), "utf-8");
+describe("skill shape", () => {
+  it("legacy agents/ directory is absent (top-level-skill pattern)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
+  });
+
+  it("skills/sync/SKILL.md exists with no unsubstituted placeholders", () => {
+    const p = readFileSync(join(PLUGIN_ROOT, "skills/sync/SKILL.md"), "utf-8");
     const matches = p.match(/\{\{[a-z-]+\}\}/g);
     expect(matches).toBeNull();
   });
 
-  it("sync skill prompt substitution clean", () => {
+  it("sync skill uses context: fork + general-purpose (no tools: whitelist)", () => {
     const p = readFileSync(join(PLUGIN_ROOT, "skills/sync/SKILL.md"), "utf-8");
-    const matches = p.match(/\{\{[a-z-]+\}\}/g);
-    expect(matches).toBeNull();
+    const fmMatch = p.match(/^---\n([\s\S]*?)\n---/);
+    const fm = fmMatch?.[1] ?? "";
+    expect(fm).toMatch(/^context: fork$/m);
+    expect(fm).toMatch(/^agent: general-purpose$/m);
+    expect(fm).not.toMatch(/^tools:/m);
   });
 });
 ```
 
 If your source has threads (Slack, Gmail, Notion comments, Linear comments,
-HubSpot deal notes), also stub `thread-association.test.ts` per SKILL.md
-§14.3 — leave the assertions as TODO comments for the user to fill in
-once the example fixture exists.
+HubSpot deal notes), also stub `thread-association.test.ts` — leave the
+assertions as TODO comments for the user to fill in once the example
+fixture exists.
 
-If your source has write tools (the chat-confirm-then-write pattern from
-SKILL.md §11.3), also stub `draft-flow.test.ts` per SKILL.md §14.4.
+If your source has write tools (the chat-confirm-then-write pattern),
+also stub `draft-flow.test.ts` asserting `skills/draft/SKILL.md` exists,
+uses the same `context: fork` + `agent: general-purpose` shape with no
+`tools:` whitelist, and contains the literal "Send this now? (yes / no
+/ edit)" confirmation prompt.
 
 ## Confirm + summarise next steps
 
@@ -421,7 +461,7 @@ After all 13 steps complete, tell the user (concise — under 200 words):
 > Scaffolded `plugins/{slug}/`. The structure is in place; source-specific
 > bits need your input before the linter passes:
 >
-> 1. **`agents/ingest.md`** — fill `{{source-cursor-semantics}}` and
+> 1. **`skills/sync/SKILL.md`** — fill `{{source-cursor-semantics}}` and
 >    `{{source-mcp-tools}}` placeholders (search for `<TODO:` in the file).
 > 2. **`marketplace/listing.yaml`** — every `TODO:` comment marks a field
 >    that needs a real value. Pay special attention to `categories`,
@@ -431,12 +471,12 @@ After all 13 steps complete, tell the user (concise — under 200 words):
 > 4. **`marketplace/icon.png`** and **`marketplace/screenshots/00-placeholder.png`**
 >    are agntux-slack placeholders. Replace before launch (placeholders are
 >    fine for the initial draft PR).
+> 5. If the source has write tools, also fill in `skills/draft/SKILL.md`
+>    (Step 7 created the stub if applicable).
 >
-> Once filled in, run `/lint-plugin {slug}` to verify. If your source has
-> threads or write tools, see SKILL.md §11.2 / §11.3 for the patterns and
-> add `agents/draft.md` + the relevant tests.
+> Once filled in, run `/lint-plugin {slug}` to verify.
 >
-> Coordinated agntux-core changes (per SKILL.md §17): add an entry to
+> Coordinated agntux-core changes: add an entry to
 > `plugins/agntux-core/data/plugin-suggestions.json`. I haven't done this
 > automatically — that's a separate plugin's territory and you should
 > review the addition deliberately.
@@ -449,10 +489,9 @@ Do NOT commit, push, or run the linter. Leave that to the user.
 - Doesn't run `npm install` or `npm test` (do this manually after the
   TODOs are addressed).
 - Doesn't touch `plugins/agntux-core/` (the `plugin-suggestions.json` and
-  `agntux-plugins.mjs` updates from SKILL.md §17 are separate, deliberate
-  edits).
+  `agntux-plugins.mjs` updates are separate, deliberate edits).
 - Doesn't open a PR or commit.
 - Doesn't substitute `bin/` (some plugins need it for cross-platform
-  filesystem paths; most ingest plugins don't — see SKILL.md §10.4).
-- Doesn't author `agents/draft.md` or any UI handlers (those depend on
-  source-specific decisions you make after scaffolding).
+  filesystem paths; most ingest plugins don't).
+- Doesn't author UI handlers (those depend on source-specific decisions
+  you make after scaffolding).

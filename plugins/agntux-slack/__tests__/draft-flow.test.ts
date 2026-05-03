@@ -1,11 +1,11 @@
 /**
  * draft-flow.test.ts
  *
- * Validates that `agents/draft.md`'s prompt structure makes it impossible
- * to call a Slack write tool without an explicit user "yes" in the
- * immediately preceding turn.
+ * Validates that `skills/draft/SKILL.md`'s prompt structure makes it
+ * impossible to call a Slack write tool without an explicit user "yes"
+ * in the immediately preceding turn.
  *
- * LIMITATION (per T18 pattern): the draft agent is an LLM. We can't
+ * LIMITATION (per T18 pattern): the draft skill is an LLM. We can't
  * stage a real conversation in a unit test. Instead we assert that the
  * prompt itself codifies the gate — every reference to a write tool is
  * paired with a confirmation requirement, and the "no auto-pivot",
@@ -18,7 +18,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const DRAFT_MD = join(PLUGIN_ROOT, "agents", "draft.md");
+const DRAFT_MD = join(PLUGIN_ROOT, "skills", "draft", "SKILL.md");
 
 function readMd(p: string): string {
   return readFileSync(p, "utf-8");
@@ -36,13 +36,13 @@ const WRITE_TOOLS = [
 // Pass 1: draft.md exists and references each write tool
 // ---------------------------------------------------------------------------
 
-describe("draft.md write-tool references", () => {
-  it("draft.md exists", () => {
+describe("draft SKILL.md write-tool references", () => {
+  it("skills/draft/SKILL.md exists", () => {
     expect(existsSync(DRAFT_MD)).toBe(true);
   });
 
   for (const tool of WRITE_TOOLS) {
-    it(`draft.md references ${tool}`, () => {
+    it(`draft SKILL.md references ${tool}`, () => {
       const src = readMd(DRAFT_MD);
       expect(src).toContain(tool);
     });
@@ -53,7 +53,7 @@ describe("draft.md write-tool references", () => {
 // Pass 2: confirmation gate is codified
 // ---------------------------------------------------------------------------
 
-describe("draft.md confirmation gate", () => {
+describe("draft SKILL.md confirmation gate", () => {
   const src = readMd(DRAFT_MD);
 
   it("requires explicit yes in the immediately preceding turn", () => {
@@ -84,7 +84,7 @@ describe("draft.md confirmation gate", () => {
 // Pass 3: payload integrity rules
 // ---------------------------------------------------------------------------
 
-describe("draft.md payload integrity", () => {
+describe("draft SKILL.md payload integrity", () => {
   const src = readMd(DRAFT_MD);
 
   it("requires showing the exact payload — no paraphrasing", () => {
@@ -115,7 +115,7 @@ describe("draft.md payload integrity", () => {
 // Pass 4: read-only context fetch happens before draft
 // ---------------------------------------------------------------------------
 
-describe("draft.md read-before-write order", () => {
+describe("draft SKILL.md read-before-write order", () => {
   const src = readMd(DRAFT_MD);
 
   it("Step 3 fetches the full thread context via slack_read_thread", () => {
@@ -153,7 +153,7 @@ describe("draft.md read-before-write order", () => {
 // Pass 6: A4 — Step 8 calls set_status MCP, not direct frontmatter writes
 // ---------------------------------------------------------------------------
 
-describe("draft.md Step 8 uses agntux-core MCP for action mutation (A4)", () => {
+describe("draft SKILL.md Step 8 uses agntux-core MCP for action mutation (A4)", () => {
   const src = readMd(DRAFT_MD);
 
   it("Step 8 calls mcp__agntux-core__set_status", () => {
@@ -161,7 +161,7 @@ describe("draft.md Step 8 uses agntux-core MCP for action mutation (A4)", () => 
   });
 
   it("Step 8 explicitly forbids direct frontmatter writes", () => {
-    expect(src).toContain("Direct frontmatter writes from this agent are forbidden");
+    expect(src).toContain("Direct frontmatter writes from this skill are forbidden");
   });
 
   it("Step 8 forbids fallback to direct frontmatter editing on MCP failure", () => {
@@ -186,26 +186,28 @@ describe("draft.md Step 8 uses agntux-core MCP for action mutation (A4)", () => 
   });
 });
 
-describe("SKILL.md dispatches suggested-action prompts", () => {
-  const skillMd = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+describe("Suggested-action prompts auto-route to the draft skill (no router)", () => {
+  // With context: fork + general-purpose, the draft skill is matched
+  // directly by Claude Code's description-based auto-routing — there is
+  // no router skill that classifies and dispatches Lane B. The sync skill
+  // and the draft skill are independent dispatch targets; neither routes
+  // to the other.
+  const draftSkill = join(PLUGIN_ROOT, "skills", "draft", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
 
-  it("SKILL.md exists", () => {
-    expect(existsSync(skillMd)).toBe(true);
+  it("draft skill description mentions the suggested-action verbs", () => {
+    const fm = (() => {
+      const src = readMd(draftSkill);
+      const m = src.match(/^---\n([\s\S]*?)\n---/);
+      return m?.[1] ?? "";
+    })();
+    expect(fm).toContain("draft a reply for action");
+    expect(fm).toContain("summarise the thread");
   });
 
-  it("SKILL.md classifies suggested-action prompts as Lane B and routes to agntux-slack:draft", () => {
-    const src = readMd(skillMd);
-    expect(src).toContain("Lane B");
-    expect(src).toContain("agntux-slack:draft");
-  });
-
-  it("SKILL.md never calls a write tool itself — routing only", () => {
-    const src = readMd(skillMd);
-    expect(src).toContain("Do NOT");
-    // The skill should not contain references to write tools as if it were calling them.
-    // It can mention them in describing what `agents/draft.md` does, but the
-    // text "Do NOT call a Slack write tool" should be present.
-    expect(src).toContain("Do NOT");
-    expect(src).toContain("Do not call a Slack write tool");
+  it("sync skill explicitly disclaims handling suggested-action ux: prompts", () => {
+    const src = readMd(syncSkill);
+    expect(src).toContain("Suggested-action `ux:` prompts auto-route");
+    expect(src).toContain("skills/draft/SKILL.md");
   });
 });

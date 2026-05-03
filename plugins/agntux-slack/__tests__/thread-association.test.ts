@@ -45,12 +45,12 @@ function collectMdFiles(dir: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Pass 1: ingest.md prompt codifies the parent-ref rule
+// Pass 1: sync SKILL.md prompt codifies the parent-ref rule
 // ---------------------------------------------------------------------------
 
-describe("ingest.md thread-association rule", () => {
-  const ingestMd = join(PLUGIN_ROOT, "agents", "ingest.md");
-  const src = readMd(ingestMd);
+describe("sync SKILL.md thread-association rule", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
 
   it("documents source_id format keyed on parent thread", () => {
     expect(src).toContain("<channel_id>#<thread_ts>");
@@ -62,7 +62,7 @@ describe("ingest.md thread-association rule", () => {
 
   it("documents the unified cursor map carrying both channel and thread keys (per A5)", () => {
     expect(src).toContain("unified");
-    expect(src).toContain("two key shapes");
+    expect(src.toLowerCase()).toContain("two key shapes");
     expect(src).toContain("<channel_id>#<thread_ts>");
   });
 

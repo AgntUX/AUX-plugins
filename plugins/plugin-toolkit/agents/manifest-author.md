@@ -202,39 +202,33 @@ caregiver `awaiting-test-result`).
 
 ### The single permitted custom field
 
-`recommended_ingest_cadence` — only on ingest plugins. Valid shapes:
+`recommended_ingest_cadence` — only on ingest plugins. **Free-form
+descriptive string.** Pick whatever phrasing best captures *when this
+source actually produces signal the user cares about*. Personalization
+reads this verbatim and translates it for the host's scheduled-task
+tool — you don't need to match a specific format.
 
-- `"Hourly"` / `"Every 4 hours"` / `"Every N hours"` (N is 1–23).
-- `"Daily HH:MM"` (24-hour clock, e.g., `"Daily 04:00"`).
-- `"Weekdays HH:MM"`.
-- `"Weekly Monday HH:MM"`.
-- `"Monthly day-D HH:MM"`.
+Examples:
 
-Pick the cadence that matches your source's signal time-sensitivity
-(Hourly for chat/incidents, daily for email/PM/notes, weekly for
-low-volume). If absent or malformed, `personalization` defaults to
-`Daily 04:00`. Don't omit it on an ingest plugin — make a deliberate
-choice.
+- `"Hourly"` — appropriate only for sources where overnight signal is
+  load-bearing (incident/oncall channels, security feeds).
+- `"Daily 04:00"` — overnight email / PM digest.
+- `"Weekdays 09:00"` — work-hours-only signal.
+- `"Every 30 min, 7am–10pm weekdays only"` — time-sensitive but quiet
+  outside work hours; conserves tokens.
+- `"0,30 7-22 * * 1-5"` — cron syntax; same intent.
+- `"Weekly Friday 16:00"` — low-volume weekly summary.
 
-#### Peak vs off-peak — pick a default that doesn't burn user quota
+Authoring rubric:
 
-The user's host session has a finite quota of agent runs per day.
-Daily/weekly tasks should default outside the **peak window** of
-weekdays 06:00–11:59 local time. Hourly tasks are exempt — they have
-to fire across all hours.
-
-| Cadence shape | Recommended off-peak default | Rationale |
-|---|---|---|
-| `Hourly` / `Every N hours` | use as-is | Spans peak; can't avoid. |
-| `Daily *` | `Daily 04:00` | Overnight; user is asleep. |
-| `Weekdays *` | `Weekdays 04:00` | Same. |
-| `Weekly *` | `Weekly Saturday 04:00` | Off-peak day + hour. |
-| `Monthly day-D HH:MM` | `Monthly day-1 04:00` | Off-peak. |
-
-The `personalization` Stage 4.6 walkthrough has a peak-hours guard
-that auto-shifts daily/weekly cadences in the 06:00–11:59 window to
-the nearest off-peak hour. Your plugin doesn't need to implement the
-shift — but should not deliberately ship a peak-hours default.
+- Don't run all night unless the source legitimately produces signal
+  at night. Don't run on weekends if the user only cares weekdays.
+  Tokens cost money — quiet hours conserve them.
+- Pick the cadence that matches your source's signal pattern. Chat
+  is time-sensitive during work hours; email tolerates an overnight
+  batch; weekly digests are fine on Saturday morning.
+- If absent, `personalization` defaults to `Daily 04:00`. Don't omit
+  it on an ingest plugin — make a deliberate choice.
 
 Forbidden: any other custom field. Marketplace display metadata
 (`tagline`, `categories`, etc.) lives in `listing.yaml`, not

@@ -28,7 +28,7 @@ callable from `maintain` if a maintainer wants to use, e.g.,
 | Agent | Owns |
 |---|---|
 | `manifest-author` | `listing.yaml` schema, `proposed_schema` for `-ingest` slugs, minimum `plugin.json`, icon / screenshots / categories. |
-| `ingest-prompt-author` | `agents/ingest.md` substitution from `canonical/prompts/ingest/`; `skills/{name}/SKILL.md` directory-shape trap. |
+| `ingest-prompt-author` | `skills/sync/SKILL.md` substitution from `canonical/prompts/ingest/skills/sync/SKILL.md`; top-level-skill (`context: fork` + `agent: general-purpose`) frontmatter; `skills/{name}/SKILL.md` directory-shape trap. |
 | `source-semantics-advisor` | Cursor strategies, threads / parent-child handling, volume caps & onboarding mode, `_sources.json` lookup-before-write. |
 | `draft-flow-author` | Chat-confirm-then-write contract, drafting subagent (reads `templates/draft-subagent.md`), `data/instructions/{slug}.md` read-only contract, action-mutation MCP tools. |
 | `tests-author` | vitest skeletons — cold-start, cursor-map, thread-association, draft-flow, idempotent. |

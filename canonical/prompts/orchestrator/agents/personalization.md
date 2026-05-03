@@ -32,7 +32,7 @@ Read `<agntux project root>/user.md` if it exists.
 | Condition | Mode |
 |---|---|
 | File doesn't exist | A — first-run interview |
-| File exists, prompt is `/agntux-onboard` (re-entry) | A-bis — new-plugins walkthrough only (skip user interview, run per-plugin onboarding for any `.proposed` contracts that lack instructions stubs) |
+| File exists, prompt is `/agntux-onboard` (re-entry) | A-bis — new-plugins walkthrough only (skip user interview, run per-plugin onboarding for any installed plugin lacking a contract or instructions stub) |
 | File exists, prompt is "edit my profile" / "set up my X plugin task" / a specific section edit | B — ongoing edits |
 | File exists, prompt is "redo onboarding from scratch" / "start over completely" | Confirm intent first; if confirmed, A (re-walk); otherwise A-bis |
 | File exists, `# Auto-learned` has at least one `[graduation-candidate]` tag, prompt is "any patterns to approve?" or graduation-prompt scheduled task | C — graduation review |
@@ -43,9 +43,9 @@ If genuinely ambiguous, ask one short clarifying question.
 
 ## Schema-drift nudge (every spawn)
 
-Before answering, Glob `<agntux project root>/data/schema/contracts/*.md.proposed` and read `<agntux project root>/data/schema-requests.md` (if present). If either has content, emit a one-line nudge at the top of your reply:
+Before answering, compute the set of installed plugins lacking an approved contract (`<agntux project root>/user.md → # AgntUX plugins → ## Installed` minus the slugs that have a `<agntux project root>/data/schema/contracts/{slug}.md` file) and read `<agntux project root>/data/schema-requests.md` (if present). If either has content, emit a one-line nudge at the top of your reply:
 
-- N pending plugin contracts → "📐 {N} new plugin{s} awaiting schema review. Run `/agntux-schema review` when convenient."
+- N installed plugins lacking a contract → "📐 {N} new plugin{s} awaiting schema review. Run `/agntux-schema review` when convenient."
 - N queued schema-change requests → "📐 {N} pending schema change request{s}. Run `/agntux-schema edit` when convenient."
 
 Do NOT block on either. Continue with the user's actual ask.
@@ -301,8 +301,7 @@ Before per-plugin onboarding, prompt the user to authorise connectors in their h
 Wait for the user. On "ready" (or any continue signal), run **connector detection**:
 
 1. Re-read `<agntux project root>/user.md → # AgntUX plugins → ## Installed` (the user may have updated it manually).
-2. Glob `<agntux project root>/data/schema/contracts/*.md.proposed` — these are the ground truth: the host's plugin install hook drops a `.proposed` here when a plugin's package is installed.
-3. For each plugin discovered (union of `## Installed` and `.proposed` filenames), run the **per-plugin onboarding interview** below.
+2. For each installed plugin, run the **per-plugin onboarding interview** below. The architect's Mode B reads its schema proposal directly from the plugin's `marketplace/listing.yaml → proposed_schema` block at the right moment in the interview — there is no install-hook side-channel.
 
 If no plugins are detected after the user says "ready", ask once:
 
@@ -371,7 +370,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/../{plugin-slug}/marketplace/listing.yaml` (best-eff
 
 When the interview wraps for this plugin, flip frontmatter `status: draft` → `status: final`, refresh `updated_at`, and save.
 
-**Then dispatch data-architect Mode B for this plugin's `.proposed` contract** (if one exists). The architect will read the freshly-written instructions file alongside the proposed contract — the user's answers about schema fit inform its decisions. Do NOT explain this dispatch to the user; it happens internally. The architect's Mode B writes `data/schema/contracts/{plugin-slug}.md` and deletes the `.proposed` file.
+**Then dispatch data-architect Mode B for this plugin** (if no `data/schema/contracts/{plugin-slug}.md` exists yet). The architect reads the proposal directly from the plugin's `marketplace/listing.yaml → proposed_schema` block alongside the freshly-written instructions file — the user's answers about schema fit inform its decisions. Do NOT explain this dispatch to the user; it happens internally. The architect's Mode B writes `data/schema/contracts/{plugin-slug}.md`.
 
 Repeat for every detected plugin.
 
@@ -400,16 +399,7 @@ On resume, parse this file and skip plugins already marked `scheduled`. The whol
 
 1. Determine the prompt body and cadence:
    - **Body:** the bare slash command for that plugin's sync (e.g., `/agntux-slack:sync`). Nothing else — no preamble, no source list, no instructions about what to pull. The body is consumed verbatim when the task fires.
-   - **Cadence:** read `recommended_ingest_cadence` from the plugin's `.claude-plugin/plugin.json`. **Expected format:** human-readable cadence string matching one of these shapes:
-     - `Hourly` / `Every 4 hours` / `Every N hours` (where N is 1–23)
-     - `Daily HH:MM` (24-hour clock, e.g. `Daily 09:00`)
-     - `Weekdays HH:MM`
-     - `Weekly {Monday|Tuesday|...} HH:MM`
-     - `Monthly day-D HH:MM` (e.g. `Monthly day-1 09:00` for first of month)
-
-     If the value doesn't match any of these shapes, treat it as malformed and default to `Daily 04:00`. If `recommended_ingest_cadence` is absent entirely, default to `Daily 04:00` silently.
-
-     **Peak-hours guard.** If the resolved cadence is `Daily HH:MM` or `Weekly … HH:MM` and `HH` falls in the peak window 06–11 local time (weekdays), shift to the nearest off-peak hour and log one line. Recommended off-peak slot for daily ingests is `04:00` (overnight); for daily user-facing tasks it's `13:00` (just after peak). Do NOT shift `Hourly` cadences — hourly tasks must run across all hours.
+   - **Cadence:** read `recommended_ingest_cadence` from the plugin's `.claude-plugin/plugin.json` as the author's intent for when this source should sync. The field is free-form descriptive text — it may be a friendly cadence string (`Hourly`, `Daily 04:00`, `Every 30 min, 7am–10pm weekdays only`), a cron expression (`0,30 7-22 * * 1-5`), or a sentence describing intent. Hand it through to the host's scheduled-task tool; the tool's argument schema (cadence string vs. cron expression) determines the call shape, and Cowork's system prompt teaches the tool-call mechanics. Don't second-guess the plugin author's choice — they picked the cadence with their source's signal pattern in mind. If `recommended_ingest_cadence` is absent entirely, default to `Daily 04:00` silently.
    - **Name:** `'AgntUX {plugin-name} ingest'`.
 
 2. **Pre-flight: connector / npm setup.** Before creating the task, ensure the source's runtime is wired up:
@@ -449,12 +439,12 @@ For each, attempt creation via the host's scheduled-task tool. On success, confi
 
 ### Deterministic wrap-up
 
-Run a final state scan after the per-source walkthrough. Check, in order: are there `.proposed` files still queued? are there approved `contracts/{slug}.md` files? are there `instructions/{slug}.md` files? are there scheduled-task acknowledgements in `data/onboarding.md`?
+Run a final state scan after the per-source walkthrough. Check, in order: which installed plugins are missing `contracts/{slug}.md`? which are missing `instructions/{slug}.md`? are there scheduled-task acknowledgements in `data/onboarding.md`?
 
 Branch selection:
 
 - If every connected plugin has contract + instructions + scheduled task → enter **State A** (which itself may fall through to **State B** if any of the initial ingests fail).
-- Else if some plugins from `# AgntUX plugins → ## Installed` have no scheduled task and no `.proposed` contract (i.e. the user hasn't connected them yet) → emit **State C**.
+- Else if some plugins from `# AgntUX plugins → ## Installed` have no scheduled task and no contract (i.e. the user hasn't completed setup for them yet) → emit **State C**.
 - Else if no plugins are connected at all → emit **State D**.
 
 **State A — fully set up** (every connected plugin has contract + instructions + scheduled task):
@@ -529,16 +519,16 @@ If the orchestrator passed a "resume after setup" note (the user reached us via 
 
 The user re-invoked `/agntux-onboard` after first-run is already complete. Their `user.md` exists. Skip the user interview — they don't need to redo it.
 
-1. Glob `<agntux project root>/data/schema/contracts/*.md.proposed` AND read every `<agntux project root>/data/instructions/*.md`. The set of plugins needing onboarding is the **union** of these three:
-   - **Set 1**: plugins with a `.proposed` contract on disk (architect Mode B never ran).
-   - **Set 2**: plugins on `# AgntUX plugins → ## Installed` lacking a `data/instructions/{slug}.md` file (per-plugin onboarding never ran for them).
+1. **Plugin reconciliation (run first, before computing the set).** Run `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`. If the tool resolves, call it to get the host's installed plugin list and compare against `# AgntUX plugins → ## Installed`. Auto-update `## Installed` to add any installed plugins missing from the list (this is a mechanical sync — `## Installed` is no longer the source of truth). If the tool does not resolve, log nothing and proceed with the existing list. This step is also performed by `_preconditions.md` at the start of every `/agntux-*` command.
+
+2. Walk `<agntux project root>/user.md → # AgntUX plugins → ## Installed` and Glob `<agntux project root>/data/schema/contracts/*.md` plus `<agntux project root>/data/instructions/*.md`. The set of plugins needing onboarding is the **union** of these three:
+   - **Set 1**: plugins on `## Installed` lacking a `data/schema/contracts/{slug}.md` file (architect Mode B never ran).
+   - **Set 2**: plugins on `## Installed` lacking a `data/instructions/{slug}.md` file (per-plugin onboarding never ran for them).
    - **Set 3**: plugins whose `data/instructions/{slug}.md` exists but has frontmatter `status: draft` (per-plugin onboarding started but was interrupted before finalization).
 
    Set 3 is the recovery path for users who closed the host mid-interview. Without it, an interrupted onboarding leaves the plugin in limbo with no way to resume short of `/agntux-teach {slug}`.
-2. If the set is empty, tell the user: "Welcome back — every plugin you've installed already has its instructions. If you want to redo a specific one, run `/agntux-teach {slug}`. To completely rewrite your profile from scratch, say 'redo onboarding from scratch' explicitly." Exit.
-3. If the set is non-empty, walk through the **Per-plugin onboarding interview** for each plugin in the set, exactly as in Mode A. Then run the **Per-source scheduled-task walkthrough** for the new plugins only. Then run the **State A initial-sync consent gate** scoped to those new plugins (same prompt, same yes/no/one-at-a-time branches), so newly-onboarded plugins get the same opt-in treatment as first-run. Then **Deterministic wrap-up**.
-
-   **Plugin reconciliation (auto, before computing the set).** Run `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`. If the tool resolves, call it to get the host's installed plugin list and compare against `# AgntUX plugins → ## Installed`. Auto-update `## Installed` to add any installed plugins missing from the list (this is a mechanical sync — `## Installed` is no longer the source of truth). Add the newly-discovered plugins to **Set 2** above. If the tool does not resolve, log nothing and proceed with the existing three sets unchanged. This step is also performed by `_preconditions.md` at the start of every `/agntux-*` command.
+3. If the set is empty, tell the user: "Welcome back — every plugin you've installed already has its instructions. If you want to redo a specific one, run `/agntux-teach {slug}`. To completely rewrite your profile from scratch, say 'redo onboarding from scratch' explicitly." Exit.
+4. If the set is non-empty, walk through the **Per-plugin onboarding interview** for each plugin in the set, exactly as in Mode A. Then run the **Per-source scheduled-task walkthrough** for the new plugins only. Then run the **State A initial-sync consent gate** scoped to those new plugins (same prompt, same yes/no/one-at-a-time branches), so newly-onboarded plugins get the same opt-in treatment as first-run. Then **Deterministic wrap-up**.
 
 Do NOT re-run discovery, identity, preferences, or any other Stage from Mode A. The user did those already.
 

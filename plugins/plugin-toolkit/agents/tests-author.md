@@ -26,7 +26,7 @@ committed example fixtures are structurally clean.
 | `cold-start.test.ts` | yes | Always. |
 | `cursor-map.test.ts` | no | Source has structured cursor (per-channel JSON map, GDrive per-folder map). Coordinate with `source-semantics-advisor`. |
 | `thread-association.test.ts` | no | Source has threads / parent-child messages. Coordinate with `source-semantics-advisor`. |
-| `draft-flow.test.ts` | no | Source has write tools and the plugin ships `agents/draft.md`. Coordinate with `draft-flow-author`. |
+| `draft-flow.test.ts` | no | Source has write tools and the plugin ships `skills/draft/SKILL.md`. Coordinate with `draft-flow-author`. |
 | `idempotent.test.ts` | recommended | Asserts dedup mechanisms in the prompt + structural cleanliness of fixtures. |
 
 ## `cold-start.test.ts` (always)
@@ -45,7 +45,8 @@ describe("manifest", () => {
     const m = JSON.parse(readFileSync(join(PLUGIN_ROOT, ".claude-plugin/plugin.json"), "utf-8"));
     expect(m.name).toBe("{your-slug}");
     expect(m.version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(m.recommended_ingest_cadence).toMatch(/^(Hourly|Daily|Weekdays|Weekly|Monthly|Every) /);
+    expect(m.recommended_ingest_cadence).toBeTruthy();
+    expect(typeof m.recommended_ingest_cadence).toBe("string");
   });
 });
 
@@ -59,9 +60,9 @@ describe("hooks wiring", () => {
   });
 });
 
-describe("agent prompt substitution", () => {
-  it("no unsubstituted {{...}} placeholders", () => {
-    const p = readFileSync(join(PLUGIN_ROOT, "agents/ingest.md"), "utf-8");
+describe("skill prompt substitution", () => {
+  it("no unsubstituted {{...}} placeholders in sync skill", () => {
+    const p = readFileSync(join(PLUGIN_ROOT, "skills/sync/SKILL.md"), "utf-8");
     const matches = p.match(/\{\{[a-z-]+\}\}/g);
     expect(matches).toBeNull();
   });
@@ -96,7 +97,7 @@ Asserts the thread invariants:
 
 ## `draft-flow.test.ts` (when the source has write tools)
 
-Asserts `agents/draft.md` prompt structure:
+Asserts `skills/draft/SKILL.md` prompt structure:
 
 - Every reference to a source write tool (`slack_send_message`,
   `linear_create_comment`, etc.) is preceded by a confirmation-prompt
@@ -115,7 +116,7 @@ Static assertions that the dedup mechanisms in the prompt and the
 fixtures are correct. Vitest does not re-run the agent. Asserts:
 
 - The Step 6 lookup-before-write protocol is documented in
-  `agents/ingest.md` (grep for `lookup-before-write` and
+  `skills/sync/SKILL.md` (grep for `lookup-before-write` and
   `_sources.json`).
 - The Step 9 dedup-against-`actions/_index.md` protocol is documented.
 - The example fixture under `examples/{scenario}/expected-entities/`

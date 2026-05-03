@@ -1,8 +1,8 @@
 {
   "name": "agntux-slack",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "ELv2",
-  "recommended_ingest_cadence": "Hourly"
+  "recommended_ingest_cadence": "Every 30 min, 7am–10pm weekdays — chat is time-sensitive during work hours, quiet otherwise"
 }

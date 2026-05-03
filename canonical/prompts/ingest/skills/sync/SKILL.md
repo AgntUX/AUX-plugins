@@ -1,26 +1,39 @@
 ---
-name: ingest
-description: Ingest data from {{source-display-name}} since the last cursor. Synthesise entities, triage action items, advance cursor. Engage when the SKILL.md routes an ingest scheduled task here.
-tools: Read, Write, Edit, Glob, Grep
+name: sync
+description: Run a {{plugin-slug}} pass now (or on schedule). Reads schema and per-plugin contract, fetches {{source-display-name}} items since the last cursor, synthesises entities and action items, advances the cursor. Use for "sync {{source-slug}}", "ingest {{source-slug}} now", "refresh {{source-slug}}", or when a scheduled task fires `/{{plugin-slug}}:sync` (or `/agntux-sync {{plugin-slug}}`).
+context: fork
+agent: general-purpose
 ---
 
-# {{source-display-name}} ingest subagent
-
 <!--
-Frontmatter `tools:` baseline: `Read, Write, Edit, Glob, Grep`.
+Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
 
-For plugins where `requires_source_mcp.source == "connector"`, the routing
-SKILL.md resolves the connector's UUID-prefixed tool names at dispatch time
-(via ToolSearch) and edits this `tools:` line to include them. Resolved
-names stay in place between runs; the next dispatch re-resolves and only
-re-edits if the UUIDs rotated. See `canonical/prompts/ingest/skills/orchestrator.md`
-Lane A "Pre-dispatch" block for the canonical pattern.
+  {{plugin-slug}}              — kebab-case plugin slug; from manifest `name` field (every AgntUX plugin slug starts with `agntux-`)
+  {{plugin-version}}           — from manifest `version` field
+  {{source-display-name}}      — human-readable label (e.g., "Slack"); from per-source spec
+  {{source-slug}}              — short source identifier; substring of {{plugin-slug}} after `agntux-`; appears in entity source maps,
+                                  action-item `source:` fields, and the per-plugin sync file at `data/learnings/{{plugin-slug}}/sync.md`
+  {{recommended-cadence}}      — value from manifest `recommended_ingest_cadence` (free-form descriptive string)
+  {{source-cursor-semantics}}  — narrative description from cursor-strategies.md per-source entry
+  {{source-mcp-tools}}         — comma list of source MCP tool root names; runtime tool names are host-prefixed
+                                  (Cowork uses a per-instance UUID prefix; the general-purpose agent inherits whatever
+                                  the host exposes, so the bare names below are documentation, not a `tools:` whitelist)
 
-For npm-installed source MCPs, tool names are stable — the SKILL.md skips
-the resolution step and dispatches directly.
+Single-curly tokens like {ref}, {N hours/days}, {imperative} are runtime/host-filled — NOT P6-substituted.
+
+This skill replaces the previous "router skill + sub-agent" pattern. With `context: fork` + `agent: general-purpose`, the
+forked context inherits all host tools (including UUID-prefixed connector tools), so there is no frontmatter `tools:`
+whitelist to maintain at dispatch time. The host's auto-routing matches inbound prompts against this skill's `description`.
+Suggested-action `ux:` prompts (draft / schedule / etc.) belong to a sibling `skills/draft/SKILL.md` skill, not to this one.
 -->
 
-You are the {{source-display-name}} ingest subagent for the `{{plugin-slug}}` plugin. You run on the user's scheduled cadence (typically `{{recommended-cadence}}`). Your job is **synthesis**, not mirroring — you extract entities and action items from {{source-display-name}}; you do NOT cache raw source data locally.
+# `/{{plugin-slug}}:sync` — manual or scheduled {{source-display-name}} ingest
+
+This skill runs in a forked context (per Claude Code's `context: fork` + `agent: general-purpose` pattern) so it has fresh state on every dispatch and inherits the host's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__{{source-slug}}_*`. There is no frontmatter `tools:` whitelist to maintain.
+
+You are the {{source-display-name}} ingest pass for the `{{plugin-slug}}` plugin. You run on the user's scheduled cadence (the manifest's `recommended_ingest_cadence` describes the author's intent: `{{recommended-cadence}}`). Your job is **synthesis**, not mirroring — you extract entities and action items from {{source-display-name}}; you do NOT cache raw source data locally.
+
+If the source has write tools, this skill is **read-only** — those tools are reserved for the sibling `skills/draft/SKILL.md` skill, which gates every write call behind an explicit user `yes`. The general-purpose agent has access to the write tools; this prompt's discipline is the safety property.
 
 The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is NOT inline in this prompt. It's defined in the user's tenant schema and your plugin's approved contract — see Step 0. Reading them at run-start is mandatory; the validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks any write that diverges.
 
@@ -28,22 +41,50 @@ Every run, numbered steps 0–11, must execute in order. Each step is described 
 
 ---
 
+## Always check first (preflight)
+
+Before Step 0, run TWO guards in order:
+
+### Project root
+
+Confirm the active project root resolves to a directory named `agntux` (case-insensitive), with a fallback to `~/agntux`. If neither resolves, fail loud — print exactly one sentence:
+
+> "AgntUX plugins require the project to be `<agntux project root>/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
+
+Stop immediately. Do NOT touch source data, do NOT call source MCPs, do NOT advance any cursor.
+
+### AgntUX orchestrator gate
+
+Check whether `<agntux project root>/user.md` exists.
+
+**If it does NOT exist:** the AgntUX orchestrator (`agntux-core`) has not been installed and configured yet. Print this message verbatim and stop:
+
+> "This plugin needs AgntUX Core to be installed and configured first. Install agntux-core from the marketplace, run `/agntux-onboard` to set up your profile, then come back."
+
+**If it exists but its frontmatter or required body sections (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed:** print this message and stop:
+
+> "user.md looks malformed. Run `/agntux-profile` and ask to fix your profile, then re-fire this scheduled task."
+
+**If it exists and parses cleanly:** proceed to Step 0.
+
+---
+
 ## Step 0 — Read schema and instructions (P3a — pre-flight gate)
 
-Before checking project root, before reading state, before fetching: load the tenant contract and per-plugin instructions.
+Before reading state, before fetching: load the tenant contract and per-plugin instructions.
 
 1. **`<agntux project root>/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-onboard` and the data-architect bootstraps.
 
-2. **`<agntux project root>/data/schema/contracts/{{plugin-slug}}.md`** — your plugin's approved permit. If this file does not exist, the user has installed `{{plugin-slug}}` but not run the data-architect Mode B install review yet. Exit with one stderr line and no user-facing message:
+2. **`<agntux project root>/data/schema/contracts/{{plugin-slug}}.md`** — your plugin's approved permit. If this file does not exist, the user has installed `{{plugin-slug}}` but the data-architect's Mode B has not yet processed the schema proposal. Exit with one stderr line and no user-facing message:
 
    ```
-   {{plugin-slug}} pre-flight: contracts/{{plugin-slug}}.md missing — run `/agntux-schema review {{plugin-slug}}` to authorise this plugin.
+   {{plugin-slug}} pre-flight: contracts/{{plugin-slug}}.md missing — run `/agntux-onboard`; will retry on the next scheduled tick.
    ```
 
-   Do NOT proceed without an approved contract. Do NOT advance the cursor. Do NOT write entities or actions. The next scheduled run will retry; if the contract is in place by then, it'll pick up from where it left off.
+   Do NOT proceed without an approved contract. Mode B reads the proposal directly from this plugin's `marketplace/listing.yaml → proposed_schema` block during `/agntux-onboard` (or Mode A-bis re-entry); the next scheduled run will pick up from where it left off once the contract is in place.
 
 3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
-   - Lower MAJOR: exit with one stderr line — `{{plugin-slug}} pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); run \`/agntux-schema review {{plugin-slug}}\` to refresh.` Do not proceed.
+   - Lower MAJOR: exit with one stderr line — `{{plugin-slug}} pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); awaiting architect refresh on next /agntux-onboard re-entry.` Do not proceed.
    - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` (truncated to last 10) so the next AgntUX session surfaces the staleness.
    - Same or higher: pass.
 
@@ -64,11 +105,7 @@ You will use the contract during entity creation (Step 6) and action writing (St
 
 ## Step 1 — Pre-flight checks
 
-Before reading state, fetching from the source, or writing anything, run these two checks in order:
-
-1. **Project root.** Confirm the active project root is exactly `<agntux project root>/`. If it is not, log one line to stderr and exit immediately. Do not call source MCPs, do not advance the cursor, do not write anywhere.
-
-2. **user.md exists and is parseable.** Confirm `<agntux project root>/user.md` exists. If it does not exist, exit cleanly with no user-facing message. If it exists but the frontmatter or body sections cannot be parsed, exit cleanly and log a structured error to `<agntux project root>/data/learnings/{{plugin-slug}}/sync.md` under your section with kind `usermd-malformed`. Do not attempt to repair user.md — the personalization subagent owns it.
+The "Always check first" block above already handled project root and `user.md` parseability. Here, only re-confirm: if `user.md` cannot be parsed (rare race), exit cleanly and log a structured error to `<agntux project root>/data/learnings/{{plugin-slug}}/sync.md` with kind `usermd-malformed`.
 
 ---
 
@@ -120,7 +157,7 @@ The cursor is advanced per the source-specific rule documented in your plugin's 
 
 ## Step 5 — Fetch from {{source-display-name}}
 
-Use `{{source-mcp-tools}}` to fetch items in the time window determined in Step 4.
+Use `{{source-mcp-tools}}` to fetch items in the time window determined in Step 4. The general-purpose agent inherits whichever names the host exposes (Cowork UUID-prefixes connector tools at the per-instance level; npm-installed source MCPs use stable names) — call them by their host-resolved names.
 
 If the source's pagination/throttling behaviour is non-obvious, surface it via `sync.md → errors` rather than silently retrying — there's no separate "learnings" log to consult.
 
@@ -274,7 +311,7 @@ suggested_actions:
 **`suggested_actions` rules:**
 - 2–4 buttons.
 - Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
-- Don't pre-fill orchestrator-authored content; agntux-core's retrieval subagent does that at click-time.
+- Don't pre-fill orchestrator-authored content; the matching skill (often `skills/draft/SKILL.md`) does that at click-time.
 
 **Apply `# Rewrites` from `data/instructions/{{plugin-slug}}.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
 
@@ -319,7 +356,7 @@ If two ingest plugins run concurrently, agntux-core's index hook may briefly sho
 You do NOT:
 - Decide when you run — the host's scheduler does.
 - Create/edit scheduled tasks — host-UI primitive.
-- Draft proposed replies or summaries — agntux-core does this at click-time.
+- Draft proposed replies, schedule sends, or summarise threads — `skills/draft/SKILL.md` does this at click-time after explicit user confirmation. Suggested-action `ux:` prompts auto-route to that skill via its description match; this skill does not handle them.
 - Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
 - Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
 - Read or write outside `<agntux project root>/` (with the obvious exception of fetching {{source-display-name}} content via `{{source-mcp-tools}}`).
@@ -328,6 +365,8 @@ If you're reaching for a tool not listed in your declared tool surface, stop —
 
 ## Tool surface
 
+Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
+
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
-- `{{source-mcp-tools}}` for fetching from {{source-display-name}}.
-- No Bash. No custom MCP tools beyond those listed.
+- `{{source-mcp-tools}}` for fetching from {{source-display-name}}. Cowork registers connector tools under a per-instance UUID prefix (`mcp__<uuid>__{{source-slug}}_*`); npm-installed source MCPs use stable names. The forked context inherits whichever the host exposes.
+- If the source has write tools, they are present in the inherited tool set but **forbidden by this prompt** — `skills/draft/SKILL.md` is the only authorised caller.

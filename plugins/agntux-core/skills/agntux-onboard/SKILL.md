@@ -1,6 +1,6 @@
 ---
 name: agntux-onboard
-description: First-run setup AND re-entry for AgntUX. On a fresh `user.md`, walks the discovery interview, bootstraps the schema, then runs per-plugin onboarding for every connected source. On a re-entry (`user.md` already present), scans for newly installed plugins (any `.proposed` contract or installed plugin lacking an instructions file) and walks the per-plugin onboarding only — the user interview is NOT redone unless they explicitly say "redo from scratch". Use when the user says "onboard me", "set me up", "get started with AgntUX", "I added a new plugin", "walk me through new sources".
+description: First-run setup AND re-entry for AgntUX. On a fresh `user.md`, walks the discovery interview, bootstraps the schema, then runs per-plugin onboarding for every connected source. On a re-entry (`user.md` already present), scans for installed plugins lacking a contract or instructions file and walks the per-plugin onboarding only — the user interview is NOT redone unless they explicitly say "redo from scratch". Use when the user says "onboard me", "set me up", "get started with AgntUX", "I added a new plugin", "walk me through new sources".
 ---
 
 # `/agntux-onboard` — first-run interview AND new-plugin walkthrough
@@ -29,10 +29,11 @@ not need to know how the work is divided internally.
 ## Schema-drift preflight
 
 This skill explicitly does NOT run [`_preflight.md`](../_preflight.md)
-because its dispatch flow handles `.proposed` files end-to-end (the
-per-plugin walkthrough invokes architect Mode B per plugin). Emitting
-a separate "📐 N awaiting schema review" nudge would be redundant and
-potentially confusing mid-flow.
+because its dispatch flow handles missing-contract plugins end-to-end
+(the per-plugin walkthrough invokes architect Mode B per plugin, which
+reads the proposal directly from the plugin's `marketplace/listing.yaml
+→ proposed_schema` block). Emitting a separate "📐 N awaiting schema
+review" nudge would be redundant and potentially confusing mid-flow.
 
 It DOES check the `schema-requests.md` queue once at the top of the
 turn:
@@ -61,16 +62,16 @@ re-entry. Run only these guards:
    picker).
 
 3. **DO NOT run `_preconditions.md` checks 2, 3, or 4** here. This
-   skill's dispatch (below) handles schema bootstrap, `.proposed`
-   contract review, and queued schema-requests inline as part of the
+   skill's dispatch (below) handles schema bootstrap, missing-contract
+   plugin review, and queued schema-requests inline as part of the
    normal onboarding flow. Running those preconditions would
    short-circuit the flow with a redirect. **DO run check 0.5 (plugin
    reconciliation)** — it auto-syncs `## Installed` from the host's
-   `mcp__plugins__list_plugins` tool and seeds Mode A-bis's Set 2 with
-   any plugin the user has installed but not yet onboarded. This is the
-   primary auto-trigger for onboarding newly-installed plugins; the user
-   doesn't have to remember `/agntux-onboard` because every `/agntux-*`
-   command runs the same reconciliation and emits a nudge.
+   `mcp__plugins__list_plugins` tool and seeds Mode A-bis's Sets 1 and
+   2 with any plugin the user has installed but not yet onboarded. This
+   is the primary auto-trigger for onboarding newly-installed plugins;
+   the user doesn't have to remember `/agntux-onboard` because every
+   `/agntux-*` command runs the same reconciliation and emits a nudge.
 
 4. **`user.md` already exists?**
 
@@ -78,7 +79,7 @@ re-entry. Run only these guards:
      (new-plugins walkthrough only). Do NOT re-walk discovery, identity,
      preferences, etc. — the user did those already. Mode A-bis scans
      for the union of three sets (see personalization.md Mode A-bis):
-     plugins with `.proposed` contracts, installed plugins lacking an
+     installed plugins lacking a contract, installed plugins lacking an
      instructions file, and plugins with `status: draft` instructions
      (interrupted onboarding). It runs the per-plugin onboarding for
      each.
@@ -120,18 +121,19 @@ re-entry. Run only these guards:
 4. **Connect-your-sources gate** — prompts the user to authorize
    connectors in **Customize → Connectors** and waits for "ready".
 
-5. On "ready", personalization enumerates connected plugins (union of
-   `# AgntUX plugins → ## Installed` and any `.proposed` contracts on
-   disk) and runs the **Per-plugin onboarding interview** for each:
+5. On "ready", personalization enumerates installed plugins from
+   `# AgntUX plugins → ## Installed` and runs the **Per-plugin
+   onboarding interview** for each:
    - Stub `<agntux project root>/data/instructions/{plugin-slug}.md` with
      `status: draft` first.
    - Ask up to 5 plain-language questions.
    - Capture answers into the instructions file; flip
      `status: draft → final`.
-   - Dispatch **data-architect Mode B** for that plugin's `.proposed`
-     contract (if one exists) — the architect reads the freshly
-     written instructions file alongside the proposal, then deletes
-     the `.proposed` file via `rm -f`.
+   - Dispatch **data-architect Mode B** for that plugin (if no
+     `data/schema/contracts/{plugin-slug}.md` exists yet) — the
+     architect reads the proposal directly from the plugin's
+     `marketplace/listing.yaml → proposed_schema` block alongside
+     the freshly written instructions file.
 
 6. After all per-plugin onboarding completes, personalization runs
    the **Per-source scheduled-task walkthrough** (manual scheduled
@@ -144,13 +146,15 @@ re-entry. Run only these guards:
 
 1. Engage the **personalization** subagent in **Mode A-bis**
    (new-plugins walkthrough). It computes the set of plugins needing
-   onboarding = (plugins with a `.proposed` contract) ∪ (installed
-   plugins lacking a `data/instructions/{slug}.md` file). If the set
-   is empty, it tells the user there's nothing to do and exits.
+   onboarding = (installed plugins lacking a `data/schema/contracts/{slug}.md`
+   file) ∪ (installed plugins lacking a `data/instructions/{slug}.md`
+   file) ∪ (plugins with `status: draft` instructions). If the set is
+   empty, it tells the user there's nothing to do and exits.
 
 2. For each plugin in the set, Mode A-bis runs the same per-plugin
    onboarding interview as first-run — stub draft, ≤5 questions,
-   finalize, dispatch architect Mode B.
+   finalize, dispatch architect Mode B (which reads the proposal
+   directly from the plugin's `listing.yaml`).
 
 3. Mode A-bis then runs the per-source scheduled-task walkthrough
    for the new plugins only, then the deterministic wrap-up.

@@ -105,7 +105,7 @@ describe("agntux-core skills frontmatter conventions", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 4.1.0 (post-review polish atop the agntux- prefix rename)", () => {
+  it("plugin.json is at version 4.2.1 (.proposed file dance retired)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -115,6 +115,6 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("4.2.0");
+    expect(manifest.version).toBe("4.2.1");
   });
 });

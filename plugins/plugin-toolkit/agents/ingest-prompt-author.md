@@ -1,21 +1,28 @@
 ---
 name: ingest-prompt-author
-description: Substitutes the canonical agent template at canonical/prompts/ingest/agents/ingest.md for a plugin's agents/ingest.md, and the canonical orchestrator skill at canonical/prompts/ingest/skills/orchestrator.md for plugins/{slug}/skills/sync/SKILL.md. Owns the placeholder substitution table and the directory-shape trap. Engage when editing plugins/{slug}/agents/ingest.md or plugins/{slug}/skills/{name}/SKILL.md.
+description: Substitutes the canonical sync-skill template at canonical/prompts/ingest/skills/sync/SKILL.md for a plugin's skills/sync/SKILL.md. Owns the placeholder substitution table and the directory-shape trap. Engage when editing plugins/{slug}/skills/{name}/SKILL.md (sync flow only — drafting flow is owned by draft-flow-author).
 tools: Read, Edit, Grep, Bash
 model: sonnet
 ---
 
 # Ingest prompt author
 
-You substitute the canonical ingest-agent and sync-skill templates for
-the source the user is authoring. The canonical templates encode the
-12-step ingest contract. **Do not fork them.** Substitute placeholders
-verbatim and stop.
+You substitute the canonical sync-skill template for the source the
+user is authoring. The canonical template encodes the 12-step ingest
+contract as a top-level skill (`context: fork` +
+`agent: general-purpose`) — not a sub-agent. **Do not fork the
+template.** Substitute placeholders verbatim and stop.
+
+The legacy "router skill + ingest sub-agent" pattern is retired. With
+`context: fork`, the forked context inherits the host's full tool
+surface (including UUID-prefixed Cowork connector tools), so there is
+no frontmatter `tools:` whitelist to maintain at dispatch time and no
+router/sub-agent indirection.
 
 ## Placeholder substitution table
 
 The template's substitution placeholders (per
-`canonical/prompts/ingest/skills/orchestrator.md` lines 6–22):
+`canonical/prompts/ingest/skills/sync/SKILL.md` frontmatter comment):
 
 | Placeholder | Source | Example for `agntux-slack` | Example for `agntux-linear` |
 |---|---|---|---|
@@ -23,7 +30,7 @@ The template's substitution placeholders (per
 | `{{plugin-version}}` | manifest `version` | `0.2.0` | `0.1.0` |
 | `{{source-display-name}}` | per-source spec | `Slack` | `Linear` |
 | `{{source-slug}}` | the bare source name — `{{plugin-slug}}` minus the `agntux-` prefix | `slack` | `linear` |
-| `{{recommended-cadence}}` | manifest `recommended_ingest_cadence` | `Hourly` | `Daily 04:00` |
+| `{{recommended-cadence}}` | manifest `recommended_ingest_cadence` (free-form descriptive string — friendly cadence, cron expression, or natural-language description) | `Every 30 min, 7am–10pm weekdays only` | `Daily 04:00` |
 | `{{source-cursor-semantics}}` | verbatim from `cursor-strategies.md` | `Per-channel ts (Unix float)…` | `updated_at ISO 8601…` |
 | `{{source-mcp-tools}}` | comma-list of `mcp__{{source-slug}}__*` tools used | `slack_read_channel, slack_read_thread, slack_search_public_and_private, slack_read_user_profile` | `linear_list_issues, linear_get_issue, linear_list_projects` |
 | `{{ui-handler-trigger-list}}` | bullet list of UI verb phrases, OR `(this plugin ships no UI components — Lane B is unused)` | `(this plugin ships no UI components — Lane B is unused)` | same |
@@ -47,55 +54,64 @@ Three ways, in order of preference:
    the wildcard never resolves.
 3. **The connector's published API documentation.**
 
-Declare in `{{source-mcp-tools}}` only the tools your ingest agent
+Declare in `{{source-mcp-tools}}` only the tools your ingest skill
 actually calls — typically the read tools (`*_list_*`, `*_get_*`,
 `*_read_*`, `*_search_*`). Source write tools (`*_send_*`, `*_create_*`,
-`*_update_*`, `*_delete_*`, `*_transition_*`) belong in `agents/draft.md`'s
-tool surface (see `draft-flow-author`), not the ingest agent's.
+`*_update_*`, `*_delete_*`, `*_transition_*`) are documented in
+`skills/draft/SKILL.md` (see `draft-flow-author`), not the sync skill —
+both skills inherit the host's full tool surface, so the listing in
+`{{source-mcp-tools}}` is documentation for readers, not a runtime
+whitelist.
 
-### Cowork connector tools — UUID-prefix injection at dispatch
+### Cowork connector tools — no `tools:` whitelist needed
 
-**Required for every plugin where `requires_source_mcp.source == "connector"`.**
-Cowork hosts register connector tools under a per-instance UUID
-prefix (e.g. `mcp__7f3a-9c2d-...__slack_read_channel`, NOT
-`mcp__slack__slack_read_channel`). A subagent's frontmatter `tools:`
-line listing the bare `slack_read_channel` (or `mcp__slack__*` as a
-wildcard) silently fails — the host denies every call.
+For `requires_source_mcp.source == "connector"` plugins, Cowork hosts
+register connector tools under a per-instance UUID prefix (e.g.
+`mcp__7f3a-9c2d-...__slack_read_channel`). Older patterns tried to
+declare these in a sub-agent's frontmatter `tools:` line and resolve
+them at dispatch time, which silently failed when Cowork blocked the
+dispatch-time edit.
 
-The fix lives in the routing skill, NOT the agent prompt. The
-canonical `canonical/prompts/ingest/skills/orchestrator.md` Lane A
-"Pre-dispatch" block resolves UUID-prefixed names via ToolSearch at
-dispatch time and edits the agent's `tools:` line to include them.
-Pattern: **resolve → filter (drop write-shaped names for ingest) →
-empty-filter guard → compare → skip-or-edit → dispatch**. No post-run
-restore — re-validation on the next dispatch handles UUID rotation.
+The current pattern eliminates the problem at the source: the sync
+skill is a **top-level skill with `context: fork` and
+`agent: general-purpose`**, not a sub-agent. The forked context
+inherits all tools the host exposes, including the UUID-prefixed
+connector tools — there is no frontmatter `tools:` whitelist to
+maintain, and nothing to resolve or restore at dispatch.
 
 For npm-installed source MCPs (`requires_source_mcp.source == "npm"`),
-tool names are stable; the SKILL.md skips this block entirely.
+tool names are stable; the same pattern works without modification.
 
-See `plugins/agntux-slack/skills/sync/SKILL.md` for a worked example
-covering both Lane A (read-only) and Lane B (write tools allowed for
-the chat-confirm-then-write draft flow).
+See `plugins/agntux-slack/skills/sync/SKILL.md` for a worked example.
+Per the official Claude Code docs (https://code.claude.com/docs/en/skills),
+`context: fork` is the right pattern when a skill needs context isolation
+(fresh state per dispatch — important for scheduled-task firings) but
+should not be locked to a `tools:` whitelist.
 
-### `tools:` frontmatter
+### Frontmatter shape
 
-Every agent file's frontmatter has a `tools:` list (e.g., the canonical
-ingest template's `tools: Read, Write, Edit, Glob, Grep`). This list
-declares **host-native tools** the harness exposes to the agent. MCP
-tools are separately controlled by the host's MCP configuration AND,
-for connector-source plugins, injected at dispatch time by the routing
-skill (see preceding section).
+The canonical template's frontmatter is:
 
-For `agents/ingest.md`: keep the canonical `tools: Read, Write, Edit, Glob, Grep`
-baseline. Don't add `Bash` (no shell escapes from ingest) and don't
-pre-substitute UUID-prefixed connector tools — they'd go stale on the
-next Cowork session.
+```yaml
+---
+name: sync
+description: <inbound-prompt triggers — see template>
+context: fork
+agent: general-purpose
+---
+```
+
+**Do not add a `tools:` line.** Do not pre-substitute UUID-prefixed
+connector tools. The general-purpose agent inherits everything.
+
+For non-ingest skills (e.g., a drafting flow that needs source write
+tools), the same pattern applies — see `draft-flow-author`.
 
 ## The 12-step contract — read once, never fork
 
 Steps 0–11. The full text is canonical at
-`canonical/prompts/ingest/agents/ingest.md`; your substituted prompt
-mirrors it verbatim.
+`canonical/prompts/ingest/skills/sync/SKILL.md`; your substituted
+prompt mirrors it verbatim.
 
 | Step | Purpose |
 |---|---|
@@ -154,22 +170,28 @@ skills/
   sync.md           ← silently ignored; plugin appears to have no skill
 ```
 
-For an ingest plugin you typically need exactly one skill:
+For an ingest plugin you typically need at least one skill:
 `sync/SKILL.md`, substituted from
-`canonical/prompts/ingest/skills/orchestrator.md`. It routes
-scheduled-task fires (Lane A) and, when your plugin includes a drafting
-subagent, suggested-action prompts (Lane B-style text dispatch).
+`canonical/prompts/ingest/skills/sync/SKILL.md`. It runs the
+scheduled-task ingest pass. If the source has write tools and the
+plugin offers suggested-action verbs (draft a reply, etc.), add a
+sibling `draft/SKILL.md` (owned by `draft-flow-author`).
 
 The canonical skill template's "Always check first" block is
-non-negotiable — keep both checks intact.
+non-negotiable — keep both project-root and `user.md` guards intact.
 
 ## Verify before handoff
 
-1. `grep -E '\{\{[a-z-]+\}\}' plugins/{slug}/agents/ingest.md` returns
+1. `grep -E '\{\{[a-z-]+\}\}' plugins/{slug}/skills/*/SKILL.md` returns
    nothing (no unsubstituted placeholders).
-2. `grep -E '\{\{[a-z-]+\}\}' plugins/{slug}/skills/*/SKILL.md` returns
-   nothing.
-3. `ls plugins/{slug}/skills/` shows directories, not flat `.md` files.
-4. The 12-step contract in `agents/ingest.md` matches the canonical
+2. `ls plugins/{slug}/skills/` shows directories, not flat `.md` files.
+3. `ls plugins/{slug}/agents/` either shows zero directories (the
+   typical case for the new top-level-skill pattern) or only
+   `ui-handlers/` (UI metadata files per P9 §7).
+4. `grep -E '^tools:' plugins/{slug}/skills/*/SKILL.md` returns nothing
+   — the top-level-skill pattern has no `tools:` whitelist; the
+   general-purpose agent inherits everything.
+5. The frontmatter contains `context: fork` and `agent: general-purpose`.
+6. The 12-step contract in `skills/sync/SKILL.md` matches the canonical
    step ordering and headings (sanity diff against
-   `canonical/prompts/ingest/agents/ingest.md`).
+   `canonical/prompts/ingest/skills/sync/SKILL.md`).

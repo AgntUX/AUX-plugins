@@ -7,8 +7,9 @@ points here from its body so the nudge logic stays in one place.
 
 `/agntux-schema` is excluded because it acts on these states directly
 (running it IS how the user resolves them). `/agntux-onboard` runs its
-own walkthrough that handles `.proposed` files end-to-end without a
-separate nudge.
+own walkthrough that handles missing-contract plugins end-to-end (Mode
+B reads each plugin's proposal directly from its `marketplace/listing.yaml`)
+without a separate nudge.
 
 ---
 
@@ -17,9 +18,10 @@ separate nudge.
 Before doing anything else (and after the trial-status banner from
 `_preconditions.md` § A, if both files apply), check:
 
-1. **Pending plugin contracts** — Glob
-   `<agntux project root>/data/schema/contracts/*.md.proposed`. If any match, emit
-   one informational line:
+1. **Installed plugins lacking a contract** — for each slug under
+   `<agntux project root>/user.md → # AgntUX plugins → ## Installed`, check
+   whether `<agntux project root>/data/schema/contracts/{slug}.md` exists.
+   If at least one is missing, emit one informational line:
 
    > 📐 {N} new plugin{s} awaiting schema review. Run `/agntux-schema review` when convenient.
 

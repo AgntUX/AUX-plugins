@@ -11,9 +11,11 @@ short-form rule list.
 - **Don't write `entities/_sources.json` or any `_index.md`.** The
   PostToolUse `maintain-index.mjs` hook owns these. Your edits get
   overwritten or race the hook.
-- **Don't ship your own install hook.** The host (Cowork) drops the
-  `.proposed` contract; the architect's Mode B consumes it. Bypassing
-  this chain breaks the schema-as-runtime rule.
+- **Don't ship your own install hook.** The architect's Mode B reads
+  your `marketplace/listing.yaml → proposed_schema` block directly
+  whenever an installed plugin has no approved contract yet. There is
+  no `.proposed` file or host-side install side-channel; introducing
+  one would break the schema-as-runtime rule.
 - **Don't hard-code subtype names in the agent prompt.** Use the
   canonical template's contract-read at Step 0 and reference whatever
   the contract approved.
@@ -33,9 +35,9 @@ short-form rule list.
   `decision-needed` when `response-needed` covers it). The architect
   refuses them; your contract ends up with the canonical name
   regardless.
-- **Don't write to `entities/`/`actions/` from `agents/draft.md`
+- **Don't mutate action-item frontmatter from `skills/draft/SKILL.md`
   without going through `mcp__agntux-core__set_status`** for status
-  mutations. Body edits via Edit are fine; frontmatter mutations are
+  changes. Body edits via Edit are fine; frontmatter mutations are
   not.
 - **Don't skip the user-attended-onboarding constraint.** If your
   source is high-volume, add an onboarding-mode initial cap so the
