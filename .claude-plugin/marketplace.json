@@ -13,7 +13,7 @@
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "description": "The AgntUX orchestrator.",
-      "version": "4.1.0",
+      "version": "4.2.0",
       "author": {
         "name": "AgntUX"
       },
@@ -45,6 +45,25 @@
         "obsidian"
       ],
       "category": "productivity"
+    },
+    {
+      "name": "slack-ingest",
+      "source": "./plugins/slack-ingest",
+      "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
+      "version": "0.1.0",
+      "author": {
+        "name": "AgntUX"
+      },
+      "homepage": "https://agntux.ai/plugins/slack-ingest",
+      "license": "Elastic-2.0",
+      "keywords": [
+        "slack",
+        "dms",
+        "threads",
+        "mentions",
+        "action-items"
+      ],
+      "category": "communication"
     }
   ]
 }
