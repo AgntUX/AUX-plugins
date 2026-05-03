@@ -6,17 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [4.2.0] — 2026-05-02
-
-### Changed
-- `data/plugin-suggestions.json` flips `slack-ingest` from `coming-soon`
-  to `available`, surfacing it during `/agntux-onboard`'s Plugin
-  Suggestions block. Coordinated change with the slack-ingest 0.1.0
-  release.
-- `hooks/lib/agntux-plugins.mjs` substituted slug list grows from
-  `["agntux-core"]` to `["agntux-core", "slack-ingest"]` so license
-  enforcement covers Slack-namespaced MCP calls. Coordinated change
-  with the slack-ingest 0.1.0 release.
+## [4.2.0] — 2026-05-03
 
 ### Added
 - `resolveAgntuxRoot()` shared resolver in `hooks/lib/agntux-root.mjs`
@@ -25,8 +15,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   case-insensitive, falling back to `~/agntux`). 8 unit tests pass.
 - `personalization` Stage 0 rewritten as a 5-step discover/Glob/mkdir
   flow with a one-time `~/agntux-code/` → `~/agntux/` migration aid.
+- `_preconditions.md § 0.5` plugin reconciliation via
+  `mcp__plugins__list_plugins` — runs at the start of every `/agntux-*`
+  command, auto-syncs `# AgntUX plugins → ## Installed`, and emits a
+  one-line nudge for newly-installed plugins. Non-blocking.
+- `personalization` Stage 5 wrap-up State A initial-sync consent gate
+  (yes / no / one at a time) with a Cowork-thread parallelism tip; same
+  gate runs in Mode A-bis for newly-onboarded plugins. Three wrap-up
+  branches (all-yes, mixed-with-skipped, all-no) describe the resulting
+  state explicitly.
 
 ### Changed
+- **BREAKING:** Naming convention — every AgntUX plugin slug now starts
+  with `agntux-`. `notes-ingest` is retired; `slack-ingest` is renamed
+  to `agntux-slack`. `data/plugin-suggestions.json` lists `agntux-slack`
+  (`available`) and `agntux-gmail` (`coming-soon`) — `notes-ingest`
+  removed. The `hooks/lib/agntux-plugins.mjs` substituted slug list
+  grows from `["agntux-core"]` to `["agntux-core", "agntux-slack"]`.
+  The validator's `sourceTokenToSlug` accepts both the new `agntux-*`
+  prefix and the legacy `*-ingest` suffix during the migration window.
+- `agents/personalization.md` Stage 0 step 4: prefer the Cowork
+  directory-request tool (`mcp__cowork__request_cowork_directory`) over
+  a homedir `Glob` to avoid sandbox failures. Glob is now the last-resort
+  branch in non-Cowork hosts.
+- `agents/personalization.md` Stage 4.6 step 3: scheduled-task creation
+  resolves explicitly via `ToolSearch` for
+  `mcp__scheduled-tasks__create_scheduled_task` with idempotency check
+  via `list_scheduled_tasks`. Copy/paste fallback retained for
+  non-Cowork hosts.
+- Off-peak default cadences: `Daily` ingest fallback shifts from
+  `09:00` to `04:00`; daily action-item digest from `08:00` to `13:00`.
+  Per-source walkthrough adds a peak-hours guard that shifts any
+  daily/weekly cadence falling in 06:00–11:59 local time to the
+  nearest off-peak slot. Hourly cadences are unaffected.
+- Mode A-bis steps reordered so plugin reconciliation runs first
+  (before set computation) — guarantees freshly-installed plugins are
+  picked up.
 - Hook libraries (`scope.mjs`, `schema-lock.mjs`) and ingest hooks
   (`maintain-index.mjs`, `validate-schema.mjs`) route path resolution
   through `resolveAgntuxRoot()` so they reach data the user has,

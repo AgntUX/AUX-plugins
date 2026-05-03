@@ -12,7 +12,7 @@
 //     };
 //
 // The generator (P6) expands {{plugin-slug}} to the concrete plugin slug
-// (e.g., "slack-ingest") at substitution time.
+// (e.g., "agntux-slack") at substitution time.
 // =============================================================================
 
 // UI_PATHS fragment — one entry per UI component this handler ships.

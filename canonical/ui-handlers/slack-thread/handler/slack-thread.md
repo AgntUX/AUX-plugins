@@ -61,7 +61,7 @@ View tools are stateless: they accept args, build structuredContent, return
 _meta.ui.resourceUri. Zero network calls, zero file writes, zero source MCP calls.
 
 Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
-  {{plugin-slug}}   — kebab-case plugin slug; from manifest `name` field (e.g., "slack-ingest")
+  {{plugin-slug}}   — kebab-case plugin slug; from manifest `name` field (e.g., "agntux-slack")
 
 Single-curly tokens {ref}, {ids}, {text}, {action_id} are runtime/host-filled —
 NOT P6-substituted. They appear inside verb_phrases and intent templates only.

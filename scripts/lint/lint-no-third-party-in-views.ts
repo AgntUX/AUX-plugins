@@ -173,7 +173,7 @@ export function pass7NoThirdPartyInViews(
 ): void {
   const toolsDir = path.join(pluginDir, "mcp-server", "src", "tools");
 
-  // No mcp-server/src/tools directory — no-op (notes-ingest case)
+  // No mcp-server/src/tools directory — no-op (e.g., agntux-slack case)
   if (!fs.existsSync(toolsDir)) return;
 
   const violations = scanToolsDir(toolsDir, pluginSlug, repoRoot);

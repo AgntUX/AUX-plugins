@@ -271,10 +271,10 @@ describe("E14 — ingest plugin missing proposed_schema", () => {
   });
 
   it("does NOT report E14 when an ingest plugin declares a valid proposed_schema", () => {
-    const findings = lintFixture(validDir, "notes-ingest");
+    const findings = lintFixture(validDir, "agntux-notes");
     const errs = errors(findings);
     expect(codes(errs)).not.toContain("E14");
-    // The valid notes-ingest fixture should pass cleanly.
+    // The valid agntux-notes fixture should pass cleanly.
     expect(errs).toHaveLength(0);
   });
 

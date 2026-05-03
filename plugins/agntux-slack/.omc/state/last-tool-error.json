@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd plugins/agntux-core && npm test 2>&1 | tail -40\",\"timeout\":120000,\"description\":\"Run agntux-core vitest\"}",
+  "error": "Exit code 1\n(eval):cd:1: no such file or directory: plugins/agntux-core",
+  "timestamp": "2026-05-03T18:30:32.421Z",
+  "retry_count": 1
+}

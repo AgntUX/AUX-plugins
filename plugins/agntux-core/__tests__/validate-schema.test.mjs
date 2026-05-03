@@ -79,18 +79,28 @@ const VALID_LOCK = {
   entity_subtypes: ["person", "company", "project", "topic"],
   action_classes: ["deadline", "response-needed", "knowledge-update", "risk", "opportunity", "other"],
   plugin_contracts: {
-    "notes-ingest": {
+    "agntux-notes": {
       schema_version: "1.0.0",
       allowed_subtypes: ["person", "company", "project", "topic"],
       allowed_action_classes: ["knowledge-update", "deadline", "other"],
       approved_at: "2026-04-29T00:00:00Z",
       source_id_format: "Absolute file path under the configured notes directory.",
     },
-    "slack-ingest": {
+    "agntux-slack": {
       schema_version: "1.0.0",
       allowed_subtypes: ["person", "company"],
       allowed_action_classes: ["response-needed", "deadline"],
       approved_at: "2026-04-29T00:00:00Z",
+    },
+    // Legacy slug retained to exercise the `*-ingest` verbatim branch in
+    // validate-schema.mjs sourceTokenToSlug. Pre-rename entity files still
+    // carrying `slack-ingest` source rows must validate against this contract
+    // rather than misroute to `agntux-slack`.
+    "slack-ingest": {
+      schema_version: "1.0.0",
+      allowed_subtypes: ["person", "company"],
+      allowed_action_classes: ["response-needed", "deadline"],
+      approved_at: "2026-01-01T00:00:00Z",
     },
   },
   checksum: "sha256:UNCOMPUTED",
@@ -128,7 +138,7 @@ describe("validate-schema hook", () => {
         file_path: filePath,
         content: entityFile(),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(0);
   });
@@ -139,17 +149,34 @@ describe("validate-schema hook", () => {
     const result = runHook({
       tool_name: "Write",
       tool_input: { file_path: filePath, content: entityFile() },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(0);
   });
 
-  it("rejects when subtype is not in plugin's contract", () => {
+  it("legacy *-ingest slug resolves to its own contract verbatim (not coerced to agntux-* prefix)", () => {
+    // Migration window: pre-rename entity files may carry `plugin: "slack-ingest"`
+    // in the hook event. The validator's sourceTokenToSlug must accept this
+    // verbatim (branch 2 of the ladder) rather than rewriting it to
+    // `agntux-slack-ingest` or `agntux-slack`. Without this branch a stale
+    // entity file from before the rename would route to the wrong contract.
     writeLock(homeRoot, VALID_LOCK);
-    // slack-ingest's contract excludes `project`; try to write one.
-    const filePath = join(homeRoot, "agntux", "entities", "projects", "mango.md");
+    const filePath = join(homeRoot, "agntux", "entities", "people", "legacy.md");
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile() },
+      plugin: "slack-ingest",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("legacy *-ingest slug still enforces its contract's subtype restrictions", () => {
+    // Belt-and-braces: the legacy slug isn't a free pass — it must enforce
+    // its own contract. slack-ingest's contract excludes `project`.
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "projects", "legacy.md");
     mkdirSync(join(homeRoot, "agntux", "entities", "projects"), { recursive: true });
-    const fm = entityFrontmatter({ id: "mango", subtype: "project" });
+    const fm = entityFrontmatter({ id: "legacy", subtype: "project" });
     const result = runHook({
       tool_name: "Write",
       tool_input: { file_path: filePath, content: entityFile(fm) },
@@ -157,6 +184,21 @@ describe("validate-schema hook", () => {
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/slack-ingest.*project/);
+  });
+
+  it("rejects when subtype is not in plugin's contract", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    // agntux-slack's contract excludes `project`; try to write one.
+    const filePath = join(homeRoot, "agntux", "entities", "projects", "mango.md");
+    mkdirSync(join(homeRoot, "agntux", "entities", "projects"), { recursive: true });
+    const fm = entityFrontmatter({ id: "mango", subtype: "project" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-slack",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/agntux-slack.*project/);
   });
 
   it("rejects when frontmatter is missing a required field", () => {
@@ -167,7 +209,7 @@ describe("validate-schema hook", () => {
     const result = runHook({
       tool_name: "Write",
       tool_input: { file_path: filePath, content: entityFile(fm) },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/aliases/);
@@ -181,7 +223,7 @@ describe("validate-schema hook", () => {
     const result = runHook({
       tool_name: "Write",
       tool_input: { file_path: filePath, content: entityFile(fm) },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/incident.*not in/);
@@ -195,7 +237,7 @@ describe("validate-schema hook", () => {
         file_path: join(homeRoot, "agntux", "entities", "people", "_index.md"),
         content: "# index\n",
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(0);
   });
@@ -238,25 +280,25 @@ describe("validate-schema hook", () => {
         file_path: join(homeRoot, "agntux", "actions", "2026-04-29-followup-acme.md"),
         content: actionFile(),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(0);
   });
 
   it("rejects when reason_class is not in plugin's contract", () => {
     writeLock(homeRoot, VALID_LOCK);
-    // notes-ingest's allowed_action_classes are knowledge-update, deadline, other.
-    // `risk` is in tenant schema but NOT in notes-ingest's contract.
+    // agntux-notes's allowed_action_classes are knowledge-update, deadline, other.
+    // `risk` is in tenant schema but NOT in agntux-notes's contract.
     const result = runHook({
       tool_name: "Write",
       tool_input: {
         file_path: join(homeRoot, "agntux", "actions", "2026-04-29-acme-risk.md"),
         content: actionFile({ id: "2026-04-29-acme-risk", reason_class: "risk" }),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
-    expect(result.stderr).toMatch(/notes-ingest.*risk/);
+    expect(result.stderr).toMatch(/agntux-notes.*risk/);
   });
 
   it("rejects when reason_class is not in tenant schema at all", () => {
@@ -267,7 +309,7 @@ describe("validate-schema hook", () => {
         file_path: join(homeRoot, "agntux", "actions", "2026-04-29-x.md"),
         content: actionFile({ id: "2026-04-29-x", reason_class: "fictional-class" }),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/fictional-class.*not in/);
@@ -281,7 +323,7 @@ describe("validate-schema hook", () => {
         file_path: join(homeRoot, "agntux", "actions", "2026-04-29-y.md"),
         content: actionFile({ id: "2026-04-29-y", reason_class: "other" }),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/reason_detail/);
@@ -295,7 +337,7 @@ describe("validate-schema hook", () => {
         file_path: join(homeRoot, "agntux", "actions", "2026-04-29-z.md"),
         content: actionFile({ id: "2026-04-29-z", status: "in-progress" }),
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/status/);
@@ -315,17 +357,17 @@ describe("validate-schema hook", () => {
         content: actionFile({ id: "2026-04-29-fallback", reason_class: "risk" }),
       },
     }, homeRoot);
-    // Without notes-ingest contract restricting `risk`, the schema-level check
+    // Without agntux-notes contract restricting `risk`, the schema-level check
     // would pass (`risk` is in entity_subtypes? wait, action_classes). It IS in
-    // tenant action_classes. But `risk` is NOT in notes-ingest's allowed list,
-    // so the contract check should still reject when fallback resolves to notes-ingest.
+    // tenant action_classes. But `risk` is NOT in agntux-notes's allowed list,
+    // so the contract check should still reject when fallback resolves to agntux-notes.
     expect(result.code).toBe(2);
-    expect(result.stderr).toMatch(/notes-ingest.*risk/);
+    expect(result.stderr).toMatch(/agntux-notes.*risk/);
   });
 
   it("falls back to entity sources map (single key) when payload omits plugin", () => {
     writeLock(homeRoot, VALID_LOCK);
-    // slack-ingest contract excludes `project`. Entity sources has only "slack".
+    // agntux-slack contract excludes `project`. Entity sources has only "slack".
     mkdirSync(join(homeRoot, "agntux", "entities", "projects"), { recursive: true });
     const fm = entityFrontmatter({
       id: "mango",
@@ -340,7 +382,7 @@ describe("validate-schema hook", () => {
       },
     }, homeRoot);
     expect(result.code).toBe(2);
-    expect(result.stderr).toMatch(/slack-ingest.*project/);
+    expect(result.stderr).toMatch(/agntux-slack.*project/);
   });
 
   // -------------------------------------------------------------------------
@@ -354,7 +396,7 @@ describe("validate-schema hook", () => {
     const result = runHook({
       tool_name: "Write",
       tool_input: { file_path: filePath, content: entityFile(fm) },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/schema_version.*0\.9\.0/);
@@ -392,7 +434,7 @@ describe("validate-schema hook", () => {
         old_string: "subtype: \"person\"",
         new_string: "subtype: \"goblin\"",
       },
-      plugin: "notes-ingest",
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/goblin/);

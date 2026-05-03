@@ -73,8 +73,14 @@ describe("registry schema invariants", () => {
     expect(available.length).toBeGreaterThan(0);
   });
 
-  it("notes-ingest is on the default list (the universal first plugin)", () => {
+  it("agntux-slack is on the default list (the canonical reference plugin)", () => {
     const slugs = registry.default.map((e) => e.slug);
-    expect(slugs).toContain("notes-ingest");
+    expect(slugs).toContain("agntux-slack");
+  });
+
+  it("every default-list slug starts with the agntux- prefix", () => {
+    for (const entry of registry.default) {
+      expect(entry.slug).toMatch(/^agntux-/);
+    }
   });
 });

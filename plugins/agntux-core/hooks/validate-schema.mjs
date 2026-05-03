@@ -21,7 +21,7 @@
 //
 // Identifying the writing plugin (in priority order):
 //   1. Hook event payload's `plugin` field (canonical hook bundle convention).
-//   2. Frontmatter `source` (e.g., `source: notes` → look up `notes-ingest`).
+//   2. Frontmatter `source` (e.g., `source: slack` → look up `agntux-slack`).
 //   3. None — block with a clear error.
 //
 // On rejection, exits with code 2 and writes a one-line reason to stderr;
@@ -67,11 +67,20 @@ function inScope(filePath) {
 }
 
 function sourceTokenToSlug(token) {
+  // Three-branch ladder; ORDER MATTERS:
+  //   1. `agntux-*`      → verbatim. MUST come before branch 2 because a
+  //                        future plugin slug `agntux-foo-ingest` would
+  //                        match both branches; the prefix wins.
+  //   2. `*-ingest`      → verbatim. Legacy slugs (slack-ingest, notes-ingest)
+  //                        accepted during the migration window so pre-rename
+  //                        entity files keep validating against their contract.
+  //                        New plugins MUST use the `agntux-` prefix; this
+  //                        branch is for backward compat only.
+  //   3. bare `<source>` → `agntux-<source>`. The convention.
   if (typeof token !== "string" || !SOURCE_TO_PLUGIN_RE.test(token)) return null;
-  // Already a full slug — accept verbatim.
-  if (token.endsWith("-ingest") || token === "agntux-core") return token;
-  // Convention: a bare source name like `notes` maps to `notes-ingest`.
-  return `${token}-ingest`;
+  if (token.startsWith("agntux-")) return token;
+  if (token.endsWith("-ingest")) return token;
+  return `agntux-${token}`;
 }
 
 function resolvePluginSlug(ctx, fm) {
@@ -80,7 +89,7 @@ function resolvePluginSlug(ctx, fm) {
   const fromHookSlug = sourceTokenToSlug(fromHook);
   if (fromHookSlug) return fromHookSlug;
 
-  // Priority 2: action-item frontmatter `source` (e.g., `notes` → `notes-ingest`).
+  // Priority 2: action-item frontmatter `source` (e.g., `slack` → `agntux-slack`).
   const fromSource = sourceTokenToSlug(fm?.source);
   if (fromSource) return fromSource;
 

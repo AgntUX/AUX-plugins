@@ -2,7 +2,7 @@
 
 This directory contains the canonical prompt templates for per-source ingest plugins.
 P6's plugin generator copies these verbatim (with placeholder substitution) when generating
-any ingest plugin (`gmail-ingest`, `slack-ingest`, `notes-ingest`, etc.).
+any ingest plugin (`agntux-slack`, `agntux-gmail`, `agntux-jira`, etc. — every AgntUX plugin slug starts with `agntux-`).
 
 ## Delivered by T16/T17/T19/T20
 
@@ -20,16 +20,16 @@ runtime/host-filled — NOT P6-substituted.
 
 ### Shared across all ingest plugin templates
 
-| Placeholder | Example (notes-ingest) | Example (slack-ingest) | Source |
+| Placeholder | Example (agntux-gmail) | Example (agntux-slack) | Source |
 |---|---|---|---|
-| `{{plugin-slug}}` | `notes-ingest` | `slack-ingest` | manifest `name` field |
-| `{{plugin-version}}` | `1.0.0` | `1.0.0` | manifest `version` field |
-| `{{source-display-name}}` | `Apple Notes` | `Slack` | per-source spec |
-| `{{source-slug}}` | `notes` | `slack` | per-source spec; appears in entity source maps, action-item `source:` fields, and the `# {{source-slug}}` heading inside `data/learnings/{{plugin-slug}}/sync.md` |
-| `{{recommended-cadence}}` | `Daily 09:00` | `Hourly` | manifest `recommended_ingest_cadence` field |
-| `{{source-cursor-semantics}}` | `local-file modification time (RFC 3339)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
-| `{{source-mcp-tools}}` | `the local filesystem MCP server (read-only access to the notes directory)` | `mcp__slack__list_channels, mcp__slack__get_thread, mcp__slack__list_messages` | per-source spec |
-| `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components — Lane B is unused)` | `- "display the slack thread UI for {ref}" → call mcp__slack-ingest-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string |
+| `{{plugin-slug}}` | `agntux-gmail` | `agntux-slack` | manifest `name` field; every AgntUX plugin slug starts with `agntux-` |
+| `{{plugin-version}}` | `1.0.0` | `0.2.0` | manifest `version` field |
+| `{{source-display-name}}` | `Gmail` | `Slack` | per-source spec |
+| `{{source-slug}}` | `gmail` | `slack` | per-source spec; the bare source name (substring after `agntux-`); appears in entity source maps, action-item `source:` fields, and the `# {{source-slug}}` heading inside `data/learnings/{{plugin-slug}}/sync.md` |
+| `{{recommended-cadence}}` | `Hourly` | `Hourly` | manifest `recommended_ingest_cadence` field |
+| `{{source-cursor-semantics}}` | `Gmail historyId (opaque integer string)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
+| `{{source-mcp-tools}}` | `mcp__gmail__list_messages, mcp__gmail__get_message` | `mcp__slack__list_channels, mcp__slack__get_thread, mcp__slack__list_messages` (Cowork: prefixed with a per-instance UUID, resolved at dispatch time per the Cowork-tool-resolution pattern) | per-source spec |
+| `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components — Lane B is unused)` | `- "display the slack thread UI for {ref}" → call mcp__agntux-slack-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string |
 
 ### UI-handler subagent template only (`agents/ui-handlers/_template.md`)
 
@@ -80,6 +80,6 @@ are **metadata carriers only**. Their YAML frontmatter carries the operational m
 UI rendering is performed by the stateless view tool on the plugin's local stdio MCP server.
 The SKILL.md routes directly to the view tool (no intermediate subagent dispatch).
 
-Sources without an actionable surface (e.g., `notes-ingest`) ship zero files in
+Sources without an actionable surface (e.g., a hypothetical `agntux-notes`) ship zero files in
 `agents/ui-handlers/`. The template file `_template.md` is the generator's input; it is
 NOT copied verbatim — the generator expands one concrete handler file per UI component.

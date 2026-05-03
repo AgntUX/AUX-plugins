@@ -97,7 +97,7 @@ function makeSandbox() {
   _setDevicePathsForTesting(dir, deviceFile);
   _setSessionPathForTesting(sessionFile);
   _setHostnameForTesting("t08-host");
-  _setPluginSlugsForTesting(["agntux-core", "slack-ingest"]);
+  _setPluginSlugsForTesting(["agntux-core", "agntux-slack"]);
   _setAgntuxRootForTesting(resolve(homedir(), "agntux"));
   return { dir, cacheFile, deviceFile, sessionFile };
 }

@@ -4,4 +4,4 @@
 // Substituted at plugin-build time by T13 with the canonical marketplace slug
 // list. Grows as new AgntUX plugins ship.
 
-export const AGNTUX_PLUGIN_SLUGS = ["agntux-core", "slack-ingest"];
+export const AGNTUX_PLUGIN_SLUGS = ["agntux-core", "agntux-slack"];

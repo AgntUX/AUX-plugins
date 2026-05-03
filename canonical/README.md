@@ -98,7 +98,7 @@ that differ between plugins. They carry substitution placeholders:
 |---|---|---|---|
 | `lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` | `"agntux-license-v1"` | P6 generator at plugin-build time |
 | `lib/public-key.mjs` | `{{PUBLIC_KEY_SPKI_PEM}}` | PEM string from `kms-public-keys.json` | P6 generator at plugin-build time |
-| `lib/agntux-plugins.mjs` | `["{{AGNTUX_PLUGIN_SLUGS}}"]` | `["agntux-core","slack-ingest",...]` | P6 generator at plugin-build time |
+| `lib/agntux-plugins.mjs` | `["{{AGNTUX_PLUGIN_SLUGS}}"]` | `["agntux-core","agntux-slack",...]` | P6 generator at plugin-build time |
 
 **Important — array-bracketed special case for `AGNTUX_PLUGIN_SLUGS`:**
 
@@ -113,11 +113,11 @@ P6's substitution step replaces the **entire bracketed expression**
 `["{{AGNTUX_PLUGIN_SLUGS}}"]` with a JSON array literal, e.g.:
 
 ```js
-export const AGNTUX_PLUGIN_SLUGS = ["agntux-core", "slack-ingest", "notes-ingest"];
+export const AGNTUX_PLUGIN_SLUGS = ["agntux-core", "agntux-slack", "agntux-gmail"];
 ```
 
 Do **not** write a substitution that replaces only the bare token `{{AGNTUX_PLUGIN_SLUGS}}`
-— that would produce `["agntux-core, slack-ingest, notes-ingest"]` (a single-element
+— that would produce `["agntux-core, agntux-slack, agntux-gmail"]` (a single-element
 array containing a comma-separated string), which is wrong.
 
 These two files are exempt from the byte-identity CI check. All other files in
@@ -198,7 +198,7 @@ No `${}`, `%s`, or other formats are used.
 | `{{PUBLIC_KEY_KID}}` | `hooks/lib/public-key.mjs` | P6 generator | Reads from `kms-public-keys.json` |
 | `{{PUBLIC_KEY_SPKI_PEM}}` | `hooks/lib/public-key.mjs` | P6 generator | Reads from `kms-public-keys.json` |
 | `["{{AGNTUX_PLUGIN_SLUGS}}"]` | `hooks/lib/agntux-plugins.mjs` | P6 generator | **Array-bracketed** — replace entire expression |
-| `{{plugin-slug}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `notes-ingest` |
+| `{{plugin-slug}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `agntux-slack` (every AgntUX plugin slug starts with `agntux-`) |
 | `{{source-display-name}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `Apple Notes` |
 | `{{source-slug}}` | `prompts/ingest/ingest.md` | P6 generator | e.g. `notes` |
 | `{{recommended-cadence}}` | `prompts/ingest/orchestrator.md`, `prompts/ingest/ingest.md` | P6 generator | e.g. `Daily 09:00` |

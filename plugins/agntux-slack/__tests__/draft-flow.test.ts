@@ -193,10 +193,10 @@ describe("SKILL.md dispatches suggested-action prompts", () => {
     expect(existsSync(skillMd)).toBe(true);
   });
 
-  it("SKILL.md classifies suggested-action prompts as Lane B and routes to slack-ingest:draft", () => {
+  it("SKILL.md classifies suggested-action prompts as Lane B and routes to agntux-slack:draft", () => {
     const src = readMd(skillMd);
     expect(src).toContain("Lane B");
-    expect(src).toContain("slack-ingest:draft");
+    expect(src).toContain("agntux-slack:draft");
   });
 
   it("SKILL.md never calls a write tool itself — routing only", () => {

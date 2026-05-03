@@ -55,7 +55,7 @@ function regenerate(): void {
 
     // Skip plugin stubs that lack both marketplace/listing.yaml AND
     // .claude-plugin/plugin.json — these are placeholder directories not yet
-    // ready for the marketplace (e.g. slack-ingest pre-launch scaffold).
+    // ready for the marketplace (e.g. in-progress agntux-* scaffold).
     const hasListingYaml = fs.existsSync(listingYamlPath);
     const hasPluginJson = fs.existsSync(pluginJsonPath);
     if (!hasListingYaml && !hasPluginJson) {

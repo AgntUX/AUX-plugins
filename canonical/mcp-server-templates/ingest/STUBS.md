@@ -2,7 +2,7 @@
 
 This directory contains the TypeScript source template for per-source ingest plugins'
 local stdio MCP server. Only plugins that ship UI components include this server; sources
-without an actionable surface (e.g., `notes-ingest`) omit it entirely (P5 §7.5).
+without an actionable surface (e.g., `agntux-notes`) omit it entirely (P5 §7.5).
 
 ## Delivered by T20
 
@@ -29,9 +29,9 @@ spec JSON/YAML at generation time.
 
 ### Shared across all MCP server template files
 
-| Placeholder | Example (slack-ingest) | Source |
+| Placeholder | Example (agntux-slack) | Source |
 |---|---|---|
-| `{{plugin-slug}}` | `slack-ingest` | manifest `name` field; used in Server name ("{{plugin-slug}}-ui"), CACHE_DIR sub-path, and SKILL.md routing |
+| `{{plugin-slug}}` | `agntux-slack` | manifest `name` field; used in Server name ("{{plugin-slug}}-ui"), CACHE_DIR sub-path, and SKILL.md routing |
 | `{{plugin-version}}` | `1.0.0` | manifest `version` field; used in Server version |
 | `{{source-display-name}}` | `Slack` | per-source spec; used in tool descriptions |
 | `{{source-slug}}` | `slack` | per-source spec; used in s3-fetch PLUGIN_SLUG default |

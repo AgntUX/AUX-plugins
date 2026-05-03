@@ -5,7 +5,7 @@ This file is a reusable prose fragment for inclusion in a per-source plugin's
 SKILL.md under a "## Send actions" section. Copy this block into the plugin's
 orchestrator.md (skills/orchestrator.md) and substitute:
 
-  {{plugin-slug}}            — e.g., slack-ingest
+  {{plugin-slug}}            — e.g., agntux-slack
   {{source-display-name}}    — e.g., Slack
   {{ui-name}}                — e.g., thread
   {{send-mcp-tool}}          — e.g., mcp__slack__post_message

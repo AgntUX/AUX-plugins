@@ -7,7 +7,7 @@
  *   - extractMcpReferences: correctly extracts mcp__*__* tokens
  *   - isAllowedReference: own-plugin refs allowed, third-party refs rejected
  *   - scanToolsDir: passing fixture (own-plugin only), failing fixtures (slack, gmail)
- *   - Real plugin trees: slack-thread canonical, notes-ingest (no-op), agntux-core (non-view tools, no mcp__ refs)
+ *   - Real plugin trees: slack-thread canonical, agntux-slack (no-op — no ui-handlers/mcp-server), agntux-core (non-view tools, no mcp__ refs)
  */
 
 import { describe, it, expect } from "vitest";
@@ -106,8 +106,8 @@ describe("isAllowedReference — rejected references", () => {
   });
 
   it("does not allow a third-party slug that happens to contain the plugin slug as a prefix", () => {
-    // plugin slug = "slack", third-party = "slack-ingest" — must NOT allow mcp__slack-ingest__foo
-    expect(isAllowedReference("mcp__slack-ingest__foo", "slack")).toBe(false);
+    // plugin slug = "slack", third-party = "agntux-slack" — must NOT allow mcp__agntux-slack__foo
+    expect(isAllowedReference("mcp__agntux-slack__foo", "slack")).toBe(false);
   });
 });
 
@@ -216,10 +216,10 @@ describe("Pass 7 — real plugin trees", () => {
     expect(violations).toHaveLength(0);
   });
 
-  it("notes-ingest has no mcp-server/src/tools dir — pass7 is a no-op (zero findings)", () => {
+  it("agntux-slack has no mcp-server/src/tools dir — pass7 is a no-op (zero findings)", () => {
     const findings: Finding[] = [];
-    const pluginDir = path.join(repoRoot, "plugins", "notes-ingest");
-    pass7NoThirdPartyInViews("notes-ingest", pluginDir, repoRoot, findings);
+    const pluginDir = path.join(repoRoot, "plugins", "agntux-slack");
+    pass7NoThirdPartyInViews("agntux-slack", pluginDir, repoRoot, findings);
     expect(findings).toHaveLength(0);
   });
 

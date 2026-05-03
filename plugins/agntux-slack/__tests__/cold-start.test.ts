@@ -1,7 +1,7 @@
 /**
  * cold-start.test.ts
  *
- * Structural test: verifies that the slack-ingest plugin's manifest, hooks,
+ * Structural test: verifies that the agntux-slack plugin's manifest, hooks,
  * agent prompts, and example fixture conform to the canonical shape.
  *
  * LIMITATION (per T18 pattern): the ingest agent is an LLM that cannot be
@@ -64,7 +64,7 @@ describe("plugin manifest", () => {
 
   it("plugin.json has required fields", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, unknown>;
-    expect(manifest.name).toBe("slack-ingest");
+    expect(manifest.name).toBe("agntux-slack");
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
@@ -116,10 +116,10 @@ describe("hooks shape (ingest variant)", () => {
     expect(hooks.hooks.PostToolUse).toBeUndefined();
   });
 
-  it("agntux-plugins.mjs lists agntux-core and slack-ingest", () => {
+  it("agntux-plugins.mjs lists agntux-core and agntux-slack", () => {
     const src = readFileSync(join(PLUGIN_ROOT, "hooks", "lib", "agntux-plugins.mjs"), "utf-8");
     expect(src).toContain('"agntux-core"');
-    expect(src).toContain('"slack-ingest"');
+    expect(src).toContain('"agntux-slack"');
     expect(src).not.toContain("{{AGNTUX_PLUGIN_SLUGS}}");
   });
 
@@ -216,10 +216,13 @@ describe("ingest agent prompt", () => {
     }
   });
 
-  it("ingest.md pre-flight messages do NOT instruct user to manually run /agntux-schema review", () => {
+  it("ingest.md pre-flight exits cleanly and waits for architect Mode B (no manual /agntux-schema review nag)", () => {
     const src = readMd(ingestMd);
-    // Mode B fires automatically per A1 — pre-flight exits cleanly and waits.
-    expect(src).not.toMatch(/run `\/agntux-schema review slack-ingest`/);
+    // Mode B fires automatically per A1 — pre-flight exits cleanly and
+    // waits. (1) No manual nag, (2) the wait-and-retry behaviour is
+    // explicitly documented so the next scheduled run picks up.
+    expect(src).not.toMatch(/run `\/agntux-schema review agntux-slack`/);
+    expect(src).toMatch(/awaiting data-architect Mode B|will retry on the next scheduled tick/i);
   });
 
   it("sync skill registered as a directory-shaped skill (Claude Code spec)", () => {
@@ -356,7 +359,7 @@ describe("example action item", () => {
     const promptLines = lines.filter((l) => l.trim().startsWith("ux: Use the"));
     expect(promptLines.length).toBeGreaterThan(0);
     for (const line of promptLines) {
-      expect(line.trim()).toMatch(/^ux: Use the (slack-ingest|agntux-core) plugin to/);
+      expect(line.trim()).toMatch(/^ux: Use the (agntux-slack|agntux-core) plugin to/);
     }
   });
 });
