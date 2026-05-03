@@ -1,0 +1,114 @@
+tagline: "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts."
+description: |
+  Watches every Slack channel and DM you have access to, captures DMs,
+  @mentions, and active threads, and extracts people, companies, projects,
+  and topics as AgntUX entities. Action items surface response-needed
+  signals, deadlines, and decisions buried in long threads. On request,
+  drafts replies (or thread summaries) in chat and asks you to confirm
+  before sending — the actual `slack_send_message`, `slack_schedule_message`,
+  and `slack_create_canvas` calls only happen after you say "yes".
+categories:
+  - communication
+  - productivity
+keywords:
+  - slack
+  - dms
+  - threads
+  - mentions
+  - action-items
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "DMs (1:1) and group DMs in your workspace"
+  - "@mentions of you in any channel you have access to"
+  - "Threads where you are OP or have replied"
+  - "Channel messages in any channel you have authored in recently"
+  - "Pinned messages and canvases referenced from monitored channels"
+supported_prompts:
+  - prompt: "/slack-ingest:sync"
+    purpose: "Run a slack-ingest pass now (manual) or on schedule. Recommended scheduled task at Hourly."
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aslack-ingest"
+  email: "support@agntux.ai"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: slack
+  display_name: "Slack"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: person
+      description: "Slack users — DM partners, channel co-authors, mentioned colleagues. Email from profile is the cross-source alias."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: company
+      description: "Organizations referenced in Slack — vendors, customers, partners surfaced via shared links or named in messages."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: project
+      description: "Workstreams or codenames mentioned in channels and threads (often resolved via user.md → # Glossary)."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: topic
+      description: "Recurring themes, products, or initiatives surfaced across multiple Slack threads."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: deadline
+      description: "A Slack message carrying an explicit due date or time-bound ask."
+    - class: response-needed
+      description: "A DM, @mention, vote/poll, or thread reply that expects a response from the user."
+    - class: knowledge-update
+      description: "An informational signal extracted from a Slack thread (decision, status update, pinned message)."
+    - class: risk
+      description: "Outage/incident/security signal in a monitored ops or security channel; @here / @channel pings to high-stakes channels."
+    - class: opportunity
+      description: "Competitor or market signal in a sales/marketing channel; prospect activity or partnership cues."
+    - class: other
+      description: "Escape hatch for items that don't fit the above; requires reason_detail."
+  cursor_semantics: "Single JSON map (one line) under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts)."
+  source_id_format: "`<channel_id>#<thread_ts>` for thread-rooted artefacts; `<channel_id>#<ts>` for non-threaded messages."

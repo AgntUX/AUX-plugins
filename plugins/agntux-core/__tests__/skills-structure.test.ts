@@ -115,6 +115,6 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("4.1.0");
+    expect(manifest.version).toBe("4.2.0");
   });
 });

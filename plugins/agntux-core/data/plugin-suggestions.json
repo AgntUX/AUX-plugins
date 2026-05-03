@@ -4,6 +4,6 @@
   "default": [
     { "slug": "notes-ingest", "status": "available" },
     { "slug": "gmail-ingest", "status": "coming-soon" },
-    { "slug": "slack-ingest", "status": "coming-soon" }
+    { "slug": "slack-ingest", "status": "available" }
   ]
 }

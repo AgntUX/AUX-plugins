@@ -1,0 +1,8 @@
+{
+  "name": "slack-ingest",
+  "version": "0.1.0",
+  "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
+  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "license": "ELv2",
+  "recommended_ingest_cadence": "Hourly"
+}
