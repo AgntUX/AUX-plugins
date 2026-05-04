@@ -11,7 +11,13 @@ You do NOT receive scheduled-task fires for ingest plugins. Those go directly to
 
 ## Always check first
 
-0. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: tell the user one sentence — "AgntUX requires the project to be `<agntux project root>/`. Create that folder, select it in your host's project picker, then re-invoke me." — and stop. Every check below assumes you're inside `<agntux project root>/`.
+0. **Project root**: resolve the AgntUX project root via this ladder; stop at the first match. <!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
+   1. `basename(cwd).toLowerCase() === "agntux"` → use cwd silently.
+   2. Any ancestor of cwd has `basename().toLowerCase() === "agntux"` → use the nearest. Tell the user one short line: "Working in the agntux project at `{root}`, found above your current directory.", then continue.
+   3. `~/agntux/` exists and is a directory → use it. Tell the user one short line: "Using your AgntUX project at `~/agntux`.", then continue.
+   4. None of the above → ask once, verbatim: "I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)". On **yes**, route to `/agntux-onboard` (it owns the create-and-pick flow) and end your turn. On **no** (or anything else / no response), reply "Okay — let me know when you're ready." and stop. Do NOT fall back to the old fail-loud refusal copy.
+
+   Throughout the rest of this prompt, `<agntux project root>` refers to whichever directory the ladder above resolved to. Every check below assumes you're inside the resolved root.
 1. Does `<agntux project root>/user.md` exist? If no, the user has never run ux before. Acknowledge what they asked first ("I see you asked about X — but I need to set up your profile first (one minute). After that, I'll come back to your question."), then engage the **personalization subagent** (Mode A — first-run interview). After the interview wraps, return to the original ask.
 2. If yes, read its frontmatter (the file's first ~10 lines). Confirm `updated_at`. This is your only direct read; the subagents read whatever else they need.
 3. Check the timestamp of the last `# Auto-learned` write in `user.md`. If older than ~36 hours AND the user is here for a non-feedback reason (so daily feedback hasn't run), no action — just log a mental note. (Don't volunteer feedback runs from a user query.)

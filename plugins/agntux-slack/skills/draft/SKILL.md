@@ -41,14 +41,33 @@ Before Step 1, run TWO guards in order:
 
 ### Project root
 
-Confirm the active project root resolves to a directory named
-`agntux` (case-insensitive), with a fallback to `~/agntux`. If
-neither resolves, fail loud — print exactly one sentence:
+<!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
 
-> "AgntUX plugins require the project to be `<agntux project root>/`. Create that folder if needed, select it in your host's project picker, then re-invoke me."
+Resolve the AgntUX project root via this ladder. Stop at the first
+match:
 
-Stop immediately. Do NOT call any Slack tool, do NOT touch any
-action item.
+1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently.
+2. **Any ancestor of cwd has `basename().toLowerCase() === "agntux"`**
+   → use the nearest. Emit one short line: "Working in the agntux
+   project at `{root}`, found above your current directory.", then
+   continue.
+3. **`~/agntux/` exists and is a directory** → use it. Emit one short
+   line: "Using your AgntUX project at `~/agntux`.", then continue.
+4. **None of the above** — this skill is interactive (fired by a
+   suggested-action button click), so a user is always present. Ask
+   once, verbatim:
+
+   > "I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)"
+
+   - **yes** → invoke `/agntux-onboard`. Exit this skill; onboarding
+     carries the conversation. The user can re-click the action
+     button afterwards.
+   - **no** (or anything else / no response) → reply "Okay — let me
+     know when you're ready." and stop. Do NOT call any Slack tool,
+     do NOT touch any action item.
+
+Throughout the rest of this skill, `<agntux project root>` refers to
+whichever directory the ladder above resolved to.
 
 ### AgntUX orchestrator gate
 

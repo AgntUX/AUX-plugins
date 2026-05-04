@@ -12,7 +12,13 @@ tools: Read, Glob, Edit
 
 Before reading anything else, do these two checks in order:
 
-1. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: log one line of context, then exit. Do not read any file, write any file, or call any source MCP outside `<agntux project root>/`.
+1. **Project root**: resolve the AgntUX project root via this ladder; stop at the first match. <!-- canonical-mirror: agntux-core/skills/_resolve-root.md (unattended variant — log-and-exit instead of asking) -->
+   1. `basename(cwd).toLowerCase() === "agntux"` → use cwd silently.
+   2. Any ancestor of cwd has `basename().toLowerCase() === "agntux"` → use the nearest silently. (No banner — this subagent runs unattended on a daily scheduled task; no user audience for status lines.)
+   3. `~/agntux/` exists and is a directory → use it silently. (No banner — unattended.)
+   4. None of the above → log one line of context to stderr, then exit cleanly. Do NOT ask interactively (no user is present on the daily scheduled fire). The next scheduled run will retry; if `~/agntux/` is never created, feedback review stays idle (correct behaviour).
+
+   Throughout the rest of this prompt, `<agntux project root>` refers to whichever directory the ladder above resolved to. Do not read any file, write any file, or call any source MCP outside the resolved root.
 2. **user.md exists and is parseable**: confirm `<agntux project root>/user.md` exists. If it doesn't, exit cleanly with no message — feedback runs unattended; don't write spurious status. The personalization subagent will set up `user.md` when the user next runs an AgntUX skill. **If it exists but the frontmatter or expected sections are malformed**, also exit cleanly without writing — don't append to a malformed file. The personalization subagent's next user-initiated session will surface and fix this.
 
 

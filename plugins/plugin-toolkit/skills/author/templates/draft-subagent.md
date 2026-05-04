@@ -34,11 +34,30 @@ without an immediately preceding "yes" turn.
 
 Before Step 1, run TWO guards in order:
 
-**Project root.** Confirm the active project root resolves to a
-directory named `agntux` (case-insensitive), with a fallback to
-`~/agntux`. If neither resolves, fail loud — print one sentence
-("AgntUX plugins require the project to be `<agntux project root>/`...")
-and stop.
+**Project root.** Resolve the AgntUX project root via this ladder
+(<!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->); stop
+at the first match:
+
+1. `basename(cwd).toLowerCase() === "agntux"` → use cwd silently.
+2. Any ancestor of cwd has `basename().toLowerCase() === "agntux"`
+   → use the nearest. Emit one short line: "Working in the agntux
+   project at `{root}`, found above your current directory.", then
+   continue.
+3. `~/agntux/` exists and is a directory → use it. Emit one short
+   line: "Using your AgntUX project at `~/agntux`.", then continue.
+4. None of the above — this skill is interactive (fired by a
+   suggested-action button click), so a user is always present. Ask
+   once, verbatim: "I don't see an AgntUX project yet. Want me to set
+   one up at `~/agntux` now? (yes / no)". On **yes**, invoke
+   `/agntux-onboard` (it owns the create-and-pick flow) and exit
+   this skill — the user can re-click the action button after
+   onboarding wraps. On **no** (or anything else / no response),
+   reply "Okay — let me know when you're ready." and stop. Do NOT
+   call any {source-display-name} tool, do NOT touch any action
+   item.
+
+Throughout the rest of this skill, `<agntux project root>` refers to
+whichever directory the ladder above resolved to.
 
 **AgntUX orchestrator gate.** Confirm `<agntux project root>/user.md`
 exists and parses cleanly. If missing, point the user at
