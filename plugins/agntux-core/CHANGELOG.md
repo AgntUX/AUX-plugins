@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.3.0] — 2026-05-04
+
+### Added
+- **`outcome` and `outcome_note` arguments on the `set_status` and `dismiss` MCP tools.** When provided on a `done` or `dismissed` transition, the server appends a body section:
+
+  ```markdown
+  ## Outcome
+  {outcome label} — {RFC 3339 timestamp}
+  {optional outcome_note}
+  ```
+
+  Suggested values: `completed-externally`, `noise`, `irrelevant`. Free-form strings are allowed. The schema is unchanged — no new frontmatter fields, no new validator-hook contract, no schema_version bump in `data/schema/contracts/`. The marker is body-only.
+- New `appendOutcomeSection` helper exported from `mcp-server/src/tools/set-status.ts` and reused by `dismiss.ts` so both tools share one body-write path.
+
+### Changed
+- **`agents/pattern-feedback.md`: stop reading bare dismissals as `→ deprioritize` signals.** A dismissal often means "I handled this in Slack already" — that's a *positive* signal, not a noise signal. The new rules:
+  - Dismissal carrying `## Outcome: completed-externally` (or any "already handled elsewhere" marker), OR `status: done` with an `## Auto-resolved` body section (written by `agntux-slack` Step 8.5) → counts as a **positive** signal (`→ trust this signal more`), the inverse of `→ deprioritize`.
+  - Dismissal carrying `## Outcome: noise` or `## Outcome: irrelevant` → counts toward `→ deprioritize`.
+  - Dismissal followed by an explicit `# Never raise` rule capture in `data/instructions/{plugin}.md` within ±24h → counts toward `→ deprioritize`.
+  - **Bare dismissal (no outcome marker, no paired `# Never raise`)** → ambiguous; does NOT contribute to deprioritize patterns, does NOT contribute to trust-more patterns. Skipped.
+
+  Pattern dimensions, the "Append to # Auto-learned" examples, and the graduation-candidate example all updated accordingly. The result: pattern-feedback only proposes `→ deprioritize` graduation candidates when there is *real* evidence the user thinks the items are noise, not just that they cleared their inbox.
+
+### Migration
+- Existing `set_status` and `dismiss` callers continue to work unchanged — the new arguments are optional. Action items written before 4.3.0 have no `## Outcome` body and are treated as ambiguous (bare) dismissals by pattern-feedback. Going forward, ingest plugins should wire their `Mark done — already handled` and "noise" affordances through the new `outcome` arg so the signal reaches pattern-feedback.
+
 ## [4.2.1] — 2026-05-03
 
 ### Changed

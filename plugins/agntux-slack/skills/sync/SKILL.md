@@ -182,7 +182,15 @@ The soft lock prevents concurrent runs from corrupting indexes and entity files.
 
 - **Bootstrap run** (`cursor: {}` AND `last_success: null` — first run ever): Read `bootstrap_window_days` from `user.md` frontmatter. **Slack-ingest default is 7 days** (overrides the P3 §6.1 default of 30 because Slack volume is much higher than email/notes; documented in `# Notes` of your contract). Valid range 1–365. If outside range, treat as 7 and append a `bootstrap_window_days-out-of-range` entry to `sync.md → errors`. The time window is `(now − bootstrap_window_days days, now]`.
 
-  **Onboarding mode.** A bootstrap run typically fires synchronously during `/agntux-onboard` (personalization State A wrap-up auto-fires `/agntux-sync agntux-slack` with the user present). To keep that interaction snappy, set an **onboarding-mode cap of 5 channels** for the first run when `last_success: null AND cursor` has zero channel-shaped entries. After discovery, sort discovered channel-shaped keys by likely activity (DMs first, then channels with the user as recent author) and process at most 5; add the rest to the cursor map with `null` so the next scheduled background run picks them up. Log a `slack-onboarding-deferred` entry to `sync.md → errors` listing the deferred channel count.
+  **Onboarding mode — heads-up, no cap.** A bootstrap run typically fires synchronously during `/agntux-onboard` (personalization State A wrap-up auto-fires `/agntux-sync agntux-slack` with the user present). The bootstrap **processes every channel surfaced by discovery** — there is no per-channel cap. Coverage matters more than wall-clock here; the user already knows this is a one-time post-setup run.
+
+  Before starting per-channel polling on a bootstrap run (`last_success: null AND cursor` has zero channel-shaped entries), print **one** user-facing chat message after Step 5b discovery completes, with the real numbers:
+
+  > "I'm about to fetch ~{bootstrap_window_days} days of activity across ~{N} channels and DMs from your Slack workspace. This may take a few minutes. If you'd rather not wait, hit the stop button and tell me what you'd prefer (e.g. only the last 24 hours, or just specific channels)."
+
+  Substitute `{bootstrap_window_days}` with the resolved window value and `{N}` with the count of distinct channel-shaped keys produced by Step 5b. Print exactly once per run and only when this is a true bootstrap (do not print on incremental runs).
+
+  If the user interrupts mid-bootstrap, the cancelled run leaves unprocessed channels with `null` cursors in the map; the next scheduled run picks them up automatically. When the run is cancelled or exits early with channels still at `null`, log a `slack-bootstrap-interrupted` entry to `sync.md → errors` listing the deferred channel count so the next AgntUX session can surface the gap.
 
 - **Incremental run** (`cursor` non-empty OR `discovery_ts` set OR `last_success` non-null): the time window for discovery is `(discovery_ts, now]`. The time window for per-channel polling is per-channel — `(cursor[channel_id], now]` for each channel-shaped key. Channels with `cursor[<channel_id>] === null` are bootstrap reads inside the bootstrap window. Thread-shaped keys (`<channel_id>#<thread_ts>`) are walked in the per-thread pass with `oldest: cursor[<channel_id>#<thread_ts>]`.
 
@@ -216,14 +224,16 @@ For each result:
 
 ### Step 5c — Per-channel polling (bulk of the work)
 
-Walk every **channel-shaped key** in the cursor map (key has no `#` separator) in **cursor-stale order** (oldest cursor first; channels with `null` cursor are processed before the rest of the bootstrap-window batch). Apply the onboarding-mode 5-channel cap from Step 4 if this is the first run ever. For each:
+Walk every **channel-shaped key** in the cursor map (key has no `#` separator) in **cursor-stale order** (oldest cursor first; channels with `null` cursor are processed before the rest of the bootstrap-window batch). For each:
 
 1. If `cursor[<channel_id>] === null` → bootstrap read using `bootstrap_window_days` from `user.md` (default 7). Call `slack_read_channel(channel_id, oldest: <now − window>, limit: 100)`.
 2. If `cursor[<channel_id>] === "<ts>"` → incremental read. Call `slack_read_channel(channel_id, oldest: <ts>, limit: 100)`.
 3. Paginate via the returned `cursor` until no more results or the **200-message-per-channel cap** is hit. If the cap is hit, log a `slack-channel-truncated` warning to `sync.md → errors` and continue — next run will pick up from the advanced cursor.
-4. **Thread fanout** — for each fetched message, and for every full-thread fetch performed here, **track the parent key `<channel_id>#<thread_ts>` in a working-memory `fanned_out` set** so Step 5d can skip threads we just walked.
-   - If `reply_count > 0` (it's a parent with replies): call `slack_read_thread(channel_id, message_ts: ts, limit: 1000)` to fetch all replies. Set `cursor[<channel_id>#<ts>]` to the newest reply ts processed; record `<channel_id>#<ts>` in `fanned_out`.
-   - If `thread_ts && thread_ts !== ts` (it's a reply): the parent ts is `thread_ts`. Call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` to walk back to the parent and get full thread context. Set `cursor[<channel_id>#<thread_ts>]` to the newest reply ts processed; record `<channel_id>#<thread_ts>` in `fanned_out`.
+4. **Thread fanout — pull every thread, always.** For each message returned by `slack_read_channel`, treat ANY of the following as evidence of thread activity: `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, OR the message appears as a `thread_ts` parent of any other message fetched in this run. If any of those is true, you MUST call `slack_read_thread(channel_id, message_ts: <parent_ts>, limit: 1000)` to pull the full thread. **Do not rely on `reply_count` alone — Slack frequently omits it on `slack_read_channel` payloads, especially in DMs and private channels.** Skipping a thread because a single field was missing is the correctness defect this rule fixes.
+
+   The `<parent_ts>` is `thread_ts` when the message is a reply (`thread_ts !== ts`), or the message's own `ts` when it is itself a parent. Track every fetched parent in the working-memory `fanned_out` set keyed by `<channel_id>#<thread_ts>` and add the same key to the cursor map with the newest reply ts as value. Step 5d skips anything in `fanned_out`.
+
+   If a `slack_read_thread` call fails (rate limit, permission, deleted parent), log `kind: source` to `sync.md → errors` with `thread_id: <channel_id>#<thread_ts>` AND **do not raise an action item that depends on that thread's content** — better silence than a half-context decision.
 5. Advance the channel-shaped entry `cursor[<channel_id>]` to the **newest channel-level (parent) message ts processed** for that channel. Reply-only ts values do NOT advance the channel-shaped entry — they advance the thread-shaped entry under `cursor[<channel_id>#<thread_ts>]` (already done above for fanned-out threads, or by Step 5d for threads not fanned out here).
 
 If processing exceeds 50 channels in one run, log a `slack-large-backlog` warning to `sync.md → errors` and continue — better to be slow and complete than fast and lossy. **Cap at 200 items per channel per run; sort by ts ASC inside each channel** so cursor advancement is deterministic (mtime ASC equivalent for Slack's `ts`).
@@ -238,6 +248,18 @@ After per-channel polling completes, walk every **thread-shaped key** in the cur
 4. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `ts` processed (or the parent ts if the thread has no replies yet — never leave a thread-shaped key with `null` after a successful read).
 
 **Eviction.** Thread-shaped entries with no new activity for **30 days** are evicted from the cursor map (the next reply on an evicted thread is caught by the discovery search if it tags the user, or by re-discovery via `slack_read_channel` if the parent itself is touched). **Channel-shaped entries are never evicted** — once a channel is in the map, it stays.
+
+### Step 5e — Thread coverage check
+
+After per-channel and per-thread fetching complete, walk every parent message processed in this run and verify thread coverage. For each parent:
+
+1. Either (a) it had no thread evidence at all (none of `reply_count`, `reply_users_count`, `latest_reply`, `thread_ts`, and it never appeared as a parent of another fetched message), OR
+2. (b) `<channel_id>#<parent_ts>` is in the `fanned_out` set OR has a non-null cursor value in the cursor map, OR
+3. (c) the per-thread fetch in Step 5d covered it.
+
+Any parent message with thread evidence that fails (a)/(b)/(c) is an orphaned thread → log a `slack-thread-orphaned` entry to `sync.md → errors` with `parent_ref: <channel_id>#<parent_ts>`. The next run picks it up via discovery, but the log line makes the gap observable now.
+
+This is a self-check on Step 5c's broader-trigger rule, not a re-fetch. It does not call any MCP tool.
 
 ### Failure modes
 
@@ -261,6 +283,8 @@ Each is logged to `sync.md → errors` with one of `network | auth | parse | sou
 ---
 
 ## Step 6 — Identify entities (for each fetched item)
+
+> **Triage operates on the merged thread, not the parent in isolation.** Before extracting entities (Step 6) or deciding action-worthiness (Step 8) on any thread-rooted message, you MUST construct an in-memory merged view: parent message text + all fetched replies in chronological order, each labelled with author user_id and ts. Entity extraction, triage decisions, and `## Why this matters` body composition all read this merged view. Citing only the parent's text when replies exist is a correctness bug — the action context typically lives in the replies.
 
 For each item, extract every distinguishable entity. Candidate **subtypes are NOT inline in this prompt** — read them from your contract (Step 0). Common kinds you'll see in Slack (only when your contract approves them):
 
@@ -327,6 +351,8 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 
 ## Step 8 — Decide if action-worthy
 
+> **Triage operates on the merged thread, not the parent in isolation.** For any thread-rooted candidate, construct the merged view (parent + all fetched replies, chronologically, with author + ts labels) before applying the heuristics below. The reply that makes a thread action-worthy is usually NOT the parent message.
+
 For each item, use your judgment plus `user.md → # Preferences` AND your `data/instructions/agntux-slack.md` rules to decide whether to raise an action item.
 
 **Volume cap:** 10 action items per run. Re-evaluate strictly if you'd exceed.
@@ -347,6 +373,21 @@ Slack-specific signal layer feeding the canonical heuristics. Action classes you
 - Channel join/leave/topic-change system messages.
 - Reactions-only updates (no text content).
 
+### Step 8a — Reply-state scan (skip if user already replied)
+
+Before raising any candidate `response-needed` item, scan the data already fetched in Steps 5c/5d (no new MCP calls):
+
+1. Determine the latest message timestamp authored by the resolved `user_id` (Step 5a) in the same scope as the candidate trigger:
+   - Thread-rooted candidate → search the merged thread.
+   - Channel- or DM-level candidate → search the channel's recent fetched messages.
+2. **If the user authored a message *after* the candidate trigger** AND no message subsequent to that user reply contains a follow-up question (`?`), an `@user_id` mention, a deadline phrase, or an escalation keyword (`urgent|asap|blocker|sev[123]`):
+   - **Skip raising** the action.
+   - Log a `slack-user-already-replied` debug entry to `sync.md → errors` for traceability (with `source_ref: <channel_id>#<thread_ts or ts>` and the user reply ts).
+3. **If the user replied but a follow-up did appear after their reply**, raise the action and cite the follow-up in `## Why this matters` so the priority is justified.
+4. If the user has not replied since the trigger, fall through to the heuristics list below — no change.
+
+This scan runs once per candidate, before the heuristics list. It is a pure read over the in-memory fetch buffer.
+
 Apply heuristics in order:
 
 1. **Per-plugin instructions take priority.** If the item matches a `# Always raise` rule from `data/instructions/agntux-slack.md`, raise it (subject to the volume cap). If it matches a `# Never raise` rule, skip it (subject to heuristic 6 below). Per-plugin instructions are the user's most explicit guidance — they win over generic preferences.
@@ -358,6 +399,32 @@ Apply heuristics in order:
 
 If you decide NOT to raise: continue.
 If you decide to raise: proceed to Step 9.
+
+---
+
+## Step 8.5 — Reconcile already-open response-needed items
+
+After per-item triage (Step 8) and before dedup (Step 9), reconcile **already-open** action items against the freshly-fetched Slack data so items the user has since handled in Slack don't stay open and noisy.
+
+1. Scan `actions/_index.md` for entries with `status: open`, `source: slack`, `reason_class: response-needed`.
+2. For each, check whether its `source_ref` (`<channel_id>#<thread_ts>` or `<channel_id>#<ts>`) corresponds to a channel or thread touched in this run's fetch (i.e., the parent or thread is in the working-memory fetch buffer).
+3. If touched, run the **same Step 8a reply-state scan** against the latest data — using the action's original trigger ts as the candidate trigger.
+4. If the user has now replied AND no qualifying follow-up appeared after their reply: rewrite the action file with `status: done`, `completed_at: <now RFC 3339>`, and append the following body section (do not overwrite existing body content; append after the existing `## Personalization fit` section):
+
+   ```markdown
+   ## Auto-resolved
+   {YYYY-MM-DD HH:MM} — Detected user reply in this thread/channel after the
+   triggering message, with no further follow-up question or escalation.
+   Closed automatically. If this was wrong, re-open from `actions/_index.md`.
+   ```
+
+   Write atomically (temp + rename). The `agntux-core` PostToolUse hook updates `actions/_index.md` after the write — do NOT touch `_index.md` directly.
+
+5. If the open action is still valid (user hasn't replied, or a qualifying follow-up appeared after their reply), leave it untouched. Step 9's dedup will prevent a duplicate from being raised this run.
+
+This is a real new automated state transition (`open` → `done` without user click). It is bounded: only `source: slack` + `reason_class: response-needed`, only when the relevant thread/channel was just fetched, only when the reply-state scan returns the same conclusion it would for a fresh candidate. The "Honesty rules" and "Out of scope" sections below document this authority.
+
+If a reconciliation write fails (e.g., file moved, permission), log a `slack-reconcile-failed` entry to `sync.md → errors` with the action `id` and continue — better to leave the action open than to write half-state.
 
 ---
 
@@ -412,6 +479,12 @@ suggested_actions:
   - label: "Open in Slack"
     host_prompt: |
       ux: Use the agntux-core plugin to print the Slack permalink for action {id}.
+  - label: "Mark done — already handled in Slack"
+    host_prompt: |
+      ux: Use the agntux-core plugin to set action {id} status to done with outcome "completed-externally" (already handled in Slack).
+  - label: "Stop raising items like this"
+    host_prompt: |
+      ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a `# Never raise` rule for items like {id}.
   - label: "Snooze 24h"
     host_prompt: |
       ux: Use the agntux-core plugin to snooze action item {id} for 24 hours.
@@ -431,7 +504,8 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–5 buttons (the fifth is optional, for canvas-worthy items).
+- 2–7 buttons. The default response-needed item ships the six standard buttons (Draft, Schedule, Open in Slack, Mark done, Stop raising, Snooze 24h); add the optional `Summarise to canvas` button as the 7th for canvas-worthy items.
+- "Snooze 24h" is always last; "Mark done — already handled in Slack" and "Stop raising items like this" come before snooze. The two new buttons are how the user signals **why** they're closing the item — that signal is what `pattern-feedback` reads (see PR 2). Don't drop them.
 - Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
 - Don't pre-fill orchestrator-authored content. The draft body, schedule time, and canvas content are produced by `skills/draft/SKILL.md` at click time, with fresh context.
 
@@ -440,7 +514,7 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 **Body** (required sections):
 ```markdown
 ## Why this matters
-{1–4 sentences. Reference [[entities]] using bare-slug wiki-link form. For Slack threads, cite the channel name and the most recent reply author.}
+{1–4 sentences. Reference [[entities]] using bare-slug wiki-link form. For Slack threads, cite the channel name and the most recent reply author. **When the source is a thread with replies, cite the parent ts AND the most-recent or most-action-relevant reply ts** (`<channel_id>#<parent_ts>` and `<channel_id>#<reply_ts>`) — the reader should be able to see *why* this is action-worthy without re-fetching the thread.}
 
 ## Personalization fit
 - Matches "{rule}" (per user.md / instructions)
@@ -479,6 +553,7 @@ There is no separate "write learnings" step — agent-authored learnings files w
 - The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
 - If a per-plugin instruction is ambiguous ("never raise stuff from `notifications:*`" but the file references `bot_id:B0NOTIF`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
 - **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` are all reserved for `skills/draft/SKILL.md` after explicit user confirmation. The general-purpose agent has access to them; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
+- **Auto-resolution authority (Step 8.5).** This skill MAY transition an existing `status: open` action to `status: done` *without* a user click — but only when (a) `source: slack`, (b) `reason_class: response-needed`, (c) the action's `source_ref` thread or channel was just fetched, and (d) the Step 8a reply-state scan would conclude the user has already replied with no qualifying follow-up. The auto-resolved action MUST carry an `## Auto-resolved` body section so the user (and the `pattern-feedback` subagent) can see this was an automated transition. Outside those conditions, action-status writes flow through the agntux-core MCP server (`set_status`, `dismiss`, `snooze`) — not direct file edits from this skill.
 
 ## Concurrent-run note
 

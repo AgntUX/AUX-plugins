@@ -92,3 +92,64 @@ describe("authority discipline", () => {
     expect(s).toMatch(/30.day|30 day/i);
   });
 });
+
+describe("dismissal interpretation (4.3.0 — outcome-marker rules)", () => {
+  it("documents the new 'How to read dismissals' section", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toContain("How to read dismissals");
+  });
+
+  it("calls out that bare dismissals are ambiguous (not deprioritize signal)", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toMatch(/[Bb]are dismissal[^\n]+ambiguous/);
+    expect(s).toMatch(/[Bb]are dismissals do NOT contribute|[Dd]oes NOT contribute to deprioritize/);
+  });
+
+  it("treats `## Outcome: completed-externally` as a positive (trust-more) signal", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toContain("completed-externally");
+    expect(s).toMatch(/positive.*signal|trust this signal more/);
+  });
+
+  it("treats `## Auto-resolved` (status: done from agntux-slack Step 8.5) as a positive signal", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toContain("## Auto-resolved");
+    expect(s).toMatch(/Step 8\.5/);
+    expect(s).toMatch(/positive signal/);
+  });
+
+  it("treats `## Outcome: noise` (or irrelevant) as a deprioritize signal", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toMatch(/Outcome: noise/);
+    expect(s).toMatch(/counts toward `→ deprioritize`/);
+  });
+
+  it("treats dismissal paired with a `# Never raise` capture (within ±24h) as a deprioritize signal", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toContain("# Never raise");
+    expect(s).toMatch(/±24h/);
+  });
+
+  it("buckets dismissals as completion-elsewhere | noise-marker | never-raise-paired | bare", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    expect(s).toContain("completion-elsewhere");
+    expect(s).toContain("noise-marker");
+    expect(s).toContain("never-raise-paired");
+    expect(s).toContain("bare");
+  });
+
+  it("examples explicitly carry an intent marker on dismissal-count bullets", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    // The "Append to # Auto-learned" examples must show outcome markers.
+    expect(s).toMatch(/dismissals \(with "## Outcome: noise"\)/);
+    // The graduation-candidate example also carries the marker.
+    expect(s).toMatch(/dismissals \(with "## Outcome: noise"\)[^\n]*\[graduation-candidate/);
+  });
+
+  it("does NOT carry the legacy bare-dismissal deprioritize example", () => {
+    const s = readFileSync(FEEDBACK_MD, "utf8");
+    // The pre-4.3.0 example was: "5 dismissals on reason_class: knowledge-update from acme-marketing → deprioritize"
+    // (no outcome marker). The new examples MUST always include an intent marker.
+    expect(s).not.toMatch(/^- 5 dismissals on reason_class: knowledge-update from acme-marketing → deprioritize$/m);
+  });
+});

@@ -186,9 +186,13 @@ describe("pivot tool", async () => {
   });
 
   it("rejects path traversal in subtype", async () => {
+    // Pivot has two defensive layers: a kebab-case shape check (fires first
+    // on inputs like "../../../etc") and a path-traversal boundary check as
+    // defense-in-depth. Either rejection path proves the input is blocked
+    // before any FS access — both are correct outcomes.
     await expect(
       pivotTool.handler({ subtype: "../../../etc", slug: "passwd" })
-    ).rejects.toThrow(/traversal/i);
+    ).rejects.toThrow(/traversal|Invalid subtype/i);
   });
 
   it("returns host_prompt in _meta", async () => {
