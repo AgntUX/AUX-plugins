@@ -148,21 +148,14 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/update-canonical-hooks` | Walk through the canonical-hook update runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
 
-The `plugins/plugin-toolkit/` plugin bundles two namespaced skills under
-one ELv2 footprint:
+## Authoring tools
 
-- `/plugin-toolkit:author` — authoring orchestrator that delegates to 7
-  specialist agents (manifest, ingest prompt, source semantics, draft
-  flow, tests, invariants, release). Auto-triggers on
-  `plugins/*/marketplace/listing.yaml`,
-  `plugins/*/.claude-plugin/plugin.json`, `plugins/*/CHANGELOG.md`,
-  `plugins/*/README.md`, `plugins/*/agents/*.md`, and
-  `plugins/*/skills/**/SKILL.md`.
-- `/plugin-toolkit:maintain` — maintainer runbooks (PR review,
-  rollback, kill-switch, canonical-hook update, secret rotation, CI
-  workflow map). Auto-triggers on `.github/**`, root `CHANGELOG.md`,
-  root `README.md`, and on issues labelled `regression`,
-  `kill-switch`, or `canonical-hook-rollout`.
+The `plugin-toolkit` plugin (specialist agents for authoring AgntUX
+plugins, plus an MCP App UI test harness) has moved to the
+[`agntux-plugin-dev`](https://github.com/AgntUX/agntux-plugin-dev)
+marketplace. Install via `/plugin marketplace add
+https://github.com/AgntUX/agntux-plugin-dev` then `/plugin install
+plugin-toolkit@agntux-plugin-dev`.
 
 ---
 
