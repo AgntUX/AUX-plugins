@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-03T22:43:38.418Z",
+  "generated_at": "2026-05-04T13:41:20.567Z",
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
@@ -83,7 +83,7 @@
     },
     "agntux-slack": {
       "tagline": "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts.",
-      "description": "Watches every Slack channel and DM you have access to, captures DMs,\n@mentions, and active threads, and extracts people, companies, projects,\nand topics as AgntUX entities. Action items surface response-needed\nsignals, deadlines, and decisions buried in long threads. On request,\ndrafts replies (or thread summaries) in chat and asks you to confirm\nbefore sending — the actual `slack_send_message`, `slack_schedule_message`,\nand `slack_create_canvas` calls only happen after you say \"yes\".\n",
+      "description": "Watches your Slack DMs, @mentions, and active threads; extracts people,\ncompanies, projects, and topics. Action items surface response-needed\nsignals, deadlines, and decisions buried in threads. One-click buttons —\nDraft, Schedule, Open in Slack, Mark done (already handled), Stop\nraising items like this, Snooze 24h — so dismissals carry intent.\nReplies sent in Slack auto-resolve matching open items on the next sync.\nDrafts ask for explicit confirmation before any send.\n",
       "categories": [
         "communication",
         "productivity"
