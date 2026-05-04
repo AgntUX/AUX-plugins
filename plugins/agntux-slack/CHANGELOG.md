@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-04
+
+### Added
+- **Step 5e — Thread coverage check.** A self-check after fetching: every parent message processed in this run must either (a) lack any thread evidence, (b) be in the `fanned_out` set or have a non-null thread cursor, or (c) have been covered by Step 5d. Anything else logs `slack-thread-orphaned` to `sync.md → errors` so the gap is observable. No new MCP calls.
+- **Step 8a — Reply-state scan.** Before raising a `response-needed` action, scan the in-memory fetch buffer for a user reply to the candidate trigger. If the user already replied and no follow-up question / mention / deadline / escalation appeared after that reply, skip the action and log `slack-user-already-replied`. If a follow-up did appear, raise the action and cite the follow-up in `## Why this matters`.
+- **Step 8.5 — Reconcile open response-needed items.** After per-item triage and before dedup, walk `actions/_index.md` for `status: open`, `source: slack`, `reason_class: response-needed` items whose source thread/channel was touched this run. Apply the same Step 8a scan against the latest data; if the user has handled it in Slack, transition the action to `status: done`, set `completed_at`, and append an `## Auto-resolved` body section. Documented in "Honesty rules" as a new bounded automated authority.
+- **Two new `suggested_actions` buttons** on every Slack action item:
+  - `Mark done — already handled in Slack` routes to `agntux-core`'s `set_status` MCP tool with `outcome: "completed-externally"`. Captures the *positive* signal that an item was correctly raised — distinct from a bare dismissal.
+  - `Stop raising items like this` engages `agntux-core`'s `user-feedback` subagent so the user can capture an explicit `# Never raise` rule. Captures the *negative* signal that this kind of item is genuinely noise.
+- The Step 10 `## Why this matters` body now requires citing both the parent ts AND the most-recent / most-action-relevant reply ts when the source is a thread, so the action is reviewable without re-fetching.
+- New `sync.md → errors` kinds: `slack-thread-orphaned`, `slack-bootstrap-interrupted`, `slack-user-already-replied`, `slack-reconcile-failed`.
+
+### Changed
+- **Step 5c thread fanout — pull every thread, always.** The previous rule gated thread fetching on `reply_count > 0`. Slack frequently omits `reply_count` on `slack_read_channel` payloads (especially in DMs and private channels), so threads were silently skipped. The new rule treats `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, OR appearing as a `thread_ts` parent of any other fetched message ALL as evidence of thread activity — any one triggers a full `slack_read_thread` fetch. Failed thread fetches log `kind: source` and the dependent action item is suppressed for that run.
+- **Step 6 / Step 8 triage prefix.** Before extracting entities or deciding action-worthiness on a thread-rooted message, the skill MUST construct an in-memory merged view (parent + replies, chronologically). Citing only the parent text when replies exist is a correctness bug — this rule makes the merged-thread requirement explicit. The Step 10 `## Why this matters` rule above is the readable side of the same requirement.
+- **Step 4 onboarding mode — drop the 5-channel cap, add a heads-up message.** The bootstrap run now processes every channel surfaced by discovery (no per-channel cap; coverage > snappiness for a one-time post-setup run). Before per-channel polling begins, the skill prints a single user-facing chat message announcing the channel count and stop-to-redirect option. Cancellation mid-bootstrap leaves unprocessed channels with `null` cursors for the next scheduled run; that condition logs `slack-bootstrap-interrupted` (renamed from `slack-onboarding-deferred`).
+
+### Migration
+- No user action required. Step 8.5's auto-resolution only fires for thread/channel data fetched in the current run, so existing open actions are unaffected unless their source is touched. Existing dismiss / snooze flows are unchanged. The two new `suggested_actions` buttons appear on freshly-raised actions; existing action files are not rewritten.
+
 ## [1.0.0] — 2026-05-03
 
 ### Changed (BREAKING)

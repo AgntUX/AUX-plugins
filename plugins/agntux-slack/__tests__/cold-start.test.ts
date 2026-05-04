@@ -211,10 +211,16 @@ describe("ingest skill prompt", () => {
     expect(src).toContain("Slack-ingest default is 7 days");
   });
 
-  it("sync skill documents the onboarding-mode 5-channel cap", () => {
+  it("sync skill bootstrap onboarding mode drops the 5-channel cap and shows a heads-up message", () => {
     const src = readMd(syncSkill);
-    expect(src).toContain("onboarding-mode cap of 5 channels");
-    expect(src).toContain("slack-onboarding-deferred");
+    // The 5-channel cap is gone — coverage > snappiness for a one-time post-setup run.
+    expect(src).not.toContain("onboarding-mode cap of 5 channels");
+    expect(src).not.toContain("slack-onboarding-deferred");
+    // Replaced with a heads-up chat message and an interrupt-aware error log kind.
+    expect(src).toContain("Onboarding mode — heads-up, no cap");
+    expect(src).toContain("processes every channel surfaced by discovery");
+    expect(src).toContain("hit the stop button");
+    expect(src).toContain("slack-bootstrap-interrupted");
   });
 
   it("sync skill proposes the canonical six action classes (no decision-needed)", () => {
@@ -243,6 +249,180 @@ describe("ingest skill prompt", () => {
     const flatForm = join(PLUGIN_ROOT, "skills", "orchestrator.md");
     expect(existsSync(flatForm)).toBe(false);
     expect(existsSync(syncSkill)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pass 3.5 — 1.1.0 behavior changes (post-test feedback fixes)
+// ---------------------------------------------------------------------------
+
+describe("sync skill 1.1.0 — thread fanout broadened (correctness fix)", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 5c thread fanout triggers on multiple evidence fields, not just reply_count", () => {
+    expect(src).toMatch(/Thread fanout — pull every thread, always/);
+    expect(src).toContain("reply_users_count");
+    expect(src).toContain("latest_reply");
+    expect(src).toContain("thread_ts");
+  });
+
+  it("Step 5c warns explicitly that reply_count alone is unreliable on slack_read_channel payloads", () => {
+    expect(src).toMatch(/Slack frequently omits it on `slack_read_channel`/);
+    expect(src).toMatch(/Do not rely on `reply_count` alone/);
+  });
+
+  it("Step 5c suppresses dependent action when slack_read_thread fails", () => {
+    expect(src).toMatch(/do not raise an action item that depends on that thread's content/);
+    expect(src).toContain("better silence than a half-context decision");
+  });
+
+  it("Step 5e — Thread coverage check exists and logs slack-thread-orphaned for gaps", () => {
+    expect(src).toContain("Step 5e — Thread coverage check");
+    expect(src).toContain("slack-thread-orphaned");
+    expect(src).toContain("parent_ref:");
+  });
+
+  it("Step 5e is a self-check, not a re-fetch (no new MCP calls)", () => {
+    expect(src).toMatch(/self-check on Step 5c's broader-trigger rule, not a re-fetch/);
+    expect(src).toMatch(/does not call any MCP tool/);
+  });
+});
+
+describe("sync skill 1.1.0 — merged-thread triage", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 6 carries the merged-thread prefix", () => {
+    const step6Index = src.indexOf("## Step 6 — Identify entities");
+    const step7Index = src.indexOf("## Step 7 — Update each affected entity");
+    expect(step6Index).toBeGreaterThan(0);
+    expect(step7Index).toBeGreaterThan(step6Index);
+    const step6Body = src.slice(step6Index, step7Index);
+    expect(step6Body).toMatch(/Triage operates on the merged thread, not the parent in isolation/);
+  });
+
+  it("Step 8 carries the merged-thread prefix", () => {
+    const step8Index = src.indexOf("## Step 8 — Decide if action-worthy");
+    const step85Index = src.indexOf("## Step 8.5 — Reconcile already-open response-needed items");
+    expect(step8Index).toBeGreaterThan(0);
+    expect(step85Index).toBeGreaterThan(step8Index);
+    const step8Body = src.slice(step8Index, step85Index);
+    expect(step8Body).toMatch(/Triage operates on the merged thread, not the parent in isolation/);
+  });
+
+  it("Step 10 `## Why this matters` instructs citing both parent ts and reply ts", () => {
+    expect(src).toMatch(/cite the parent ts AND the most-recent or most-action-relevant reply ts/);
+  });
+});
+
+describe("sync skill 1.1.0 — Step 8a reply-state scan", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 8a — Reply-state scan section exists before the heuristics list", () => {
+    const step8aIndex = src.indexOf("Step 8a — Reply-state scan");
+    const heuristicsIndex = src.indexOf("Apply heuristics in order:");
+    expect(step8aIndex).toBeGreaterThan(0);
+    expect(heuristicsIndex).toBeGreaterThan(step8aIndex);
+  });
+
+  it("Step 8a runs over the in-memory fetch buffer (no new MCP calls)", () => {
+    expect(src).toMatch(/no new MCP calls/);
+    expect(src).toMatch(/pure read over the in-memory fetch buffer/);
+  });
+
+  it("Step 8a skips raising and logs slack-user-already-replied when user already responded", () => {
+    expect(src).toContain("slack-user-already-replied");
+    expect(src).toMatch(/Skip raising/i);
+  });
+
+  it("Step 8a raises with follow-up citation when a follow-up appears after the user reply", () => {
+    expect(src).toMatch(/follow-up did appear after their reply/);
+    expect(src).toMatch(/cite the follow-up in `## Why this matters`/);
+  });
+
+  it("Step 8a defines follow-up signals (question / mention / deadline / escalation keyword)", () => {
+    expect(src).toMatch(/follow-up question \(`\?`\)/);
+    expect(src).toMatch(/`@user_id` mention/);
+    expect(src).toMatch(/escalation keyword \(`urgent\|asap\|blocker\|sev\[123\]`\)/);
+  });
+});
+
+describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 8.5 sits between Step 8 and Step 9", () => {
+    const step8Idx = src.indexOf("## Step 8 — Decide if action-worthy");
+    const step85Idx = src.indexOf("## Step 8.5 — Reconcile already-open response-needed items");
+    const step9Idx = src.indexOf("## Step 9 — Dedupe against existing action items");
+    expect(step8Idx).toBeGreaterThan(0);
+    expect(step85Idx).toBeGreaterThan(step8Idx);
+    expect(step9Idx).toBeGreaterThan(step85Idx);
+  });
+
+  it("Step 8.5 is bounded to source: slack + reason_class: response-needed", () => {
+    expect(src).toMatch(/`status: open`, `source: slack`, `reason_class: response-needed`/);
+  });
+
+  it("Step 8.5 only acts on threads/channels touched in this run's fetch", () => {
+    expect(src).toMatch(/touched in this run's fetch/);
+  });
+
+  it("Step 8.5 transitions open → done with `## Auto-resolved` body section", () => {
+    expect(src).toContain("## Auto-resolved");
+    expect(src).toMatch(/`status: done`, `completed_at: <now RFC 3339>`/);
+    expect(src).toMatch(/Closed automatically\. If this was wrong/);
+  });
+
+  it("Step 8.5 leaves the index hook to update _index.md (no direct edits)", () => {
+    expect(src).toMatch(/do NOT touch `_index\.md` directly/);
+  });
+
+  it("Step 8.5 logs slack-reconcile-failed on write failure rather than half-state", () => {
+    expect(src).toContain("slack-reconcile-failed");
+  });
+
+  it("Honesty rules document the auto-resolution authority and the bounded conditions", () => {
+    expect(src).toMatch(/Auto-resolution authority \(Step 8\.5\)/);
+    expect(src).toMatch(/agntux-core MCP server.*not direct file edits from this skill/);
+  });
+});
+
+describe("sync skill 1.1.0 — suggested_actions carries new buttons", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("default suggested_actions includes the six standard buttons in order", () => {
+    const labelOrder = [
+      `label: "Draft a reply"`,
+      `label: "Schedule a reply"`,
+      `label: "Open in Slack"`,
+      `label: "Mark done — already handled in Slack"`,
+      `label: "Stop raising items like this"`,
+      `label: "Snooze 24h"`,
+    ];
+    let cursor = 0;
+    for (const label of labelOrder) {
+      const idx = src.indexOf(label, cursor);
+      expect(idx, `expected to find ${label} after offset ${cursor}`).toBeGreaterThan(cursor);
+      cursor = idx;
+    }
+  });
+
+  it("Mark done routes to agntux-core set_status with outcome=completed-externally", () => {
+    expect(src).toMatch(/Use the agntux-core plugin to set action \{id\} status to done with outcome "completed-externally"/);
+  });
+
+  it("Stop raising routes to the agntux-core user-feedback subagent", () => {
+    expect(src).toMatch(/Use the agntux-core plugin to engage the user-feedback subagent/);
+    expect(src).toMatch(/`# Never raise` rule/);
+  });
+
+  it("suggested_actions rules document the 2–7 button range and the position of Snooze last", () => {
+    expect(src).toMatch(/2[–-]7 buttons/);
+    expect(src).toMatch(/"Snooze 24h" is always last/);
   });
 });
 

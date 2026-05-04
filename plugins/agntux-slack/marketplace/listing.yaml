@@ -1,12 +1,12 @@
 tagline: "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts."
 description: |
-  Watches every Slack channel and DM you have access to, captures DMs,
-  @mentions, and active threads, and extracts people, companies, projects,
-  and topics as AgntUX entities. Action items surface response-needed
-  signals, deadlines, and decisions buried in long threads. On request,
-  drafts replies (or thread summaries) in chat and asks you to confirm
-  before sending — the actual `slack_send_message`, `slack_schedule_message`,
-  and `slack_create_canvas` calls only happen after you say "yes".
+  Watches your Slack DMs, @mentions, and active threads; extracts people,
+  companies, projects, and topics. Action items surface response-needed
+  signals, deadlines, and decisions buried in threads. One-click buttons —
+  Draft, Schedule, Open in Slack, Mark done (already handled), Stop
+  raising items like this, Snooze 24h — so dismissals carry intent.
+  Replies sent in Slack auto-resolve matching open items on the next sync.
+  Drafts ask for explicit confirmation before any send.
 categories:
   - communication
   - productivity

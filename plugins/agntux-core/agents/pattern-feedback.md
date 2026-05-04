@@ -48,22 +48,39 @@ Filter the index lines first; only read full files when a pattern is forming. Li
 
 Look for repeating signals across these five dimensions:
 
-1. **By `reason_class`**. Example: "5 of last 8 dismissals have `reason_class: knowledge-update`."
+1. **By `reason_class`**. Example: "5 of last 8 dismissals on `reason_class: knowledge-update` from acme-marketing carry `## Outcome: noise` markers — this kind is genuinely low-value." (See "How to read dismissals" below — bare dismissals are NOT a deprioritise signal on their own.)
 2. **By `source`**. Example: "12 of 14 done items came from Slack — user prioritises Slack-originated items."
 3. **By `related_entities`**. Example: "7 done items touched `topics/q2-renewal-acme` — this topic is high-signal for the user."
-4. **By time-of-day**. Read `created_at`. Example: "8 dismissals on items raised after 18:00 — user disengages in the evening."
-5. **By specific entity** (people / companies). Example: "All 4 actions involving `companies/acme-marketing` were dismissed — this is noise."
+4. **By time-of-day**. Read `created_at`. Example: "8 dismissals on items raised after 18:00 — user disengages in the evening." (Same caveat: only count dismissals that carry intent markers — see below.)
+5. **By specific entity** (people / companies). Example: "All 4 actions involving `companies/acme-marketing` were dismissed AND each carries `## Outcome: noise` — this is noise."
 
 A pattern needs at least **N** supporting items in the 30-day window to be worth recording, where N is `feedback_min_pattern_threshold` from `user.md` frontmatter (default `5`; valid range `3–20` per P3 §6.1). Below N, leave it alone. If a low-volume user finds this subagent noisy, the personalization subagent (Mode B) can lower N — or the user can set it directly via `/agntux-profile`.
+
+## How to read dismissals (and `## Auto-resolved`, `## Outcome`)
+
+Dismissals are ambiguous on their own. A user who dismisses an item often means **"I handled this in Slack already"** — that's a *positive* signal that the item was correctly raised, not a *negative* one. Until 4.3.0 this subagent counted bare dismissals toward `→ deprioritize` patterns, which converted positive signal into negative — a defect. The new rules:
+
+- **Dismissal with `## Outcome` body section indicating completion-elsewhere** (`completed-externally`, "already handled in Slack", or any explicit completion-elsewhere marker — written by the agntux-slack `Mark done — already handled in Slack` button or by `set_status`/`dismiss` with `outcome` arg) → counts as a **positive** signal. Surface it as `→ trust this signal more` (the inverse of `→ deprioritize`).
+- **Status `done` with an `## Auto-resolved` body section** (written by `agntux-slack` Step 8.5 when the user replied in Slack and the action self-closed) → also a **positive** signal. The user *did* respond; the action was correctly raised.
+- **Dismissal with `## Outcome: noise`** (or `outcome: irrelevant`) → counts toward `→ deprioritize`. Explicit user intent.
+- **Dismissal followed by an explicit `# Never raise` rule capture in `data/instructions/{plugin}.md`** within ±24h (detect via diff or status: dismissed entries paired with new instruction lines) → counts toward `→ deprioritize`.
+- **Bare dismissal — no `## Outcome` marker, no `# Never raise` capture** → **ambiguous**. Does NOT contribute to deprioritize patterns. Does NOT contribute to trust-more patterns either. Skip.
+
+The result: pattern-feedback only proposes `→ deprioritize` graduation candidates when there is *real* evidence the user thinks the items are noise, not just that they cleared their inbox.
+
+When counting dismissals for a pattern, read the body of each candidate action file and bucket it as `completion-elsewhere`, `noise-marker`, `never-raise-paired`, or `bare`. Only the first three buckets contribute to graduation candidates; bare dismissals are excluded from the count.
 
 ## Append to # Auto-learned
 
 For each pattern that meets the threshold AND is not already represented in `# Auto-learned`:
 
 1. Compose a one-line bullet in the established format: `<observation> → <recommended adjustment>`.
-   - Example: `- 5 dismissals on reason_class: knowledge-update from acme-marketing → deprioritize`
-   - Example: `- 12 of 14 done items from Slack → trust Slack-originated items more`
-   - Example: `- 8 dismissals on items created after 18:00 local time → suppress non-critical items in the evening`
+   - Example: `- 5 dismissals (with "## Outcome: noise") on reason_class: knowledge-update from acme-marketing → deprioritize`
+   - Example: `- 12 of 14 done items from Slack (incl. 4 auto-resolved after user reply) → trust Slack-originated items more`
+   - Example: `- 8 dismissals carrying "## Outcome: noise" on items created after 18:00 local time → suppress non-critical items in the evening`
+   - Example: `- 6 actions auto-resolved when user replied in Slack on reason_class: response-needed → trust response-needed signals from Slack`
+
+   **Critical:** the dismissal-count examples above must always carry an explicit intent marker (`## Outcome: noise`, an `## Auto-resolved` section, a paired `# Never raise` capture). Bare dismissals do NOT contribute. See "How to read dismissals" above.
 2. **Append** to `# Auto-learned` (at the end of the section, never insert mid-list). Never rewrite or delete prior lines — they are the agent's accumulated history. New observations append; older ones stay verbatim.
 3. Update `user.md` frontmatter `updated_at` (date-only format, e.g. `2026-04-28`).
 
@@ -77,7 +94,7 @@ Some patterns are strong enough to graduate from `# Auto-learned` to `# Preferen
 When you spot one, **append a `[graduation-candidate]` tag at the end of the existing `# Auto-learned` bullet** (or to the new bullet you are writing this run). Example:
 
 ```
-- 5 dismissals on reason_class: knowledge-update from acme-marketing → deprioritize  [graduation-candidate: ## Usually noise]
+- 5 dismissals (with "## Outcome: noise") on reason_class: knowledge-update from acme-marketing → deprioritize  [graduation-candidate: ## Usually noise]
 ```
 
 The personalization subagent reads these tags on its next run and surfaces the proposal to the user. You do NOT propose, ask, or edit `# Preferences` — your role ends at tagging.

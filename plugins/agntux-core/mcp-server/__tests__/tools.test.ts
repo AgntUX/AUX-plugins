@@ -1,12 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { resolve, relative } from "node:path";
 
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+
 import { setFrontmatter } from "../src/frontmatter.js";
 import { snoozeTool } from "../src/tools/snooze.js";
 import { dismissTool } from "../src/tools/dismiss.js";
-import { setStatusTool } from "../src/tools/set-status.js";
+import { setStatusTool, appendOutcomeSection } from "../src/tools/set-status.js";
 import { pivotTool } from "../src/tools/pivot.js";
 
 const ACTION_CONTENT = `---
@@ -275,6 +278,219 @@ describe("tool: pivot (path guard)", () => {
     const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
     expect(result.content[0].text).toMatch(/^ux: /);
     expect((result as { _meta?: { host_prompt?: string } })._meta?.host_prompt).toContain("companies/acme-corp");
+  });
+});
+
+// ---- appendOutcomeSection helper (4.3.0) ----
+
+describe("appendOutcomeSection helper", () => {
+  it("appends a `## Outcome` body section with timestamp", () => {
+    const file = ACTION_CONTENT;
+    const out = appendOutcomeSection(file, "noise");
+    expect(out).toMatch(/\n## Outcome\nnoise — \d{4}-\d{2}-\d{2}T/);
+    expect(out).toContain("## Why this matters");
+    expect(out).toContain("## Personalization fit");
+  });
+
+  it("includes the optional note on its own line", () => {
+    const out = appendOutcomeSection(
+      ACTION_CONTENT,
+      "completed-externally",
+      "handled in Slack DM with the requester",
+    );
+    expect(out).toContain("completed-externally — ");
+    expect(out).toContain("handled in Slack DM with the requester");
+  });
+
+  it("emits exactly one blank line before `## Outcome` when input ends with newline", () => {
+    const file = ACTION_CONTENT.endsWith("\n") ? ACTION_CONTENT : ACTION_CONTENT + "\n";
+    const out = appendOutcomeSection(file, "noise");
+    // Exactly two newlines (one blank line) between body content and the heading.
+    expect(out).toMatch(/[^\n]\n\n## Outcome/);
+    // No triple-newline gap.
+    expect(out).not.toMatch(/\n\n\n## Outcome/);
+  });
+
+  it("emits exactly one blank line before `## Outcome` when input has no trailing newline", () => {
+    const file = "---\nstatus: open\n---\n\nbody, no trailing newline";
+    const out = appendOutcomeSection(file, "noise");
+    // Inserting newline + block-prefix newline still yields exactly one blank line.
+    expect(out).toContain("body, no trailing newline\n\n## Outcome");
+    expect(out).not.toMatch(/\n\n\n## Outcome/);
+  });
+
+  it("supports multiple `## Outcome` sections (append-only history)", () => {
+    const once = appendOutcomeSection(ACTION_CONTENT, "noise");
+    const twice = appendOutcomeSection(once, "completed-externally");
+    const matches = twice.match(/## Outcome/g) ?? [];
+    expect(matches.length).toBe(2);
+    expect(twice.indexOf("noise — ")).toBeLessThan(twice.indexOf("completed-externally — "));
+  });
+
+  it("does not touch frontmatter", () => {
+    const out = appendOutcomeSection(ACTION_CONTENT, "noise");
+    const fmEnd = out.indexOf("\n---\n", 4); // second `---` closes frontmatter
+    const fmBlock = out.slice(0, fmEnd);
+    expect(fmBlock).not.toContain("Outcome");
+  });
+});
+
+// ---- set_status outcome arg (4.3.0) ----
+
+describe("set_status outcome arg input schema", () => {
+  it("declares outcome and outcome_note as optional properties", () => {
+    const props = setStatusTool.inputSchema.properties as Record<string, { type: string }>;
+    expect(props.outcome).toBeDefined();
+    expect(props.outcome.type).toBe("string");
+    expect(props.outcome_note).toBeDefined();
+    expect(props.outcome_note.type).toBe("string");
+  });
+
+  it("does not list outcome / outcome_note as required (back-compat)", () => {
+    const required = setStatusTool.inputSchema.required as string[];
+    expect(required).not.toContain("outcome");
+    expect(required).not.toContain("outcome_note");
+    // Existing required fields are unchanged.
+    expect(required).toContain("id");
+    expect(required).toContain("status");
+  });
+
+  it("description mentions the new outcome capability", () => {
+    expect(setStatusTool.description.toLowerCase()).toContain("outcome");
+  });
+});
+
+// ---- dismiss outcome arg (4.3.0) ----
+
+describe("dismiss outcome arg input schema", () => {
+  it("declares outcome and outcome_note as optional properties", () => {
+    const props = dismissTool.inputSchema.properties as Record<string, { type: string }>;
+    expect(props.outcome).toBeDefined();
+    expect(props.outcome.type).toBe("string");
+    expect(props.outcome_note).toBeDefined();
+    expect(props.outcome_note.type).toBe("string");
+  });
+
+  it("does not list outcome / outcome_note as required (back-compat)", () => {
+    const required = dismissTool.inputSchema.required as string[];
+    expect(required).not.toContain("outcome");
+    expect(required).not.toContain("outcome_note");
+    expect(required).toEqual(["id"]);
+  });
+
+  it("description mentions the new outcome capability", () => {
+    expect(dismissTool.description.toLowerCase()).toContain("outcome");
+  });
+});
+
+// ---- end-to-end: outcome appends body section against an isolated tmp project root ----
+
+describe("set_status + dismiss with outcome (end-to-end)", () => {
+  // expectedAgntuxRoot() walks up from cwd looking for a directory whose
+  // basename is "agntux" (case-insensitive). vitest workers don't permit
+  // process.chdir(), so we stub process.cwd() to point at a tmp tree like
+  //   <tmp>/<unique>/agntux/actions/<fixture>.md
+  // and the tool's resolver walks up to the "agntux" segment as the root.
+  const FIXTURE_ID = "2026-05-04-outcome-arg-fixture";
+  let tmpProjectRoot: string;
+  let fixturePath: string;
+  let cwdSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+  beforeEach(() => {
+    const uniq = `outcome-arg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const parent = join(tmpdir(), uniq);
+    tmpProjectRoot = join(parent, "agntux");
+    const actionsDir = join(tmpProjectRoot, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    fixturePath = join(actionsDir, `${FIXTURE_ID}.md`);
+    writeFileSync(fixturePath, ACTION_CONTENT.replace("test-action", FIXTURE_ID));
+    cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tmpProjectRoot);
+  });
+
+  afterEach(() => {
+    cwdSpy?.mockRestore();
+    cwdSpy = null;
+    if (tmpProjectRoot && existsSync(join(tmpProjectRoot, ".."))) {
+      rmSync(join(tmpProjectRoot, ".."), { recursive: true, force: true });
+    }
+  });
+
+  it("set_status done with outcome=completed-externally appends `## Outcome` body section", async () => {
+    const result = await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      outcome: "completed-externally",
+      outcome_note: "handled in Slack DM",
+    });
+    const written = readFileSync(fixturePath, "utf-8");
+    expect(written).toContain("status: done");
+    expect(written).toMatch(/completed_at: \d{4}-\d{2}-\d{2}T/);
+    expect(written).toContain("\n## Outcome\ncompleted-externally — ");
+    expect(written).toContain("handled in Slack DM");
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("(outcome: completed-externally)");
+  });
+
+  it("dismiss with outcome=noise appends `## Outcome` body section", async () => {
+    const result = await dismissTool.handler({ id: FIXTURE_ID, outcome: "noise" });
+    const written = readFileSync(fixturePath, "utf-8");
+    expect(written).toContain("status: dismissed");
+    expect(written).toContain("\n## Outcome\nnoise — ");
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).toContain("(outcome: noise)");
+  });
+
+  it("dismiss without outcome leaves the body untouched (back-compat)", async () => {
+    const before = readFileSync(fixturePath, "utf-8");
+    await dismissTool.handler({ id: FIXTURE_ID });
+    const after = readFileSync(fixturePath, "utf-8");
+    expect(after).toContain("status: dismissed");
+    expect(after).not.toContain("## Outcome");
+    // Body content (Why this matters / Personalization fit) is byte-equal.
+    const beforeBody = before.split(/^---\n[\s\S]*?\n---\n/m)[1] ?? "";
+    const afterBody = after.split(/^---\n[\s\S]*?\n---\n/m)[1] ?? "";
+    expect(afterBody).toBe(beforeBody);
+  });
+
+  it("set_status snoozed with outcome does NOT append `## Outcome` (only done/dismissed)", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "snoozed",
+      snoozed_until: "2026-05-10",
+      outcome: "noise",
+    });
+    const written = readFileSync(fixturePath, "utf-8");
+    expect(written).toContain("status: snoozed");
+    expect(written).not.toContain("## Outcome");
+  });
+
+  it("set_status open with outcome does NOT append `## Outcome` (only done/dismissed)", async () => {
+    // First set to done with an outcome to verify the section was added once.
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      outcome: "completed-externally",
+    });
+    const afterDone = readFileSync(fixturePath, "utf-8");
+    const beforeOpen = (afterDone.match(/## Outcome/g) ?? []).length;
+
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "open",
+      outcome: "completed-externally",
+    });
+    const afterOpen = readFileSync(fixturePath, "utf-8");
+    const afterOpenCount = (afterOpen.match(/## Outcome/g) ?? []).length;
+    // Opening did not add another `## Outcome` section.
+    expect(afterOpenCount).toBe(beforeOpen);
+  });
+
+  it("whitespace-only outcome is ignored (no body section, no message suffix)", async () => {
+    const result = await dismissTool.handler({ id: FIXTURE_ID, outcome: "   " });
+    const written = readFileSync(fixturePath, "utf-8");
+    expect(written).not.toContain("## Outcome");
+    const text = (result as { content: { text: string }[] }).content[0].text;
+    expect(text).not.toContain("outcome:");
   });
 });
 

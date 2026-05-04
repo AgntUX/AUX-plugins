@@ -19,8 +19,26 @@ function guardPath(id: string): string {
   return resolved;
 }
 
+// Append an `## Outcome` body section to an action item file. Read by
+// `pattern-feedback` to distinguish positive dismissals (the user
+// completed-elsewhere) from negative dismissals (genuine noise) — see
+// `agents/pattern-feedback.md` → "How to read dismissals".
+export function appendOutcomeSection(
+  file: string,
+  outcome: string,
+  note?: string,
+): string {
+  const stamp = new Date().toISOString();
+  const noteLine = note ? `\n${note.trim()}` : "";
+  const block = `\n## Outcome\n${outcome} — ${stamp}${noteLine}\n`;
+  // Idempotency: if a previous `## Outcome` exists, append a new one below it
+  // rather than rewriting (the body is append-only history per P3 §3.2.1).
+  return file.endsWith("\n") ? file + block : file + "\n" + block;
+}
+
 export const setStatusTool = {
-  description: "Set the status of an action item (open, snoozed, done, or dismissed).",
+  description:
+    "Set the status of an action item (open, snoozed, done, or dismissed). Optionally captures user intent via `outcome` — `completed-externally`, `noise`, `irrelevant`, or any free-form string — appended as an `## Outcome` body section. pattern-feedback reads this to distinguish positive dismissals from negative.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -33,6 +51,15 @@ export const setStatusTool = {
       snoozed_until: {
         type: "string",
         description: "ISO date or RFC 3339 timestamp (required when status is snoozed)",
+      },
+      outcome: {
+        type: "string",
+        description:
+          "Optional intent marker for done/dismissed transitions. Suggested values: `completed-externally`, `noise`, `irrelevant`. Free-form strings allowed. Appends a `## Outcome` body section. pattern-feedback reads this to distinguish completion-elsewhere (positive) from genuine noise (negative).",
+      },
+      outcome_note: {
+        type: "string",
+        description: "Optional free-form note appended to the `## Outcome` body section.",
       },
     },
     required: ["id", "status"],
@@ -69,10 +96,21 @@ export const setStatusTool = {
       patch.dismissed_at = null;
     }
 
-    const updated = setFrontmatter(file, patch);
+    let updated = setFrontmatter(file, patch);
+    const outcomeArg = typeof args.outcome === "string" ? args.outcome.trim() : "";
+    const outcomeNote =
+      typeof args.outcome_note === "string" ? args.outcome_note.trim() : undefined;
+    if (outcomeArg && (status === "done" || status === "dismissed")) {
+      updated = appendOutcomeSection(updated, outcomeArg, outcomeNote);
+    }
+
     const tmp = filePath + ".tmp";
     writeFileSync(tmp, updated, { mode: 0o644 });
     renameSync(tmp, filePath);
-    return { content: [{ type: "text", text: `Set status of ${id} to ${status}.` }] };
+
+    const outcomeSuffix = outcomeArg && (status === "done" || status === "dismissed")
+      ? ` (outcome: ${outcomeArg})`
+      : "";
+    return { content: [{ type: "text", text: `Set status of ${id} to ${status}${outcomeSuffix}.` }] };
   },
 };
