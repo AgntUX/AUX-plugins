@@ -13,9 +13,10 @@
  *   - If `skills/draft/SKILL.md` exists, same shape.
  *
  * An "ingest plugin" is any plugin whose slug starts with `agntux-`
- * EXCEPT `agntux-core` (the orchestrator) and `plugin-toolkit` (the
- * authoring bundle, no `agntux-` prefix). The discriminator at file-tree
- * level is the presence of `skills/sync/SKILL.md`.
+ * EXCEPT `agntux-core` (the orchestrator). The discriminator at
+ * file-tree level is the presence of `skills/sync/SKILL.md`. Authoring
+ * tools (the `plugin-toolkit` bundle) live in the dedicated
+ * `agntux-plugin-dev` marketplace and are not in this repo.
  *
  * Catches the "next ingest plugin silently ships the old shape" failure
  * mode the code reviewer flagged.
@@ -38,8 +39,8 @@ function listPlugins(): string[] {
 
 function isIngestPlugin(slug: string): boolean {
   // The structural discriminator: shipping a sync skill makes a plugin an
-  // ingest plugin. agntux-core (orchestrator) and plugin-toolkit (authoring
-  // bundle) don't — they're correctly excluded.
+  // ingest plugin. agntux-core (orchestrator) doesn't — it's correctly
+  // excluded.
   return existsSync(join(PLUGINS_DIR, slug, "skills", "sync", "SKILL.md"));
 }
 

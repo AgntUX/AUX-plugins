@@ -45,25 +45,6 @@
         "action-items"
       ],
       "category": "communication"
-    },
-    {
-      "name": "plugin-toolkit",
-      "source": "./plugins/plugin-toolkit",
-      "description": "Authoring and maintainer toolkit for the AgntUX plugin marketplace. Bundles the /plugin-toolkit:author orchestrator (with 7 specialist agents) and the /plugin-toolkit:maintain runbook skill.",
-      "version": "0.1.0",
-      "author": {
-        "name": "AgntUX"
-      },
-      "homepage": "https://agntux.ai/plugins/plugin-toolkit",
-      "license": "Elastic-2.0",
-      "keywords": [
-        "agntux",
-        "plugin-author",
-        "marketplace",
-        "tooling",
-        "skills"
-      ],
-      "category": "developer-tools"
     }
   ]
 }

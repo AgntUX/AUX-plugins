@@ -227,48 +227,6 @@
         "cursor_semantics": "Single JSON map (one line) under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts).",
         "source_id_format": "`<channel_id>#<thread_ts>` for thread-rooted artefacts; `<channel_id>#<ts>` for non-threaded messages."
       }
-    },
-    "plugin-toolkit": {
-      "tagline": "Authoring + maintainer toolkit for AgntUX plugins — skills, agents, runbooks.",
-      "description": "Authoring and maintainer toolkit. `/plugin-toolkit:author` is a slim\norchestrator delegating to 7 specialist agents (manifest, ingest\nprompt, source semantics, draft flow, tests, invariants, release).\n`/plugin-toolkit:maintain` inlines maintainer runbooks (PR review,\nrollback, kill-switch, canonical-hook updates, secret rotation).\nAuto-triggers on plugin metadata edits; load-bearing rules stay\ninline so every agent inherits them.\n",
-      "categories": [
-        "developer-tools"
-      ],
-      "keywords": [
-        "agntux",
-        "plugin-author",
-        "marketplace",
-        "tooling",
-        "skills"
-      ],
-      "available_on": [
-        "trial",
-        "pro",
-        "team",
-        "enterprise"
-      ],
-      "supported_prompts": [
-        {
-          "prompt": "/plugin-toolkit:author",
-          "purpose": "Authoring orchestrator. Auto-triggers on plugins/{slug}/ edits; delegates to 7 specialist agents."
-        },
-        {
-          "prompt": "/plugin-toolkit:maintain",
-          "purpose": "Maintainer runbooks: PR review, rollback, kill-switch, canonical-hook update, secret rotation, CI map."
-        }
-      ],
-      "support": {
-        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aplugin-toolkit",
-        "email": "support@agntux.ai"
-      },
-      "requires_plugins": [
-        "agntux-core"
-      ],
-      "developer": {
-        "name": "AgntUX",
-        "url": "https://agntux.ai",
-        "github_handle": "agntux"
-      }
     }
   }
 }

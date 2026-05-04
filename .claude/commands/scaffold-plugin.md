@@ -8,9 +8,15 @@ You are scaffolding a new AgntUX ingest plugin. The slug and source display
 name are in `$ARGUMENTS` — expected format: `<slug> <Source Display Name>`,
 e.g. `agntux-linear Linear` or `agntux-gmail Gmail`.
 
-Read `plugins/plugin-toolkit/skills/author/SKILL.md` end-to-end before doing
+Read the `plugin-toolkit` authoring skill end-to-end before doing
 anything that mutates the tree. That skill is the spec for what you're
-about to scaffold; this command is its automation half.
+about to scaffold; this command is its automation half. `plugin-toolkit`
+now lives in the
+[`agntux-plugin-dev`](https://github.com/AgntUX/agntux-plugin-dev)
+marketplace — install via `/plugin marketplace add
+https://github.com/AgntUX/agntux-plugin-dev` then `/plugin install
+plugin-toolkit@agntux-plugin-dev` so you can read its `author` skill
+locally.
 
 ## Parse arguments
 
@@ -91,7 +97,8 @@ your source actually produces signal the user cares about. Examples:
 security feeds), `Every 30 min, 7am–10pm weekdays only` (chat during
 work hours; quiet otherwise; conserves tokens), `Weekly Friday 16:00`
 (low-volume weekly summary), `0,30 7-22 * * 1-5` (cron syntax). See
-`plugins/plugin-toolkit/agents/manifest-author.md` for the rubric."
+the `manifest-author` specialist in `plugin-toolkit` (now in the
+`agntux-plugin-dev` marketplace) for the rubric."
 
 ### Step 3 — `LICENSE`
 
@@ -185,10 +192,12 @@ Skip this step for read-only sources (notes folders, analytics
 dashboards, any source without write tools).
 
 If the source has write tools (Slack send, Gmail send, Linear comment,
-HubSpot note, Jira transition, etc.), copy
-`plugins/plugin-toolkit/skills/author/templates/draft-subagent.md` (the
-fenced markdown block) into `plugins/{slug}/skills/draft/SKILL.md` and
-substitute the placeholders (`{plugin-slug}`, `{source-display-name}`,
+HubSpot note, Jira transition, etc.), copy the `draft-subagent`
+template from the `plugin-toolkit` author skill (now in the
+`agntux-plugin-dev` marketplace, under
+`plugins/plugin-toolkit/skills/author/templates/draft-subagent.md`) —
+the fenced markdown block — into `plugins/{slug}/skills/draft/SKILL.md`
+and substitute the placeholders (`{plugin-slug}`, `{source-display-name}`,
 source-specific tool names per Step 2 of the skeleton).
 
 The drafting skill's frontmatter MUST end up with `context: fork` +
@@ -482,6 +491,13 @@ After all 13 steps complete, tell the user (concise — under 200 words):
 > review the addition deliberately.
 
 Do NOT commit, push, or run the linter. Leave that to the user.
+
+## After scaffolding — UI handler authoring
+
+After scaffolding, if your plugin needs an MCP App UI handler,
+install `plugin-toolkit` from the
+[`agntux-plugin-dev`](https://github.com/AgntUX/agntux-plugin-dev)
+marketplace and run its `ui-handler-author` specialist.
 
 ## What this command does NOT do
 

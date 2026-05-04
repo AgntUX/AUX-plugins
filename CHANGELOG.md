@@ -1,0 +1,14 @@
+# Changelog
+
+All notable changes to the AUX-plugins marketplace are documented here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Removed
+- `plugin-toolkit` plugin moved to the dedicated
+  [`agntux-plugin-dev`](https://github.com/AgntUX/agntux-plugin-dev)
+  marketplace. Authors now install plugin-toolkit from the new
+  marketplace; AUX-plugins ships only end-user plugins going forward.
