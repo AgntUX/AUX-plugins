@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.3.1] — 2026-05-04
+
+### Added
+- **`hooks/validate-contract.mjs` — PreToolUse linter for per-plugin contract files** (`<agntux project root>/data/schema/contracts/*.md`). Catches the broken "`## reason_class additions` section listing sub-tags by action_class" framing at PR / authoring time, before a real sync run tries to write a rejected action item. Three rules: (1) reject any contract containing a `## reason_class additions` header — sub-tags like `dm`, `mention`, `escalation` are NOT valid `reason_class` values, they belong in `reason_detail`; (2) every value listed in a `## reason_class enum` block MUST be in `schema.lock.json → action_classes`; (3) the value-by-action_class shape (`For **\`<class>\`**:` followed by sub-tag bullets) is rejected under any header containing the substring `reason_class`, even if the header is renamed.
+- `__tests__/validate-contract.test.mjs` — 8 unit tests covering the rules above plus pass-through cases (out-of-scope path, fenced code-block examples, pre-bootstrap).
+
+### Changed
+- `agents/data-architect.md` — added a universal `## reason_class discipline` section with explicit rules + a worked negative example (the broken framing) and a positive example (the correct framing). Mode A Stage 5 (`actions/_index.md` write) and Mode B Stage 5 (contract write) both reference it. Closes the upstream gap that let the broken framing land in the first place: the prompt previously left `## reason_class notes` underspecified, so the subagent invented its own sub-categorisation framing.
+- `data/schema-template/actions/_index.md` — clarified the `## reason_class enum` description so the closed-enum invariant is explicit. Replaced the ambiguous "Plugins may propose additional `reason_class` values via `proposed_schema → action_classes`" sentence (which conflated two field names) with unambiguous wording, plus a worked example contract showing the correct `## Action_class usage` + `## reason_detail prefixes` shape.
+
+### Migration
+- No user action required. Existing contracts authored before 4.3.1 are NOT auto-rewritten; the new linter only fires on writes (Write/Edit) to contract files. If a tenant already has a contract with the broken framing, the next architect-driven edit to that file will be blocked with a fixit message pointing to the renamed `## reason_detail prefixes` convention. Pre-bootstrap (no `schema.lock.json` yet) passes through silently.
+
 ## [4.3.0] — 2026-05-04
 
 ### Added

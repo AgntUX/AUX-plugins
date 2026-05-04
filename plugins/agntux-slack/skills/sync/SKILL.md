@@ -222,6 +222,17 @@ For each result:
 
 **First-run consent failure.** `slack_search_public_and_private` requires user consent. If the host returns a consent-denied error on any of the three queries, log kind `auth` to `sync.md → errors` with the message `"slack search consent denied — grant the connector's search permission and re-run /agntux-slack:sync"` and exit cleanly. Do NOT proceed with per-channel polling — without discovery the coverage is incomplete and we'd false-advertise "no missed activity".
 
+### Step 5c-pre — Drain bootstrap-deferred null thread cursors (every run)
+
+Before walking channel cursors, iterate every thread-shaped key in the cursor map (key contains a `#` separator) whose value is `null`. For each:
+
+1. Call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` so the whole thread is returned.
+2. Add `<channel_id>#<thread_ts>` to the working-memory `fanned_out` set so Step 5c's per-channel pass and Step 5d's per-thread pass won't re-fetch.
+3. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply ts processed (or the parent ts if the thread has no replies yet — never leave a thread-shaped key with `null` after a successful read).
+4. On failure (rate limit, permission, deleted parent), log `kind: source` to `sync.md → errors` with `thread_id: <channel_id>#<thread_ts>` and leave the cursor unchanged for the next run.
+
+This runs on **every run**, not just bootstrap. Bootstrap-deferred `null` thread cursors must NEVER survive a second scheduled run untouched. A user-interrupted bootstrap (per Step 4) or thread-shaped keys upserted in Step 5b can leave `null` entries; this pass guarantees they get drained before any other work — closes the gap where Step 5d (which only runs after the per-channel pass) could leave a `null` indefinitely if the per-channel pass crashed first.
+
 ### Step 5c — Per-channel polling (bulk of the work)
 
 Walk every **channel-shaped key** in the cursor map (key has no `#` separator) in **cursor-stale order** (oldest cursor first; channels with `null` cursor are processed before the rest of the bootstrap-window batch). For each:
@@ -229,7 +240,7 @@ Walk every **channel-shaped key** in the cursor map (key has no `#` separator) i
 1. If `cursor[<channel_id>] === null` → bootstrap read using `bootstrap_window_days` from `user.md` (default 7). Call `slack_read_channel(channel_id, oldest: <now − window>, limit: 100)`.
 2. If `cursor[<channel_id>] === "<ts>"` → incremental read. Call `slack_read_channel(channel_id, oldest: <ts>, limit: 100)`.
 3. Paginate via the returned `cursor` until no more results or the **200-message-per-channel cap** is hit. If the cap is hit, log a `slack-channel-truncated` warning to `sync.md → errors` and continue — next run will pick up from the advanced cursor.
-4. **Thread fanout — pull every thread, always.** For each message returned by `slack_read_channel`, treat ANY of the following as evidence of thread activity: `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, OR the message appears as a `thread_ts` parent of any other message fetched in this run. If any of those is true, you MUST call `slack_read_thread(channel_id, message_ts: <parent_ts>, limit: 1000)` to pull the full thread. **Do not rely on `reply_count` alone — Slack frequently omits it on `slack_read_channel` payloads, especially in DMs and private channels.** Skipping a thread because a single field was missing is the correctness defect this rule fixes.
+4. **Thread fanout — pull every thread, always.** For each message returned by `slack_read_channel`, treat ANY of the following as evidence of thread activity: `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, the message appears as a `thread_ts` parent of any other message fetched in this run, OR the message envelope contains a literal trailing line of the form `Thread: N replies (latest: YYYY-MM-DD HH:MM:SS TZ)` for any `N >= 1` (the Slack MCP `slack_read_channel` detailed format does not return a numeric `reply_count`; thread presence is signaled only by this envelope line). If any of those is true AND `<channel_id>#<parent_ts>` is NOT already in the `fanned_out` set (Step 5c-pre may have already drained it this run), you MUST call `slack_read_thread(channel_id, message_ts: <parent_ts>, limit: 1000)` to pull the full thread. **Do not rely on `reply_count` alone — Slack frequently omits it on `slack_read_channel` payloads, especially in DMs and private channels.** Skipping a thread because a single field was missing is the correctness defect this rule fixes.
 
    The `<parent_ts>` is `thread_ts` when the message is a reply (`thread_ts !== ts`), or the message's own `ts` when it is itself a parent. Track every fetched parent in the working-memory `fanned_out` set keyed by `<channel_id>#<thread_ts>` and add the same key to the cursor map with the newest reply ts as value. Step 5d skips anything in `fanned_out`.
 
@@ -240,10 +251,10 @@ If processing exceeds 50 channels in one run, log a `slack-large-backlog` warnin
 
 ### Step 5d — Per-thread pass (catch new replies on old parents)
 
-After per-channel polling completes, walk every **thread-shaped key** in the cursor map (key contains a `#` separator) **that is NOT in the `fanned_out` set from Step 5c** (those threads were just fetched as part of per-channel polling and re-fetching would be wasted work). For each remaining `<channel_id>#<thread_ts>` entry:
+After per-channel polling completes, walk every **thread-shaped key** in the cursor map (key contains a `#` separator) **that is NOT in the `fanned_out` set from Step 5c-pre or Step 5c** (those threads were just fetched and re-fetching would be wasted work). For each remaining `<channel_id>#<thread_ts>` entry:
 
-1. **Bootstrap branch** — if `cursor[<channel_id>#<thread_ts>] === null` (newly discovered thread, never fetched): call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` so the whole thread is returned.
-2. **Incremental branch** — if `cursor[<channel_id>#<thread_ts>]` is a `<ts>` string: call `slack_read_thread(channel_id, message_ts: thread_ts, oldest: <ts>, limit: 1000)`.
+1. **Incremental branch (steady-state path)** — if `cursor[<channel_id>#<thread_ts>]` is a `<ts>` string: call `slack_read_thread(channel_id, message_ts: thread_ts, oldest: <ts>, limit: 1000)`.
+2. **Bootstrap branch (fallback only)** — if `cursor[<channel_id>#<thread_ts>] === null`, this entry should have already been drained by Step 5c-pre. Reaching this branch means 5c-pre was skipped or crashed mid-pass. Treat as fallback: call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` and proceed. Do not silently skip null cursors here — leaving them in place is the original defect 5c-pre was added to fix.
 3. New replies feed the same dedup pipeline (Step 6 onward).
 4. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `ts` processed (or the parent ts if the thread has no replies yet — never leave a thread-shaped key with `null` after a successful read).
 
@@ -253,7 +264,7 @@ After per-channel polling completes, walk every **thread-shaped key** in the cur
 
 After per-channel and per-thread fetching complete, walk every parent message processed in this run and verify thread coverage. For each parent:
 
-1. Either (a) it had no thread evidence at all (none of `reply_count`, `reply_users_count`, `latest_reply`, `thread_ts`, and it never appeared as a parent of another fetched message), OR
+1. Either (a) it had no thread evidence at all (none of `reply_count`, `reply_users_count`, `latest_reply`, `thread_ts`, no `Thread: N replies` envelope line, and it never appeared as a parent of another fetched message), OR
 2. (b) `<channel_id>#<parent_ts>` is in the `fanned_out` set OR has a non-null cursor value in the cursor map, OR
 3. (c) the per-thread fetch in Step 5d covered it.
 

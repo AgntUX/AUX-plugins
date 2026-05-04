@@ -45,6 +45,8 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 
 ## `reason_class` enum
 
+`reason_class` is the closed action_class enum — every value lives in `schema.lock.json → action_classes`. The validator rejects anything else at action-item write time.
+
 | Class | Description |
 |---|---|
 | `deadline` | Item has a hard date. |
@@ -54,7 +56,31 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 | `opportunity` | Something worth pursuing. |
 | `other` | Escape hatch. Requires `reason_detail`. |
 
-Plugins may propose additional `reason_class` values via `proposed_schema → action_classes`. The architect approves them in Mode B; once approved they appear in `schema.lock.json → action_classes` and the validator accepts them on writes from that plugin.
+Plugins propose new action_classes via `proposed_schema → action_classes` in their `marketplace/listing.yaml`; once approved by the architect in Mode B, they are added to `schema.lock.json → action_classes` and become valid `reason_class` values. **Sub-categorisation that depends on context (per-message details) goes in `reason_detail`** — typically as a square-bracket prefix, e.g. `reason_detail: "[dm] John asked for sign-off"`. Per-plugin contracts MAY document recommended `reason_detail` prefix conventions under a `## reason_detail prefixes` section; those are authoring aids, not a closed enum.
+
+### Worked example — contract framing
+
+A plugin contract grants the canonical six action classes plus a custom `partner-signal` class. The correct shape:
+
+```markdown
+## Action_class usage
+
+The plugin uses these action classes (matches `schema.lock.json → action_classes`):
+
+- `response-needed` — DM to user, @-mention, decision request.
+- `partner-signal` — happiness signal from a partner platform.
+- `knowledge-update`, `risk`, `opportunity`, `deadline`, `other` — canonical six.
+
+## reason_detail prefixes
+
+These prefixes go at the start of `reason_detail` in square brackets, e.g. `reason_detail: "[dm] John asked for sign-off"`. They are NOT valid `reason_class` values.
+
+For **`response-needed`**: `[dm]`, `[mention]`, `[decision-request]`.
+
+For **`partner-signal`**: `[escalation]`, `[kudos]`, `[churn-risk]`.
+```
+
+A contract MUST NOT contain a `## reason_class additions` section listing per-action_class sub-tags — every such tag is a `reason_detail` prefix and `reason_class: dm` (or any other sub-tag) is rejected by the validator.
 
 ## Body sections (required, in this order)
 
