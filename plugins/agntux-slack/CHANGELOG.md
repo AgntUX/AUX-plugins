@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-05-04
+
+### Added
+- **Step 5c-pre — Drain bootstrap-deferred null thread cursors (every run).** Before walking channel cursors, iterate every thread-shaped key (`<channel_id>#<thread_ts>`) whose value is `null` and call `slack_read_thread` to drain it, advancing the cursor to the newest reply ts processed. Bootstrap-deferred null thread cursors used to survive across runs if the per-channel pass crashed before Step 5d ran (Step 5d ran AFTER per-channel polling); 5c-pre runs FIRST every scheduled tick so a `null` thread cursor never persists past the next successful invocation.
+- **`Thread: N replies` envelope-line trigger** in Step 5c heuristic 4. The Slack MCP `slack_read_channel` detailed format does not return a numeric `reply_count` — thread presence is signaled by a literal trailing line `Thread: N replies (latest: YYYY-MM-DD HH:MM:SS TZ)` in the message envelope. Without recognising that line, threads on messages without a `reply_count` field were silently skipped. Step 5e heuristic (a) (the orphan-thread coverage check) now also recognises the envelope line so it doesn't false-positive.
+
+### Changed
+- **Step 5d's bootstrap branch is now a defensive fallback only.** Step 5c-pre owns the steady-state path of draining null thread cursors. Step 5d's branch is retained so a partial 5c-pre run (host crash, hook timeout) doesn't cause data loss — but reaching it is unexpected, and the prompt now explicitly notes this so the agent doesn't silently skip null cursors.
+
+### Migration
+- No user action required. Existing thread cursors are unaffected; the change only governs how `null`-valued thread cursors are drained on subsequent runs (sooner, regardless of where they came from).
+
 ## [1.1.0] — 2026-05-04
 
 ### Added

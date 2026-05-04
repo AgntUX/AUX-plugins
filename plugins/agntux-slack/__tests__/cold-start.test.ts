@@ -256,6 +256,48 @@ describe("ingest skill prompt", () => {
 // Pass 3.5 — 1.1.0 behavior changes (post-test feedback fixes)
 // ---------------------------------------------------------------------------
 
+describe("sync skill 1.1.1 — Step 5c-pre drains null thread cursors every run", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 5c-pre heading exists and is positioned between 5b and 5c", () => {
+    const step5b = src.indexOf("### Step 5b — Discovery sweep");
+    const step5cPre = src.indexOf("### Step 5c-pre — Drain bootstrap-deferred null thread cursors");
+    const step5c = src.indexOf("### Step 5c — Per-channel polling");
+    expect(step5b).toBeGreaterThan(0);
+    expect(step5cPre).toBeGreaterThan(step5b);
+    expect(step5c).toBeGreaterThan(step5cPre);
+  });
+
+  it("Step 5c-pre runs on every run, not just bootstrap", () => {
+    expect(src).toMatch(/runs on \*\*every run\*\*/);
+    expect(src).toMatch(/Bootstrap-deferred `null` thread cursors must NEVER survive/);
+  });
+
+  it("Step 5c-pre advances null thread cursors so they don't survive a successful read", () => {
+    expect(src).toMatch(/never leave a thread-shaped key with `null` after a successful read/);
+  });
+
+  it("Step 5d's bootstrap branch is now a fallback (5c-pre owns the steady-state)", () => {
+    expect(src).toMatch(/Bootstrap branch \(fallback only\)/);
+    expect(src).toMatch(/this entry should have already been drained by Step 5c-pre/);
+  });
+});
+
+describe("sync skill 1.1.1 — `Thread: N replies` envelope trigger", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("Step 5c heuristic 4 lists the `Thread: N replies` envelope line as thread evidence", () => {
+    expect(src).toContain("`Thread: N replies (latest: YYYY-MM-DD HH:MM:SS TZ)`");
+    expect(src).toMatch(/slack_read_channel` detailed format does not return a numeric `reply_count`/);
+  });
+
+  it("Step 5e heuristic (a) folds the envelope line into the no-evidence disjunction", () => {
+    expect(src).toMatch(/no `Thread: N replies` envelope line/);
+  });
+});
+
 describe("sync skill 1.1.0 — thread fanout broadened (correctness fix)", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
   const src = readMd(syncSkill);

@@ -60,6 +60,26 @@ describe("hooks.json structure", () => {
     expect(entry).toBeDefined();
     expect(entry.matcher).toBe("Write|Edit");
   });
+
+  it("has PreToolUse lane with validate-schema and Write|Edit matcher", () => {
+    const hooks = JSON.parse(readFileSync(join(HOOKS_DIR, "hooks.json"), "utf8"));
+    const preToolUse = hooks.hooks?.PreToolUse;
+    const entry = preToolUse.find((e) =>
+      (e.hooks ?? []).some((h) => (h.command ?? "").includes("validate-schema.mjs"))
+    );
+    expect(entry).toBeDefined();
+    expect(entry.matcher).toBe("Write|Edit");
+  });
+
+  it("has PreToolUse lane with validate-contract and Write|Edit matcher", () => {
+    const hooks = JSON.parse(readFileSync(join(HOOKS_DIR, "hooks.json"), "utf8"));
+    const preToolUse = hooks.hooks?.PreToolUse;
+    const entry = preToolUse.find((e) =>
+      (e.hooks ?? []).some((h) => (h.command ?? "").includes("validate-contract.mjs"))
+    );
+    expect(entry).toBeDefined();
+    expect(entry.matcher).toBe("Write|Edit");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -77,6 +97,14 @@ describe("hook files exist", () => {
 
   it("hooks/maintain-index.mjs exists", () => {
     expect(existsSync(join(HOOKS_DIR, "maintain-index.mjs"))).toBe(true);
+  });
+
+  it("hooks/validate-schema.mjs exists", () => {
+    expect(existsSync(join(HOOKS_DIR, "validate-schema.mjs"))).toBe(true);
+  });
+
+  it("hooks/validate-contract.mjs exists", () => {
+    expect(existsSync(join(HOOKS_DIR, "validate-contract.mjs"))).toBe(true);
   });
 });
 

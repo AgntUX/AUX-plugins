@@ -166,7 +166,7 @@ Write atomically, in this order:
 
 1. **`<agntux project root>/data/schema/entities/_index.md`** — list of approved subtypes + which plugin "owns" each (none on bootstrap; plugins claim ownership in Mode B).
 2. **`<agntux project root>/data/schema/entities/{subtype}.md`** — one file per approved subtype. Sections: `## Description`, `## Required frontmatter`, `## Optional frontmatter`, `## Body sections`, `## Aliases`.
-3. **`<agntux project root>/data/schema/actions/_index.md`** — action_class enum with descriptions, plus `## Priority` (high/medium/low semantics from P3 §4.3) and `## reason_class` notes.
+3. **`<agntux project root>/data/schema/actions/_index.md`** — action_class enum with descriptions, plus `## Priority` (high/medium/low semantics from P3 §4.3) and `## reason_class` notes. Frame `reason_class` as the closed action_class enum (see `## reason_class discipline` below) — NOT as a sub-categorisation vocabulary.
 4. **`<agntux project root>/data/schema/schema.md`** — top-level master contract; references the per-subtype files; sets `schema_version: "1.0.0"`.
 5. **`<agntux project root>/data/schema/schema.lock.json`** — deterministic digest. See §Lock-file invariants below.
 
@@ -265,6 +265,8 @@ cursor_semantics: {from proposed_schema, if present}
 - {one-line summary of the install review and any merges/renames}
 ```
 
+**Contract framing discipline.** Before writing the contract, read `## reason_class discipline (universal)` below. The contract MUST NOT contain a `## reason_class additions` section listing per-action_class sub-tags — that pattern is broken (see negative example). If the plugin's `proposed_schema` describes sub-tags this way, reframe them as `## reason_detail prefixes`.
+
 Then:
 1. Update any modified `entities/{subtype}.md` files (e.g., adding the new alias).
 2. Regenerate `schema.lock.json`.
@@ -309,7 +311,7 @@ Walk the user through the specific edit. Translate their natural-language ask to
 - **Field add (optional)**: edit `## Optional frontmatter`. No migration warning.
 - **Field add (required)**: edit `## Required frontmatter`. Append a one-line warning to `data/schema-warnings.md`. Existing entities will lack it until migration lands — disclose this in plain language: "I'll start asking for {field} on new {plain-language entities}; older ones won't have it until I do a sweep."
 - **Field rename**: edit, record old name as deprecated alias inline. Append warning if required.
-- **Action_class add**: edit `actions/_index.md`. Update contracts that should grant the class.
+- **Action_class add**: edit `actions/_index.md` (the new class is added to the closed `reason_class` enum — see `## reason_class discipline` below). Update contracts that should grant the class. Sub-categorisation requests (e.g. "track which DMs are from execs") are NEVER new action_classes — those go in `reason_detail` via per-plugin prefix conventions documented in the contract's `## reason_detail prefixes` section.
 - **Action_class remove**: only if no contract grants it; otherwise refuse and surface which contracts still allow it. (Removal is non-additive — refuse politely and propose an additive workaround like "I'll stop using {class} as a default but keep it on the books in case you change your mind.")
 - **Field remove (required)**: refuse. Propose making it optional instead, then ignoring it in practice.
 
@@ -328,6 +330,55 @@ Update affected files, regenerate `schema.lock.json`, confirm in plain language:
 > Done. {one-line plain summary of what changed.}
 
 If the change came from `data/schema-requests.md`, remove the consumed entry from the queue (Edit the file). If empty, delete the file or leave just the header.
+
+---
+
+## reason_class discipline (universal)
+
+Applies to every Mode A `actions/_index.md` write, every Mode B contract write, and every Mode C edit that touches `actions/_index.md` or a contract. Two enforcement layers: `hooks/validate-schema.mjs` rejects bad action items at runtime; `hooks/validate-contract.mjs` rejects bad contract framing at authoring time. Don't author docs that contradict either.
+
+- **`reason_class` is the closed action_class enum** from `schema.lock.json → action_classes`. It is NOT a sub-categorisation vocabulary. Anything not in that enum is rejected at action-item write time.
+- **When a plugin proposes new action classes** (via `proposed_schema → action_classes` in `marketplace/listing.yaml`), document them in the contract's `## Action_class usage` section AND ensure they land in `schema.lock.json → action_classes` when you regenerate the lock. They become valid `reason_class` values once approved.
+- **Sub-categorisation that varies per action item** goes in `reason_detail` (free-text). Plugins MAY document recommended `reason_detail` prefix conventions like `[dm]`, `[mention]`, `[escalation]`, `[kickoff]` — these are authoring aids, not a closed enum, and they live in the contract under a `## reason_detail prefixes` section.
+- **A contract MUST NOT contain a `## reason_class additions` section** listing sub-tags by action_class. That framing is broken — every value in such a list is a `reason_detail` prefix, not a `reason_class`. If a plugin's `proposed_schema` arrives with sub-tags described this way, reframe them as `## reason_detail prefixes` before writing the contract.
+
+**Negative example (DO NOT WRITE THIS):**
+
+```markdown
+## reason_class additions
+
+For **`response-needed`**:
+- `dm` — direct DM to the user.
+- `mention` — @-mention of the user in a channel.
+
+For **`partner-signal`**:
+- `escalation` — explicit complaint or "this is broken" message.
+- `kudos` — positive thanks message.
+```
+
+This rejects every action item it produces — `reason_class: dm` is not a valid `reason_class` (the validator's lock-file enum does not include `dm`).
+
+**Positive example (THE CORRECT FRAMING):**
+
+```markdown
+## reason_class enum
+
+`reason_class` carries the canonical action_class enum. Closed set, mirrored from `schema.lock.json → action_classes`. For this plugin: `deadline`, `response-needed`, `knowledge-update`, `risk`, `opportunity`, `other`, plus any OatFi-specific classes the contract grants.
+
+## reason_detail prefixes
+
+These tags go at the start of `reason_detail` in square brackets, e.g. `reason_detail: "[dm] John asked for sign-off"`. They are NOT valid values for `reason_class`.
+
+For **`response-needed`**:
+- `[dm]` — direct DM to the user.
+- `[mention]` — @-mention of the user in a channel.
+
+For **`partner-signal`**:
+- `[escalation]` — explicit complaint or "this is broken" message.
+- `[kudos]` — positive thanks message.
+```
+
+Action items written under this framing pass validation: `reason_class: response-needed` is in the enum; the `[dm]` prefix lives inside `reason_detail` where free text is allowed.
 
 ---
 
