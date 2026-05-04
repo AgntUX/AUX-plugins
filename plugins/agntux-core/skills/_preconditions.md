@@ -51,10 +51,13 @@ the prerequisite.
 
 ### 0. Project root
 
-Confirm the active project root is exactly `<agntux project root>/`. If it isn't,
-fail loud — say one sentence: "AgntUX requires the project to be
-`<agntux project root>/`. Create that folder, select it in your host's project
-picker, then re-invoke me." — and stop.
+Run [`_resolve-root.md`](./_resolve-root.md). Walk the resolution
+ladder (cwd basename → ancestor → `~/agntux` → offer onboarding).
+On a successful resolution, continue with the next check using the
+resolved root for every `<agntux project root>` reference below.
+On step 4 routing to `/agntux-onboard`, or on the user declining,
+exit Check 0 (no further checks fire — onboarding owns the rest of
+the flow, or the user opted out).
 
 ### 0.5. Plugin reconciliation (auto-correct, never blocks)
 

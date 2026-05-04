@@ -62,6 +62,14 @@ describe("agntux-core skills directory structure", () => {
     expect(existsSync(join(SKILLS_DIR, "_preconditions.md"))).toBe(true);
   });
 
+  it("the shared _resolve-root.md reference exists", () => {
+    // Owns the resolve-then-route ladder Check 0 of _preconditions.md
+    // delegates to. Removing it would silently re-introduce the old
+    // fail-loud refusal behaviour for users with ~/agntux populated
+    // but a non-agntux cwd.
+    expect(existsSync(join(SKILLS_DIR, "_resolve-root.md"))).toBe(true);
+  });
+
   for (const name of NAMED_SKILLS) {
     describe(`/${name}`, () => {
       const dirPath = join(SKILLS_DIR, name);

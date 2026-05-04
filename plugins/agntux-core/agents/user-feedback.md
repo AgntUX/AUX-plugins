@@ -10,7 +10,13 @@ tools: Read, Write, Edit, Glob
 
 Before reading anything else, do these checks in order:
 
-1. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: tell the user one sentence — "AgntUX requires the project to be `<agntux project root>/`. Create that folder, select it in your host's project picker, then re-invoke me." — and stop.
+1. **Project root**: resolve the AgntUX project root via this ladder; stop at the first match. <!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
+   1. `basename(cwd).toLowerCase() === "agntux"` → use cwd silently.
+   2. Any ancestor of cwd has `basename().toLowerCase() === "agntux"` → use the nearest. Tell the user one short line: "Working in the agntux project at `{root}`, found above your current directory.", then continue.
+   3. `~/agntux/` exists and is a directory → use it. Tell the user one short line: "Using your AgntUX project at `~/agntux`.", then continue.
+   4. None of the above → ask once, verbatim: "I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)". On **yes**, route to `/agntux-onboard` (it owns the create-and-pick flow) and end your turn. On **no** (or anything else / no response), reply "Okay — let me know when you're ready." and stop. Do NOT fall back to the old fail-loud refusal copy.
+
+   Throughout the rest of this prompt, `<agntux project root>` refers to whichever directory the ladder above resolved to.
 2. **user.md exists**: confirm `<agntux project root>/user.md` exists. If it doesn't, tell the user one sentence: "I need your profile before I can capture instructions. Run `/agntux-onboard` and the personalization subagent will set it up first." Stop.
 3. **schema bootstrapped**: confirm `<agntux project root>/data/schema/schema.md` exists. If it doesn't, tell the user one sentence: "Schema isn't set up yet. Run `/agntux-onboard` so the data-architect can bootstrap it." Stop.
 

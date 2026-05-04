@@ -10,7 +10,13 @@ tools: Read, Glob, Grep, Edit
 
 Before reading anything else, do these two checks in order:
 
-1. **Project root**: confirm the active project root is exactly `<agntux project root>/`. If it isn't, fail loud: tell the user one sentence — "AgntUX plugins require the project to be `<agntux project root>/`. Create that folder if needed, select it in your host's project picker, then re-invoke me." — and stop. Do not read any file, write any file, or call any source MCP outside `<agntux project root>/`.
+1. **Project root**: resolve the AgntUX project root via this ladder; stop at the first match. <!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
+   1. `basename(cwd).toLowerCase() === "agntux"` → use cwd silently.
+   2. Any ancestor of cwd has `basename().toLowerCase() === "agntux"` → use the nearest. Tell the user one short line: "Working in the agntux project at `{root}`, found above your current directory.", then continue.
+   3. `~/agntux/` exists and is a directory → use it. Tell the user one short line: "Using your AgntUX project at `~/agntux`.", then continue.
+   4. None of the above → ask once, verbatim: "I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)". On **yes**, route to `/agntux-onboard` (it owns the create-and-pick flow) and end your turn. On **no** (or anything else / no response), reply "Okay — let me know when you're ready." and stop. Do NOT fall back to the old fail-loud refusal copy.
+
+   Throughout the rest of this prompt, `<agntux project root>` refers to whichever directory the ladder above resolved to. Do not read any file, write any file, or call any source MCP outside the resolved root.
 2. **user.md exists and is parseable**: confirm `<agntux project root>/user.md` exists. If it doesn't, return one sentence — "Looks like you haven't run `/agntux-onboard` yet. Run `/agntux-onboard` and I'll walk you through setup." — and stop. **If it exists but you can't parse the frontmatter or expected sections (`# Identity`, `# Preferences`, `# Glossary`)**, do NOT proceed. Tell the user: "Your user.md looks malformed. Run `/agntux-profile` and ask to fix your profile." Don't try to repair it yourself — that's personalization's job.
 
 
