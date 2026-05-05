@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.1.0] — 2026-05-04
+
+### Added
+- **`@agntux/orchestrator-mcp-server/agntux-root` subpath export.** The
+  `resolveAgntuxRoot` / `expectedAgntuxRoot` resolver pair is now part of
+  this plugin's public MCP-server surface so sibling AgntUX plugins (the
+  first consumer is `agntux-slack`'s new `mcp-server/` for the
+  `ui://slack-compose` and `ui://slack-canvas` UI handlers) can import it
+  via:
+
+  ```ts
+  import { expectedAgntuxRoot } from "@agntux/orchestrator-mcp-server/agntux-root";
+  ```
+
+  Previously the resolver was internal to `agntux-core`'s MCP server and
+  every new plugin that needed local-filesystem access had to vendor-copy
+  the file. Re-exporting keeps the resolver in one place — when the
+  resolution algorithm changes (e.g., a new fallback heuristic), every
+  consumer picks it up on the next install. The export is surfaced under
+  `package.json → exports["./agntux-root"]` with both `types` and
+  `import` conditions so NodeNext consumers get full type information
+  without an extra `@types/` shim.
+- `package.json → types` field added at the package root for editors that
+  ignore the conditional `exports` typings.
+
+### Changed
+- `mcp-server` package version 1.0.0 → 1.1.0 (MINOR — additive surface,
+  no breaking changes). The `.` export shape is unchanged for existing
+  callers (now formally typed via the conditional-export object), so
+  upgrading is a no-op for anything that only consumes the orchestrator's
+  default entry point.
+
+### Migration
+- No user action required. Existing scripts that build the plugin
+  (`(cd mcp-server && npm install && npm run build)`) continue to work
+  unchanged; the new subpath export becomes available automatically once
+  the build runs because tsc already emits `dist/agntux-root.{js,d.ts}`.
+  Plugins that want to consume the resolver add a workspace-relative
+  `file:` dep to their own `mcp-server/package.json`:
+
+  ```json
+  "dependencies": {
+    "@agntux/orchestrator-mcp-server": "file:../../agntux-core/mcp-server"
+  }
+  ```
+
 ## [5.0.0] — 2026-05-04
 
 ### Removed
