@@ -136,7 +136,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 5.0.0 (triage UI + S3→embed migration; entity-browser + pivot retired)", () => {
+  it("plugin.json is at version 5.1.0 (5.1.0 added the @agntux/orchestrator-mcp-server/agntux-root subpath export so sibling plugins can import the resolver)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -146,6 +146,22 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("5.0.0");
+    expect(manifest.version).toBe("5.1.0");
+  });
+
+  it("mcp-server/package.json declares the ./agntux-root subpath export", () => {
+    const mcpPkgPath = join(PLUGIN_ROOT, "mcp-server", "package.json");
+    const pkg = JSON.parse(readFileSync(mcpPkgPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const exports = pkg.exports as Record<string, unknown>;
+    expect(exports).toBeDefined();
+    expect(exports["./agntux-root"]).toBeDefined();
+    // Subpath exports use the conditional shape with both `types` and `import`
+    // fields so NodeNext consumers get full type information.
+    const subpath = exports["./agntux-root"] as Record<string, unknown>;
+    expect(subpath.types).toBe("./dist/agntux-root.d.ts");
+    expect(subpath.import).toBe("./dist/agntux-root.js");
   });
 });
