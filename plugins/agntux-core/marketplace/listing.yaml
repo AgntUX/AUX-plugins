@@ -35,10 +35,7 @@ supported_prompts:
 ui_components:
   - name: "triage"
     title: "Action item triage"
-    purpose: "The primary inline UI. Shows priority-sorted open action items with snooze / dismiss / done buttons."
-  - name: "entity-browser"
-    title: "Entity browser"
-    purpose: "Browse and pivot between people, companies, projects, and topics in your knowledge store."
+    purpose: "The primary inline UI. Priority-sorted open action items with snooze / dismiss / done buttons and per-item suggested-action buttons that route into source plugins."
 screenshot_order:
   - "01-chat.png"
   - "02-action-detail.png"

@@ -1,10 +1,10 @@
 {
-  "args": { "scope": "all" },
-  "prompt": "Call the tool triage_view with arguments {\"scope\":\"all\"}",
+  "args": { "limit": 50 },
+  "prompt": "Call triage_view with arguments {\"limit\":50} and render the result.",
   "interactions": [
-    { "type": "query", "selector": "[data-testid='triage-row']", "max_results": 25 },
-    { "type": "scroll_to", "selector": "[data-testid='triage-row']:last-child" },
-    { "type": "read_text", "selector": "[data-testid='triage-count']" }
+    { "type": "query", "selector": "[data-testid^='action-card-']", "max_results": 50 },
+    { "type": "scroll_to", "selector": "[data-testid^='action-card-']:last-child" },
+    { "type": "query", "selector": "[data-testid='handled-toggle']" }
   ],
-  "_notes": "Wide-scope fetch — exercises list rendering with many rows. Verifies internal scroll, no virtualization regressions, and that the row count matches the tool's actual output."
+  "_notes": "Wide-scope render: passes limit=50 (max). Exercises the inline scroll budget — the body must remain scrollable at the 600px iframe height with many rows. Also queries the handled-toggle accordion trigger to verify the recently-handled section renders."
 }

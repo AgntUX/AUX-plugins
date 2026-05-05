@@ -6,6 +6,111 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-05-04
+
+### Removed
+- **`entity-browser` UI handler.** The `ui://entity-browser` resource, its
+  handler manifest at `agents/ui-handlers/entity-browser.md`, and the
+  `pivot` MCP tool that routed clicks into it have all been deleted.
+  Triage is now the single inline surface this plugin renders. Related-
+  entity badges in the triage UI are non-interactive in 5.0.0 (a click-
+  to-`/agntux-ask` follow-up ships in 5.1.0). Removes one
+  `ui_components` entry from `marketplace/listing.yaml`.
+- **`mcp-server/src/tools/pivot.ts`** and `mcp-server/src/s3-fetch.ts`
+  with their tests. The pivot tool was the only consumer of
+  entity-browser; `s3-fetch` is replaced by the new build-time embed
+  pipeline below.
+
+### Changed
+- **UI bundle distribution: S3 → build-time base64 embed.** The signed-
+  URL S3 fetch flow is retired. `mcp-server/scripts/embed-bundle.mjs`
+  now base64-inlines `ui-handlers/{name}/component/out/index.html` into
+  the compiled MCP server JS at build time; `resources/read` decodes
+  inline. Zero S3 dependency, zero runtime filesystem reads, zero
+  signed-URL expiry. CI guard at
+  `mcp-server/scripts/check-bundle-sync.mjs` fails the build if the
+  embed is stale relative to the component bundle on disk.
+  - Render-token JWT verification still runs in the iframe (extracted to
+    a dedicated `mcp-server/src/license.ts` so the licensing model and
+    distribution model stay in independent files going forward). The
+    `~/.agntux/.license` cache's `signed_ui_base_url` field is no longer
+    consumed by the orchestrator; the license-check hook may continue
+    to populate it for back-compat with older plugin versions.
+  - **MIME type changed** from `text/html` to
+    `text/html;profile=mcp-app` per the MCP App protocol.
+- **`/agntux-triage` skill: rewritten to render the interactive UI.**
+  Interactive invocations call `mcp__agntux-core__triage_view`; the
+  host renders `ui://triage`. Scheduled-background fires (Daily 08:00)
+  preserve the legacy text-digest path via the retrieval subagent. Two
+  paths share the same authoritative source (`<root>/actions/_index.md`
+  + per-action files); neither calls source MCPs directly.
+- **`mcp-server/src/index.ts`: HTTP_MODE for local UI testing.**
+  `HTTP_MODE=1 PORT=<n>` swaps the stdio transport for
+  `StreamableHTTPServerTransport` (stateful, UUID session id). `tools/list`
+  responses now surface the per-tool `_meta.ui.resourceUri` so MCPJam-
+  family hosts that key UI rendering off the tool descriptor (rather
+  than the tool result) render correctly. Stdio remains the default.
+- **`triage_view` MCP tool added.** Reads the local AgntUX project root
+  server-side and returns priority-sorted open actions + recently-handled
+  list. Zero required input fields (`view_handled_days?`, `limit?`
+  optional caps), so the LLM spends ~zero tokens on tool args. Hard
+  budgets enforced server-side: ≤30 actions, ≤10 handled in last 7 days,
+  ≤200/600-char excerpts per body section, capped `related_entities` and
+  `suggested_actions`. This is a justified deviation from the canonical
+  "view tools must be stateless / no fs reads" rule because the data
+  source IS local files.
+
+### Added
+- **Triage UI handler** (`ui://triage`) — inline-budget MCP App
+  rendering priority-sorted open action items with snooze / dismiss /
+  done controls, suggested-action buttons that route to source plugins
+  via `sendFollowUpMessage`, a recently-handled accordion, and degraded
+  states for `actions_index_missing` and `license_paused`. Source-
+  agnostic styling: unknown `reason_class` values fall back to a neutral
+  palette; `source` is rendered as plain text only — no
+  per-source icons or branching UX.
+- **`AGNTUX_ROOT_OVERRIDE` env-var escape hatch on
+  `expectedAgntuxRoot()`.** Enables vitest workers (which can't
+  `process.chdir`) to inject fixture roots, and lets hosts pin the root
+  externally. Production never sets it.
+- **E2E test infrastructure**: `ui-handlers/triage/component/` Vite
+  scaffold from the canonical `_template/`, `mcp-server/scripts/
+  {embed-bundle,check-bundle-sync}.mjs`, four fixture JSON files at
+  `ui-handlers/triage/fixtures/`, and `test:e2e` / `test:e2e:all` /
+  `test:e2e:check` scripts that drive a locally running MCPJam Inspector
+  via `plugin-toolkit-test`. See `ui-handlers/triage/TESTING.md`.
+- **+50 vitest cases**: 21 server-side `triage-view` tests, 26 component
+  triage tests (parsePayload, render branches, mutations, suggested-
+  action routing, filters, source-agnostic styling, viewport budget),
+  and 3 structural tests confirming the entity-browser handler is gone.
+  Total tests across the plugin: 375 passing, plus four green e2e
+  fixture renders against MCPJam Inspector.
+
+### Migration
+
+This release contains breaking changes — MAJOR bump.
+
+1. **Plugin authors who depended on `pivot` or `ui://entity-browser`**:
+   route entity navigation through `/agntux-ask Tell me about
+   {subtype}/{slug}` instead. The retrieval lane handles entity lookups
+   without a dedicated UI surface in 5.0.0.
+2. **Hosts running pre-5.0.0 caches**: the `~/.agntux/.license` cache's
+   `signed_ui_base_url` field becomes orphaned (unused by the
+   orchestrator). No action required; the license-check hook may
+   continue to populate it for older plugins.
+3. **CI/CD pipelines that build the MCP server**: the build now requires
+   the component bundle at `ui-handlers/triage/component/out/index.html`
+   to exist before `tsc && embed-bundle.mjs` runs. Add a `(cd
+   ui-handlers/triage/component && npm install && npm run build)` step
+   before `(cd mcp-server && npm install && npm run build)`. The CI
+   guard `npm run check:bundle-sync` (in `mcp-server/`) fails the build
+   if drift is detected.
+4. **No user data migration required.** Action item files
+   (`<root>/actions/*.md`), entity files, and personalization remain
+   unchanged. The `agntux-triage` slash command still fires; it just
+   renders an interactive UI now (interactive invocation) or a text
+   digest (scheduled-background fire) per the same data source.
+
 ## [4.3.1] — 2026-05-04
 
 ### Added

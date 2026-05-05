@@ -10,7 +10,6 @@ import { setFrontmatter } from "../src/frontmatter.js";
 import { snoozeTool } from "../src/tools/snooze.js";
 import { dismissTool } from "../src/tools/dismiss.js";
 import { setStatusTool, appendOutcomeSection } from "../src/tools/set-status.js";
-import { pivotTool } from "../src/tools/pivot.js";
 
 const ACTION_CONTENT = `---
 id: 2026-04-25-test-action
@@ -49,20 +48,8 @@ function makeActionsGuard(actionsDir: string) {
   };
 }
 
-function makeEntitiesGuard(entitiesDir: string) {
-  return function guardEntityPath(subtype: string, slug: string): void {
-    const resolved = resolve(entitiesDir, subtype, `${slug}.md`);
-    const rel = relative(entitiesDir, resolved);
-    if (rel.startsWith("..") || resolve(rel) === rel) {
-      throw new Error(`Path traversal rejected`);
-    }
-  };
-}
-
 const ACTIONS_DIR = join(homedir(), "agntux", "actions");
-const ENTITIES_DIR = join(homedir(), "agntux", "entities");
 const guardActions = makeActionsGuard(ACTIONS_DIR);
-const guardEntities = makeEntitiesGuard(ENTITIES_DIR);
 
 // ---- snooze ----
 
@@ -216,68 +203,6 @@ describe("tool: set_status (via frontmatter patcher)", () => {
   it("real handler rejects missing snoozed_until when status is snoozed", async () => {
     await expect(setStatusTool.handler({ id: "../../etc/passwd", status: "snoozed" }))
       .rejects.toThrow(/snoozed_until is required/);
-  });
-});
-
-// ---- pivot ----
-
-describe("tool: pivot (path guard)", () => {
-  it("rejects subtype with .. traversal", () => {
-    expect(() => guardEntities("../../../etc", "passwd")).toThrow("Path traversal rejected");
-  });
-
-  it("accepts a valid subtype/slug pair", () => {
-    expect(() => guardEntities("companies", "acme-corp")).not.toThrow();
-  });
-
-  it("rejects empty subtype (handler guard)", () => {
-    const validate = (subtype: string) => {
-      if (!subtype) throw new Error("subtype is required");
-    };
-    expect(() => validate("")).toThrow("subtype is required");
-  });
-
-  it("returns a host_prompt with correct ux: prefix", () => {
-    const subtype = "companies";
-    const slug = "acme-corp";
-    const hostPrompt = `ux: Use the agntux-core plugin to open the entity browser for ${subtype}/${slug}.`;
-    expect(hostPrompt.startsWith("ux: ")).toBe(true);
-    expect(hostPrompt).toContain("agntux-core");
-  });
-
-  // Pivot has TWO defensive layers: a kebab-case shape check (rejects with
-  // "Invalid subtype/slug …") that fires first, and a path-traversal boundary
-  // check (rejects with "Path traversal rejected …") as defense-in-depth.
-  // Either rejection path is correct.
-  it("real handler rejects subtype '../../../etc' before any FS access", async () => {
-    await expect(pivotTool.handler({ subtype: "../../../etc", slug: "passwd" }))
-      .rejects.toThrow(/[Pp]ath traversal|Invalid subtype/);
-  });
-
-  it("real handler rejects slug '../../etc/passwd' before any FS access", async () => {
-    await expect(pivotTool.handler({ subtype: "companies", slug: "../../etc/passwd" }))
-      .rejects.toThrow(/[Pp]ath traversal|Invalid slug/);
-  });
-
-  it("real handler rejects malformed slug 'Acme_Corp' (underscores) at shape check", async () => {
-    await expect(pivotTool.handler({ subtype: "companies", slug: "Acme_Corp" }))
-      .rejects.toThrow(/Invalid slug/);
-  });
-
-  it("real handler accepts valid kebab-case slug 'acme-corp'", async () => {
-    const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    expect(result.content[0].text).toContain("companies/acme-corp");
-  });
-
-  it("real handler rejects empty subtype", async () => {
-    await expect(pivotTool.handler({ subtype: "", slug: "acme-corp" }))
-      .rejects.toThrow(/subtype is required/);
-  });
-
-  it("real handler returns host_prompt for valid input (no FS write)", async () => {
-    const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    expect(result.content[0].text).toMatch(/^ux: /);
-    expect((result as { _meta?: { host_prompt?: string } })._meta?.host_prompt).toContain("companies/acme-corp");
   });
 });
 

@@ -1,9 +1,8 @@
 {
-  "args": { "scope": "now" },
-  "prompt": "Call the tool triage_view with arguments {\"scope\":\"now\"}",
+  "args": {},
+  "prompt": "Call triage_view with no arguments and render the result.",
   "interactions": [
-    { "type": "query", "selector": "[data-testid]" },
-    { "type": "read_text", "selector": "[data-testid='empty-state']" }
+    { "type": "query", "selector": "[data-testid='bootstrap-empty'], [data-testid='actions-index-missing'], [data-testid^='action-card-']" }
   ],
-  "_notes": "Default empty-state fixture: no actions, scope=now. The component should render the 'no triage items' empty state with no console errors."
+  "_notes": "Renders the triage UI against the user's real ~/agntux/actions/ directory. To force the bootstrap-empty state for repeatable testing, set AGNTUX_ROOT_OVERRIDE=/path/to/empty-agntux-fixture before running (the orchestrator MCP server reads it via expectedAgntuxRoot()). triage_view has no required args; passing {} exercises the default 7-day handled window + 30-action limit."
 }

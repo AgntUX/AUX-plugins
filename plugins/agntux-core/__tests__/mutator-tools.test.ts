@@ -1,7 +1,7 @@
 /**
  * mutator-tools.test.ts
  *
- * Unit tests for the MCP server mutator tools: snooze, dismiss, set_status, pivot.
+ * Unit tests for the MCP server mutator tools: snooze, dismiss, set_status.
  * These import the compiled dist/ files and test real logic against temp files.
  */
 
@@ -166,45 +166,3 @@ describe("set_status tool", async () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// pivot tool
-// ---------------------------------------------------------------------------
-
-describe("pivot tool", async () => {
-  const { pivotTool } = await import(`${MCP_DIST}/tools/pivot.js`);
-
-  it("rejects missing subtype", async () => {
-    await expect(
-      pivotTool.handler({ slug: "acme-corp" })
-    ).rejects.toThrow("subtype is required");
-  });
-
-  it("rejects missing slug", async () => {
-    await expect(
-      pivotTool.handler({ subtype: "companies" })
-    ).rejects.toThrow("slug is required");
-  });
-
-  it("rejects path traversal in subtype", async () => {
-    // Pivot has two defensive layers: a kebab-case shape check (fires first
-    // on inputs like "../../../etc") and a path-traversal boundary check as
-    // defense-in-depth. Either rejection path proves the input is blocked
-    // before any FS access — both are correct outcomes.
-    await expect(
-      pivotTool.handler({ subtype: "../../../etc", slug: "passwd" })
-    ).rejects.toThrow(/traversal|Invalid subtype/i);
-  });
-
-  it("returns host_prompt in _meta", async () => {
-    const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    expect(result._meta?.host_prompt).toBeDefined();
-    expect(result._meta?.entity?.subtype).toBe("companies");
-    expect(result._meta?.entity?.slug).toBe("acme-corp");
-  });
-
-  it("content text contains entity reference", async () => {
-    const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    const text = result.content?.[0]?.text ?? "";
-    expect(text).toMatch(/companies.*acme-corp|acme-corp.*companies/);
-  });
-});
