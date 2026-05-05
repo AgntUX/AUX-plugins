@@ -1,0 +1,10 @@
+{
+  "args": { "scope": "all" },
+  "prompt": "Call the tool triage_view with arguments {\"scope\":\"all\"}",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid='triage-row']", "max_results": 25 },
+    { "type": "scroll_to", "selector": "[data-testid='triage-row']:last-child" },
+    { "type": "read_text", "selector": "[data-testid='triage-count']" }
+  ],
+  "_notes": "Wide-scope fetch — exercises list rendering with many rows. Verifies internal scroll, no virtualization regressions, and that the row count matches the tool's actual output."
+}

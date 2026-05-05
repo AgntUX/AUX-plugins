@@ -1,0 +1,10 @@
+{
+  "args": { "scope": "now" },
+  "prompt": "Call the tool triage_view with arguments {\"scope\":\"now\"}",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid]" },
+    { "type": "click", "selector": "[data-testid='dismiss-btn']" },
+    { "type": "read_text", "selector": "[data-testid='status-badge']" }
+  ],
+  "_notes": "Single high-priority action. Tests primary triage flow: render → dismiss → confirm status badge updated. Action data is sourced from the plugin's triage_view tool — args here only narrow the scope; the tool itself reads from the agntux-core data layer."
+}

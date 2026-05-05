@@ -1,0 +1,8 @@
+{
+  "args": { "scope": "__intentionally_invalid__" },
+  "prompt": "Call the tool triage_view with arguments {\"scope\":\"__intentionally_invalid__\"}",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid='error-state'], [data-testid='empty-state']" }
+  ],
+  "_notes": "Invalid scope: the tool should return an error result OR an empty payload. The component must render an error/empty state without throwing — zero component console errors."
+}
