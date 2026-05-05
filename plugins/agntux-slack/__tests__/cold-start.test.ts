@@ -154,9 +154,15 @@ describe("ingest skill prompt", () => {
     expect(existsSync(draftSkill)).toBe(true);
   });
 
-  it("legacy agents/ directory is removed (top-level-skill pattern)", () => {
-    const legacyAgents = join(PLUGIN_ROOT, "agents");
-    expect(existsSync(legacyAgents)).toBe(false);
+  it("agents/ contains only ui-handlers/ manifests (no legacy orchestrator agents)", () => {
+    // The agents/ directory now houses ui-handler operational manifests (agents/ui-handlers/).
+    // Legacy orchestrator agents (agents/orchestrator.md, agents/ingest.md etc.) must be absent.
+    const legacyOrchestrator = join(PLUGIN_ROOT, "agents", "orchestrator.md");
+    const legacyIngest = join(PLUGIN_ROOT, "agents", "ingest.md");
+    expect(existsSync(legacyOrchestrator)).toBe(false);
+    expect(existsSync(legacyIngest)).toBe(false);
+    // The ui-handlers sub-directory must be present
+    expect(existsSync(join(PLUGIN_ROOT, "agents", "ui-handlers"))).toBe(true);
   });
 
   it("sync skill uses context: fork + general-purpose (no tools: whitelist)", () => {

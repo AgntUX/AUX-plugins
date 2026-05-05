@@ -50,33 +50,31 @@ describe("draft SKILL.md write-tool references", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pass 2: confirmation gate is codified
+// Pass 2: confirmation gate is codified (committed-envelope contract)
 // ---------------------------------------------------------------------------
 
 describe("draft SKILL.md confirmation gate", () => {
   const src = readMd(DRAFT_MD);
 
-  it("requires explicit yes in the immediately preceding turn", () => {
-    expect(src).toContain("explicit user `yes`");
-    expect(src).toContain("immediately preceding turn");
+  it("committed envelope from the iframe is the explicit authorisation", () => {
+    // The new contract: iframe Send button replaces the chat yes/no/edit flow.
+    expect(src).toContain("iframe Send button");
+    expect(src).toContain("committed envelope");
   });
 
-  it("forbids prior yes answers from carrying over to a new payload", () => {
-    expect(src).toContain("Prior `yes` answers in earlier turns do NOT carry over");
+  it("forbids calling write tools without a well-formed committed envelope", () => {
+    expect(src).toContain("Never sends without a committed envelope from the iframe");
   });
 
-  it("documents the Send this now? (yes / no / edit) prompt template", () => {
-    expect(src).toContain("Send this now? (yes / no / edit)");
+  it("documents the discard envelope — no write call, action stays open", () => {
+    expect(src).toContain("Discarded. The action item is still open.");
+    // Discard rule: no Slack tool called, no set_status
+    expect(src).toContain("Do not call any Slack tool. Do not call `set_status`.");
   });
 
-  it("documents the 'no' branch — discard with no write call", () => {
-    expect(src).toContain("Discarded.");
-    expect(src).toContain("No write tool is called");
-  });
-
-  it("documents the 'edit' branch — accept revisions, re-confirm", () => {
-    expect(src).toContain("Accept user revisions");
-    expect(src).toContain("re-show the full payload");
+  it("documents the freeform-reply fallback — ask about iframe, do not send", () => {
+    // When user types freeform rather than the iframe emitting an envelope
+    expect(src).toContain("I'm waiting on the iframe Send button");
   });
 });
 
@@ -87,14 +85,15 @@ describe("draft SKILL.md confirmation gate", () => {
 describe("draft SKILL.md payload integrity", () => {
   const src = readMd(DRAFT_MD);
 
-  it("requires showing the exact payload — no paraphrasing", () => {
-    expect(src).toContain("exact");
-    expect(src).toContain("payload");
-    expect(src).toMatch(/no.+hand-waves/i);
+  it("hard rule: do not re-compose between commit and send — body is authoritative", () => {
+    // The new contract: skill must not paraphrase/polish the committed envelope body.
+    // The exact hard-rule bullet in the skill uses bold markdown formatting.
+    expect(src).toContain("Do not re-compose between commit and send.");
   });
 
-  it("requires quoting the original message above the draft", () => {
-    expect(src).toContain("Quote the original message");
+  it("hard rule: show the exact payload in the iframe — no misrepresentation", () => {
+    expect(src).toContain("Show the exact payload");
+    expect(src).toContain("must never misrepresent what will be sent");
   });
 
   it("forbids auto-pivoting verbs", () => {
@@ -134,14 +133,14 @@ describe("draft SKILL.md read-before-write order", () => {
     expect(stepFive.toLowerCase()).toContain("do not call any write tool yet");
   });
 
-  it("Step 7 yes branch is the only place that calls write tools", () => {
+  it("Step 7 mode-branch is the only place that calls write tools (after committed envelope)", () => {
     const stepSevenIdx = src.indexOf("## Step 7");
-    const honestyIdx = src.indexOf("## Hard rules");
-    const stepSeven = src.slice(stepSevenIdx, honestyIdx > 0 ? honestyIdx : undefined);
-    // The yes sub-branch must reference at least one of the write tools
-    expect(stepSeven).toContain("### `yes`");
-    const yesBlock = stepSeven.slice(stepSeven.indexOf("### `yes`"));
-    expect(yesBlock).toMatch(/slack_send_message|slack_schedule_message|slack_create_canvas/);
+    const stepEightIdx = src.indexOf("## Step 8 —");
+    const stepSeven = src.slice(stepSevenIdx, stepEightIdx > 0 ? stepEightIdx : undefined);
+    // Step 7 table branches on committed envelope mode and calls write tools.
+    // The table rows use backtick-wrapped mode labels: | `send` | …
+    expect(stepSeven).toContain("`send`");
+    expect(stepSeven).toMatch(/slack_send_message|slack_schedule_message|slack_create_canvas/);
   });
 });
 
@@ -175,14 +174,82 @@ describe("draft SKILL.md Step 8 uses agntux-core MCP for action mutation (A4)", 
     expect(block).toContain("mcp__agntux-core__set_status");
   });
 
-  it("Step 8 success and failure messages are verb-aware (covers all four verbs)", () => {
-    const stepEightIdx = src.indexOf("## Step 8");
-    const hardRulesIdx = src.indexOf("## Hard rules");
-    const stepEight = src.slice(stepEightIdx, hardRulesIdx);
-    // Each verb must appear in the verb-aware messaging block.
-    for (const verb of ["draft a reply", "schedule a reply", "summarise to canvas", "save as draft"]) {
-      expect(stepEight).toContain(verb);
+  it("Step 8 success and failure messages are mode-aware (covers all four modes)", () => {
+    const stepEightIdx = src.indexOf("## Step 8 —");
+    // Use the exact full heading to avoid matching the earlier "### Hard rules for receipt"
+    const hardRulesIdx = src.indexOf("## Hard rules (do not violate)");
+    const stepEight = src.slice(stepEightIdx, hardRulesIdx > stepEightIdx ? hardRulesIdx : undefined);
+    // Each mode must appear in the mode-aware messaging block.
+    // The new skill uses mode labels (send/schedule/canvas/save_draft) not verb phrases.
+    for (const mode of ["`send`", "`schedule`", "`canvas`", "`save_draft`"]) {
+      expect(stepEight).toContain(mode);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pass 7: committed envelope routing (new contract — iframe replaces chat confirm)
+// ---------------------------------------------------------------------------
+
+describe("committed envelope routing", () => {
+  const src = readMd(DRAFT_MD);
+
+  it("Step 6.5 exists in the skill (new step landed)", () => {
+    expect(src).toContain("Step 6.5");
+  });
+
+  it("references mcp__agntux-slack__compose_view at least once", () => {
+    expect(src).toContain("mcp__agntux-slack__compose_view");
+  });
+
+  it("references mcp__agntux-slack__canvas_view at least once", () => {
+    expect(src).toContain("mcp__agntux-slack__canvas_view");
+  });
+
+  it("compose committed-envelope regex is documented (commit the drafted reply for action)", () => {
+    // The regex appears in a fenced code block preceded by the ^ux: anchor
+    expect(src).toContain("commit the drafted reply for action");
+    // The regex block starts with ^ux:
+    const regexBlockIdx = src.indexOf("^ux: Use the agntux-slack plugin to commit the drafted reply");
+    expect(regexBlockIdx).toBeGreaterThan(0);
+  });
+
+  it("canvas committed-envelope regex is documented (commit the drafted canvas for action)", () => {
+    expect(src).toContain("commit the drafted canvas for action");
+    const regexBlockIdx = src.indexOf("^ux: Use the agntux-slack plugin to commit the drafted canvas");
+    expect(regexBlockIdx).toBeGreaterThan(0);
+  });
+
+  it("discard regex is documented (discard the (draft|canvas) for action)", () => {
+    expect(src).toContain("discard the (draft|canvas) for action");
+    const regexBlockIdx = src.indexOf("^ux: Use the agntux-slack plugin to discard the (draft|canvas)");
+    expect(regexBlockIdx).toBeGreaterThan(0);
+  });
+
+  it("guillemet escape rule is documented — «« and »» both appear", () => {
+    expect(src).toContain("««");
+    expect(src).toContain("»»");
+  });
+
+  it("hard rule: iframe Send button is the explicit authorisation", () => {
+    expect(src).toContain("iframe Send button");
+  });
+
+  it("does NOT contain the retired chat-only confirm prompt string 'yes / no / edit'", () => {
+    // The exact concatenated string is forbidden; individual words may appear separately.
+    expect(src).not.toContain("yes / no / edit");
+  });
+
+  it("documents mode: send", () => {
+    expect(src).toContain("mode: send");
+  });
+
+  it("documents mode: schedule", () => {
+    expect(src).toContain("mode: schedule");
+  });
+
+  it("documents mode: save_draft", () => {
+    expect(src).toContain("mode: save_draft");
   });
 });
 

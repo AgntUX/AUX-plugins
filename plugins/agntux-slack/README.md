@@ -19,11 +19,13 @@ replies on demand — but only ever send them after you confirm.
   `(channel_id, thread_ts)`. New replies on old threads are caught via
   a tracked-threads registry — no missed activity.
 - Drafts replies on demand. Click a `Draft a reply` button on an action
-  item; the plugin fetches the thread, drafts a reply in chat, and asks
-  you to confirm before sending. The actual `slack_send_message` call
-  only fires after you say `yes`.
-- Ships no UI components yet. The text-mediated draft flow is the
-  present-day stand-in for a future card-with-Send-button UI.
+  item; the plugin fetches the thread, drafts a reply in chat, and shows
+  an inline compose card. The actual `slack_send_message` call only fires
+  after you confirm via the Send button.
+- Summarises threads to Slack canvases. Click `Summarise to canvas` on an
+  action item; the plugin renders an editable canvas card with TL;DR,
+  decisions, open questions, and participants. The Create button triggers
+  the canvas post back to the thread.
 
 ## Install
 
@@ -113,6 +115,36 @@ full tool surface, including the UUID-prefixed Cowork connector tools
 pattern is retired (it failed when Cowork blocked the dispatch-time
 frontmatter edit).
 
+## UI handlers
+
+**Slack reply composer** (`ui://slack-compose`): When you click `Draft a
+reply` or `Schedule a reply` on an action item, the draft skill calls the
+compose view tool with thread context and an agent-drafted reply body.
+The iframe shows the channel name, the parent message, the last reply
+quote, and an editable textarea prefilled with the draft. Mode tabs let
+you choose Send now / Schedule / Save Slack draft. A "Why this draft?"
+disclosure surfaces personalization signals from `user.md` and per-plugin
+instructions. The Send button emits a committed envelope back to the draft
+skill — this is your explicit confirmation before any message is sent to
+Slack.
+
+**Slack canvas summariser** (`ui://slack-canvas`): When you click
+`Summarise to canvas` on an action item, the canvas view tool renders four
+editable section blocks (TL;DR, Decisions, Open questions, Participants)
+plus an editable title. A Preview tab shows the assembled markdown. The
+Create button confirms the canvas; the draft skill then calls
+`slack_create_canvas`, posts the canvas to the thread, and surfaces the
+canvas link back in the action item thread.
+
+Both UIs ship as embedded component bundles (no external S3 fetch). Build
+and bundle both after any UI component changes:
+
+```sh
+(cd ui-handlers/compose/component && npm install && npm run build)
+(cd ui-handlers/canvas/component && npm install && npm run build)
+(cd mcp-server && npm install && npm run build && npm run check:bundle-sync)
+```
+
 ## Limitations
 
 - Reads only. The sync skill writes nothing back to Slack. The draft
@@ -130,7 +162,6 @@ frontmatter edit).
   New replies on long-dormant threads are caught via the discovery
   search (if you're @mentioned) or by re-discovery via the channel
   cursor (if the parent is touched).
-- Ships no UI components. Suggested actions are text-mediated for now.
 
 ## Known canonical-hook diffs
 
@@ -148,10 +179,11 @@ All other hook files (`hooks.json`, `license-check.mjs`, `license-validate.mjs`,
 `lib/{cache,device,jwt-verify,refresh,scope,ui,agntux-root}.mjs`) are byte-identical
 to canonical and pass `shasum -c` cleanly.
 
-AgntUX Slack does NOT ship a local stdio MCP server (no UI components yet).
-There is no `.mcp.json` either — the Slack connector is host-installed and
-declared via `requires_source_mcp: { source: connector, connector_slug: slack }`
-in `marketplace/listing.yaml`.
+AgntUX Slack does NOT ship a local stdio MCP server. UI component bundles are
+embedded into the compiled MCP server at build time. There is no separate
+`.mcp.json` — the Slack connector is host-installed and declared via
+`requires_source_mcp: { source: connector, connector_slug: slack }` in
+`marketplace/listing.yaml`.
 
 ## License
 

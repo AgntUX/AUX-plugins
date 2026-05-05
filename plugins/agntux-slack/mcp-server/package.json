@@ -1,0 +1,38 @@
+{
+  "name": "@agntux/agntux-slack-mcp-server",
+  "version": "0.1.0",
+  "description": "Local MCP server for the agntux-slack plugin. Exposes compose_view and canvas_view render tools for the Slack reply-compose and canvas-summary MCP App UI handlers.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && node scripts/embed-bundle.mjs",
+    "check:bundle-sync": "node scripts/check-bundle-sync.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@agntux/orchestrator-mcp-server": "file:../../agntux-core/mcp-server",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
