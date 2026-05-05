@@ -1,0 +1,69 @@
+name: Build plugin artifacts
+
+# On push to main, build every plugin's UI handler components, build each
+# plugin's mcp-server (which embeds the components), and commit the resulting
+# `dist/` and `out/` artifacts back to main with `[skip ci]`.
+#
+# This is the mechanism that makes `/plugin install` work end-to-end. The
+# host's install model clones the repo and launches mcp-server/dist/index.js
+# directly — it does NOT run `npm install` or any build step on the user's
+# machine. So the artifacts must already be in the repo at the SHA the host
+# fetches.
+#
+# Mirrors the auto-commit pattern in regenerate-indexes.yml. Skips the commit
+# step when nothing changed so re-runs on the same SHA are a no-op.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "plugins/**"
+      - "packages/mcp-license/**"
+      - "scripts/build-plugin.mjs"
+      - ".github/workflows/build-plugins.yml"
+
+jobs:
+  build-and-commit:
+    name: Build plugin artifacts and commit back to main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # actions/checkout v4.2.2
+        with:
+          # Fetch full history so we can push back to main.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        # actions/setup-node v4.1.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build every plugin (components → mcp-server → bundle-sync)
+        run: node scripts/build-plugin.mjs --all
+
+      - name: Commit regenerated build artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Stage every tracked-but-previously-ignored build output. We add
+          # the plugin and packages roots and let .gitignore decide which
+          # files inside them are eligible — this is robust to plugins that
+          # don't have an mcp-server/ or have no UI handlers (the explicit
+          # globbed pathspec form errored out when a glob matched nothing).
+          git add plugins packages
+          if git diff --cached --quiet; then
+            echo "No build artifact changes to commit."
+          else
+            git commit -m "chore: rebuild plugin artifacts [skip ci]"
+            git push origin main
+          fi

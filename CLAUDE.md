@@ -36,7 +36,7 @@ AgntUX/AUX-plugins/
 ├── packages/mcp-license/              # Shared MCP license gate (consumed by every plugin's mcp-server)
 ├── marketplace/index.json             # CI-regenerated aggregate of every listing.yaml (READ-ONLY)
 ├── plugins/{plugin-slug}/             # One directory per plugin
-├── scripts/                           # Lint + regeneration scripts
+├── scripts/                           # Lint, regeneration, and build-orchestration scripts
 └── CLAUDE.md                          # This file
 ```
 
@@ -118,6 +118,15 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   passes through ungated (see `packages/mcp-license/README.md` §"Why only
   tools/call"). Hook semantics vary across hosts — the MCP gate is
   host-agnostic.
+- **`dist/` and `out/` are tracked artifacts, not source.** The host clones
+  this repo and launches `mcp-server/dist/index.js` directly with no install
+  step, so the compiled JS and embedded UI bundles must already be in the
+  repo. CI rebuilds them on push to `main` via `build-plugins.yml` and
+  commits the regenerated tree back. **Do not hand-edit** any file under
+  `plugins/*/mcp-server/dist/`, `plugins/*/ui-handlers/*/component/out/`,
+  or `packages/*/dist/` — your edit will be overwritten on the next merge.
+  Edit the source under `src/` and run `npm run build` from the plugin root
+  (or `/dev-plugin {slug}`) to regenerate.
 
 ---
 
@@ -130,6 +139,36 @@ npm run lint:marketplace -- --plugin agntux-slack    # Lint one plugin
 ```
 
 The linter is the same script CI runs. Local-passing means CI-passing.
+
+---
+
+## Local Plugin Development
+
+When the user asks to build a plugin's components and/or run its MCP server
+locally for testing, use the commands below. Don't reach for the manual
+`cd ui-handlers/<name>/component && npm run build` chain — that's the legacy
+flow and is easy to get wrong (it's per-handler, so a multi-handler plugin
+like agntux-slack needs the chain repeated for every handler).
+
+| Request phrasing                                     | Command                                                  |
+|------------------------------------------------------|----------------------------------------------------------|
+| "build {slug}" / "build the {slug} component(s)"     | `node scripts/build-plugin.mjs {slug}`                   |
+| "build all plugins"                                  | `node scripts/build-plugin.mjs --all`                    |
+| "run {slug} for local testing" / "start {slug}"      | `cd plugins/{slug} && npm run dev`                       |
+| "build and run {slug} for local testing"             | `cd plugins/{slug} && npm run dev`                       |
+| "verify {slug} bundle is in sync"                    | `npm --prefix plugins/{slug}/mcp-server run check:bundle-sync` |
+
+`npm run dev` (per-plugin) builds every UI handler component, builds the
+mcp-server (which embeds the components), runs `check:bundle-sync`, and
+launches the MCP server in HTTP_MODE so a separately-running MCPJam
+Inspector can connect to it.
+
+MCPJam Inspector is a separate process. The user runs it themselves in a
+different terminal (typically `npm --prefix /path/to/MCPJam-inspector run dev`).
+Don't try to launch MCPJam from this repo — we don't bundle it.
+
+The `/dev-plugin {slug}` slash command is the same as `npm run dev` from
+the plugin directory; use whichever the user reaches for.
 
 ---
 
@@ -155,6 +194,7 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/bump-version {slug} {major\|minor\|patch}` | Apply the versioning rubric |
 | `/rollback {slug}` | Step through the rollback runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
+| `/dev-plugin {slug}` | Build a plugin's components + mcp-server and run it in HTTP_MODE for local testing |
 
 ## Authoring tools
 

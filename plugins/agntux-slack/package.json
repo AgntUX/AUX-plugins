@@ -8,6 +8,9 @@
     "node": ">=18"
   },
   "scripts": {
+    "build": "node ../../scripts/build-plugin.mjs agntux-slack",
+    "start:http": "HTTP_MODE=1 node mcp-server/dist/index.js",
+    "dev": "npm run build && npm run start:http",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,8 +20,8 @@
     "vitest": "^1.6.0"
   },
   "workspaces": [
-    "mcp-server",
     "ui-handlers/compose/component",
-    "ui-handlers/canvas/component"
+    "ui-handlers/canvas/component",
+    "mcp-server"
   ]
 }
