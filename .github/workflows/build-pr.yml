@@ -1,0 +1,45 @@
+name: Build verification
+
+# Reusable workflow called from ci.yml on push and pull_request. Runs the
+# same `build-plugin.mjs --all` orchestration that the post-merge
+# build-plugins.yml workflow runs — but DO NOT commit. The job's purpose
+# is twofold:
+#
+#   1. Fail the PR if a contributor edited a UI handler component or
+#      mcp-server source but the resulting build is broken (typecheck error,
+#      missing export, etc.).
+#   2. Fail the PR via `check:bundle-sync` if the contributor edited a
+#      component but didn't rebuild — which would otherwise leave a stale
+#      base64 embed inside mcp-server/dist/index.js for reviewers to miss.
+#
+# This keeps the auto-commit on the post-merge workflow lightweight: by the
+# time `build-plugins.yml` runs, the bundles are already in sync, so the
+# auto-commit usually finds nothing to commit and exits cleanly.
+
+on:
+  workflow_call:
+
+jobs:
+  verify-build:
+    name: Verify every plugin builds + bundle is in sync
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # actions/checkout v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        # actions/setup-node v4.1.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build every plugin (components → mcp-server → bundle-sync)
+        run: node scripts/build-plugin.mjs --all

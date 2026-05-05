@@ -5,14 +5,18 @@ on:
     paths:
       - "plugins/**"
       - "canonical/**"
+      - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - ".github/workflows/build-pr.yml"
   pull_request:
     paths:
       - "plugins/**"
       - "canonical/**"
+      - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - ".github/workflows/build-pr.yml"
 
 # Run all jobs even if one fails (fail-fast: OFF).
 jobs:
@@ -37,3 +41,9 @@ jobs:
     # behavior lives inside the called workflow's job definition (reusable-workflow
     # callers cannot set continue-on-error at the job-level `uses:` boundary).
     if: always()
+
+  build-verify:
+    name: Build every plugin + check bundle sync
+    uses: ./.github/workflows/build-pr.yml
+    permissions:
+      contents: read

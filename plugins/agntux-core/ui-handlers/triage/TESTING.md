@@ -21,14 +21,18 @@ running MCPJam Inspector with the plugin's MCP server in HTTP mode.
    npx playwright install chromium
    ```
 
-3. **Build both layers** before every test run:
+3. **Build both layers** before every test run. From the repo root:
    ```sh
-   # Component → out/index.html
-   (cd component && npm install && npm run build) &
-   # MCP server → dist/index.js (and re-embeds the bundle)
-   (cd ../../mcp-server && npm install && npm run build && npm run check:bundle-sync) &
-   wait
+   node scripts/build-plugin.mjs agntux-core
    ```
+   …or, equivalently, from inside `plugins/agntux-core/`:
+   ```sh
+   npm run build
+   ```
+   Either form builds every UI handler component, builds the mcp-server
+   (which re-embeds each component bundle), and runs `check:bundle-sync` —
+   no manual `cd` chain. The `/dev-plugin agntux-core` slash command runs
+   the same orchestration and then launches the server in HTTP_MODE.
 
 ## Run
 

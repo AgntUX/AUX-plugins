@@ -2,13 +2,17 @@
 
 ## Prerequisites
 
-1. **MCPJam Inspector** running locally:
+1. **MCPJam Inspector** running locally. Start the agntux-slack MCP server
+   in HTTP_MODE from the repo root:
    ```sh
-   # Start the agntux-slack MCP server in HTTP_MODE
-   cd plugins/agntux-slack/mcp-server
-   HTTP_MODE=1 PORT=5180 node dist/index.js
-   # Open MCPJam Inspector in your browser and connect to http://127.0.0.1:5180/mcp
+   node scripts/build-plugin.mjs agntux-slack --serve
+   # …or equivalently:
+   #   cd plugins/agntux-slack && npm run dev
+   #   /dev-plugin agntux-slack
    ```
+   The script builds both UI handler components, embeds them into the
+   mcp-server, runs `check:bundle-sync`, then launches HTTP_MODE on port
+   `5180`. Open MCPJam Inspector and connect to `http://127.0.0.1:5180/mcp`.
 
 2. **plugin-toolkit-test harness** installed:
    ```sh
@@ -23,11 +27,12 @@
    npx playwright install chromium
    ```
 
-4. **Component built** — a fresh `out/index.html` must exist before running e2e tests:
+4. **Component built** — a fresh `out/index.html` must exist before running
+   e2e tests. The build orchestrator (`scripts/build-plugin.mjs agntux-slack`,
+   per step 1) handles this for you. If you only want to rebuild without
+   launching the server, use:
    ```sh
-   cd plugins/agntux-slack/ui-handlers/compose/component
-   npm install && npm run build
-   cd ../../mcp-server && npm run build
+   npm --prefix plugins/agntux-slack run build
    ```
 
 ## Run
