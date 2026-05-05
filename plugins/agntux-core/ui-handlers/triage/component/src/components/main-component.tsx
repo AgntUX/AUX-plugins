@@ -38,7 +38,7 @@ type ActionStatus = (typeof ACTION_STATUS_VALUES)[number];
 const HANDLED_STATUS_VALUES = ['done', 'dismissed'] as const;
 type HandledStatus = (typeof HANDLED_STATUS_VALUES)[number];
 
-const ERROR_KINDS = ['actions_index_missing', 'license_paused'] as const;
+const ERROR_KINDS = ['actions_index_missing'] as const;
 type ErrorKind = (typeof ERROR_KINDS)[number];
 
 const PRIORITY_FILTER_VALUES = ['all', 'high', 'medium', 'low'] as const;
@@ -1123,24 +1123,6 @@ function ActionsIndexMissing({
   );
 }
 
-function LicensePaused() {
-  return (
-    <div
-      className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground"
-      role="status"
-      data-testid="license-paused"
-    >
-      <h3 className="m-0 text-base font-semibold text-foreground">
-        Trial paused.
-      </h3>
-      <p className="m-0 max-w-[36ch] leading-relaxed">
-        Upgrade at app.agntux.ai/billing to keep AgntUX active. Your data stays
-        right where it is.
-      </p>
-    </div>
-  );
-}
-
 // =============================================================================
 // Main
 // =============================================================================
@@ -1322,13 +1304,6 @@ export function MainComponent(props: MainComponentProps) {
     );
   }
 
-  if (data.error === 'license_paused') {
-    return (
-      <div className="flex h-full flex-col bg-background">
-        <LicensePaused />
-      </div>
-    );
-  }
   if (data.error === 'actions_index_missing') {
     return (
       <div className="flex h-full flex-col bg-background">

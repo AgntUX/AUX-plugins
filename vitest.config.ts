@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       "scripts/**/*.test.ts",
       "plugins/**/__tests__/**/*.test.{mjs,ts}",
+      "packages/*/__tests__/**/*.test.ts",
     ],
     exclude: [
       "canonical/**",
@@ -21,6 +22,8 @@ export default defineConfig({
       "**/ui-handlers/*/component/**",
       // Same for plugin MCP server packages — run via their own vitest config.
       "**/mcp-server/**",
+      // Don't pick up compiled output of workspace packages.
+      "packages/*/dist/**",
     ],
   },
 });

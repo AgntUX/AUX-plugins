@@ -122,8 +122,8 @@ describe("normalizeComposePayload", () => {
   });
 
   it("returns structured error for known error values", () => {
-    const result = normalizeComposePayload({ error: "license_paused" });
-    expect(result.error).toBe("license_paused");
+    const result = normalizeComposePayload({ error: "action_already_handled" });
+    expect(result.error).toBe("action_already_handled");
   });
 
   it("defaults messages_preview to [] for missing field", () => {

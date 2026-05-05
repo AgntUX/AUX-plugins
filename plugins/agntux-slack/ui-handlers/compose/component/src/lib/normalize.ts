@@ -97,7 +97,6 @@ export function normalizeComposePayload(
         "action_not_found",
         "action_already_handled",
         "agntux_root_missing",
-        "license_paused",
       ] as const,
       "action_not_found",
     );

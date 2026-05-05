@@ -84,57 +84,14 @@ describe("plugin manifest", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pass 2: hooks shape (ingest variant — no PostToolUse)
+// Pass 2: hooks shape — agntux-slack ships no hooks. License enforcement now
+// lives in the MCP server via @agntux/mcp-license, wrapped around tools/call
+// and resources/read. The plugin therefore has no hooks/ directory.
 // ---------------------------------------------------------------------------
 
 describe("hooks shape (ingest variant)", () => {
-  const hooksPath = join(PLUGIN_ROOT, "hooks", "hooks.json");
-
-  it("hooks.json exists", () => {
-    expect(existsSync(hooksPath)).toBe(true);
-  });
-
-  it("has SessionStart with license-check", () => {
-    const hooks = JSON.parse(readFileSync(hooksPath, "utf-8")) as {
-      hooks: Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
-    };
-    const entries = hooks.hooks.SessionStart ?? [];
-    const cmds = entries.flatMap((e) => e.hooks ?? []).map((h) => h.command ?? "");
-    expect(cmds.some((c) => c.includes("license-check.mjs"))).toBe(true);
-  });
-
-  it("has PreToolUse with license-validate", () => {
-    const hooks = JSON.parse(readFileSync(hooksPath, "utf-8")) as {
-      hooks: Record<string, Array<{ matcher?: string; hooks?: Array<{ command?: string }> }>>;
-    };
-    const entries = hooks.hooks.PreToolUse ?? [];
-    const entry = entries.find((e) =>
-      (e.hooks ?? []).some((h) => (h.command ?? "").includes("license-validate.mjs"))
-    );
-    expect(entry).toBeDefined();
-    expect(entry?.matcher).toMatch(/Write\|Edit/);
-  });
-
-  it("does NOT have PostToolUse (ingest plugins do not own the maintain-index hook)", () => {
-    const hooks = JSON.parse(readFileSync(hooksPath, "utf-8")) as {
-      hooks: Record<string, unknown>;
-    };
-    expect(hooks.hooks.PostToolUse).toBeUndefined();
-  });
-
-  it("agntux-plugins.mjs lists agntux-core and agntux-slack", () => {
-    const src = readFileSync(join(PLUGIN_ROOT, "hooks", "lib", "agntux-plugins.mjs"), "utf-8");
-    expect(src).toContain('"agntux-core"');
-    expect(src).toContain('"agntux-slack"');
-    expect(src).not.toContain("{{AGNTUX_PLUGIN_SLUGS}}");
-  });
-
-  it("public-key.mjs has the substituted Ed25519 PEM", () => {
-    const src = readFileSync(join(PLUGIN_ROOT, "hooks", "lib", "public-key.mjs"), "utf-8");
-    expect(src).toContain("agntux-license-v1");
-    expect(src).toContain("BEGIN PUBLIC KEY");
-    expect(src).not.toContain("{{PUBLIC_KEY_KID}}");
-    expect(src).not.toContain("{{PUBLIC_KEY_SPKI_PEM}}");
+  it("does NOT ship a hooks/ directory (license gate moved to MCP server)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "hooks"))).toBe(false);
   });
 });
 

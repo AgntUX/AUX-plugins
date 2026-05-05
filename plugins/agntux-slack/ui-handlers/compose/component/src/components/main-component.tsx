@@ -118,11 +118,6 @@ const ERROR_COPY: Record<string, { title: string; body: string; testId: string }
     body: "Run /agntux-onboard to set up your AgntUX workspace.",
     testId: "error-agntux-root-missing",
   },
-  license_paused: {
-    title: "Subscription paused",
-    body: "Your trial is paused. Upgrade at app.agntux.ai/billing to keep AgntUX active.",
-    testId: "error-license-paused",
-  },
 };
 
 function ErrorState({ error }: { error: string }) {

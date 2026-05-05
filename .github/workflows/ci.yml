@@ -15,21 +15,12 @@ on:
       - "lib/**"
 
 # Run all jobs even if one fails (fail-fast: OFF).
-# hook-hash-check runs independently of linter failures per the spec.
 jobs:
   lint:
     name: Lint marketplace metadata + version-changelog
     uses: ./.github/workflows/lint.yml
     permissions:
       contents: read
-
-  hook-hash-check:
-    name: Canonical hook hash check
-    uses: ./.github/workflows/hook-hash-check.yml
-    permissions:
-      contents: read
-    # Runs independently — even if lint fails
-    if: always()
 
   version-check:
     name: Version / CHANGELOG alignment

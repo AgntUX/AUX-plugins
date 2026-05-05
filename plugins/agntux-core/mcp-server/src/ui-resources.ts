@@ -18,7 +18,6 @@
 // =============================================================================
 
 import { buildCSP } from "./csp.js";
-import { readRenderTokenFromLicense } from "./license.js";
 import {
   triageBundleBase64Placeholder,
   triageBundleDescriptor,
@@ -102,7 +101,6 @@ export async function handleUIResource(
   }
 
   const csp = buildCSP();
-  const license = readRenderTokenFromLicense();
 
   return {
     contents: [
@@ -121,7 +119,6 @@ export async function handleUIResource(
               baseUriDomains: [],
             },
           },
-          ...(license ? { license } : {}),
         },
       },
     ],

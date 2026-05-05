@@ -163,27 +163,19 @@ and bundle both after any UI component changes:
   search (if you're @mentioned) or by re-discovery via the channel
   cursor (if the parent is touched).
 
-## Known canonical-hook diffs
+## Hooks and license enforcement
 
-Two files in `hooks/lib/` differ from `canonical/hooks/lib/` by design — every
-diff is a documented placeholder substitution per P2 §8. Verifiers running
-`shasum -c canonical/hooks/checksums.txt` from this plugin's `hooks/` directory
-see these two diverge:
+AgntUX Slack ships **no `hooks/` directory**. License enforcement lives
+in this plugin's MCP server (`mcp-server/src/index.ts`) via the
+`@agntux/mcp-license` gate, which wraps both `tools/call` and
+`resources/read`. The gate prompts the user through a host-agnostic
+pairing flow when no valid session exists.
 
-| File | Reason for divergence |
-|---|---|
-| `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. Substitution per P2 §8. |
-| `hooks/lib/agntux-plugins.mjs` | `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core", "agntux-slack"]`. Substitution per P2 §8. |
-
-All other hook files (`hooks.json`, `license-check.mjs`, `license-validate.mjs`,
-`lib/{cache,device,jwt-verify,refresh,scope,ui,agntux-root}.mjs`) are byte-identical
-to canonical and pass `shasum -c` cleanly.
-
-AgntUX Slack does NOT ship a local stdio MCP server. UI component bundles are
-embedded into the compiled MCP server at build time. There is no separate
-`.mcp.json` — the Slack connector is host-installed and declared via
+The Slack data connector is host-installed (declared via
 `requires_source_mcp: { source: connector, connector_slug: slack }` in
-`marketplace/listing.yaml`.
+`marketplace/listing.yaml`); the MCP server in `mcp-server/` is the
+plugin's own MCP App UI server (compose / canvas view tools), not the
+data connector.
 
 ## License
 

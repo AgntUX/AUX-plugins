@@ -67,23 +67,17 @@ prioritizes action items and manages your workflow. Run `/agntux-profile` to edi
 - Requires at least one ingest plugin to populate the knowledge store with real data.
 - Knowledge store lives on your local machine; no cloud sync at MVP.
 
-## Known canonical-hook diffs
+## Hooks
 
-Three files in `hooks/` differ from `canonical/hooks/` by design — every
-diff is a documented placeholder substitution per P2 §8 (or an additive
-plugin-specific extension). Verifiers running
-`shasum -c canonical/hooks/checksums.txt` will see these three diverge:
+This plugin ships a small set of plugin-specific hooks under `hooks/` for
+schema and index validation:
 
-| File | Reason for divergence |
-|---|---|
-| `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. Substitution per P2 §8. |
-| `hooks/lib/agntux-plugins.mjs` | `{{AGNTUX_PLUGIN_SLUGS}}` → `["agntux-core"]`. Substitution per P2 §8. |
-| `hooks/hooks.json` | Extends the canonical SessionStart + PreToolUse lanes with the additive PostToolUse `maintain-index.mjs` lane (T17 / P4 §6.1) — the orchestrator plugin owns the index hook; ingest plugins do NOT. |
+- `hooks/validate-schema.mjs` — PreToolUse, blocks malformed entity writes.
+- `hooks/validate-contract.mjs` — PreToolUse, blocks contract violations.
+- `hooks/maintain-index.mjs` — PostToolUse, keeps the entity index current.
 
-All other hook files (`license-check.mjs`, `license-validate.mjs`,
-`lib/{cache,device,jwt-verify,refresh,scope,ui}.mjs`,
-`lib/{frontmatter,summary}.mjs`) are byte-identical to canonical and
-pass `shasum -c` cleanly.
+License enforcement is NOT in hooks. It lives in the MCP server via
+`@agntux/mcp-license`, wrapped around both `tools/call` and `resources/read`.
 
 The Connector Directory URL embedded in `agents/personalization.md`
 (`https://app.agntux.ai/connectors`) is the MVP value; finalise before

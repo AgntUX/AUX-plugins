@@ -52,8 +52,8 @@ describe("normalizeCanvasPayload", () => {
   });
 
   it("returns structured error for error payloads", () => {
-    const result = normalizeCanvasPayload({ error: "license_paused" });
-    expect(result.error).toBe("license_paused");
+    const result = normalizeCanvasPayload({ error: "agntux_root_missing" });
+    expect(result.error).toBe("agntux_root_missing");
   });
 
   it("normalizes a full canvas payload", () => {

@@ -32,7 +32,8 @@ the prompt).
 AgntUX/AUX-plugins/
 ├── .claude-plugin/marketplace.json    # Plugin index for the host's marketplace mechanism (CI-regenerated)
 ├── .claude/                           # Maintainer slash commands and skills
-├── canonical/                         # Byte-frozen hook bundle + prompt templates + mcp-server templates
+├── canonical/                         # Prompt templates + MCP server templates (no byte-frozen hooks)
+├── packages/mcp-license/              # Shared MCP license gate (consumed by every plugin's mcp-server)
 ├── marketplace/index.json             # CI-regenerated aggregate of every listing.yaml (READ-ONLY)
 ├── plugins/{plugin-slug}/             # One directory per plugin
 ├── scripts/                           # Lint + regeneration scripts
@@ -53,10 +54,11 @@ Three explicit limitations apply to every file in this repo:
    A user running plugins locally inside their own host installation is fully
    permitted — that is the entire intended use case.
 
-2. **No license-key circumvention.** The `license-check` and `license-validate`
-   hooks constitute the license-key mechanism under ELv2. Bypassing them —
-   patching out the JWT check, hard-coding a fake token, redistributing a
-   stripped fork without the hooks — violates the license.
+2. **No license-key circumvention.** The `@agntux/mcp-license` gate wrapped
+   around every MCP server's `tools/call` and `resources/read` constitutes
+   the license-key mechanism under ELv2. Bypassing it — patching out
+   `requireValidLicense()`, hard-coding a fake JWT, redistributing a stripped
+   fork without the gate — violates the license.
 
 3. **No removal of notices.** The `LICENSE`, `NOTICE`, and attribution lines in
    source files must remain intact in any redistribution.
@@ -76,9 +78,10 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   (`recommended_ingest_cadence`, §2.5.1). Do NOT add other custom fields.
 - `LICENSE` — Elastic License v2 (ELv2). Per-plugin stub pointing to the root
   `LICENSE`. Do NOT replace or modify.
-- `hooks/` — byte-frozen license bundle. Identical across plugins except
-  `lib/public-key.mjs` and `lib/agntux-plugins.mjs`. Do NOT modify (CI
-  hash-check will reject the PR).
+- `hooks/` (optional) — plugin-author-defined Claude Code hooks. License
+  enforcement does NOT live here; it lives in the MCP server via
+  `@agntux/mcp-license`. agntux-core uses hooks only for schema and index
+  validation; agntux-slack ships no hooks.
 - `marketplace/listing.yaml` — structured marketplace metadata. **Required.**
 - `marketplace/icon.png` — 512×512 PNG, ≤ 512 KB.
 - `marketplace/screenshots/NN-name.{png,jpg}` — 1–8 screenshots.
@@ -106,9 +109,10 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   mismatches.
 - **Screenshots are listing collateral, NOT functional UI.** Real UI bundles are
   served from S3 with signed URLs (P2 §11).
-- **Hook files are byte-frozen.** CI hash-checks every plugin's `hooks/` against
-  `canonical/hooks/`. Only `lib/public-key.mjs` and `lib/agntux-plugins.mjs`
-  may differ (substituted by the generator at plugin-build time).
+- **License enforcement lives in the MCP server, not in hooks.** Each plugin's
+  `mcp-server/src/index.ts` imports `@agntux/mcp-license` and wraps both
+  `tools/call` and `resources/read` with `gate.requireValidLicense(...)`.
+  Hook semantics vary across hosts — the MCP gate is host-agnostic.
 
 ---
 
@@ -145,7 +149,6 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/lint-plugin {slug}` | Lint a plugin's marketplace metadata |
 | `/bump-version {slug} {major\|minor\|patch}` | Apply the versioning rubric |
 | `/rollback {slug}` | Step through the rollback runbook |
-| `/update-canonical-hooks` | Walk through the canonical-hook update runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
 
 ## Authoring tools
@@ -165,7 +168,7 @@ Apply this checklist on every plugin PR (also available via `/review-pr`):
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] Hook files are byte-identical to `canonical/hooks/` (`hook-hash-check` CI green)
+- [ ] MCP server wires `@agntux/mcp-license` gate around both `tools/call` and `resources/read`
 - [ ] Screenshots present, ≥1, correct dimensions (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` ≤ 500 lines, renders cleanly via `react-markdown` + `remark-gfm`

@@ -26,6 +26,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@agntux/mcp-license": "file:../../../packages/mcp-license",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@agntux/orchestrator-mcp-server": "file:../../agntux-core/mcp-server",
     "yaml": "^2.5.0"

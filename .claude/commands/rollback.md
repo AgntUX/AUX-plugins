@@ -1,7 +1,7 @@
 ---
 description: Walk through the P7 §11.1 rollback runbook for a plugin
 argument-hint: <slug>
-allowed-tools: Bash(git log *), Bash(git show *), Bash(git diff *), Bash(cat *), Bash(npx tsx scripts/verify-canonical-hooks.ts), Read
+allowed-tools: Bash(git log *), Bash(git show *), Bash(git diff *), Bash(cat *), Read
 ---
 
 You are walking a maintainer through reverting plugin `$ARGUMENTS` to its previous version per P7 §11.1.
@@ -23,9 +23,8 @@ Phase 3 — Pre-merge verification
 After the maintainer creates the revert branch, walk them through:
 
 1. Run `npm run lint:marketplace -- --plugin $ARGUMENTS` (must exit 0).
-2. Run `npx tsx scripts/verify-canonical-hooks.ts` (must exit 0).
-3. Run `npx tsx scripts/verify-version-changelog.ts --plugin $ARGUMENTS` (must exit 0).
-4. Confirm CI is green on the revert branch before merging.
+2. Run `npx tsx scripts/verify-version-changelog.ts --plugin $ARGUMENTS` (must exit 0).
+3. Confirm CI is green on the revert branch before merging.
 
 Phase 4 — Post-merge
 

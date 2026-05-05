@@ -164,14 +164,6 @@ describe('MainComponent — render branches', () => {
     expect(screen.getByTestId('run-onboard')).toBeInTheDocument();
   });
 
-  it('renders the license_paused degraded state', () => {
-    const { props } = createMainComponentProps({
-      toolOutput: { error: 'license_paused' },
-    });
-    render(<MainComponent {...props} />);
-    expect(screen.getByTestId('license-paused')).toBeInTheDocument();
-  });
-
   it('renders the action card from a populated payload', () => {
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     render(<MainComponent {...props} />);

@@ -67,13 +67,6 @@ describe("MainComponent — render branches (no-provider)", () => {
     expect(screen.getByTestId("error-action-not-found")).toBeInTheDocument();
   });
 
-  it("renders license_paused error state", () => {
-    const { props } = createMainComponentProps({
-      toolOutput: { error: "license_paused" },
-    });
-    render(<MainComponent {...props} />);
-    expect(screen.getByTestId("error-license-paused")).toBeInTheDocument();
-  });
 });
 
 // ── Happy path (needs provider) ───────────────────────────────────────────────

@@ -7,6 +7,9 @@
   "engines": {
     "node": ">= 20"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "lint:marketplace": "tsx scripts/lint-marketplace-metadata.ts",
     "lint": "tsc --noEmit",
