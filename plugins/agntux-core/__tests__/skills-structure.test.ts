@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(PLUGIN_ROOT, "skills");
+const UI_HANDLERS_DIR = join(PLUGIN_ROOT, "agents", "ui-handlers");
 
 const NAMED_SKILLS = [
   "agntux-onboard",
@@ -112,8 +113,30 @@ describe("agntux-core skills frontmatter conventions", () => {
   });
 });
 
+describe("UI handler manifests", () => {
+  it("triage handler exists at agents/ui-handlers/triage.md", () => {
+    expect(existsSync(join(UI_HANDLERS_DIR, "triage.md"))).toBe(true);
+  });
+
+  it("entity-browser handler is gone (retired in 5.0.0)", () => {
+    expect(existsSync(join(UI_HANDLERS_DIR, "entity-browser.md"))).toBe(false);
+  });
+
+  it("triage handler frontmatter declares the canonical operational keys", () => {
+    const fm = readFrontmatter(join(UI_HANDLERS_DIR, "triage.md"));
+    expect(fm.name).toBe("triage");
+    // operational is a YAML block — the parser only reads top-level scalars,
+    // so we assert the presence of the operational marker via raw text.
+    const raw = readFileSync(join(UI_HANDLERS_DIR, "triage.md"), "utf-8");
+    expect(raw).toContain("view_tool: triage_view");
+    expect(raw).toContain('resource_uri: "ui://triage"');
+    expect(raw).toContain("agntux-feedback-stop-raising");
+    expect(raw).toContain("actions_index_missing");
+  });
+});
+
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 4.3.1 (contract-validator hook + reason_class discipline guardrails)", () => {
+  it("plugin.json is at version 5.0.0 (triage UI + S3→embed migration; entity-browser + pivot retired)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -123,6 +146,6 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("4.3.1");
+    expect(manifest.version).toBe("5.0.0");
   });
 });

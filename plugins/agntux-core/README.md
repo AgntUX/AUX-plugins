@@ -23,7 +23,7 @@ and bootstrap the tenant schema.
 | `/agntux-onboard` | First-run interview + schema bootstrap. Run once. |
 | `/agntux-profile` | Edit preferences, glossary, identity, sources. |
 | `/agntux-teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
-| `/agntux-triage` | "What should I look at?" daily action-item digest. |
+| `/agntux-triage` | Inline triage UI — priority-sorted open actions, snooze/dismiss/done, suggested-action buttons. |
 | `/agntux-schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
 | `/agntux-sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin. |
 | `/agntux-ask "..."` | Catch-all for natural-language queries and inline status edits. |
@@ -38,6 +38,24 @@ skill's description (e.g. saying "what's hot today" routes to `/agntux-triage`).
 |---|---|---|
 | Daily action-item digest | `/agntux-triage` | Daily 08:00 |
 | Daily feedback review | `/agntux-feedback-review` | Daily 16:00 |
+
+## UI
+
+agntux-core renders one MCP App: `ui://triage`. Type `/agntux-triage` (or
+say "what's hot", "show triage", etc.) to render priority-sorted open
+action items with inline mutation controls and per-item suggested-action
+buttons that route into source plugins via `sendFollowUpMessage`. The
+component runs server-side reads against `<agntux project root>/actions/`;
+arguments to the underlying `triage_view` tool are zero-required so the
+LLM spends ~no tokens on tool args.
+
+For scheduled-background fires (Daily 08:00 by default), the same
+`/agntux-triage` skill emits a text digest via the retrieval subagent —
+no UI, no audience required.
+
+The previous `entity-browser` UI handler was retired in 5.0.0. Entity
+navigation now goes through `/agntux-ask` (e.g. "tell me about
+person/avery-rivera").
 
 ## Configuration
 

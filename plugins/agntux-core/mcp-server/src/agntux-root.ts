@@ -25,12 +25,18 @@ function isDir(p: string): boolean {
 /**
  * Resolve the AgntUX project root.
  *
+ *   0. AGNTUX_ROOT_OVERRIDE env var, if set — escape hatch for tests
+ *      (vitest workers can't `process.chdir`, so injecting cwd is impossible)
+ *      and for hosts that pin the root externally. Production never sets it.
  *   1. Walk up from cwd; first ancestor whose lowercased basename is "agntux"
  *      AND is a directory wins.
  *   2. Fallback: <home>/agntux when it exists on disk.
  *   3. Otherwise null — caller decides what to do.
  */
 export function resolveAgntuxRoot(cwd?: string): string | null {
+  const override = process.env.AGNTUX_ROOT_OVERRIDE;
+  if (override) return override;
+
   let dir: string;
   try { dir = resolve(cwd ?? process.cwd()); } catch { return fallback(); }
 
@@ -49,6 +55,8 @@ export function resolveAgntuxRoot(cwd?: string): string | null {
  * path even if the directory doesn't exist. Use this for path-traversal
  * guards and other string-level operations that don't require disk presence.
  * Subsequent FS calls will fail naturally if the directory is missing.
+ *
+ * Honors `AGNTUX_ROOT_OVERRIDE` via `resolveAgntuxRoot()`.
  */
 export function expectedAgntuxRoot(cwd?: string): string {
   return resolveAgntuxRoot(cwd) ?? join(homedir(), AGNTUX_DIR_NAME);

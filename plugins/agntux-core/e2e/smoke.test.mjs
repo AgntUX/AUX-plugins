@@ -146,17 +146,18 @@ describe("E3 — UI render: resources/read → _meta structure", () => {
     expect(result.contents[0].text).toMatch(/Unknown UI resource/);
   });
 
-  it("handleUIResource attempts to fetch for known UI URIs (triage)", async () => {
-    // In test env, S3 fetch will fail (no license) — we verify the error is structured
+  it("handleUIResource serves the embedded triage bundle", async () => {
+    // Distribution moved from S3 to build-time embed (5.0.0). The bundle is
+    // base64-decoded and returned with the MCP App protocol MIME type. If the
+    // embed step has not run yet, a structured error is returned instead of
+    // throwing.
     const { handleUIResource } = await import(`${MCP_DIST}/ui-resources.js`);
     const result = await handleUIResource("ui://triage");
-    // Either succeeds (if dev cache hits) or returns structured error — never throws
     if (result.isError) {
       expect(result.contents[0].type).toBe("text");
       expect(typeof result.contents[0].text).toBe("string");
     } else {
-      expect(result.contents[0].mimeType).toBe("text/html");
-      // _meta should have openai/widgetCSP
+      expect(result.contents[0].mimeType).toBe("text/html;profile=mcp-app");
       expect(result.contents[0]._meta?.["openai/widgetCSP"]).toBeDefined();
     }
   });
