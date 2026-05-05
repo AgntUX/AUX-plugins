@@ -1,0 +1,9 @@
+{
+  "args": { "scope": "now" },
+  "prompt": "Call the tool triage_view with arguments {\"scope\":\"now\"}",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid]" },
+    { "type": "read_text", "selector": "[data-testid='empty-state']" }
+  ],
+  "_notes": "Default empty-state fixture: no actions, scope=now. The component should render the 'no triage items' empty state with no console errors."
+}
