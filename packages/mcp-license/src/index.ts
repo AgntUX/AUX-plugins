@@ -1,10 +1,24 @@
 // @agntux/mcp-license — public API.
 //
 // `createLicenseGate({ pluginName, pluginVersion, apiBase? })` returns a
-// `gate` that each MCP server wraps both `tools/call` and `resources/read`
-// with. The single method is `requireValidLicense({ reason, toolName? })`,
-// which returns `void` on success or a structured MCP error envelope on
-// any blocking state.
+// `gate` that each MCP server wraps `tools/call` with. The single method is
+// `requireValidLicense({ reason, toolName? })`, which returns `void` on
+// success or a structured MCP error envelope on any blocking state.
+//
+// Why only `tools/call`? Two reasons learned the hard way:
+//   1. Gating both surfaces races on first-pair creation when the host fires
+//      a CallTool + ReadResource pair (each call generates its own nonce,
+//      the second writer wins ~/.agntux/.pairing, the displayed URL doesn't
+//      match what's polled). `tools/call` alone is naturally serialized by
+//      the LLM agent loop.
+//   2. The error envelope shape (`{ isError, content }` — CallToolResult
+//      shape) doesn't match ReadResourceResult (which requires `contents`,
+//      plural). Returning the gate envelope from a ReadResource handler
+//      trips strict SDK validation on some hosts (MCPJam Inspector).
+//
+// `resources/read` for the UI bundle is intentionally ungated; the bundle
+// is a static UI shell with no proprietary value without the data feed
+// served through the gated tool surface.
 
 import { hostname } from "node:os";
 import {
@@ -44,7 +58,7 @@ export interface LicenseGateOptions {
 }
 
 export interface RequireOptions {
-  reason: "tools/call" | "resources/read";
+  reason: "tools/call";
   toolName?: string;
 }
 

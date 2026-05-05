@@ -77,7 +77,9 @@ schema and index validation:
 - `hooks/maintain-index.mjs` — PostToolUse, keeps the entity index current.
 
 License enforcement is NOT in hooks. It lives in the MCP server via
-`@agntux/mcp-license`, wrapped around both `tools/call` and `resources/read`.
+`@agntux/mcp-license`, wrapped around the `tools/call` handler.
+`resources/read` for the UI bundle is intentionally ungated — see
+`packages/mcp-license/README.md` §"Why only tools/call".
 
 The Connector Directory URL embedded in `agents/personalization.md`
 (`https://app.agntux.ai/connectors`) is the MVP value; finalise before

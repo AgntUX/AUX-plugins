@@ -69,7 +69,7 @@ Use `/review-pr` or apply manually:
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] MCP server wires `@agntux/mcp-license` gate around both `tools/call` and `resources/read`
+- [ ] MCP server wires `@agntux/mcp-license` gate around the `tools/call` handler. `resources/read` must NOT call `gate.requireValidLicense(...)` (concurrency race + envelope-shape mismatch — see `packages/mcp-license/README.md`).
 - [ ] Screenshots are present, ≥1, dimensions correct (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` is ≤ 500 lines and renders cleanly

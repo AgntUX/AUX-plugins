@@ -55,10 +55,13 @@ Three explicit limitations apply to every file in this repo:
    permitted — that is the entire intended use case.
 
 2. **No license-key circumvention.** The `@agntux/mcp-license` gate wrapped
-   around every MCP server's `tools/call` and `resources/read` constitutes
-   the license-key mechanism under ELv2. Bypassing it — patching out
+   around every MCP server's `tools/call` handler constitutes the license-key
+   mechanism under ELv2. Bypassing it — patching out
    `requireValidLicense()`, hard-coding a fake JWT, redistributing a stripped
-   fork without the gate — violates the license.
+   fork without the gate — violates the license. (`resources/read` is
+   intentionally ungated; the UI bundle is a static shell with no
+   proprietary value without the data feed served through the gated tool
+   surface. See `packages/mcp-license/README.md` for the full rationale.)
 
 3. **No removal of notices.** The `LICENSE`, `NOTICE`, and attribution lines in
    source files must remain intact in any redistribution.
@@ -110,9 +113,11 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
 - **Screenshots are listing collateral, NOT functional UI.** Real UI bundles are
   served from S3 with signed URLs (P2 §11).
 - **License enforcement lives in the MCP server, not in hooks.** Each plugin's
-  `mcp-server/src/index.ts` imports `@agntux/mcp-license` and wraps both
-  `tools/call` and `resources/read` with `gate.requireValidLicense(...)`.
-  Hook semantics vary across hosts — the MCP gate is host-agnostic.
+  `mcp-server/src/index.ts` imports `@agntux/mcp-license` and wraps the
+  `tools/call` handler with `gate.requireValidLicense(...)`. `resources/read`
+  passes through ungated (see `packages/mcp-license/README.md` §"Why only
+  tools/call"). Hook semantics vary across hosts — the MCP gate is
+  host-agnostic.
 
 ---
 
@@ -168,7 +173,7 @@ Apply this checklist on every plugin PR (also available via `/review-pr`):
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] MCP server wires `@agntux/mcp-license` gate around both `tools/call` and `resources/read`
+- [ ] MCP server wires `@agntux/mcp-license` gate around the `tools/call` handler. `resources/read` must NOT call `gate.requireValidLicense(...)` (concurrency race + envelope-shape mismatch — see `packages/mcp-license/README.md`).
 - [ ] Screenshots present, ≥1, correct dimensions (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` ≤ 500 lines, renders cleanly via `react-markdown` + `remark-gfm`

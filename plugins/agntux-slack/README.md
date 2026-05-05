@@ -167,9 +167,11 @@ and bundle both after any UI component changes:
 
 AgntUX Slack ships **no `hooks/` directory**. License enforcement lives
 in this plugin's MCP server (`mcp-server/src/index.ts`) via the
-`@agntux/mcp-license` gate, which wraps both `tools/call` and
-`resources/read`. The gate prompts the user through a host-agnostic
-pairing flow when no valid session exists.
+`@agntux/mcp-license` gate, which wraps the `tools/call` handler.
+`resources/read` for the UI bundle is intentionally ungated — see
+`packages/mcp-license/README.md` §"Why only tools/call". The gate
+prompts the user through a host-agnostic pairing flow when no valid
+session exists.
 
 The Slack data connector is host-installed (declared via
 `requires_source_mcp: { source: connector, connector_slug: slack }` in
