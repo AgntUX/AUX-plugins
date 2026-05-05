@@ -132,7 +132,8 @@ Skip — ingest plugins have no `hooks/` directory. License enforcement is
 wired into the plugin's MCP server through `@agntux/mcp-license`. When
 you scaffold an MCP server for the new plugin, follow `agntux-slack/mcp-server/src/index.ts`
 as the reference: import `createLicenseGate`, call `gate.requireValidLicense(...)`
-inside both the `tools/call` and `resources/read` handlers, and declare
+inside the `tools/call` handler ONLY (do NOT gate `resources/read` —
+see `packages/mcp-license/README.md` §"Why only tools/call"), and declare
 `"@agntux/mcp-license": "file:../../../packages/mcp-license"` in
 `mcp-server/package.json`.
 

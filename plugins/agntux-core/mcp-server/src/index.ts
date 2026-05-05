@@ -52,17 +52,22 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: UI_RESOURCE_LIST,
 }));
 
-// Per P2a §4 — resources/read returns either a successful ReadResourceResult
-// OR a structured error (`{ isError: true, contents: [...] }`) when the bundle
-// has not been embedded or fails to decode. The SDK's ReadResourceResultSchema
-// does not currently expose `isError` in its inferred TS type, so the union
-// we return is wider than the schema's inferred output type. The SDK runtime
-// forwards our envelope unchanged. Until upstream adds `isError`, keep the
-// cast scoped to this single line.
+// resources/read is intentionally NOT gated. The license gate runs only on
+// tools/call, where the data-bearing surface lives. Two reasons:
+//   - Concurrency: gating both surfaces races on first-pairing creation when
+//     a host fires CallTool + ReadResource together (each call generates a
+//     fresh nonce, the second writer wins ~/.agntux/.pairing, the displayed
+//     URL doesn't match what's polled). tools/call alone is naturally
+//     serialized by the LLM agent loop.
+//   - Envelope shape: the gate's error envelope uses `content` (singular,
+//     CallToolResult shape). Returning that from a ReadResource handler trips
+//     SDK validation on hosts that strict-parse ReadResourceResult (which
+//     requires `contents`, plural).
+// `handleUIResource` already returns a well-formed `ReadResourceResult`
+// (success) or a structured `{ isError, contents }` envelope (decode failure
+// / unknown URI), and ui-resources.ts uses `contents: [...]`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const err = await gate.requireValidLicense({ reason: "resources/read" });
-  if (err) return err as any;
   return (await handleUIResource(request.params.uri)) as any;
 });
 

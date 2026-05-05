@@ -26,7 +26,7 @@ For each plugin touched:
 
 1. **Bump rule fit (§5.1)**: Read the diff and the CHANGELOG entry. Does the bump match the rubric? If `changelog-bump-heuristic` warned, was it addressed?
 2. **Surface stability**: If `supported_prompts` or `ui_components` (in `listing.yaml`) changed, does the change maintain backward-compat for users on the previous version? If not, is the bump MAJOR?
-3. **License gate wired**: If the diff touches `plugins/<slug>/mcp-server/src/index.ts`, confirm `gate.requireValidLicense(...)` still wraps both `tools/call` and `resources/read`. The MCP gate is the ELv2 license-key mechanism; removing it is a release blocker.
+3. **License gate wired**: If the diff touches `plugins/<slug>/mcp-server/src/index.ts`, confirm `gate.requireValidLicense(...)` still wraps the `tools/call` handler. The `resources/read` handler must NOT call the gate (concurrency race on first-pair creation + ReadResourceResult/CallToolResult envelope-shape mismatch — see `packages/mcp-license/README.md` §"Why only tools/call"). Removing the `tools/call` gate is a release blocker; re-introducing a gate call inside the `resources/read` handler is a regression.
 
 Step 4 — Output
 

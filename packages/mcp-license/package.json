@@ -1,7 +1,7 @@
 {
   "name": "@agntux/mcp-license",
   "version": "0.1.0",
-  "description": "MCP server license gate. Wraps tools/call and resources/read in a host-agnostic license check that prompts the user through a pairing flow when no valid session exists. Internal AgntUX workspace package.",
+  "description": "MCP server license gate. Wraps tools/call in a host-agnostic license check that prompts the user through a pairing flow when no valid session exists. resources/read is intentionally ungated. Internal AgntUX workspace package.",
   "type": "module",
   "private": true,
   "engines": {

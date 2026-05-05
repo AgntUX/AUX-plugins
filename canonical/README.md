@@ -24,8 +24,11 @@ canonical/
 ```
 
 License enforcement now lives in `packages/mcp-license/` and is wrapped around
-each plugin's MCP server `tools/call` and `resources/read` handlers. Hooks are
-plugin-author-defined and only do schema/index validation.
+each plugin's MCP server `tools/call` handler. `resources/read` passes through
+ungated — see `packages/mcp-license/README.md` for the rationale (concurrency
+race on first-pair creation + ReadResourceResult / CallToolResult envelope
+shape mismatch). Hooks are plugin-author-defined and only do schema/index
+validation.
 
 ---
 

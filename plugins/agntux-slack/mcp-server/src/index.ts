@@ -51,13 +51,12 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: UI_RESOURCE_LIST,
 }));
 
-// Per P2a §4 — resources/read returns either a successful ReadResourceResult
-// OR a structured error (`{ isError: true, contents: [...] }`) when the bundle
-// has not been embedded or fails to decode. Cast is scoped to this line only.
+// resources/read is intentionally NOT gated; license enforcement runs only on
+// tools/call. See agntux-core's index.ts for the rationale (concurrency race
+// on first-pair creation + ReadResourceResult vs CallToolResult envelope
+// shape mismatch).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const err = await gate.requireValidLicense({ reason: "resources/read" });
-  if (err) return err as any;
   return (await handleUIResource(request.params.uri)) as any;
 });
 
