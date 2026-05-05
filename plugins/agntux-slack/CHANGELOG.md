@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-05-04
+
+### Added
+- **`mcp-server/`** — new TypeScript MCP server hosting two view tools (`compose_view`, `canvas_view`), HTTP_MODE for local MCPJam testing (port 5180), build-time bundle embed pipeline, `check:bundle-sync` CI guard. Mirrors `agntux-core/mcp-server/` shape; depends on `@agntux/orchestrator-mcp-server` (file: ../../agntux-core/mcp-server) for the shared `expectedAgntuxRoot` resolver.
+- **`ui-handlers/compose/`** — `ui://slack-compose` MCP App. Inline iframe for the Draft / Schedule / Save-Slack-draft flow on every Slack action item. Renders thread context, the agent-drafted reply body in an editable textarea, mode tabs, "Why this draft" personalization-signals disclosure, and a Send button that emits a committed envelope back to the draft skill.
+- **`ui-handlers/canvas/`** — `ui://slack-canvas` MCP App. Inline iframe for the Summarise-thread-to-canvas flow. Renders four editable section blocks (TL;DR, Decisions, Open questions, Participants) plus an editable title and a Preview tab. Decisions and Open questions are JSON-encoded in the committed envelope so single-pipe items round-trip correctly.
+- **`agents/ui-handlers/{compose,canvas}.md`** — operational manifests for both UI handlers.
+- **`marketplace/listing.yaml → ui_components:`** — declares both UIs to the marketplace.
+- **+475 vitest cases** across the four test suites (zero pre-existing for these surfaces):
+  - mcp-server: 27 (cap enforcement, structured-error branches per view tool)
+  - compose component: 114 (parsePayload, render, mode-toggle, Send-emit, edit-preserves-state, all UI primitives)
+  - canvas component: 107 (canvas-card render, list-editor, preview tab, JSON list-encoding round-trip)
+  - top-level: 227 (draft-flow committed-envelope routing assertions, ui-routing static checks, envelope-shape regex contract)
+  Total: 475 tests, all green; component bundles ≤260 KB gzip.
+
+### Changed (BREAKING)
+- **`skills/draft/SKILL.md` — Step 6 calls a view tool, no chat-text confirmation.** The prior chat-only "show payload, ask yes/no/edit" cycle is retired. Step 6 now calls `mcp__agntux-slack__compose_view` (or `canvas_view`) with the agent-drafted body; the host renders an iframe; the user edits/accepts inside the iframe. New Step 6.5 parses the committed envelope the iframe emits via `sendFollowUpMessage` and treats it as the explicit `yes` for that exact body. The skill MUST NOT re-compose between commit and send — user edits are authoritative.
+- **Suggested-action click → iframe round-trip.** Every Slack action item's "Draft a reply" / "Schedule a reply" / "Summarise to canvas" button now renders an MCP App iframe (assuming a host that supports `text/html;profile=mcp-app` rendering — currently Claude Cowork). The chat-only path is no longer authored. If the host doesn't render the iframe, the user surfaces the issue conversationally.
+
+### Migration
+- No user data migration. Existing action items are unchanged. Suggested-action `host_prompt` templates are unchanged at the ingest-write surface — the click still emits the same `ux: Use the agntux-slack plugin to draft a reply for action {id}.` envelope; only what happens *after* the draft skill receives that envelope changed (iframe instead of chat).
+- Hosts that don't support MCP App rendering will surface a tool-call result without UI. The user can edit and re-fire, but the iframe is now the primary editing surface; chat-only fallback is intentionally not authored to avoid confusing the host into giving up on the iframe path.
+- Plugin authors who depend on `expectedAgntuxRoot` from `agntux-core`'s MCP server can now import it via `@agntux/orchestrator-mcp-server/agntux-root` (new subpath export shipped in agntux-core 5.1.0). The slack plugin uses this pattern.
+
 ## [1.1.1] — 2026-05-04
 
 ### Added

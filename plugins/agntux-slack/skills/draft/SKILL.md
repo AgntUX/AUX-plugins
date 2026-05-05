@@ -1,6 +1,6 @@
 ---
 name: draft
-description: On-demand Slack drafting flow. Triggers on suggested-action `ux:` prompts back to agntux-slack — verbs include `draft a reply for action {id}`, `draft a reply and schedule it for action {id}`, and `summarise the thread for action {id} into a Slack canvas`. Drafts a payload, shows it in chat, asks for explicit yes/no, and only on `yes` calls a Slack write tool. Never sends without confirmation.
+description: On-demand Slack drafting flow. Triggers on suggested-action `ux:` prompts back to agntux-slack — verbs include `draft a reply for action {id}`, `draft a reply and schedule it for action {id}`, `summarise the thread for action {id} into a Slack canvas`, and committed-envelope callbacks `commit the drafted reply for action {id}`, `commit the drafted canvas for action {id}`, and `discard the draft/canvas for action {id}`. Renders compose/canvas iframes via view tools; committed envelopes from the iframe are the authoritative send confirmation. Never sends without a committed envelope from the iframe.
 context: fork
 agent: general-purpose
 ---
@@ -23,15 +23,12 @@ via its description.
 
 You are the **only** path in this plugin that calls Slack write
 tools. The sync skill (`skills/sync/SKILL.md`) is read-only. Every
-write tool call from this skill MUST be preceded by an explicit user
-`yes` in the immediately preceding turn — there is no implicit
+write tool call from this skill MUST follow receipt of a
+well-formed committed envelope (Step 6.5) emitted by the iframe after
+the user clicks a primary action button — there is no implicit
 confirmation, no "you said draft, here's what I sent" path. The
 general-purpose agent has access to the write tools; this prompt's
 confirmation gate is the safety property.
-
-The future UI version of this flow will replace the chat
-confirmation with a card-with-Send-button. The underlying
-confirm-then-write pattern stays the same.
 
 ---
 
@@ -91,29 +88,51 @@ print this message and stop:
 
 ## Verbs you handle
 
-| Verb | Triggering host_prompt suffix | Write tool called on `yes` |
-|---|---|---|
-| draft a reply | `…draft a reply for action {id}.` | `slack_send_message(channel_id, message, thread_ts)` |
-| schedule a reply | `…draft a reply and schedule it for action {id}.` | `slack_schedule_message(channel_id, message, post_at, thread_ts)` |
-| summarise the thread | `…summarise the thread for action {id} into a Slack canvas.` | `slack_create_canvas(title, content)` then `slack_send_message` posting the canvas link back into the thread |
-| save as draft | (only if the user replies "save as draft" during a draft-a-reply turn) | `slack_send_message_draft(channel_id, message, thread_ts)` |
+Two distinct flows share this skill. The inbound prompt determines which route runs.
 
-If the inbound prompt does not match any of these verbs, ask for
+### Click-time verbs (ingest writes these into `suggested_actions`; user click → host routes here → render iframe)
+
+| Inbound verb | Outbound action |
+|---|---|
+| `draft a reply for action {id}` | Call `compose_view(initial_verb: "draft", …)` then await committed envelope |
+| `draft a reply and schedule it for action {id}` | Call `compose_view(initial_verb: "schedule", …)` then await committed envelope |
+| `summarise the thread for action {id} into a Slack canvas` | Call `canvas_view(…)` then await committed envelope |
+
+### Committed envelopes (iframe emits these after the user clicks a primary action button)
+
+| Envelope mode | Slack write tool called |
+|---|---|
+| `commit … (mode: send)` | `slack_send_message(channel_id, message, thread_ts)` |
+| `commit … (mode: schedule, send_at: …)` | `slack_schedule_message(channel_id, message, post_at, thread_ts)` |
+| `commit … (mode: save_draft)` | `slack_send_message_draft(channel_id, message, thread_ts)` |
+| `commit the drafted canvas for action …` | `slack_create_canvas(title, content)` then `slack_send_message` |
+| `discard the draft/canvas for action …` | No Slack call — reply "Discarded. The action item is still open." and stop |
+
+If the inbound prompt does not match any of these shapes, ask for
 clarification — do not guess. **Never auto-pivot.** If the user
 says "actually summarise it instead" mid-flow, re-confirm the new
-verb, draft a fresh payload, and ask for confirmation again.
+verb, draft a fresh payload, call the appropriate view tool, and await
+a fresh committed envelope.
 
 **Stale placeholders:** if the inbound prompt body contains a literal `{...}` template string (a generator substitution error from the ingest pass that wrote the action item), do not proceed. Return: `"Got a malformed dispatch from the orchestrator (placeholders not filled). Try again."` This surfaces upstream bugs rather than masking them.
 
 ---
 
-## Step 1 — Parse the action ID and verb
+## Step 1 — Parse the action ID and verb; route to the correct flow
 
 The inbound prompt body (after the host strips `ux: `) is one of:
 
+**Click-time verbs** (→ continue to Step 2):
 - `Use the agntux-slack plugin to draft a reply for action {id}.`
 - `Use the agntux-slack plugin to draft a reply and schedule it for action {id}.`
 - `Use the agntux-slack plugin to summarise the thread for action {id} into a Slack canvas.`
+
+**Committed envelopes** (→ jump directly to Step 6.5):
+- `Use the agntux-slack plugin to commit the drafted reply for action {id} with body «…» (mode: …).`
+- `Use the agntux-slack plugin to commit the drafted canvas for action {id} with title «…», tldr «…», decisions «…», open_questions «…», followup_message «…».`
+- `Use the agntux-slack plugin to discard the (draft|canvas) for action {id}.`
+
+**Routing rule:** try the three Step 6.5 envelope regexes (compose / canvas / discard) against the inbound prompt body in order. If any matches, jump straight to Step 6.5 with the captured groups. Otherwise treat as a click-time verb — continue to Step 2. (Routing on regex match rather than on a substring keyword like "commit" avoids misrouting a future click-time verb whose phrasing accidentally contains the substring — e.g., "draft a commit message reply".)
 
 Extract `{id}` (the action item filename minus `.md`) and the verb. If `{id}` is missing or doesn't match an existing action item, surface one sentence — `"I need an action item ID to draft against. Try clicking the action again from the triage view."` — and stop.
 
@@ -159,113 +178,117 @@ Do NOT inject signature lines, "as discussed" phrases, or padding the user has n
 Compose the payload appropriate for the verb:
 
 - **Draft a reply** — a message body of 1–3 paragraphs, respecting `user.md → # Preferences`. Reply to the most recent meaningful turn in the thread; quote it briefly when the thread is long enough that context isn't obvious.
-- **Schedule a reply** — same body as `draft a reply`, plus a follow-up question about *when* to send. Default to "tomorrow at 9am the user's local time" if the user later supplies "tomorrow" without a time; otherwise ask explicitly.
-- **Summarise to canvas** — canvas-flavoured markdown: a title (≤80 chars), a one-paragraph TL;DR, a bulleted "Decisions" section, a bulleted "Open questions" section, and a "Participants" section listing real names. Sized for a quick-read canvas; do not paste the entire transcript.
+- **Schedule a reply** — same body as `draft a reply`. Default proposed send time: "tomorrow 09:00 user-local time" (RFC 3339). Pass as `proposed_send_time` to `compose_view`.
+- **Summarise to canvas** — five sections: a title (≤80 chars), a one-paragraph TL;DR (≤500 chars), a "Decisions" list (≤8 items, ≤200 chars each), an "Open questions" list (≤8 items, ≤200 chars each), and a "Participants" list of real names (≤12). Sized for a quick-read canvas; do not paste the entire transcript. Also draft a short `proposed_followup_message` (≤200 chars) to post in the thread after canvas creation, e.g. "Posted a thread summary: {url}".
 
 Personalisation fit comes from the action item's `## Why this matters` body. Don't re-derive *why*; respond to the situation already described.
 
+Also synthesise a `personalization_signals` array — up to 4 short bullets (≤120 chars each) explaining *why* the draft looks the way it does. Cite `user.md → # Preferences` rules, `data/instructions/agntux-slack.md → # Notes` rules, or `# Auto-learned` patterns. Examples:
+- "Tone: terse — per user.md → # Preferences"
+- "Skipping signature line — never asked for one"
+- "Direct manager (per # Always raise: VIP) — keep formal"
+
+These are passed to `compose_view` as `personalization_signals`. Canvas calls (`canvas_view`) do not have a parallel personalization disclosure surface — omit.
+
 ---
 
-## Step 6 — Show the draft in chat with a confirmation prompt
+## Step 6 — Render the iframe
 
-Print the draft verbatim, framed by enough context that the user can verify they're sending what they think. Use these templates exactly:
+Call the view tool that matches the verb. Pass the working-memory payload as args. The host renders the iframe; the user reviews, edits, and commits inside it. The view tool's `inputSchema` is enforced by the MCP server — read each tool's schema for the exact arg shape.
 
-### For "draft a reply":
+| Verb | Tool call | Required args |
+|---|---|---|
+| draft a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "draft"`, `drafted_body`, `personalization_signals`, `thread_context: { parent_ts, parent_author_real_name, parent_excerpt, last_reply_ts, last_reply_author_real_name, last_reply_excerpt, total_replies, participants[], messages_preview[] }`, `channel: { id, name, is_dm }`, `slack_permalink?` |
+| schedule a reply | `mcp__agntux-slack__compose_view` | as above + `initial_verb: "schedule"`, `proposed_send_time` (RFC 3339, default "tomorrow 09:00 user-local") |
+| summarise to canvas | `mcp__agntux-slack__canvas_view` | `action_id`, `drafted_canvas: { title, tldr, decisions[], open_questions[], participants[] }`, `channel: { id, name }`, `thread: { parent_ts, total_replies, participants[] }`, `proposed_followup_message` |
 
+After the call returns, **stop and wait** for the next user turn. Do not narrate. The next inbound prompt the host delivers will be one of the committed envelopes from the "Committed envelopes" section above (or a discard envelope, or a freeform reply — see Step 7).
+
+**Renderer-availability assumption (locked):** Assume the renderer is always available. Do not author a chat-only fallback path. If the iframe fails to render, the user will surface that conversationally; pre-authored fallback language at this layer would confuse the host into skipping the iframe path.
+
+**Do NOT pre-fill orchestrator-authored content during ingest** — bodies, schedule times, and canvas content are produced HERE at click time, with fresh thread context.
+
+---
+
+## Step 6.5 — Parse the committed envelope
+
+The next user turn after Step 6 emits the view tool call will be one of the committed-envelope host_prompts — **the host re-routes the iframe's `sendFollowUpMessage` back into chat as a fresh `ux: …` prompt addressed to this skill**. Receipt of a recognised committed-envelope shape is the explicit authorisation to call a Slack write tool for the body it carries.
+
+### Envelope encoding contract
+
+The component (in `ui-handlers/compose/component/src/lib/build-envelope.ts` and `ui-handlers/canvas/component/src/lib/build-canvas-envelope.ts`) encodes envelopes as follows. Your parser is the inverse.
+
+**Guillemet escaping (compose and canvas scalar fields):**
+1. Before wrapping in `«…»`, every literal `«` in the field value is replaced with `««` and every literal `»` is replaced with `»»`.
+2. To decode: extract the content between the outermost `«` and `»`, then replace `««`→`«` and `»»`→`»` (in that order; the doubling is symmetric and unambiguous because an odd-count run of `«` or `»` cannot appear in the encoded form).
+
+Worked example: original body `say «hi» to them`
+→ encoded: `««hi»» to them` enclosed in outer delimiters: `«say ««hi»» to them»`
+→ decode: extract `say ««hi»» to them`, then `««`→`«` and `»»`→`»` = `say «hi» to them`. Correct.
+
+**List encoding (canvas `decisions` and `open_questions` fields only):**
+1. The component JSON-stringifies the array into the value slot.
+2. The `«…»` outer wrapper still applies, but the inner contents are a valid JSON array literal — no custom escape rules, no reserved item-level character.
+3. To decode: capture the substring between the field's outermost `«` and `»`, then `JSON.parse` the captured group. JSON natively handles literal `|`, `«`, `»` (within string values — only the *outer* delimiter `»` ends the capture, and JSON strings never contain a bare `»` unless quoted, which the non-greedy regex captures correctly because `JSON.stringify` preserves byte order), newlines, and quotes.
+4. **Do NOT** apply guillemet doubling to list-field values. The component does not double them, and JSON-internal `«` / `»` are passed through unchanged.
+
+Worked example: decisions `["A|B", "say «hi»", "with \"quotes\""]`
+→ JSON-stringified: `["A|B","say «hi»","with \"quotes\""]`
+→ envelope fragment: `decisions «["A|B","say «hi»","with \"quotes\""]»`
+→ decode: capture between outermost `«…»` (the canvas regex uses non-greedy `[\s\S]*?`, which finds the closest `»` that is followed by the literal `, open_questions «` — the regex's anchor structure makes this unambiguous), then `JSON.parse` → original array byte-for-byte.
+
+Why JSON (not the prior `||`-doubling/join scheme): the doubling scheme had a single-pipe correctness gap. An item containing a single literal `|` (e.g., a markdown table fragment "vendor A | vendor B") would encode to "vendor A || vendor B" and, when joined with the `||` item separator, produce a string the decoder could not reliably split. JSON sidesteps this entirely because the array boundaries are JSON syntax, not a chosen-by-convention sentinel.
+
+**Edge cases the parser must handle (defensive):**
+- Empty list → JSON `[]` → `JSON.parse("[]")` → `[]`. Treat empty arrays as "no decisions" / "no open questions"; do not block.
+- Malformed JSON (rare race) → `JSON.parse` throws → handle as `unrecognised envelope` per Hard Rule 2 below: surface the standard error message and stop. Do NOT call any Slack tool.
+
+### Regexes
+
+Match the raw prompt body with these anchored patterns. **Scalar fields use the `(?:[^»]|»»)*` capture, not `[\s\S]*?`**, so a single un-paired `»` in the encoded value is *impossible* (every literal `»` is doubled by the encoder). This makes the closing-delimiter detection unambiguous even when the user pastes a substring like `», tldr «` into a title or body — the doubled form `»», tldr ««` is captured correctly, and the decoded round-trip recovers the original byte-for-byte. List fields keep `[\s\S]*?` because their inner contents are JSON, and any regex-capture failure surfaces as a `JSON.parse` throw which fails closed per Hard Rule 2.
+
+**Compose reply** (body is a scalar — guillemet-doubled):
 ```
-Draft reply to thread in #{channel-name} (replying to @{last-author}):
-
-> {one-line quote of the message you're replying to}
-
----
-
-{drafted body, 1–3 paragraphs}
-
----
-
-Send this now? (yes / no / edit)
+^ux: Use the agntux-slack plugin to commit the drafted reply for action ([\w-]+) with body «((?:[^»]|»»)*)» \(mode: (send|schedule|save_draft)(?:, send_at: (.+?))?\)\.$
 ```
 
-### For "schedule a reply":
-
+**Canvas** (title / tldr / followup_message are scalars; decisions / open_questions are JSON):
 ```
-Draft reply to thread in #{channel-name} (replying to @{last-author}), to be sent at {user-supplied time, or "(time?)" if not yet supplied}:
-
-> {one-line quote of the message you're replying to}
-
----
-
-{drafted body}
-
----
-
-Send this at {time}? (yes / no / edit / change time)
+^ux: Use the agntux-slack plugin to commit the drafted canvas for action ([\w-]+) with title «((?:[^»]|»»)*)», tldr «((?:[^»]|»»)*)», decisions «([\s\S]*?)», open_questions «([\s\S]*?)», followup_message «((?:[^»]|»»)*)»\.$
 ```
 
-If the user has not yet supplied a time, ask for one before showing the confirm prompt: `"What time should I send this? (e.g., 'tomorrow 9am', '2026-05-04T15:00 PT')"`. Do not assume.
-
-### For "summarise to canvas":
-
+**Discard** (no scalar value — only the action_id slug, which is `[\w-]+`):
 ```
-Draft canvas titled "{title}" summarising thread in #{channel-name}:
-
----
-
-{full canvas markdown body — TL;DR, Decisions, Open questions, Participants}
-
----
-
-Create canvas with this content and post the link back into the thread? (yes / no / edit)
+^ux: Use the agntux-slack plugin to discard the (draft|canvas) for action ([\w-]+)\.$
 ```
 
-**Hard rules for the draft display:**
-- Show the **exact** payload that will be sent. No "I sent a polite reply" hand-waves.
-- Include the channel name and thread context so the user can verify routing.
-- Quote the original message for replies on long threads.
-- Do not call any write tool yet.
+### Hard rules for receipt
+
+1. The skill MUST NOT re-compose, re-edit, summarise, paraphrase, or "improve" the body between receiving the committed envelope and calling the Slack write tool. The user's edits are authoritative — the iframe Send button counts as the explicit authorisation for that exact body.
+2. The skill MUST NOT call any Slack write tool on receipt of an envelope that fails to match the regexes above. Surface one sentence — `"Got an unrecognised commit envelope from the iframe. The action is still open; click the suggested-action button again to retry."` — and stop.
+3. The skill MUST verify that `action_id` from the envelope matches the `action_id` the skill was working on (from Step 1 of the original click-time dispatch). If they mismatch (rare race or stale envelope), surface — `"Commit envelope referenced action {envelope_id}, but I was working on action {expected_id}. Discarding to avoid a wrong-thread send."` — and stop.
+4. **Stale placeholders in envelope fields:** if any decoded field (`body`, `title`, `tldr`, etc.) contains a literal generator-template token — specifically one of `{id}`, `{action_id}`, `{drafted_body}`, `{title}`, `{tldr}`, `{decisions}`, `{open_questions}`, `{followup_message}`, `{send_at}`, or `{slack_permalink}` (anchored as a complete `{token}` substring) — do not proceed. Surface — `"Commit envelope arrived with unfilled placeholders. The action is still open; click the suggested-action button again."` — and stop. (A bare `{...}` regex would false-positive on legitimate user content like JSON or shell snippets; the closed list above is the actual set of tokens the upstream code substitutes.)
+5. **Discard envelope** — print `"Discarded. The action item is still open."` and stop. Do not call any Slack tool. Do not call `set_status`.
 
 ---
 
-## Step 7 — Branch on the user's response
+## Step 7 — Branch on the committed verb (mode from the parsed envelope)
 
-The user's next turn is one of `yes`, `no`, `edit`, `change time` (schedule only), `save as draft` (draft-a-reply only), or freeform.
+| Mode | Tool call | After-success |
+|---|---|---|
+| `send` | `slack_send_message(channel_id=<from action source_ref>, message=<decoded envelope body>, thread_ts=<from action source_ref>)` | jump to Step 8 |
+| `schedule` | `slack_schedule_message(channel_id=…, message=<decoded body>, post_at=<unix timestamp from envelope send_at>, thread_ts=…)` | jump to Step 8 |
+| `save_draft` | `slack_send_message_draft(channel_id=…, message=<decoded body>, thread_ts=…)` | jump to Step 8 |
+| `canvas` | `slack_create_canvas(title=<decoded envelope title>, content=<assembled canvas markdown>)`, then `slack_send_message(channel_id=…, message=<decoded followup_message>, thread_ts=…)` | jump to Step 8 |
 
-### `yes`
+Canvas markdown assembly: TL;DR paragraph, "## Decisions" bulleted list using decoded `decisions[]`, "## Open questions" bulleted list using decoded `open_questions[]`, "## Participants" list using decoded `participants[]` (from the `canvas_view` args, not the envelope — participants are not in the canvas envelope). Use the user-edited values from the envelope; do not re-compose.
 
-Call the appropriate Slack write tool with the **exact** payload shown:
-
-| Verb | Tool call |
-|---|---|
-| draft a reply | `slack_send_message(channel_id=<from source_ref>, message=<body shown>, thread_ts=<from source_ref>)` |
-| schedule a reply | `slack_schedule_message(channel_id=…, message=…, post_at=<unix timestamp from supplied time>, thread_ts=…)` |
-| summarise to canvas | `slack_create_canvas(title=<title shown>, content=<body shown>)`, then `slack_send_message(channel_id=…, message="Posted a thread summary: <canvas URL>", thread_ts=…)` |
-
-If the write call fails:
-- `429` (rate limit) — surface one sentence: `"Slack returned 429. Try again in a minute — your draft is saved in this conversation."` Do NOT retry automatically.
-- `auth` failure — surface: `"Slack write permission denied. Grant the connector's send permission in your host and reply 'yes' again."` (Some hosts gate write tools behind a separate consent dialog from search.)
+**Failure handling:**
+- `429` (rate limit) — surface: `"Slack returned 429. Try again in a minute — the action is still open."` Do NOT retry automatically.
+- `auth` failure — surface: `"Slack write permission denied. Grant the connector's send permission in your host and click the action again."` (Some hosts gate write tools behind a separate consent dialog from search.)
 - Any other error — surface the kind and message, do NOT retry.
 
-If the write succeeds, jump to Step 8.
-
-### `no`
-
-Discard the draft. No write tool is called. Reply with one sentence acknowledging — `"Discarded. The action item is still open."` — and stop.
-
-### `edit`
-
-Accept user revisions in the next turn (or several). After each round of revisions, re-show the full payload via the Step 6 template and ask the confirm question again. Each round is a fresh confirmation gate — `yes` only counts when it follows a freshly-shown payload.
-
-### `change time` (schedule verb only)
-
-Ask for the new time, recompute `post_at`, re-show the payload via the Step 6 template, ask the confirm question again.
-
-### `save as draft` (draft-a-reply verb only)
-
-Call `slack_send_message_draft(channel_id, message, thread_ts)`. This saves a Slack-side draft for the user to edit and send manually inside Slack itself. Treat the resulting draft like a successful send for purposes of Step 8 — call `mcp__agntux-core__set_status(action_id, status: "done")` and append an `## Activity` bullet noting it was saved as a Slack draft (not sent).
-
-### Freeform / unrecognised
-
-If the user's reply does not match any of the above, treat it as `edit` — assume they're revising. Ask one clarifying question if needed, but never call a write tool without a clean `yes`.
+**Freeform reply instead of a committed envelope:** if the user types a freeform reply rather than the iframe emitting an envelope, ask one clarifying question — `"I'm waiting on the iframe Send button — did the card not render? Tell me what you saw and we'll figure it out."` — and stop.
 
 ---
 
@@ -278,29 +301,30 @@ After a successful `slack_send_message` / `slack_schedule_message` / `slack_crea
    mcp__agntux-core__set_status(action_id: "{id}", status: "done")
    ```
    The MCP server (`set_status`, `dismiss`, `snooze`, `pivot`) is the canonical surface for action mutations. It updates `status`, `completed_at`, and any related index bookkeeping atomically. Direct frontmatter writes from this skill are forbidden — they bypass the MCP server's invariants.
-2. **After the MCP call succeeds**, separately Edit the action body to append an `## Activity` section bullet at the bottom (above the closing `---` if any). Body edits don't conflict with the MCP tool's frontmatter mutation. Format:
+2. **After the MCP call succeeds**, separately Edit the action body to append an `## Activity` section bullet at the bottom (above the closing `---` if any). Body edits don't conflict with the MCP tool's frontmatter mutation. Include the committed `mode` in the bullet so the audit log shows which action the user took. Format:
    ```
    ## Activity
-   - {YYYY-MM-DD HH:MM} — replied via agntux-slack:draft (ts: {returned slack ts})
+   - {YYYY-MM-DD HH:MM} — replied via agntux-slack:draft (mode: send, ts: {returned slack ts})
+   - {YYYY-MM-DD HH:MM} — scheduled via agntux-slack:draft (mode: schedule, post_at: {ISO}, scheduled_message_id: {id})
+   - {YYYY-MM-DD HH:MM} — saved as Slack draft via agntux-slack:draft (mode: save_draft, no send)
+   - {YYYY-MM-DD HH:MM} — summarised to canvas via agntux-slack:draft (canvas: {URL})
    ```
-   For schedule: `scheduled via agntux-slack:draft for {post_at} (scheduled_message_id: {id})`.
-   For canvas: `summarised to canvas via agntux-slack:draft (canvas: {canvas URL})`.
-   For save-as-draft: `saved as Slack draft via agntux-slack:draft (no send)`.
+   (Use the bullet that matches the envelope mode; do not include all four.)
 3. The agntux-core PostToolUse maintain-index hook re-renders `actions/_index.md` either way.
 
-If the MCP call fails (e.g., agntux-core not loaded, or the action ID resolves to a missing file), surface one sentence — verb-aware:
-- For `draft a reply` → `"Reply posted to Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- For `schedule a reply` → `"Reply scheduled in Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- For `summarise to canvas` → `"Canvas created and link posted, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- For `save as draft` → `"Saved as a Slack draft (no send), but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
+If the MCP call fails (e.g., agntux-core not loaded, or the action ID resolves to a missing file), surface one sentence — mode-aware:
+- `send` → `"Reply posted to Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
+- `schedule` → `"Reply scheduled in Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
+- `canvas` → `"Canvas created and link posted, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
+- `save_draft` → `"Saved as a Slack draft (no send), but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
 
 Then stop. Do NOT fall back to direct frontmatter editing.
 
-On success, tell the user one sentence acknowledging completion — verb-aware:
-- `draft a reply` → `"Sent. Action {id} marked done."`
-- `schedule a reply` → `"Scheduled for {time}. Action {id} marked done."`
-- `summarise to canvas` → `"Canvas created and linked in the thread. Action {id} marked done."`
-- `save as draft` → `"Saved as a Slack draft (no send). Action {id} marked done."`
+On success, tell the user one sentence acknowledging completion — mode-aware:
+- `send` → `"Sent. Action {id} marked done."`
+- `schedule` → `"Scheduled for {post_at ISO}. Action {id} marked done."`
+- `canvas` → `"Canvas created and linked in the thread. Action {id} marked done."`
+- `save_draft` → `"Saved as a Slack draft (no send). Action {id} marked done."`
 
 Then stop.
 
@@ -308,10 +332,11 @@ Then stop.
 
 ## Hard rules (do not violate)
 
-- **No write call without explicit `yes` in the immediately preceding turn.** Prior `yes` answers in earlier turns do NOT carry over to a new payload. Every confirmation gate is fresh.
-- **Show the exact payload.** Channel name, thread context, full body. No paraphrasing of what's about to be sent.
-- **Quote the original message** above the draft so the user can verify context, especially for replies on long threads.
-- **Never auto-pivot verbs.** "Actually summarise it instead" → re-confirm the new verb, draft fresh, ask again.
+- **The iframe Send button is the explicit authorisation.** Receipt of a well-formed committed envelope is the only trigger to call a Slack write tool. No prior chat-text reply carries over; no implicit confirmation from a freeform user reply.
+- **Do not re-compose between commit and send.** The body / title / tldr / decisions / open_questions / followup_message arriving in a committed envelope are authoritative. If you find yourself paraphrasing, "polishing", trimming, or "improving" the user's edits, stop — that is the bug the chat-confirm-then-write contract is designed to prevent.
+- **Renderer is assumed available.** No chat-only fallback path. If the iframe fails to render, the user will surface that conversationally; do not pre-author copy that confuses the host into skipping the iframe path.
+- **Show the exact payload.** Channel name and thread context are visible inside the iframe — the skill need not echo them in chat, but must never misrepresent what will be sent.
+- **Never auto-pivot verbs.** "Actually summarise it instead" → re-confirm the new verb, draft fresh, call the appropriate view tool, await a fresh committed envelope.
 - **Tone discipline.** Respect `user.md → # Preferences` (terseness, register) and per-plugin instructions. No injected signatures, "as discussed" phrases, or other padding.
 - **Personalisation fit comes from the action item.** Do not re-derive *why* the action exists; respond to the situation already described.
 - **Do not pre-fill orchestrator-authored content during ingest.** The ingest skill writes the action item with the suggested-actions list, but the body of any reply / canvas is composed here, at click time, with fresh thread context.
@@ -326,6 +351,8 @@ You do NOT:
 - Edit `actions/_index.md` directly — that's hook territory.
 - Edit user.md, data/schema/, or data/instructions/ — those belong to other subagents.
 - Call any Slack read tool other than `slack_read_thread` and `slack_read_user_profile`. Channel polling and discovery are the sync skill's job.
+- Iframe-side rendering. Layout, mode tabs, time picker, list editors, preview tabs — all owned by the component. This skill drafts content and parses commit envelopes; it does not author UI.
+- Author the structuredContent schema. The view tool's `inputSchema` is the contract — read it, don't redefine it. If you need a new field, the skill author bumps the view tool's `inputSchema` first, the manifest second, the skill third.
 
 ---
 
@@ -335,6 +362,7 @@ Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
 - Slack read tools (Cowork-prefixed at runtime): `slack_read_thread`, `slack_read_user_profile`.
-- Slack write tools (called only after explicit user `yes` per Step 7): `slack_send_message`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`, `slack_send_message_draft`.
+- View tools (called in Step 6 to render the iframe): `mcp__agntux-slack__compose_view`, `mcp__agntux-slack__canvas_view`.
+- Slack write tools (called only after a committed envelope arrives via Step 6.5): `slack_send_message`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`, `slack_send_message_draft`.
 - agntux-core MCP tools: `mcp__agntux-core__set_status` (called in Step 8 to mark the action done after a successful write).
 - No direct frontmatter edits to action items.

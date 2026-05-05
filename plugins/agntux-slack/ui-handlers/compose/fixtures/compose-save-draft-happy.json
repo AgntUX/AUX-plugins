@@ -1,0 +1,26 @@
+{
+  "args": {
+    "action_id": "2026-04-28-mango-pricing-tiers",
+    "initial_verb": "save_draft",
+    "drafted_body": "Hi Avery — I'll have a full update for you by EOD tomorrow.",
+    "personalization_signals": [],
+    "thread_context": {
+      "parent_ts": "1745769600.000100",
+      "parent_author_real_name": "Avery Rivera",
+      "parent_excerpt": "Hey — any update?",
+      "last_reply_ts": null,
+      "last_reply_author_real_name": null,
+      "last_reply_excerpt": null,
+      "total_replies": 0,
+      "participants": ["Avery Rivera"],
+      "messages_preview": []
+    },
+    "channel": { "id": "C04PARTNERPLAT", "name": "partner-platforms", "is_dm": false },
+    "slack_permalink": null
+  },
+  "prompt": "Call compose_view with save_draft mode.",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid='compose-body']", "max_results": 1 }
+  ],
+  "_notes": "Save as draft mode. No personalization signals, no replies yet."
+}

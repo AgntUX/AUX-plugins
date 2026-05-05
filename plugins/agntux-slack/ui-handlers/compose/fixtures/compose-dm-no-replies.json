@@ -1,0 +1,26 @@
+{
+  "args": {
+    "action_id": "2026-04-28-mango-pricing-tiers",
+    "initial_verb": "draft",
+    "drafted_body": "Hey Avery, just wanted to follow up on your question.",
+    "personalization_signals": ["DM context: direct outreach"],
+    "thread_context": {
+      "parent_ts": "1745769600.000100",
+      "parent_author_real_name": "Avery Rivera",
+      "parent_excerpt": "Hey, quick question about the project.",
+      "last_reply_ts": null,
+      "last_reply_author_real_name": null,
+      "last_reply_excerpt": null,
+      "total_replies": 0,
+      "participants": ["Avery Rivera"],
+      "messages_preview": []
+    },
+    "channel": { "id": "D04AVERY", "name": "avery-rivera", "is_dm": true },
+    "slack_permalink": null
+  },
+  "prompt": "Call compose_view for a DM with no replies.",
+  "interactions": [
+    { "type": "query", "selector": "[data-testid='compose-card']", "max_results": 1 }
+  ],
+  "_notes": "DM channel (is_dm: true). Header should show lock icon. No replies."
+}
