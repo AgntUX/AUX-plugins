@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { createLicenseGate } from "@agntux/mcp-license";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -13,8 +14,16 @@ import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
 import { composeViewTool, handleComposeView } from "./tools/compose-view.js";
 import { canvasViewTool, handleCanvasView } from "./tools/canvas-view.js";
 
+const PLUGIN_NAME = "agntux-slack";
+const PLUGIN_VERSION = "2.0.0";
+
+const gate = createLicenseGate({
+  pluginName: PLUGIN_NAME,
+  pluginVersion: PLUGIN_VERSION,
+});
+
 const server = new Server(
-  { name: "agntux-slack", version: "0.1.0" },
+  { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   { capabilities: { resources: {}, tools: {} } },
 );
 
@@ -46,9 +55,11 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
 // OR a structured error (`{ isError: true, contents: [...] }`) when the bundle
 // has not been embedded or fails to decode. Cast is scoped to this line only.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
-  (await handleUIResource(request.params.uri)) as any,
-);
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const err = await gate.requireValidLicense({ reason: "resources/read" });
+  if (err) return err as any;
+  return (await handleUIResource(request.params.uri)) as any;
+});
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: Object.entries(TOOLS).map(([name, t]) => ({
@@ -67,6 +78,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 // doesn't declare. Same cast pattern as the ReadResource handler above.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const err = await gate.requireValidLicense({
+    reason: "tools/call",
+    toolName: request.params.name,
+  });
+  if (err) return err;
   const tool = TOOLS[request.params.name as keyof typeof TOOLS];
   if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

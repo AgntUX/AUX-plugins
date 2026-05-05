@@ -31,9 +31,6 @@ import {
   MainComponent,
   type MainComponentProps,
 } from './components/main-component';
-// Protocol-level addition (P2a / T09): render-token gate.
-// DO NOT remove this import or the <LicenseGate> wrapper below.
-import { LicenseGate } from './components/license-gate.js';
 import { ComponentErrorBoundary } from './components/error-boundary';
 
 export function App() {
@@ -115,23 +112,10 @@ export function App() {
     requestDisplayMode: requestMode,
   };
 
-  // Dev-bypass for e2e: when the bundle is built with VITE_AGNTUX_DEV_BYPASS=1
-  // the LicenseGate skips token verification and shows a yellow DEV banner
-  // instead of failing closed. Production bundles built without this env var
-  // statically resolve `import.meta.env.VITE_AGNTUX_DEV_BYPASS` to undefined,
-  // so the bypass is physically absent — the gate enforces the JWT normally.
-  const e2eDevBypass = Boolean(
-    typeof import.meta !== 'undefined' &&
-      (import.meta as { env?: { VITE_AGNTUX_DEV_BYPASS?: string } }).env
-        ?.VITE_AGNTUX_DEV_BYPASS === '1',
-  );
-
   return (
     <div className="h-full">
       <ComponentErrorBoundary>
-        <LicenseGate devBypass={e2eDevBypass || undefined}>
-          <MainComponent {...props} />
-        </LicenseGate>
+        <MainComponent {...props} />
       </ComponentErrorBoundary>
     </div>
   );

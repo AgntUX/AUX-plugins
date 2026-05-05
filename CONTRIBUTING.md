@@ -26,7 +26,6 @@ Common operations have dedicated slash commands under `.claude/commands/`:
 | `/bump-version {slug} {major\|minor\|patch}` | Apply the versioning rubric |
 | `/rollback {slug}` | Step through the rollback runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
-| `/update-canonical-hooks` | Walk through the canonical-hook update runbook |
 
 ---
 
@@ -49,7 +48,7 @@ gh repo edit AgntUX/AUX-plugins \
 # 2) Branch protection rule
 gh api repos/AgntUX/AUX-plugins/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["lint","hook-hash-check","version-check"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["lint","version-check"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null
@@ -57,7 +56,7 @@ gh api repos/AgntUX/AUX-plugins/branches/main/protection \
 
 **Rules to enforce:**
 - Require pull request before merging (1 approving review, dismiss stale reviews)
-- Require status checks to pass: `lint`, `hook-hash-check`, `version-check`
+- Require status checks to pass: `lint`, `version-check`
 - Require branches to be up to date before merging
 - Include administrators
 - No direct pushes to `main`
@@ -70,7 +69,7 @@ Use `/review-pr` or apply manually:
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] Hook files are byte-identical to `canonical/hooks/` (CI `hook-hash-check` green)
+- [ ] MCP server wires `@agntux/mcp-license` gate around both `tools/call` and `resources/read`
 - [ ] Screenshots are present, ≥1, dimensions correct (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` is ≤ 500 lines and renders cleanly

@@ -1,7 +1,7 @@
 ---
 description: Scaffold a new AgntUX ingest plugin from canonical templates with placeholder substitution
 argument-hint: <slug> <source-display-name>
-allowed-tools: Bash(cp *), Bash(mkdir *), Bash(ls *), Bash(cat *), Bash(shasum *), Read, Write, Edit
+allowed-tools: Bash(cp *), Bash(mkdir *), Bash(ls *), Bash(cat *), Read, Write, Edit
 ---
 
 You are scaffolding a new AgntUX ingest plugin. The slug and source display
@@ -58,7 +58,6 @@ Wait for explicit "yes" / "continue" / "go". Don't proceed on silence.
 
 Mirror `plugins/agntux-slack/` minus the source-specific files. For each
 target file below, prefer Read-then-Write (so you see what you're copying).
-For the byte-frozen hooks, use Bash `cp` to preserve bytes exactly.
 
 There is **no `agents/` directory**. The ingest and (optional) drafting
 flows are top-level skills with `context: fork` + `agent: general-purpose`,
@@ -69,8 +68,12 @@ tools).
 ### Step 1 — Directory skeleton
 
 ```
-mkdir -p plugins/{slug}/{.claude-plugin,skills/sync,hooks/lib,marketplace/screenshots,__tests__}
+mkdir -p plugins/{slug}/{.claude-plugin,skills/sync,marketplace/screenshots,__tests__}
 ```
+
+Note: ingest plugins do NOT ship a `hooks/` directory. License enforcement
+lives in the MCP server via `@agntux/mcp-license` (see Phase 2 of the
+plan). Schema/index hooks are exclusive to `agntux-core`.
 
 If the source has write tools (you'll add `skills/draft/SKILL.md` in
 Step 7), also `mkdir -p plugins/{slug}/skills/draft`.
@@ -123,36 +126,15 @@ Then Edit `plugins/{slug}/package.json` to swap the `name` field from
 `@agntux/agntux-slack-plugin` to `@agntux/{slug}-plugin`. Leave version,
 type, scripts, devDependencies untouched.
 
-### Step 5 — `hooks/` (byte-frozen)
+### Step 5 — License gate (MCP server)
 
-Copy every file from `canonical/hooks/` to `plugins/{slug}/hooks/`,
-preserving bytes:
-
-```
-cp -R canonical/hooks/. plugins/{slug}/hooks/
-```
-
-Then substitute the two exempt files (per `canonical/README.md`):
-
-**`plugins/{slug}/hooks/lib/public-key.mjs`** — Read
-`canonical/kms-public-keys.json` to get the current `kid` and `spki_pem`.
-Edit the placeholders:
-- `{{PUBLIC_KEY_KID}}` → `agntux-license-v1` (current kid).
-- `{{PUBLIC_KEY_SPKI_PEM}}` → the real Ed25519 PEM string from the JSON.
-
-**`plugins/{slug}/hooks/lib/agntux-plugins.mjs`** — Edit:
-- `["{{AGNTUX_PLUGIN_SLUGS}}"]` → `["agntux-core", "{slug}"]` (replace
-  the entire bracketed expression with a JSON array literal — see
-  `canonical/README.md` for the array-bracketed substitution rule).
-
-After substitution, verify the rest of `hooks/` matches canonical:
-
-```
-cd plugins/{slug}/hooks && shasum -a 256 -c ../../../canonical/hooks/checksums.txt
-```
-
-Every file should report `OK` except `lib/public-key.mjs` and
-`lib/agntux-plugins.mjs` which report `FAILED` (expected and documented).
+Skip — ingest plugins have no `hooks/` directory. License enforcement is
+wired into the plugin's MCP server through `@agntux/mcp-license`. When
+you scaffold an MCP server for the new plugin, follow `agntux-slack/mcp-server/src/index.ts`
+as the reference: import `createLicenseGate`, call `gate.requireValidLicense(...)`
+inside both the `tools/call` and `resources/read` handlers, and declare
+`"@agntux/mcp-license": "file:../../../packages/mcp-license"` in
+`mcp-server/package.json`.
 
 ### Step 6 — `skills/sync/SKILL.md` (substituted from canonical)
 
@@ -352,21 +334,6 @@ say so and remove this section.
 
 - TODO: what the plugin doesn't do.
 
-## Known canonical-hook diffs
-
-Two files in `hooks/lib/` differ from `canonical/hooks/lib/` by design — every
-diff is a documented placeholder substitution. Verifiers running
-`shasum -c canonical/hooks/checksums.txt` from this plugin's `hooks/` directory
-see these two diverge:
-
-| File | Reason for divergence |
-|---|---|
-| `hooks/lib/public-key.mjs` | `{{PUBLIC_KEY_KID}}` → `agntux-license-v1`; `{{PUBLIC_KEY_SPKI_PEM}}` → real Ed25519 PEM from `canonical/kms-public-keys.json`. |
-| `hooks/lib/agntux-plugins.mjs` | `["{{AGNTUX_PLUGIN_SLUGS}}"]` → `["agntux-core", "{slug}"]`. |
-
-All other hook files are byte-identical to canonical and pass `shasum -c`
-cleanly.
-
 ## License
 
 Elastic License v2 (ELv2). See the `LICENSE` file for details.
@@ -421,12 +388,9 @@ describe("manifest", () => {
   });
 });
 
-describe("hooks wiring", () => {
-  it("SessionStart license-check + PreToolUse license-validate, no PostToolUse", () => {
-    const h = JSON.parse(readFileSync(join(PLUGIN_ROOT, "hooks/hooks.json"), "utf-8"));
-    expect(h.hooks.SessionStart).toBeDefined();
-    expect(h.hooks.PreToolUse).toBeDefined();
-    expect(h.hooks.PostToolUse).toBeUndefined();
+describe("hooks", () => {
+  it("does NOT ship a hooks/ directory (license gate lives in MCP server)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "hooks"))).toBe(false);
   });
 });
 

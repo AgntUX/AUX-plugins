@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { createLicenseGate } from "@agntux/mcp-license";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -15,8 +16,16 @@ import { dismissTool } from "./tools/dismiss.js";
 import { setStatusTool } from "./tools/set-status.js";
 import { triageViewTool, handleTriageView } from "./tools/triage-view.js";
 
+const PLUGIN_NAME = "agntux-core";
+const PLUGIN_VERSION = "5.0.0";
+
+const gate = createLicenseGate({
+  pluginName: PLUGIN_NAME,
+  pluginVersion: PLUGIN_VERSION,
+});
+
 const server = new Server(
-  { name: "agntux-core", version: "5.0.0" },
+  { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   { capabilities: { resources: {}, tools: {} } },
 );
 
@@ -51,9 +60,11 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
 // forwards our envelope unchanged. Until upstream adds `isError`, keep the
 // cast scoped to this single line.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
-  (await handleUIResource(request.params.uri)) as any,
-);
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const err = await gate.requireValidLicense({ reason: "resources/read" });
+  if (err) return err as any;
+  return (await handleUIResource(request.params.uri)) as any;
+});
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: Object.entries(TOOLS).map(([name, t]) => ({
@@ -70,6 +81,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const err = await gate.requireValidLicense({
+    reason: "tools/call",
+    toolName: request.params.name,
+  });
+  if (err) return err;
   const tool = TOOLS[request.params.name as keyof typeof TOOLS];
   if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
   return tool.handler(request.params.arguments ?? {});

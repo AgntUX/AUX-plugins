@@ -17,7 +17,6 @@
       "Bash(npm test -- *)",
       "Bash(npx tsx scripts/regenerate-marketplace-json.ts)",
       "Bash(npx tsx scripts/regenerate-aggregate-index.ts)",
-      "Bash(npx tsx scripts/verify-canonical-hooks.ts)",
       "Bash(npx tsx scripts/verify-version-changelog.ts)",
       "Bash(npx tsx scripts/changelog-bump-heuristic.ts)"
     ]

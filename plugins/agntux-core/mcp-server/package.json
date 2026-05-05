@@ -30,6 +30,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@agntux/mcp-license": "file:../../../packages/mcp-license",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "yaml": "^2.5.0"
   },

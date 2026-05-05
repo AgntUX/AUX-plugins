@@ -1,12 +1,12 @@
 ---
-description: Run the P15 marketplace linter, hook byte-freeze check, and version-match check against one plugin and explain results
+description: Run the P15 marketplace linter and version-match check against one plugin and explain results
 argument-hint: <slug>
-allowed-tools: Bash(npm run lint:marketplace -- *), Bash(cat *), Bash(ls *), Bash(shasum *), Bash(npx tsx scripts/verify-version-changelog.ts *), Bash(cd *), Read
+allowed-tools: Bash(npm run lint:marketplace -- *), Bash(cat *), Bash(ls *), Bash(npx tsx scripts/verify-version-changelog.ts *), Bash(cd *), Read
 ---
 
-Run THREE checks against `plugins/$ARGUMENTS/` — the same three that CI
-runs in `lint.yml`, `hook-hash-check.yml`, and `version-check.yml`. All
-three must exit clean for the PR to merge.
+Run TWO checks against `plugins/$ARGUMENTS/` — the same two that CI
+runs in `lint.yml` and `version-check.yml`. Both must exit clean for
+the PR to merge.
 
 ## Check 1 — Marketplace metadata linter
 
@@ -31,30 +31,7 @@ If the linter itself crashes (exit code other than 0 or 1), surface the
 stack trace and ask the maintainer whether to file a bug under the `linter`
 label.
 
-## Check 2 — Hook byte-freeze check
-
-```
-cd plugins/$ARGUMENTS/hooks && shasum -a 256 -c ../../../canonical/hooks/checksums.txt
-```
-
-Expected output: every file reports `OK` except `lib/public-key.mjs` and
-`lib/agntux-plugins.mjs`, which report `FAILED` (this is the documented
-substitution per SKILL.md §10.1 and the plugin's README "Known canonical-hook
-diffs" section).
-
-Findings to surface:
-
-- **Any other `FAILED` line** — the plugin has drifted from canonical hooks.
-  This will fail CI's `hook-hash-check.yml`. Tell the user to restore from
-  `canonical/hooks/`. Do NOT mutate files yourself.
-- **`lib/public-key.mjs` reports `OK` instead of `FAILED`** — the placeholder
-  substitution wasn't applied. Tell the user to substitute `{{PUBLIC_KEY_KID}}`
-  and `{{PUBLIC_KEY_SPKI_PEM}}` from `canonical/kms-public-keys.json`.
-- **`lib/agntux-plugins.mjs` reports `OK` instead of `FAILED`** — same.
-  The placeholder `{{AGNTUX_PLUGIN_SLUGS}}` should be substituted with
-  `["agntux-core", "$ARGUMENTS"]`.
-
-## Check 3 — Version-match check
+## Check 2 — Version-match check
 
 ```
 npx tsx scripts/verify-version-changelog.ts --plugin $ARGUMENTS
@@ -73,19 +50,18 @@ Findings to surface:
 
 ## Summary
 
-After all three checks, summarize:
+After both checks, summarize:
 
 > Lint: X errors, Y warnings, exit code Z.
-> Hook byte-freeze: clean | <N> unexpected diffs.
 > Version match: ok | mismatch (plugin.json: X, CHANGELOG: Y).
 
-If all three are clean, congratulate the author and remind them they can
+If both are clean, congratulate the author and remind them they can
 also run `npm run lint:marketplace` (no flags) to confirm the whole repo
 lints clean.
 
-If any check failed, list the priority fix order (lint errors first,
-then hook drift, then version mismatch — version mismatch is usually a
-30-second fix that's easy to forget).
+If either check failed, list the priority fix order (lint errors first,
+then version mismatch — version mismatch is usually a 30-second fix
+that's easy to forget).
 
 Do not run the linter against other plugins unless the user explicitly
 asks.
