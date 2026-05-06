@@ -24,9 +24,24 @@ const gate = createLicenseGate({
   pluginVersion: PLUGIN_VERSION,
 });
 
+// MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
+// section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
+// capability at initialize time for the host to enable iframe rendering for
+// this server's tools. MCPJam renders without the handshake (lenient); Claude
+// Cowork follows the spec strictly — without this advertisement Cowork falls
+// back to text-rendering structuredContent and the iframe never opens.
+// https://modelcontextprotocol.io/extensions/overview#negotiation
 const server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
-  { capabilities: { resources: {}, tools: {} } },
+  {
+    capabilities: {
+      resources: {},
+      tools: {},
+      extensions: {
+        "io.modelcontextprotocol/ui": {},
+      },
+    },
+  },
 );
 
 // Tools surface (v6.0.0+ all tool names are prefixed with `agntux_core_` so

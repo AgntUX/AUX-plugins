@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.3] — 2026-05-06
+
+The actual Cowork iframe-render fix. Prior 6.2.2 attempt was wrong-track —
+adding `outputSchema` and the legacy `_meta["ui/resourceUri"]` flat key
+didn't address the real problem.
+
+### Fixed
+
+- **MCP server now advertises the `io.modelcontextprotocol/ui` extension
+  capability at initialize time.** Per SEP-1865 §"Client\<\>Server Capability
+  Negotiation" and SEP-1724 §"Negotiation", MCP Apps is an opt-in extension
+  that MUST be **bidirectionally** negotiated during `initialize`. Both the
+  host and the server have to declare support in the `extensions` field of
+  their respective capabilities. Our server only declared
+  `capabilities: { resources: {}, tools: {} }` — no `extensions` block — so
+  spec-conformant hosts (Claude Cowork desktop) silently disabled MCP Apps
+  for this server's tools and fell back to text-rendering the
+  `structuredContent` payload in chat. MCPJam renders the iframe without the
+  handshake (lenient), which is why /agntux-triage worked there but not in
+  Cowork. The server now declares `extensions: { "io.modelcontextprotocol/ui": {} }`
+  alongside the existing `resources` and `tools` capabilities.
+
 ## [6.2.2] — 2026-05-06
 
 Render-fix patch: `/agntux-triage` now opens the iframe in Claude Cowork

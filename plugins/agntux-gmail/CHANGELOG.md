@@ -6,6 +6,24 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-05-06
+
+The actual Cowork iframe-render fix matching agntux-core 6.2.3 and
+agntux-slack 5.2.2. Prior 1.0.1 attempt was wrong-track.
+
+### Fixed
+
+- **MCP server now advertises the `io.modelcontextprotocol/ui` extension
+  capability at initialize time.** Per SEP-1865 §"Client\<\>Server Capability
+  Negotiation", MCP Apps is an opt-in extension that MUST be bidirectionally
+  negotiated during `initialize`. Without the server-side advertisement,
+  Claude Cowork silently disabled MCP Apps for this server's tools and fell
+  back to text-rendering the `structuredContent`. MCPJam was lenient about
+  this; Cowork follows the spec strictly. The server now declares
+  `extensions: { "io.modelcontextprotocol/ui": {} }` alongside the existing
+  `resources` and `tools` capabilities, so the reply composer iframe renders
+  in Cowork as well as in MCPJam.
+
 ## [1.0.1] — 2026-05-06
 
 Render-fix patch matching agntux-core 6.2.2 and agntux-slack 5.2.1: the

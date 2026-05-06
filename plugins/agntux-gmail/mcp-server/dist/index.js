@@ -31024,7 +31024,15 @@ var gate = createLicenseGate({
 });
 var server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
-  { capabilities: { resources: {}, tools: {} } }
+  {
+    capabilities: {
+      resources: {},
+      tools: {},
+      extensions: {
+        "io.modelcontextprotocol/ui": {}
+      }
+    }
+  }
 );
 var TOOLS = {
   agntux_gmail_compose_view: {
