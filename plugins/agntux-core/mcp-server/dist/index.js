@@ -25390,13 +25390,62 @@ var triageViewTool = {
     },
     required: []
   },
+  // outputSchema is what tells the host "this tool returns structuredContent
+  // that should be passed to the iframe as toolOutput, not surfaced to the
+  // model as chat text." Without it, Claude Cowork (and per the upstream
+  // app project's c023186 fix, ChatGPT) silently text-render the
+  // structuredContent — the iframe never opens. Mirrors the official
+  // ext-apps `scenario-modeler-server` example, which declares both
+  // `_meta.ui.resourceUri` and `outputSchema` for the same combination of
+  // structuredContent + iframe. No `required` fields: both the success
+  // payload and the structured-error envelope (`{error: ...}`) need to
+  // validate.
+  outputSchema: {
+    type: "object",
+    properties: {
+      actions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            summary: { type: "string" },
+            priority: { type: "string" },
+            status: { type: "string" },
+            reason_class: { type: "string" },
+            due_by: {},
+            snoozed_until: {},
+            source: {},
+            related_entities: { type: "array", items: { type: "string" } },
+            suggested_actions: { type: "array" },
+            why_matters_excerpt: { type: "string" },
+            personalization_fit_excerpt: { type: "string" },
+            created_at: {},
+            updated_at: {}
+          }
+        }
+      },
+      handled_recent: { type: "array" },
+      counts: {
+        type: "object",
+        properties: {
+          open: { type: "number" },
+          snoozed: { type: "number" },
+          handled_recent: { type: "number" },
+          truncated: { type: "boolean" }
+        }
+      },
+      last_updated_at: { type: "string" },
+      bootstrap_mode: { type: "boolean" },
+      error: { type: "string" }
+    }
+  },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
-  // associated UI resource. We emit both — modern hosts (MCPJam, latest
-  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
-  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
-  // and otherwise fall back to text-rendering the structuredContent. The
-  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
-  // populates both for the same reason.
+  // associated UI resource: the modern nested `_meta.ui.resourceUri` and the
+  // legacy flat `_meta["ui/resourceUri"]`. The official `registerAppTool`
+  // helper in @modelcontextprotocol/ext-apps emits both, so we do too —
+  // defensive against any host that only reads one of them.
   _meta: {
     ui: {
       resourceUri: TRIAGE_RESOURCE_URI2
@@ -25565,6 +25614,7 @@ var TOOLS = {
   agntux_core_triage_view: {
     description: triageViewTool.description,
     inputSchema: triageViewTool.inputSchema,
+    outputSchema: triageViewTool.outputSchema,
     _meta: triageViewTool._meta,
     handler: handleTriageView
   }
@@ -25580,9 +25630,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     name,
     description: t.description,
     inputSchema: t.inputSchema,
-    // Surface optional `_meta` (e.g., `_meta.ui.resourceUri` for MCP Apps
-    // hosts like MCPJam Inspector that key UI rendering off the tool
-    // descriptor, not the tool result).
+    // Forward optional `outputSchema` and `_meta` so MCP Apps hosts can
+    // (a) tell that structuredContent is iframe payload (outputSchema), and
+    // (b) find the UI resource to render (_meta.ui.resourceUri).
+    ..."outputSchema" in t && t.outputSchema ? { outputSchema: t.outputSchema } : {},
     ..."_meta" in t && t._meta ? { _meta: t._meta } : {}
   }))
 }));

@@ -500,6 +500,36 @@ describe("handleTriageView — counts + last_updated_at + result envelope", () =
     expect(meta["ui/resourceUri"]).toBe("ui://triage");
   });
 
+  // Regression guard for the Cowork iframe-not-opening bug. Without
+  // outputSchema, hosts have no contract telling them structuredContent is
+  // iframe payload (vs. chat-surfaceable data); Cowork falls back to
+  // text-rendering structuredContent. The fix mirrors the official
+  // ext-apps `scenario-modeler-server` example and the app project's
+  // c023186 fix.
+  it("descriptor declares outputSchema covering success + error shapes", async () => {
+    const { triageViewTool } = await import("../src/tools/triage-view.js");
+    const schema = triageViewTool.outputSchema as {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(schema.type).toBe("object");
+    expect(schema.properties).toBeDefined();
+    for (const key of [
+      "actions",
+      "handled_recent",
+      "counts",
+      "last_updated_at",
+      "bootstrap_mode",
+      "error",
+    ]) {
+      expect(schema.properties[key]).toBeDefined();
+    }
+    // No `required` — the structured-error envelope `{error: ...}` must
+    // also validate against this schema.
+    expect(schema.required ?? []).toEqual([]);
+  });
+
   it("counts open + snoozed independently", async () => {
     writeAction("o-1", `id: o-1\nstatus: open\npriority: high`);
     writeAction("o-2", `id: o-2\nstatus: open\npriority: medium`);

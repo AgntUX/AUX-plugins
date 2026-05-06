@@ -25253,13 +25253,53 @@ var composeViewTool = {
     },
     required: ["action_id"]
   },
+  // outputSchema is what tells the host "this tool returns structuredContent
+  // that should be passed to the iframe as toolOutput, not surfaced to the
+  // model as chat text." Without it, Claude Cowork (and per the upstream
+  // app project's c023186 fix, ChatGPT) silently text-render the
+  // structuredContent — the iframe never opens. Mirrors the official
+  // ext-apps `scenario-modeler-server` example. No `required` fields so
+  // both the success payload and the structured-error envelope validate.
+  outputSchema: {
+    type: "object",
+    properties: {
+      action_id: { type: "string" },
+      initial_verb: { type: "string" },
+      channel: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          is_dm: { type: "boolean" }
+        }
+      },
+      thread: {
+        type: "object",
+        properties: {
+          parent_ts: { type: "string" },
+          parent_author_real_name: { type: "string" },
+          parent_excerpt: { type: "string" },
+          last_reply_ts: {},
+          last_reply_author_real_name: {},
+          last_reply_excerpt: {},
+          total_replies: { type: "number" },
+          participants: { type: "array", items: { type: "string" } }
+        }
+      },
+      messages_preview: { type: "array" },
+      messages_truncated: { type: "boolean" },
+      drafted_body: { type: "string" },
+      personalization_signals: { type: "array", items: { type: "string" } },
+      proposed_send_time: {},
+      slack_permalink: {},
+      error: { type: "string" }
+    }
+  },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
-  // associated UI resource. We emit both — modern hosts (MCPJam, latest
-  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
-  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
-  // and otherwise fall back to text-rendering the structuredContent. The
-  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
-  // populates both for the same reason.
+  // associated UI resource: the modern nested `_meta.ui.resourceUri` and the
+  // legacy flat `_meta["ui/resourceUri"]`. The official `registerAppTool`
+  // helper in @modelcontextprotocol/ext-apps emits both, so we do too —
+  // defensive against any host that only reads one of them.
   _meta: {
     ui: {
       resourceUri: COMPOSE_RESOURCE_URI2
@@ -25503,13 +25543,51 @@ var canvasViewTool = {
     },
     required: ["action_id"]
   },
+  // outputSchema is what tells the host "this tool returns structuredContent
+  // that should be passed to the iframe as toolOutput, not surfaced to the
+  // model as chat text." Without it, Claude Cowork (and per the upstream
+  // app project's c023186 fix, ChatGPT) silently text-render the
+  // structuredContent — the iframe never opens. Mirrors the official
+  // ext-apps `scenario-modeler-server` example. No `required` fields so
+  // both the success payload and the structured-error envelope validate.
+  outputSchema: {
+    type: "object",
+    properties: {
+      action_id: { type: "string" },
+      channel: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" }
+        }
+      },
+      thread: {
+        type: "object",
+        properties: {
+          parent_ts: { type: "string" },
+          total_replies: { type: "number" },
+          participants: { type: "array", items: { type: "string" } }
+        }
+      },
+      drafted_canvas: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          tldr: { type: "string" },
+          decisions: { type: "array", items: { type: "string" } },
+          open_questions: { type: "array", items: { type: "string" } },
+          participants: { type: "array", items: { type: "string" } }
+        }
+      },
+      proposed_followup_message: { type: "string" },
+      error: { type: "string" }
+    }
+  },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
-  // associated UI resource. We emit both — modern hosts (MCPJam, latest
-  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
-  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
-  // and otherwise fall back to text-rendering the structuredContent. The
-  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
-  // populates both for the same reason.
+  // associated UI resource: the modern nested `_meta.ui.resourceUri` and the
+  // legacy flat `_meta["ui/resourceUri"]`. The official `registerAppTool`
+  // helper in @modelcontextprotocol/ext-apps emits both, so we do too —
+  // defensive against any host that only reads one of them.
   _meta: {
     ui: {
       resourceUri: CANVAS_RESOURCE_URI2
@@ -25620,12 +25698,14 @@ var TOOLS = {
   agntux_slack_compose_view: {
     description: composeViewTool.description,
     inputSchema: composeViewTool.inputSchema,
+    outputSchema: composeViewTool.outputSchema,
     _meta: composeViewTool._meta,
     handler: handleComposeView
   },
   agntux_slack_canvas_view: {
     description: canvasViewTool.description,
     inputSchema: canvasViewTool.inputSchema,
+    outputSchema: canvasViewTool.outputSchema,
     _meta: canvasViewTool._meta,
     handler: handleCanvasView
   }
@@ -25641,6 +25721,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     name,
     description: t.description,
     inputSchema: t.inputSchema,
+    // Forward optional `outputSchema` and `_meta` so MCP Apps hosts can
+    // (a) tell that structuredContent is iframe payload (outputSchema), and
+    // (b) find the UI resource to render (_meta.ui.resourceUri).
+    ..."outputSchema" in t && t.outputSchema ? { outputSchema: t.outputSchema } : {},
     ..."_meta" in t && t._meta ? { _meta: t._meta } : {}
   }))
 }));

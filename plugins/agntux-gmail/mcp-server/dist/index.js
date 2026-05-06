@@ -30819,7 +30819,7 @@ function structuredError(kind, message) {
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2, visibility: ["model", "app"] } }
+    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2 } }
   };
 }
 function isActionAlreadyHandled(status, snoozedUntil) {
@@ -30853,10 +30853,70 @@ var composeViewTool = {
     },
     required: ["action_id"]
   },
+  // outputSchema is what tells the host "this tool returns structuredContent
+  // that should be passed to the iframe as toolOutput, not surfaced to the
+  // model as chat text." Without it, Claude Cowork (and per the upstream
+  // app project's c023186 fix, ChatGPT) silently text-render the
+  // structuredContent — the iframe never opens. Mirrors the official
+  // ext-apps `scenario-modeler-server` example. No `required` fields so
+  // both the success payload and the structured-error envelope validate.
+  outputSchema: {
+    type: "object",
+    properties: {
+      action_id: { type: "string" },
+      thread: {
+        type: "object",
+        properties: {
+          thread_id: { type: "string" },
+          subject: { type: "string" },
+          parent_message_id: { type: "string" },
+          parent_author_real_name: { type: "string" },
+          parent_author_email: { type: "string" },
+          parent_excerpt: { type: "string" },
+          last_message_id: { type: "string" },
+          last_author_real_name: { type: "string" },
+          last_author_email: { type: "string" },
+          last_excerpt: { type: "string" },
+          total_messages: { type: "number" },
+          participants: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                real_name: { type: "string" },
+                email: { type: "string" }
+              }
+            }
+          }
+        }
+      },
+      recipients: {
+        type: "object",
+        properties: {
+          to: { type: "array", items: { type: "string" } },
+          cc: { type: "array", items: { type: "string" } },
+          bcc: { type: "array", items: { type: "string" } }
+        }
+      },
+      reply_to_message_id: { type: "string" },
+      drafted_body: { type: "string" },
+      personalization_signals: { type: "array", items: { type: "string" } },
+      email_context: { type: "string" },
+      gmail_thread_url: {},
+      user_email: {},
+      error: { type: "string" }
+    }
+  },
+  // The MCP Apps spec defines two synonymous keys for declaring a tool's
+  // associated UI resource: the modern nested `_meta.ui.resourceUri` and the
+  // legacy flat `_meta["ui/resourceUri"]`. The official `registerAppTool`
+  // helper in @modelcontextprotocol/ext-apps emits both, so we do too —
+  // defensive against any host that only reads one of them.
   _meta: {
     ui: {
       resourceUri: COMPOSE_RESOURCE_URI2
-    }
+    },
+    "ui/resourceUri": COMPOSE_RESOURCE_URI2
   }
 };
 async function handleComposeView(args) {
@@ -30949,8 +31009,7 @@ async function handleComposeView(args) {
     ],
     _meta: {
       ui: {
-        resourceUri: COMPOSE_RESOURCE_URI2,
-        visibility: ["model", "app"]
+        resourceUri: COMPOSE_RESOURCE_URI2
       }
     }
   };
@@ -30971,6 +31030,7 @@ var TOOLS = {
   agntux_gmail_compose_view: {
     description: composeViewTool.description,
     inputSchema: composeViewTool.inputSchema,
+    outputSchema: composeViewTool.outputSchema,
     _meta: composeViewTool._meta,
     handler: handleComposeView
   }
@@ -30986,6 +31046,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     name,
     description: t.description,
     inputSchema: t.inputSchema,
+    // Forward optional `outputSchema` and `_meta` so MCP Apps hosts can
+    // (a) tell that structuredContent is iframe payload (outputSchema), and
+    // (b) find the UI resource to render (_meta.ui.resourceUri).
+    ..."outputSchema" in t && t.outputSchema ? { outputSchema: t.outputSchema } : {},
     ..."_meta" in t && t._meta ? { _meta: t._meta } : {}
   }))
 }));

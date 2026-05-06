@@ -251,13 +251,51 @@ export const canvasViewTool = {
     },
     required: ["action_id"],
   },
+  // outputSchema is what tells the host "this tool returns structuredContent
+  // that should be passed to the iframe as toolOutput, not surfaced to the
+  // model as chat text." Without it, Claude Cowork (and per the upstream
+  // app project's c023186 fix, ChatGPT) silently text-render the
+  // structuredContent — the iframe never opens. Mirrors the official
+  // ext-apps `scenario-modeler-server` example. No `required` fields so
+  // both the success payload and the structured-error envelope validate.
+  outputSchema: {
+    type: "object" as const,
+    properties: {
+      action_id: { type: "string" },
+      channel: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+        },
+      },
+      thread: {
+        type: "object",
+        properties: {
+          parent_ts: { type: "string" },
+          total_replies: { type: "number" },
+          participants: { type: "array", items: { type: "string" } },
+        },
+      },
+      drafted_canvas: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          tldr: { type: "string" },
+          decisions: { type: "array", items: { type: "string" } },
+          open_questions: { type: "array", items: { type: "string" } },
+          participants: { type: "array", items: { type: "string" } },
+        },
+      },
+      proposed_followup_message: { type: "string" },
+      error: { type: "string" },
+    },
+  },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
-  // associated UI resource. We emit both — modern hosts (MCPJam, latest
-  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
-  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
-  // and otherwise fall back to text-rendering the structuredContent. The
-  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
-  // populates both for the same reason.
+  // associated UI resource: the modern nested `_meta.ui.resourceUri` and the
+  // legacy flat `_meta["ui/resourceUri"]`. The official `registerAppTool`
+  // helper in @modelcontextprotocol/ext-apps emits both, so we do too —
+  // defensive against any host that only reads one of them.
   _meta: {
     ui: {
       resourceUri: CANVAS_RESOURCE_URI,
