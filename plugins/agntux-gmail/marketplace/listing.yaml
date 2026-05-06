@@ -1,0 +1,122 @@
+tagline: "Turn your Gmail inbox into an AgntUX knowledge store, with safe drafts."
+description: |
+  Watches your Gmail inbox: emails sent to you, threads where you've replied,
+  and sent items awaiting follow-up. Surfaces response-needed signals,
+  deadlines, and decisions worth remembering. The Draft button opens an
+  inline composer with a pre-composed reply informed by your profile and
+  prior conversations with the same person. Save creates a Gmail draft and
+  opens it in a new tab — you review and click Send in Gmail itself. Replies
+  sent from Gmail auto-resolve matching items on the next sync.
+categories:
+  - communication
+  - productivity
+keywords:
+  - gmail
+  - email
+  - inbox
+  - threads
+  - action-items
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Inbox threads where you are in to: or cc:"
+  - "Threads where you have sent a message and someone has replied since"
+  - "Your sent items awaiting reply for ≥3 days"
+  - "Threads carrying the IMPORTANT Gmail label"
+  - "Subject and snippet metadata from related threads (for reply-context)"
+supported_prompts:
+  - prompt: "/agntux-gmail:sync"
+    purpose: "Run an agntux-gmail pass now or on schedule. Recommended: hourly — email is bursty but doesn't need higher resolution than every 60 min."
+ui_components:
+  - name: "compose"
+    title: "Gmail reply composer"
+    purpose: "Draft replies inline with editable to/cc/bcc/subject/body, prior-conversation context, and personalization signals. Save creates a Gmail draft and opens it in a new tab for review-and-send."
+screenshot_order:
+  - "00-sync-status.png"
+  - "01-action-detail.png"
+  - "02-compose-card.png"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-gmail"
+  email: "support@agntux.ai"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: gmail
+  display_name: "Gmail"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: person
+      description: "Email correspondents — senders, recipients, cc'd colleagues. Email address is the canonical cross-source alias used to merge with people surfaced by Slack and other sources."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: company
+      description: "Organisations resolved from sender email domains and signature blocks. Vendors, customers, partners surfaced via correspondence."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: project
+      description: "Workstreams or codenames mentioned in email subjects and bodies (often resolved via user.md → # Glossary)."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: topic
+      description: "Recurring themes or initiatives surfaced across multiple email threads."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: deadline
+      description: "An email carrying an explicit due date or time-bound ask."
+    - class: response-needed
+      description: "An email addressed to the user (to: or cc:) or a thread where someone has replied since the user's last message and a reply is expected."
+    - class: knowledge-update
+      description: "An informational signal extracted from an email thread (decision summary, status update, important announcement)."
+    - class: risk
+      description: "Outage, incident, security, or escalation signals that warrant urgent attention."
+    - class: opportunity
+      description: "Sales, partnership, or market signal in an email thread."
+    - class: other
+      description: "Escape hatch for items that don't fit the above; requires reason_detail."
+  cursor_semantics: "Single JSON map (one line). Two key shapes: `inbox` for the discovery low-water-mark (Gmail epoch-seconds); `<thread_id>` for per-thread cursors (newest message internalDate processed)."
+  source_id_format: "`<thread_id>` for thread-rooted artefacts; `<thread_id>#<message_id>` for per-message artefacts when needed."

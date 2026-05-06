@@ -6,6 +6,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-05-06
+
+Symmetric cross-source action-merge with `agntux-gmail`. Ships alongside
+the new agntux-gmail 1.0.0 plugin (one PR, two plugins, per
+P7 §11.3 for tightly-coupled cross-plugin changes).
+
+### Added
+
+- **Step 9 — Cross-source merge protocol.** When a candidate slack action
+  is `reason_class: response-needed` AND there is an open action authored
+  by another plugin (e.g. `source: gmail`) created within the last 48
+  hours AND an LLM-judged topic overlap matches, the slack run edits the
+  existing sibling action instead of creating a duplicate: appends
+  `Draft a Slack reply` + `Open in Slack` rows to `suggested_actions`,
+  appends a `## Cross-source links` body section, and appends a
+  `## Compose payload (slack)` body section so the slack compose view
+  tool can lift its own payload from the same action file. Person
+  overlap alone is NOT a sufficient match — the same person commonly
+  spans many unrelated topics; the merge requires same-conversation /
+  same-topic / same-decision judgment.
+- **Step 8.5 — Cross-source-aware auto-resolution.** Path B added:
+  scans open actions whose `## Cross-source links` body section
+  references a slack thread that was just fetched, and runs the Step 8a
+  reply-state scan against that thread. If the user has replied via
+  Slack to a conversation that was originally raised by another plugin,
+  the whole action auto-resolves with `## Auto-resolved`. Replying in
+  any linked channel resolves the cross-channel item.
+- `mcp-server/src/parse-action.ts`: `parseActionFile` now looks up the
+  namespaced header `## Compose payload (slack)` BEFORE the bare
+  `## Compose payload`, so a cross-source-merged action that carries
+  both `(slack)` and `(gmail)` blocks routes the slack-namespaced one
+  to slack's compose view tool.
+
+### Notes
+
+- The merge is opportunistic; agntux-slack works fine standalone. The
+  reciprocal logic only fires if both plugins are installed and an
+  overlapping topic conversation is in flight.
+- No breaking changes to the action file shape. Existing actions that
+  carry only `## Compose payload` (slack-only authored) continue to
+  resolve via the bare-header fallback.
+
 ## [5.1.3] — 2026-05-06
 
 Build-only fix for hosts that launch `mcp-server/dist/index.js` without

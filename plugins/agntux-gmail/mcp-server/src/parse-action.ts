@@ -1,12 +1,19 @@
 // =============================================================================
-// parse-action — read an action item file and surface the fields the triage
-// view tool needs. Stateless, read-only; never writes to disk.
+// parse-action — read an action item file and surface the fields the gmail
+// compose view tool needs. Stateless, read-only; never writes to disk.
 //
 // Frontmatter is parsed via the `yaml` package; body sections (`## Why this
-// matters`, `## Personalization fit`, `## Compose payload`,
-// `## Canvas payload`) are extracted by header lookup. The two payload
-// sections wrap a fenced ```yaml block whose shape mirrors compose-view /
-// canvas-view's structuredContent contract.
+// matters`, `## Personalization fit`, `## Email context`, `## Compose payload`)
+// are extracted by header lookup.
+//
+// The compose payload section can appear under either of two headers:
+//   - `## Compose payload` — when the action was authored by agntux-gmail's
+//     own ingest run (the canonical case).
+//   - `## Compose payload (gmail)` — when the action was authored by another
+//     plugin's ingest run and agntux-gmail merged into it via Step 9's
+//     cross-source merge protocol. The namespace suffix prevents collision
+//     with a sibling `## Compose payload (slack)` block on the same file.
+// We look up the namespaced header first, then fall back to the bare header.
 // =============================================================================
 
 import { readFileSync } from "node:fs";
@@ -14,7 +21,8 @@ import { parse as parseYaml } from "yaml";
 
 export interface SuggestedActionRow {
   label: string;
-  host_prompt: string;
+  host_prompt?: string;
+  url?: string;
 }
 
 export interface ActionFrontmatter {
@@ -34,63 +42,39 @@ export interface ActionFrontmatter {
   created_at: string | null;
 }
 
-export interface ComposePayloadThreadContextMessage {
-  ts: string;
-  author: string;
-  body_excerpt: string;
+export interface ComposePayloadParticipant {
+  real_name: string;
+  email: string;
 }
 
 export interface ComposePayloadThreadContext {
-  parent_ts: string;
+  thread_id: string;
+  subject: string;
+  parent_message_id: string;
   parent_author_real_name: string;
+  parent_author_email: string;
   parent_excerpt: string;
-  last_reply_ts: string | null;
-  last_reply_author_real_name: string | null;
-  last_reply_excerpt: string | null;
-  total_replies: number;
-  participants: string[];
-  messages_preview: ComposePayloadThreadContextMessage[];
+  last_message_id: string;
+  last_author_real_name: string;
+  last_author_email: string;
+  last_excerpt: string;
+  total_messages: number;
+  participants: ComposePayloadParticipant[];
 }
 
-export interface ComposePayloadChannel {
-  id: string;
-  name: string;
-  is_dm: boolean;
+export interface ComposePayloadRecipients {
+  to: string[];
+  cc: string[];
+  bcc: string[];
 }
 
 export interface ComposePayload {
   drafted_body: string;
   personalization_signals: string[];
   thread_context: ComposePayloadThreadContext;
-  channel: ComposePayloadChannel;
-  slack_permalink: string | null;
-  generated_at: string | null;
-}
-
-export interface CanvasPayloadDrafted {
-  title: string;
-  tldr: string;
-  decisions: string[];
-  open_questions: string[];
-  participants: string[];
-}
-
-export interface CanvasPayloadChannel {
-  id: string;
-  name: string;
-}
-
-export interface CanvasPayloadThread {
-  parent_ts: string;
-  total_replies: number;
-  participants: string[];
-}
-
-export interface CanvasPayload {
-  drafted_canvas: CanvasPayloadDrafted;
-  channel: CanvasPayloadChannel;
-  thread: CanvasPayloadThread;
-  proposed_followup_message: string;
+  recipients: ComposePayloadRecipients;
+  reply_to_message_id: string;
+  gmail_thread_url: string | null;
   generated_at: string | null;
 }
 
@@ -98,8 +82,8 @@ export interface ParsedAction {
   frontmatter: ActionFrontmatter;
   why_matters: string;
   personalization_fit: string;
+  email_context: string;
   compose_payload: ComposePayload | null;
-  canvas_payload: CanvasPayload | null;
 }
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
@@ -134,6 +118,10 @@ function asStringArray(v: unknown): string[] {
   return v.filter((x): x is string => typeof x === "string");
 }
 
+function asNumber(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
 function asSuggestedActions(v: unknown): SuggestedActionRow[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -141,10 +129,14 @@ function asSuggestedActions(v: unknown): SuggestedActionRow[] {
       if (!row || typeof row !== "object") return null;
       const r = row as Record<string, unknown>;
       const label = asString(r.label);
-      const host_prompt = asString(r.host_prompt);
-      if (!label || !host_prompt) return null;
-      // Normalise newlines: YAML block scalars often end with a trailing \n.
-      return { label, host_prompt: host_prompt.trimEnd() };
+      const host_prompt = asStringOrNull(r.host_prompt);
+      const url = asStringOrNull(r.url);
+      if (!label) return null;
+      if (!host_prompt && !url) return null;
+      const out: SuggestedActionRow = { label };
+      if (host_prompt) out.host_prompt = host_prompt.trimEnd();
+      if (url) out.url = url;
+      return out;
     })
     .filter((row): row is SuggestedActionRow => row !== null);
 }
@@ -190,9 +182,6 @@ export function parseFrontmatter(text: string): {
   };
 }
 
-// Extract the prose under a top-level body section (e.g. `## Why this matters`).
-// Returns the section's plain text up to the next `## ` header, or the empty
-// string when the section is absent. Trims leading/trailing whitespace.
 export function extractSection(body: string, header: string): string {
   const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`^##\\s+${escaped}\\s*$`, "m");
@@ -200,25 +189,17 @@ export function extractSection(body: string, header: string): string {
   if (!match) return "";
   const start = match.index + match[0].length;
   const after = body.slice(start);
-  // Find the next `## ` header (any character class) to know where to stop.
   const nextHeader = /^##\s+/m.exec(after);
   const sliceEnd = nextHeader ? nextHeader.index : after.length;
   return after.slice(0, sliceEnd).trim();
 }
 
-// Lift a YAML object out of a fenced ```yaml block under a `## ` header.
-// Returns the parsed object, or null when the header is absent, the fenced
-// block can't be located, or YAML parse fails. Mirrors agntux-core's
-// section-extraction idiom; the schema-validation work is the caller's.
 export function parseBodySection(
   body: string,
   header: string,
 ): Record<string, unknown> | null {
   const section = extractSection(body, header);
   if (!section) return null;
-  // Match a fenced YAML block; tolerate ```yml as an alias and stray
-  // whitespace after the opening fence. The closing fence must be the first
-  // bare ``` line at column zero.
   const fenceRe = /^```ya?ml\s*\n([\s\S]*?)\n```\s*$/m;
   const match = fenceRe.exec(section);
   if (!match) return null;
@@ -234,31 +215,30 @@ export function parseBodySection(
   }
 }
 
-function asNumber(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function asBoolean(v: unknown, fallback = false): boolean {
-  return typeof v === "boolean" ? v : fallback;
-}
-
-function normalizeMessagesPreview(
-  v: unknown,
-): ComposePayloadThreadContextMessage[] {
+function normalizeParticipants(v: unknown): ComposePayloadParticipant[] {
   if (!Array.isArray(v)) return [];
   return v
-    .map((item): ComposePayloadThreadContextMessage | null => {
+    .map((item): ComposePayloadParticipant | null => {
       if (!item || typeof item !== "object") return null;
       const r = item as Record<string, unknown>;
-      return {
-        ts: asString(r.ts),
-        author: asString(r.author),
-        body_excerpt: asString(r.body_excerpt),
-      };
+      const real_name = asString(r.real_name);
+      const email = asString(r.email);
+      if (!email) return null;
+      return { real_name, email };
     })
-    .filter(
-      (x): x is ComposePayloadThreadContextMessage => x !== null,
-    );
+    .filter((x): x is ComposePayloadParticipant => x !== null);
+}
+
+function normalizeRecipients(v: unknown): ComposePayloadRecipients {
+  if (!v || typeof v !== "object") {
+    return { to: [], cc: [], bcc: [] };
+  }
+  const r = v as Record<string, unknown>;
+  return {
+    to: asStringArray(r.to),
+    cc: asStringArray(r.cc),
+    bcc: asStringArray(r.bcc),
+  };
 }
 
 function normalizeComposePayload(
@@ -269,74 +249,28 @@ function normalizeComposePayload(
     raw.thread_context && typeof raw.thread_context === "object"
       ? (raw.thread_context as Record<string, unknown>)
       : {};
-  const channelRaw =
-    raw.channel && typeof raw.channel === "object"
-      ? (raw.channel as Record<string, unknown>)
-      : {};
   const draftedBody = asString(raw.drafted_body);
   if (!draftedBody) return null;
   return {
     drafted_body: draftedBody,
     personalization_signals: asStringArray(raw.personalization_signals),
     thread_context: {
-      parent_ts: asString(tcRaw.parent_ts),
+      thread_id: asString(tcRaw.thread_id),
+      subject: asString(tcRaw.subject),
+      parent_message_id: asString(tcRaw.parent_message_id),
       parent_author_real_name: asString(tcRaw.parent_author_real_name),
+      parent_author_email: asString(tcRaw.parent_author_email),
       parent_excerpt: asString(tcRaw.parent_excerpt),
-      last_reply_ts: asStringOrNull(tcRaw.last_reply_ts),
-      last_reply_author_real_name: asStringOrNull(
-        tcRaw.last_reply_author_real_name,
-      ),
-      last_reply_excerpt: asStringOrNull(tcRaw.last_reply_excerpt),
-      total_replies: asNumber(tcRaw.total_replies),
-      participants: asStringArray(tcRaw.participants),
-      messages_preview: normalizeMessagesPreview(tcRaw.messages_preview),
+      last_message_id: asString(tcRaw.last_message_id),
+      last_author_real_name: asString(tcRaw.last_author_real_name),
+      last_author_email: asString(tcRaw.last_author_email),
+      last_excerpt: asString(tcRaw.last_excerpt),
+      total_messages: asNumber(tcRaw.total_messages),
+      participants: normalizeParticipants(tcRaw.participants),
     },
-    channel: {
-      id: asString(channelRaw.id),
-      name: asString(channelRaw.name),
-      is_dm: asBoolean(channelRaw.is_dm),
-    },
-    slack_permalink: asStringOrNull(raw.slack_permalink),
-    generated_at: asStringOrNull(raw.generated_at),
-  };
-}
-
-function normalizeCanvasPayload(
-  raw: Record<string, unknown> | null,
-): CanvasPayload | null {
-  if (!raw) return null;
-  const draftedRaw =
-    raw.drafted_canvas && typeof raw.drafted_canvas === "object"
-      ? (raw.drafted_canvas as Record<string, unknown>)
-      : {};
-  const channelRaw =
-    raw.channel && typeof raw.channel === "object"
-      ? (raw.channel as Record<string, unknown>)
-      : {};
-  const threadRaw =
-    raw.thread && typeof raw.thread === "object"
-      ? (raw.thread as Record<string, unknown>)
-      : {};
-  const title = asString(draftedRaw.title);
-  if (!title) return null;
-  return {
-    drafted_canvas: {
-      title,
-      tldr: asString(draftedRaw.tldr),
-      decisions: asStringArray(draftedRaw.decisions),
-      open_questions: asStringArray(draftedRaw.open_questions),
-      participants: asStringArray(draftedRaw.participants),
-    },
-    channel: {
-      id: asString(channelRaw.id),
-      name: asString(channelRaw.name),
-    },
-    thread: {
-      parent_ts: asString(threadRaw.parent_ts),
-      total_replies: asNumber(threadRaw.total_replies),
-      participants: asStringArray(threadRaw.participants),
-    },
-    proposed_followup_message: asString(raw.proposed_followup_message),
+    recipients: normalizeRecipients(raw.recipients),
+    reply_to_message_id: asString(raw.reply_to_message_id),
+    gmail_thread_url: asStringOrNull(raw.gmail_thread_url),
     generated_at: asStringOrNull(raw.generated_at),
   };
 }
@@ -344,22 +278,16 @@ function normalizeCanvasPayload(
 export function parseActionFile(filePath: string): ParsedAction {
   const text = readFileSync(filePath, "utf8");
   const { frontmatter, body } = parseFrontmatter(text);
-  // 5.2.0: prefer the slack-namespaced header so a cross-source-merged action
-  // file carrying both `## Compose payload (slack)` and `## Compose payload
-  // (gmail)` blocks routes the slack-shaped payload to this view tool. Falls
-  // back to the bare `## Compose payload` for slack-authored actions
-  // (the original case).
+  // Look up gmail-namespaced header first (cross-source-merged case), then
+  // fall back to the bare header (gmail-authored case).
+  const composeRaw =
+    parseBodySection(body, "Compose payload (gmail)") ??
+    parseBodySection(body, "Compose payload");
   return {
     frontmatter,
     why_matters: extractSection(body, "Why this matters"),
     personalization_fit: extractSection(body, "Personalization fit"),
-    compose_payload: normalizeComposePayload(
-      parseBodySection(body, "Compose payload (slack)") ??
-        parseBodySection(body, "Compose payload"),
-    ),
-    canvas_payload: normalizeCanvasPayload(
-      parseBodySection(body, "Canvas payload (slack)") ??
-        parseBodySection(body, "Canvas payload"),
-    ),
+    email_context: extractSection(body, "Email context"),
+    compose_payload: normalizeComposePayload(composeRaw),
   };
 }

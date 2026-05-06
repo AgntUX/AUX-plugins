@@ -354,8 +354,16 @@ describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
     expect(step9Idx).toBeGreaterThan(step85Idx);
   });
 
-  it("Step 8.5 is bounded to source: slack + reason_class: response-needed", () => {
-    expect(src).toMatch(/`status: open`, `source: slack`, `reason_class: response-needed`/);
+  it("Step 8.5 scans response-needed items via Path A (same-source) or Path B (cross-source links)", () => {
+    // 5.2.0: Step 8.5 was broadened to cover cross-source-merged actions
+    // (Path B). The same-source predicate (Path A) still requires
+    // `source: slack`; the cross-source path scans actions whose
+    // `## Cross-source links` body section names a slack thread the
+    // current run touched. The whole step remains gated on
+    // `reason_class: response-needed`.
+    expect(src).toMatch(/`status: open`,\s*`reason_class: response-needed`/);
+    expect(src).toMatch(/Path A.*same-source action.*`source: slack`/s);
+    expect(src).toMatch(/Path B.*Cross-source links/s);
   });
 
   it("Step 8.5 only acts on threads/channels touched in this run's fetch", () => {
