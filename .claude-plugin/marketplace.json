@@ -13,7 +13,7 @@
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "description": "The AgntUX orchestrator.",
-      "version": "6.2.2",
+      "version": "6.2.3",
       "author": {
         "name": "AgntUX"
       },
@@ -31,7 +31,7 @@
       "name": "agntux-gmail",
       "source": "./plugins/agntux-gmail",
       "description": "Gmail integration for AgntUX. Ingests inbox threads into your knowledge store, drafts replies on demand, and saves them to Gmail Drafts for one-click review-and-send.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": {
         "name": "AgntUX"
       },
@@ -50,7 +50,7 @@
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
-      "version": "5.2.1",
+      "version": "5.2.2",
       "author": {
         "name": "AgntUX"
       },
