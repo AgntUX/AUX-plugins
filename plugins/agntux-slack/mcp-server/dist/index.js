@@ -25137,7 +25137,7 @@ function structuredError(kind, message) {
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2, visibility: ["model", "app"] } }
+    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2 } }
   };
 }
 function isActionAlreadyHandled(status, snoozedUntil) {
@@ -25253,10 +25253,18 @@ var composeViewTool = {
     },
     required: ["action_id"]
   },
+  // The MCP Apps spec defines two synonymous keys for declaring a tool's
+  // associated UI resource. We emit both — modern hosts (MCPJam, latest
+  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
+  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
+  // and otherwise fall back to text-rendering the structuredContent. The
+  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
+  // populates both for the same reason.
   _meta: {
     ui: {
       resourceUri: COMPOSE_RESOURCE_URI2
-    }
+    },
+    "ui/resourceUri": COMPOSE_RESOURCE_URI2
   }
 };
 async function handleComposeView(args) {
@@ -25372,8 +25380,7 @@ async function handleComposeView(args) {
     ],
     _meta: {
       ui: {
-        resourceUri: COMPOSE_RESOURCE_URI2,
-        visibility: ["model", "app"]
+        resourceUri: COMPOSE_RESOURCE_URI2
       }
     }
   };
@@ -25411,7 +25418,7 @@ function structuredError2(kind, message) {
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI2, visibility: ["model", "app"] } }
+    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI2 } }
   };
 }
 function isActionAlreadyHandled2(status, snoozedUntil) {
@@ -25496,10 +25503,18 @@ var canvasViewTool = {
     },
     required: ["action_id"]
   },
+  // The MCP Apps spec defines two synonymous keys for declaring a tool's
+  // associated UI resource. We emit both — modern hosts (MCPJam, latest
+  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
+  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
+  // and otherwise fall back to text-rendering the structuredContent. The
+  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
+  // populates both for the same reason.
   _meta: {
     ui: {
       resourceUri: CANVAS_RESOURCE_URI2
-    }
+    },
+    "ui/resourceUri": CANVAS_RESOURCE_URI2
   }
 };
 async function handleCanvasView(args) {
@@ -25584,8 +25599,7 @@ async function handleCanvasView(args) {
     ],
     _meta: {
       ui: {
-        resourceUri: CANVAS_RESOURCE_URI2,
-        visibility: ["model", "app"]
+        resourceUri: CANVAS_RESOURCE_URI2
       }
     }
   };

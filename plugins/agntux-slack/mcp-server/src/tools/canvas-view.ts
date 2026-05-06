@@ -84,7 +84,6 @@ interface CanvasStructuredError {
 interface ViewToolMeta {
   ui: {
     resourceUri: typeof CANVAS_RESOURCE_URI;
-    visibility: ["model", "app"];
   };
 }
 
@@ -131,7 +130,7 @@ function structuredError(
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI, visibility: ["model", "app"] } },
+    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI } },
   };
 }
 
@@ -252,10 +251,18 @@ export const canvasViewTool = {
     },
     required: ["action_id"],
   },
+  // The MCP Apps spec defines two synonymous keys for declaring a tool's
+  // associated UI resource. We emit both — modern hosts (MCPJam, latest
+  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
+  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
+  // and otherwise fall back to text-rendering the structuredContent. The
+  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
+  // populates both for the same reason.
   _meta: {
     ui: {
       resourceUri: CANVAS_RESOURCE_URI,
     },
+    "ui/resourceUri": CANVAS_RESOURCE_URI,
   },
 } as const;
 
@@ -380,7 +387,6 @@ export async function handleCanvasView(
     _meta: {
       ui: {
         resourceUri: CANVAS_RESOURCE_URI,
-        visibility: ["model", "app"],
       },
     },
   };

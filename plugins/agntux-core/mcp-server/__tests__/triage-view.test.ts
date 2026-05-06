@@ -484,7 +484,20 @@ describe("handleTriageView — counts + last_updated_at + result envelope", () =
   it("returns _meta.ui.resourceUri pointing at ui://triage", async () => {
     const result = await handleTriageView({});
     expect(result._meta.ui.resourceUri).toBe("ui://triage");
-    expect(result._meta.ui.visibility).toEqual(["model", "app"]);
+  });
+
+  // Regression guard for the Cowork-text-render bug: the host expected the
+  // deprecated flat key and silently fell back to text when it was missing.
+  // The fix is to emit both keys, matching what the upstream registerAppTool
+  // helper in @modelcontextprotocol/ext-apps does.
+  it("descriptor _meta carries both modern and legacy resourceUri keys", async () => {
+    const { triageViewTool } = await import("../src/tools/triage-view.js");
+    const meta = triageViewTool._meta as {
+      ui: { resourceUri: string };
+      "ui/resourceUri": string;
+    };
+    expect(meta.ui.resourceUri).toBe("ui://triage");
+    expect(meta["ui/resourceUri"]).toBe("ui://triage");
   });
 
   it("counts open + snoozed independently", async () => {

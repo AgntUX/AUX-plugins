@@ -11,7 +11,9 @@
  *   - action_not_found when action file does not exist on disk
  *   - action_already_handled for done / dismissed / future-snoozed actions
  *   - happy path: all caps applied (body, signals, participants, messages)
- *   - _meta.ui.resourceUri = ui://slack-compose + visibility array
+ *   - _meta.ui.resourceUri = ui://slack-compose on the result envelope
+ *   - tool descriptor exposes both _meta.ui.resourceUri (modern) and
+ *     _meta["ui/resourceUri"] (legacy) for cross-host compatibility
  *   - initial_verb coercion: unknown falls back to "draft"
  */
 
@@ -130,7 +132,6 @@ describe("handleComposeView — happy path", () => {
   it("returns _meta.ui.resourceUri = ui://slack-compose", async () => {
     const result = await handleComposeView(baseArgs());
     expect(result._meta.ui.resourceUri).toBe("ui://slack-compose");
-    expect(result._meta.ui.visibility).toEqual(["model", "app"]);
   });
 
   it("echoes action_id and initial_verb in structuredContent", async () => {
@@ -433,5 +434,19 @@ describe("composeViewTool — descriptor contract", () => {
         /LEGACY back-compat only.*Do NOT pass for click-time trigger phrases/s,
       );
     }
+  });
+
+  // Regression guard for the Cowork-text-render bug: the host expected the
+  // deprecated flat key and silently fell back to text when it was missing.
+  // The fix is to emit both keys, matching what the upstream registerAppTool
+  // helper in @modelcontextprotocol/ext-apps does.
+  it("descriptor _meta carries both modern and legacy resourceUri keys", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    const meta = composeViewTool._meta as {
+      ui: { resourceUri: string };
+      "ui/resourceUri": string;
+    };
+    expect(meta.ui.resourceUri).toBe("ui://slack-compose");
+    expect(meta["ui/resourceUri"]).toBe("ui://slack-compose");
   });
 });

@@ -41,18 +41,18 @@ interface TriageStructuredContent {
 interface TriageStructuredError {
     error: "actions_index_missing" | "license_paused";
 }
+interface ViewToolMeta {
+    ui: {
+        resourceUri: typeof TRIAGE_RESOURCE_URI;
+    };
+}
 interface ViewToolSuccess {
     structuredContent: TriageStructuredContent;
     content: Array<{
         type: "text";
         text: string;
     }>;
-    _meta: {
-        ui: {
-            resourceUri: typeof TRIAGE_RESOURCE_URI;
-            visibility: ["model", "app"];
-        };
-    };
+    _meta: ViewToolMeta;
 }
 interface ViewToolError {
     structuredContent: TriageStructuredError;
@@ -60,12 +60,7 @@ interface ViewToolError {
         type: "text";
         text: string;
     }>;
-    _meta: {
-        ui: {
-            resourceUri: typeof TRIAGE_RESOURCE_URI;
-            visibility: ["model", "app"];
-        };
-    };
+    _meta: ViewToolMeta;
 }
 type ViewToolResult = ViewToolSuccess | ViewToolError;
 export declare const triageViewTool: {
@@ -89,6 +84,7 @@ export declare const triageViewTool: {
         readonly ui: {
             readonly resourceUri: "ui://triage";
         };
+        readonly "ui/resourceUri": "ui://triage";
     };
 };
 export declare function handleTriageView(args: Record<string, unknown>): Promise<ViewToolResult>;

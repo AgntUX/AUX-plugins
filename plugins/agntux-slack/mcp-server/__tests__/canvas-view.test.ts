@@ -104,7 +104,6 @@ describe("handleCanvasView — happy path", () => {
   it("returns _meta.ui.resourceUri = ui://slack-canvas", async () => {
     const result = await handleCanvasView(baseArgs());
     expect(result._meta.ui.resourceUri).toBe("ui://slack-canvas");
-    expect(result._meta.ui.visibility).toEqual(["model", "app"]);
   });
 
   it("echoes action_id and channel in structuredContent", async () => {
@@ -338,5 +337,19 @@ describe("canvasViewTool — descriptor contract", () => {
         /LEGACY back-compat only.*Do NOT pass for click-time trigger phrases/s,
       );
     }
+  });
+
+  // Regression guard for the Cowork-text-render bug: the host expected the
+  // deprecated flat key and silently fell back to text when it was missing.
+  // The fix is to emit both keys, matching what the upstream registerAppTool
+  // helper in @modelcontextprotocol/ext-apps does.
+  it("descriptor _meta carries both modern and legacy resourceUri keys", async () => {
+    const { canvasViewTool } = await import("../src/tools/canvas-view.js");
+    const meta = canvasViewTool._meta as {
+      ui: { resourceUri: string };
+      "ui/resourceUri": string;
+    };
+    expect(meta.ui.resourceUri).toBe("ui://slack-canvas");
+    expect(meta["ui/resourceUri"]).toBe("ui://slack-canvas");
   });
 });
