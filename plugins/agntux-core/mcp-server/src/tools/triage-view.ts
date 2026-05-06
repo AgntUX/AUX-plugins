@@ -110,26 +110,22 @@ interface TriageStructuredError {
   error: "actions_index_missing" | "license_paused";
 }
 
+interface ViewToolMeta {
+  ui: {
+    resourceUri: typeof TRIAGE_RESOURCE_URI;
+  };
+}
+
 interface ViewToolSuccess {
   structuredContent: TriageStructuredContent;
   content: Array<{ type: "text"; text: string }>;
-  _meta: {
-    ui: {
-      resourceUri: typeof TRIAGE_RESOURCE_URI;
-      visibility: ["model", "app"];
-    };
-  };
+  _meta: ViewToolMeta;
 }
 
 interface ViewToolError {
   structuredContent: TriageStructuredError;
   content: Array<{ type: "text"; text: string }>;
-  _meta: {
-    ui: {
-      resourceUri: typeof TRIAGE_RESOURCE_URI;
-      visibility: ["model", "app"];
-    };
-  };
+  _meta: ViewToolMeta;
 }
 
 type ViewToolResult = ViewToolSuccess | ViewToolError;
@@ -241,10 +237,18 @@ export const triageViewTool = {
     },
     required: [],
   },
+  // The MCP Apps spec defines two synonymous keys for declaring a tool's
+  // associated UI resource. We emit both — modern hosts (MCPJam, latest
+  // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
+  // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
+  // and otherwise fall back to text-rendering the structuredContent. The
+  // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
+  // populates both for the same reason.
   _meta: {
     ui: {
       resourceUri: TRIAGE_RESOURCE_URI,
     },
+    "ui/resourceUri": TRIAGE_RESOURCE_URI,
   },
 } as const;
 
@@ -394,7 +398,6 @@ export async function handleTriageView(
     _meta: {
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI,
-        visibility: ["model", "app"],
       },
     },
   };
@@ -410,7 +413,6 @@ function structuredError(
     _meta: {
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI,
-        visibility: ["model", "app"],
       },
     },
   };

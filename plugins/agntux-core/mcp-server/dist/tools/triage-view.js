@@ -147,10 +147,18 @@ export const triageViewTool = {
         },
         required: [],
     },
+    // The MCP Apps spec defines two synonymous keys for declaring a tool's
+    // associated UI resource. We emit both — modern hosts (MCPJam, latest
+    // Claude.ai) read the nested `_meta.ui.resourceUri`; older hosts (Claude
+    // Cowork desktop as of 5.x) only read the legacy flat `_meta["ui/resourceUri"]`
+    // and otherwise fall back to text-rendering the structuredContent. The
+    // upstream `registerAppTool` helper in @modelcontextprotocol/ext-apps
+    // populates both for the same reason.
     _meta: {
         ui: {
             resourceUri: TRIAGE_RESOURCE_URI,
         },
+        "ui/resourceUri": TRIAGE_RESOURCE_URI,
     },
 };
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -273,7 +281,6 @@ export async function handleTriageView(args) {
         _meta: {
             ui: {
                 resourceUri: TRIAGE_RESOURCE_URI,
-                visibility: ["model", "app"],
             },
         },
     };
@@ -285,7 +292,6 @@ function structuredError(kind, message) {
         _meta: {
             ui: {
                 resourceUri: TRIAGE_RESOURCE_URI,
-                visibility: ["model", "app"],
             },
         },
     };
