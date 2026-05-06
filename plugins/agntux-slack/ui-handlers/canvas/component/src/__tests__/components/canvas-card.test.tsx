@@ -59,6 +59,34 @@ describe("MainComponent — render branches (no-provider)", () => {
     expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
   });
 
+  // 5.1.2 regression guards. Mirrors the compose-card streaming-skeleton
+  // tests. App.tsx synthesizes a partial-shaped toolOutput envelope while
+  // tool-input-partial notifications stream; if the streaming-skeleton
+  // check doesn't fire first, CanvasCard mounts with the partial-derived
+  // payload and useState(title) / useState(tldr) / useState(decisions) /
+  // useState(openQuestions) latch the empty values, ignoring the real
+  // payload when it arrives.
+  it("renders streaming skeleton when isStreaming is true even with a synthesized partial envelope", () => {
+    const partialInput = { action_id: "test-action-1" };
+    const { props } = createMainComponentProps({
+      toolOutput: { _meta: { payload: partialInput } },
+      isStreaming: true,
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId("streaming-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("canvas-card")).not.toBeInTheDocument();
+  });
+
+  it("renders streaming skeleton when isStreaming is true and toolOutput is undefined", () => {
+    const { props } = createMainComponentProps({
+      toolOutput: undefined,
+      isStreaming: true,
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId("streaming-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("loading-skeleton")).not.toBeInTheDocument();
+  });
+
   it("renders action_not_found error state", () => {
     const { props } = createMainComponentProps({
       toolOutput: { error: "action_not_found" },

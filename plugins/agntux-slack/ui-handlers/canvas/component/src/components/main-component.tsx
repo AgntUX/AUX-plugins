@@ -34,19 +34,15 @@ export function parsePayload(toolOutput: Record<string, unknown> | undefined) {
 }
 
 export function MainComponent({ toolOutput, isStreaming }: MainComponentProps) {
-  if (!toolOutput && !isStreaming) {
-    return (
-      <div
-        data-testid="loading-skeleton"
-        className="flex h-full items-center justify-center p-6"
-        aria-label="Loading canvas card"
-      >
-        <Spinner size={6} label="Loading canvas card" />
-      </div>
-    );
-  }
-
-  if (!toolOutput && isStreaming) {
+  // Streaming: partial input arriving. Check this BEFORE the toolOutput
+  // truthy branch — App.tsx synthesizes a partial-shaped toolOutput
+  // (`{ _meta: { payload: partialInput } }`) during streaming so MainComponent
+  // never sees `!toolOutput` while isStreaming is true. We MUST short-circuit
+  // here to avoid mounting CanvasCard with a partial-derived payload —
+  // CanvasCard's useState(title) / useState(tldr) / useState(decisions) /
+  // useState(openQuestions) would latch the partial values and ignore the
+  // real payload when it arrives.
+  if (isStreaming) {
     return (
       <div
         data-testid="streaming-skeleton"
@@ -54,6 +50,18 @@ export function MainComponent({ toolOutput, isStreaming }: MainComponentProps) {
         aria-label="Preparing canvas"
       >
         <Spinner size={6} label="Preparing canvas" />
+      </div>
+    );
+  }
+
+  if (!toolOutput) {
+    return (
+      <div
+        data-testid="loading-skeleton"
+        className="flex h-full items-center justify-center p-6"
+        aria-label="Loading canvas card"
+      >
+        <Spinner size={6} label="Loading canvas card" />
       </div>
     );
   }
