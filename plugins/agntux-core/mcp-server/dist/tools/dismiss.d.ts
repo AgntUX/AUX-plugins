@@ -25,4 +25,3 @@ export declare const dismissTool: {
         }[];
     }>;
 };
-//# sourceMappingURL=dismiss.d.ts.map

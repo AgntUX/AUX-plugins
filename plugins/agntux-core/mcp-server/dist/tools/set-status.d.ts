@@ -35,4 +35,3 @@ export declare const setStatusTool: {
         }[];
     }>;
 };
-//# sourceMappingURL=set-status.d.ts.map

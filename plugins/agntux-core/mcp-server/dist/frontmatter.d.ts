@@ -4,4 +4,3 @@
  * Throws if the file has no valid frontmatter block.
  */
 export declare function setFrontmatter(raw: string, patch: Record<string, unknown>): string;
-//# sourceMappingURL=frontmatter.d.ts.map

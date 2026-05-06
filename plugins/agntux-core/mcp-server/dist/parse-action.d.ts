@@ -30,4 +30,3 @@ export declare function parseFrontmatter(text: string): {
 };
 export declare function extractSection(body: string, header: string): string;
 export declare function parseActionFile(filePath: string): ParsedAction;
-//# sourceMappingURL=parse-action.d.ts.map

@@ -21,4 +21,3 @@ export declare const snoozeTool: {
         }[];
     }>;
 };
-//# sourceMappingURL=snooze.d.ts.map

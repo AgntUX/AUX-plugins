@@ -93,4 +93,3 @@ export declare const triageViewTool: {
 };
 export declare function handleTriageView(args: Record<string, unknown>): Promise<ViewToolResult>;
 export {};
-//# sourceMappingURL=triage-view.d.ts.map

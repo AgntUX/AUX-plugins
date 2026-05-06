@@ -84,4 +84,3 @@ function serialiseValue(v) {
     }
     return JSON.stringify(v);
 }
-//# sourceMappingURL=frontmatter.js.map

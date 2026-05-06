@@ -101,4 +101,3 @@ export const setStatusTool = {
         return { content: [{ type: "text", text: `Set status of ${id} to ${status}${outcomeSuffix}.` }] };
     },
 };
-//# sourceMappingURL=set-status.js.map

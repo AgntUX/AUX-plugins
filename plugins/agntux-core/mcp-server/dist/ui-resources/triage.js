@@ -23,4 +23,3 @@ export const triageBundleDescriptor = {
     uri: TRIAGE_RESOURCE_URI,
     mimeType: TRIAGE_MIME_TYPE,
 };
-//# sourceMappingURL=triage.js.map

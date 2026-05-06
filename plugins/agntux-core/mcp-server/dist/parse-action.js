@@ -131,4 +131,3 @@ export function parseActionFile(filePath) {
         personalization_fit: extractSection(body, "Personalization fit"),
     };
 }
-//# sourceMappingURL=parse-action.js.map

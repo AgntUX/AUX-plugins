@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.1] — 2026-05-06
+
+Build-only fix for hosts that launch `mcp-server/dist/index.js` without
+running `npm install` first (Claude Cowork desktop, and any other host
+that follows the marketplace "no install step" contract documented in
+this repo's `CLAUDE.md`).
+
+### Fixed
+
+- **`mcp-server/dist/index.js` is now a self-contained esbuild bundle.**
+  Previously the build was `tsc && embed-bundle.mjs`, which only
+  transpiled TypeScript and left bare `import "@agntux/mcp-license"` /
+  `import "@modelcontextprotocol/sdk"` / `import "yaml"` statements in
+  the dist. When a host extracted the plugin without installing the
+  shared `packages/mcp-license/` workspace package or `node_modules/`
+  (the marketplace path), Node failed at the first import with
+  `ERR_MODULE_NOT_FOUND` and the MCP server crashed silently — skills
+  still surfaced (slash commands worked) but `agntux_core_*` tools were
+  invisible to chats. The build now runs `tsc` (still emits per-file
+  `dist/*.js` so sibling plugins like agntux-slack can resolve the
+  `./agntux-root` subpath export at *their* build time) and then
+  `esbuild --bundle` to overwrite `dist/index.js` with a single
+  self-contained ~1.2 MB bundle that inlines `@agntux/mcp-license`,
+  `@modelcontextprotocol/sdk`, `yaml`, and all transitive workspace
+  deps. Verified by running the bundle from a scratch directory with no
+  `node_modules/` and no co-located `packages/` — exit 0 on stdin
+  close.
+- **`embed-bundle.mjs` placeholder substitution still runs after the
+  esbuild step.** The `__EMBED__<ui-name>__INDEX_HTML__` placeholders
+  emitted by `ui-resources/*.ts` survive bundling as ordinary string
+  literals; `embed-bundle.mjs` walks `dist/*.js` (now just the bundle,
+  plus the orphan transpiled files used at sibling build time) and
+  substitutes the base64'd component HTML in-place.
+- **`scripts/check-bundle-sync.mjs` is now scoped to its own plugin.**
+  Each plugin has its own copy of the script under
+  `mcp-server/scripts/`. The script now derives the plugin slug from
+  its own filesystem location and validates only that plugin's dist —
+  prevents a false positive when `build-plugin.mjs` rebuilds plugins
+  serially (the next plugin's dist is briefly empty mid-run because the
+  build now starts with `rm -rf dist`).
+
+### Internal
+
+- Bumped esbuild ^0.24.0 into `mcp-server/devDependencies`. No new
+  runtime dependency.
+
 ## [6.2.0] — 2026-05-06
 
 Internal refactor only — no user-visible behaviour change.

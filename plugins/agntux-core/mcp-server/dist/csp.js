@@ -10,4 +10,3 @@ export function buildCSP() {
         "frame-ancestors 'none'",
     ].join("; ");
 }
-//# sourceMappingURL=csp.js.map
