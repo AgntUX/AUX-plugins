@@ -13,7 +13,7 @@
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "description": "The AgntUX orchestrator.",
-      "version": "6.2.0",
+      "version": "6.2.1",
       "author": {
         "name": "AgntUX"
       },
@@ -31,7 +31,7 @@
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
-      "version": "5.1.2",
+      "version": "5.1.3",
       "author": {
         "name": "AgntUX"
       },
