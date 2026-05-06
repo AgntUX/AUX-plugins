@@ -2,23 +2,28 @@
 // compose_view — render tool for the agntux-slack Slack reply compose MCP App.
 //
 // Shape rules (mirrors triage-view.ts):
-//   - The draft skill has already fetched thread context from Slack and
-//     composed the draft body. It passes the structured context here so this
-//     tool does NOT call Slack tools — it is read-only and stateless.
-//   - The handler reads <root>/actions/{action_id}.md to verify the action
-//     exists and is still open (not done/dismissed/snoozed-future).
+//   - The sync skill pre-composed the draft body and thread context at
+//     ingest time and stored them in the action file's `## Compose payload`
+//     body section. This tool reads <root>/actions/{action_id}.md, verifies
+//     the action is still open (not done/dismissed/snoozed-future), and
+//     lifts the payload — it does NOT call Slack tools (read-only,
+//     stateless).
+//   - Inline structured args still win when supplied (legacy / testing path).
 //   - Hard caps are enforced server-side. Never throws from the happy path.
 //
 // Returns:
 //   On success — { structuredContent: ComposePayload, content: [...], _meta }
 //   On error   — { structuredContent: { error: '...' }, content: [...], _meta }
 //
-// Committed-envelope encoding (for draft-flow-author):
-//   Component emits: ux: Use the agntux-slack plugin to commit the drafted
-//   reply for action {action_id} with body «{edited_body}» (mode: {send|
-//   schedule|save_draft}{, send_at: {RFC3339}}).
-//   Unicode guillemets «»  delimit the body. Literal « or » in the body are
-//   escaped by doubling (««, »»). The draft skill parser reverses the doubling.
+// Committed-envelope encoding (5.0.0+):
+//   The component emits an envelope addressed at the user's Slack Connector
+//   directly — no agntux-slack draft skill in the chain (the skill was
+//   removed in 5.0.0). channel_id, thread_ts, body, mode, and send_at are
+//   carried inline so the host has everything it needs without a disk read.
+//   Unicode guillemets «» delimit the body; literal « or » in the body are
+//   escaped by doubling (««, »»). See
+//   ui-handlers/compose/component/src/lib/build-envelope.ts for the full
+//   shape and rationale.
 // =============================================================================
 
 import { statSync } from "node:fs";

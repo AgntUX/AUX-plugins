@@ -8,7 +8,12 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useAppsClient } from "./apps-react/index.js";
-import { buildEnvelope, type CommitMode } from "./build-envelope.js";
+import {
+  buildEnvelope,
+  type CommitMode,
+  type ComposeChannel,
+  type ComposeThread,
+} from "./build-envelope.js";
 
 export type CommitState = "idle" | "sending" | "sent" | "error";
 
@@ -18,6 +23,8 @@ export interface UseEmitCommitResult {
     action_id: string,
     mode: CommitMode,
     edited_body: string,
+    channel: ComposeChannel,
+    thread: ComposeThread,
     send_at?: string,
   ) => Promise<void>;
   reset: () => void;
@@ -45,13 +52,22 @@ export function useEmitCommit(): UseEmitCommitResult {
       action_id: string,
       mode: CommitMode,
       edited_body: string,
+      channel: ComposeChannel,
+      thread: ComposeThread,
       send_at?: string,
     ) => {
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       setCommitState("sending");
       try {
-        const prompt = buildEnvelope(action_id, mode, edited_body, send_at);
+        const prompt = buildEnvelope(
+          action_id,
+          mode,
+          edited_body,
+          channel,
+          thread,
+          send_at,
+        );
         await client.sendFollowUpMessage(prompt);
         setCommitState("sent");
       } catch {

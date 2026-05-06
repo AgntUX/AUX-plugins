@@ -149,18 +149,18 @@ The host gives inline/inline-card iframes ~400–600px of height (`hostContext.c
 **Banned in inline / inline-card code:**
 
 - `min-h-screen`, `h-screen`, `100vh`, `100dvh` on any container (the iframe is not the browser viewport).
-- Pixel heights > 560px on modals, panels, or forms (the primary action scrolls off-screen).
-- Modals/dialogs/overlays without an `overflow-y-auto` body and a capped max-height (`max-h-[min(560px,calc(100%-2rem))]`).
+- Pixel heights > 560px on inline panels or forms (the primary action scrolls off-screen).
+- Centred modal overlays with anchor-positioning math. The triage UI used to ship a `ScrollableModal` primitive that anchored to the row the user clicked; the height-overflow guard interacted badly with short iframes and pushed the modal ~⅓ of the way down. Retired in v6.1.0 in favour of inline expansion panels.
 - Primary action buttons (Submit / Save / Next) at the natural bottom of a tall content block without being sticky.
 
 **Required patterns:**
 
 1. **Scrollable root** — top-level container is `h-full overflow-y-auto`, or wrapped by `<InlineLayout maxHeight={viewport.height}>`. The template's `InlineLayout` and `InlineCardLayout` default `overflow-y: auto` on.
-2. **Internal-scroll modals** — use `<ScrollableModal>` from `src/components/scrollable-modal.tsx`. Structure: sticky header + `flex-1 overflow-y-auto` body + sticky footer with the primary action.
+2. **Inline expansion panels** — for "act on this row" flows (Snooze / Dismiss / Details / Do something else), expand a panel inside the row's card rather than overlaying a centred modal. See the four `*Panel` components in `src/components/main-component.tsx`.
 3. **Sticky primary actions** — any form/wizard with a Submit/Next button places it in a `sticky bottom-0` footer inside the scroll container.
 4. **Sticky table headers** — data tables use a sticky `<thead>` so column labels stay visible as rows scroll.
 
-**Reference:** `references/ref-inline-scroll-patterns.tsx` has runnable examples for (a) scrollable list, (b) `<ScrollableModal>` usage, (c) scrollable table with sticky header, (d) form with sticky submit.
+**Reference:** `references/ref-inline-scroll-patterns.tsx` has runnable examples for (a) scrollable list, (b) inline expansion panel, (c) scrollable table with sticky header, (d) form with sticky submit.
 
 **Tests:** every component's test suite must include a 600px budget check via `renderAtInlineViewport` from `src/__tests__/test-utils/viewport.ts`. Assert the root scroll container exists and that the primary action node is reachable via `scrollIntoView()`.
 

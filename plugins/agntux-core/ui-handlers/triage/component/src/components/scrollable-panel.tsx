@@ -6,9 +6,7 @@
  *
  * Use this for any inline-iframe screen that needs to keep its title visible
  * at the top, scroll its body, and keep its primary action visible at the
- * bottom. The companion `ScrollableModal` in this directory is the focus-
- * trapping overlay variant; this primitive is the non-modal layout used as a
- * full-surface "view".
+ * bottom.
  *
  * Sticky header includes:
  *   - Title (string or ReactNode)
