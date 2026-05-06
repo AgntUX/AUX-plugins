@@ -120,8 +120,8 @@ export const canvasViewTool = {
         "sections (title, TL;DR, decisions, open questions, participants), " +
         "channel, thread, and follow-up message from disk. Do NOT pass " +
         "drafted_canvas, channel, thread, or proposed_followup_message inline — " +
-        "those args are a legacy back-compat surface for out-of-band working- " +
-        "memory callers, and any inline value (including partial / empty " +
+        "those args are a legacy back-compat surface for out-of-band " +
+        "working-memory callers, and any inline value (including partial / empty " +
         "objects) overrides the on-disk payload destructively, producing an " +
         "empty UI. Action files that lack a `## Canvas payload` section surface " +
         "the `canvas_payload_missing` structured error envelope. Returns " +

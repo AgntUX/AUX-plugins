@@ -37,6 +37,14 @@ encourage inline-arg synthesis.
   inline `drafted_canvas`, `channel`, `thread`, and
   `proposed_followup_message` labelled LEGACY back-compat only) so the
   Summarise-to-canvas click path doesn't regress in the same way.
+- **Descriptor-contract regression tests** added at the end of
+  `mcp-server/__tests__/{compose-view,canvas-view}.test.ts`. Six new tests
+  assert the trigger-phrase → arg mapping in `composeViewTool.description`
+  / `canvasViewTool.description`, the `'in schedule mode' → 'schedule'`
+  spell-out in the `initial_verb` parameter description, and the "LEGACY
+  back-compat only … Do NOT pass for click-time trigger phrases" guard
+  on every legacy inline-arg parameter. These pin the load-bearing copy
+  so a future descriptor edit can't silently regress the bug fix.
 
 No `ux:` prompt surface, no schema, no public-facing copy changed — patch
 bump per §5.1.

@@ -304,3 +304,39 @@ describe("handleCanvasView — dual-mode (3.0.0+ on-disk payload fallback)", () 
     expect(sc.error).toBe("canvas_payload_missing");
   });
 });
+
+// ── Tool descriptor contract ─────────────────────────────────────────────────
+//
+// 5.1.1 regression guard. Mirrors the compose-view descriptor contract test:
+// the host LLM must map the canvas trigger phrase verbatim to {action_id}
+// alone, and every legacy inline-arg parameter must carry the "Do NOT pass
+// for click-time trigger phrases" guard so partial inline args don't
+// destructively override the on-disk `## Canvas payload` lookup.
+
+describe("canvasViewTool — descriptor contract", () => {
+  it("description maps the canvas trigger phrase to {action_id}", async () => {
+    const { canvasViewTool } = await import("../src/tools/canvas-view.js");
+    expect(canvasViewTool.description).toContain(
+      "'open the canvas summariser for action {id}' → call with {action_id: id}",
+    );
+  });
+
+  it("every legacy inline-arg parameter is labelled 'LEGACY back-compat only'", async () => {
+    const { canvasViewTool } = await import("../src/tools/canvas-view.js");
+    const legacy = [
+      "drafted_canvas",
+      "channel",
+      "thread",
+      "proposed_followup_message",
+    ] as const;
+    const props = canvasViewTool.inputSchema.properties as Record<
+      string,
+      { description: string }
+    >;
+    for (const name of legacy) {
+      expect(props[name]?.description ?? "").toMatch(
+        /LEGACY back-compat only.*Do NOT pass for click-time trigger phrases/s,
+      );
+    }
+  });
+});

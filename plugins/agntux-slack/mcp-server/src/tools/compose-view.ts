@@ -254,7 +254,7 @@ export const composeViewTool = {
         type: "string",
         enum: ["draft", "schedule", "save_draft"],
         description:
-          "Which mode tab to pre-select. REQUIRED to be 'schedule' when the " +
+          "Which mode tab to pre-select. MUST be set to 'schedule' when the " +
           "trigger phrase contains 'in schedule mode' (e.g., 'open the reply " +
           "composer in schedule mode for action {id}'). Otherwise omit (defaults " +
           "to 'draft'). 'save_draft' is reserved for legacy out-of-band callers.",
@@ -264,7 +264,8 @@ export const composeViewTool = {
         description:
           "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
           "the tool lifts the body from the action file's `## Compose payload`. " +
-          "Inline override for out-of-band working-memory callers. ≤4000 chars.",
+          "Inline override for out-of-band working-memory callers. ≤4000 chars; " +
+          "truncated if longer.",
       },
       personalization_signals: {
         type: "array",

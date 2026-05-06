@@ -378,3 +378,60 @@ describe("handleComposeView — dual-mode (3.0.0+ on-disk payload fallback)", ()
     );
   });
 });
+
+// ── Tool descriptor contract ─────────────────────────────────────────────────
+//
+// 5.1.1 regression guards. The host LLM reads `composeViewTool.description`
+// and the per-parameter descriptions to decide which args to pass. Two
+// trigger phrases must map verbatim:
+//   'open the reply composer for action {id}'                  → {action_id}
+//   'open the reply composer in schedule mode for action {id}' → {action_id, initial_verb: "schedule"}
+// And every legacy inline arg must carry a "Do NOT pass for click-time
+// trigger phrases" guard so the LLM doesn't synthesize partial inline args
+// (empty channel: {}, empty thread_context: {}) that destructively override
+// the on-disk `## Compose payload` lookup. Tests below pin the load-bearing
+// pieces so a future copy-edit can't silently regress the bug fix.
+
+describe("composeViewTool — descriptor contract", () => {
+  it("description maps the draft trigger phrase to {action_id}", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    expect(composeViewTool.description).toContain(
+      "'open the reply composer for action {id}' → call with {action_id: id}",
+    );
+  });
+
+  it("description maps the schedule trigger phrase to {action_id, initial_verb: 'schedule'}", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    expect(composeViewTool.description).toContain(
+      "'open the reply composer in schedule mode for action {id}' → call with {action_id: id, initial_verb: \"schedule\"}",
+    );
+  });
+
+  it("initial_verb description spells out the 'in schedule mode' → 'schedule' mapping", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    const initialVerb = composeViewTool.inputSchema.properties.initial_verb;
+    expect(initialVerb.description).toContain("'in schedule mode'");
+    expect(initialVerb.description).toContain("'schedule'");
+  });
+
+  it("every legacy inline-arg parameter is labelled 'LEGACY back-compat only'", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    const legacy = [
+      "drafted_body",
+      "personalization_signals",
+      "thread_context",
+      "channel",
+      "proposed_send_time",
+      "slack_permalink",
+    ] as const;
+    const props = composeViewTool.inputSchema.properties as Record<
+      string,
+      { description: string }
+    >;
+    for (const name of legacy) {
+      expect(props[name]?.description ?? "").toMatch(
+        /LEGACY back-compat only.*Do NOT pass for click-time trigger phrases/s,
+      );
+    }
+  });
+});
