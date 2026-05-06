@@ -8,6 +8,7 @@
 import { ScrollablePanel } from "./scrollable-panel.js";
 import { ComposeCard } from "./compose-card.js";
 import { Spinner } from "./spinner.js";
+import { AgntuxLogo } from "./agntux-logo.js";
 import { normalizeComposePayload } from "../lib/normalize.js";
 
 export interface MainComponentProps {
@@ -93,7 +94,24 @@ export function MainComponent({ toolOutput, isStreaming }: MainComponentProps) {
   // Success: render the compose card
   return (
     <ScrollablePanel
-      title={`Reply · #${data.channel.name}`}
+      title={
+        <span
+          className="flex items-center gap-2"
+          data-testid="compose-header"
+        >
+          <AgntuxLogo height={18} />
+          <span aria-hidden="true" className="text-slate-300">
+            ·
+          </span>
+          <span data-testid="compose-title">Slack Compose</span>
+          <span aria-hidden="true" className="text-slate-300">
+            ·
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">
+            #{data.channel.name}
+          </span>
+        </span>
+      }
     >
       <ComposeCard payload={data} />
     </ScrollablePanel>

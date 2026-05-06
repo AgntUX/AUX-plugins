@@ -23,7 +23,7 @@
     },
     "proposed_followup_message": "Posted a thread summary — see canvas for decisions and open items."
   },
-  "prompt": "Call canvas_view and render the canvas editor.",
+  "prompt": "Call agntux_slack_canvas_view and render the canvas editor.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='canvas-card']", "max_results": 1 },
     { "type": "query", "selector": "[data-testid='canvas-title']", "max_results": 1 },

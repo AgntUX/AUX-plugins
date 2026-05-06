@@ -9,25 +9,27 @@ import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
 import { composeViewTool, handleComposeView } from "./tools/compose-view.js";
 import { canvasViewTool, handleCanvasView } from "./tools/canvas-view.js";
 const PLUGIN_NAME = "agntux-slack";
-const PLUGIN_VERSION = "2.0.0";
+const PLUGIN_VERSION = "4.0.0";
 const gate = createLicenseGate({
     pluginName: PLUGIN_NAME,
     pluginVersion: PLUGIN_VERSION,
 });
 const server = new Server({ name: PLUGIN_NAME, version: PLUGIN_VERSION }, { capabilities: { resources: {}, tools: {} } });
-// Tools surface:
-//   - compose_view — invoked by the draft skill after composing a Slack reply
-//     draft. Returns structuredContent for ui://slack-compose.
-//   - canvas_view  — invoked by the draft skill after composing canvas sections.
-//     Returns structuredContent for ui://slack-canvas.
+// Tools surface (v4.0.0+ all tool names are prefixed with `agntux_slack_`
+// so they are unambiguous at the host's MCP routing layer — collisions
+// with other servers' tool names are no longer possible):
+//   - agntux_slack_compose_view — invoked by the draft skill after composing
+//     a Slack reply draft. Returns structuredContent for ui://slack-compose.
+//   - agntux_slack_canvas_view — invoked by the draft skill after composing
+//     canvas sections. Returns structuredContent for ui://slack-canvas.
 const TOOLS = {
-    compose_view: {
+    agntux_slack_compose_view: {
         description: composeViewTool.description,
         inputSchema: composeViewTool.inputSchema,
         _meta: composeViewTool._meta,
         handler: handleComposeView,
     },
-    canvas_view: {
+    agntux_slack_canvas_view: {
         description: canvasViewTool.description,
         inputSchema: canvasViewTool.inputSchema,
         _meta: canvasViewTool._meta,

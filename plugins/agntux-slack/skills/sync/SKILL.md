@@ -52,15 +52,27 @@ Before Step 0, run TWO guards in order:
 <!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
 
 Resolve the AgntUX project root via this ladder. Stop at the first
-match:
+match. Whenever a step matches, **immediately resolve the path to its
+absolute form** (expand `~` to the user's home directory, drop any
+`./` / `..` / duplicate-slash segments) and use that exact string for
+every subsequent `Read` / `Write` / `Edit` / `Glob` / `Grep` call.
+The host's "Allow for scheduled runs" allowlist keys on the literal
+path string, so a literal `~/agntux/...` and an absolute
+`/Users/<you>/agntux/...` are treated as two distinct prompts —
+canonicalising the path on resolution is what makes one allow click
+hold across all subsequent scheduled runs.
 
-1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently.
+1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently
+   (already absolute).
 2. **Any ancestor of cwd has `basename().toLowerCase() === "agntux"`**
-   → use the nearest. Emit one short line: "Working in the agntux
-   project at `{root}`, found above your current directory.", then
-   continue.
-3. **`~/agntux/` exists and is a directory** → use it. Emit one short
-   line: "Using your AgntUX project at `~/agntux`.", then continue.
+   → use the nearest (already absolute). Emit one short line:
+   "Working in the agntux project at `{root}`, found above your
+   current directory.", then continue.
+3. **`~/agntux/` exists and is a directory** → use it, **resolved to
+   the absolute home path** (e.g. `/Users/<username>/agntux`). Emit
+   one short line: "Using your AgntUX project at
+   `/Users/<username>/agntux`.", then continue. Do not emit the
+   literal `~/agntux` form anywhere.
 4. **None of the above**:
    - **Scheduled-task fire (no user present)** — most invocations of
      this skill. Exit cleanly with no user-facing message. Do NOT
@@ -546,10 +558,17 @@ suggested_actions:
   # YAML — do not write a row with an empty or placeholder url.
   - label: "Open in Slack"
     url: "{slack_open_url}"
-  - label: "Mark done — already handled in Slack"
-    host_prompt: |
-      ux: Use the agntux-core plugin to set action {id} status to done with outcome "completed-externally" (already handled in Slack).
 ```
+
+> **Removed in 4.0.0:** the previous `Mark done — already handled in Slack`
+> row was redundant with the built-in **Done** button rendered by the
+> agntux-core triage card and is no longer emitted. Users who want to mark
+> an item done as "completed externally" can do so via the triage Done
+> button, or via Dismiss → "Completed externally" outcome (which was the
+> only path that recorded the `completed-externally` outcome marker the
+> `pattern-feedback` subagent reads). Existing on-disk action files
+> authored by 3.x.x ingest runs may still carry the row; clicking it
+> still routes to `agntux_core_set_status` correctly.
 
 For thread-summary-worthy items (long threads with decisions worth preserving), add a final row:
 
@@ -565,9 +584,8 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–5 buttons. The default action item ships **four** standard buttons (`Draft a reply`, `Schedule a reply`, `Open in Slack`, `Mark done — already handled in Slack`); add the optional `Summarise to canvas` button as a 5th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is three. The four standard buttons are emitted on every reason_class — Draft and Schedule are not gated on `response-needed`, even though `response-needed` is the most common case.
-- `Snooze 24h` and `Stop raising items like this` are **NOT** emitted by this plugin — both are duplicates of built-in agntux-core triage chrome. agntux-core's triage UI already ships a Snooze button with a 24h preset and a "Stop raising items like this" affordance in the Details modal (`main-component.tsx`). Don't author plugin-side duplicates: dismissals continue to flow through the agntux-core dismiss modal, whose `outcome` plumbing (`completed-externally`, `noise`, `irrelevant`) feeds `pattern-feedback` directly.
-- The `Mark done — already handled in Slack` row remains in this list — it is plugin-specific (it carries the `completed-externally` outcome the user wants for items they handled in Slack itself, distinct from the in-iframe Done button which marks the item done with no outcome).
+- 2–4 buttons. The default action item ships **three** standard buttons (`Draft a reply`, `Schedule a reply`, `Open in Slack`); add the optional `Summarise to canvas` button as a 4th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is two. The three standard buttons are emitted on every reason_class — Draft and Schedule are not gated on `response-needed`, even though `response-needed` is the most common case.
+- `Snooze 24h`, `Stop raising items like this`, and `Mark done — already handled in Slack` are **NOT** emitted by this plugin — all three are redundant with built-in agntux-core triage chrome. agntux-core's triage UI ships a Snooze button with a 24h preset, a "Stop raising items like this" affordance in the Details modal (`main-component.tsx`), and a primary **Done** button on every card; the Dismiss flow's "Completed externally" outcome covers the `completed-externally` marker the previous `Mark done — already handled in Slack` row provided. Don't author plugin-side duplicates.
 - A row carries **either** `host_prompt` (LLM-routed) **or** `url` (host openLink — opens directly in browser/native client), never both, never neither. The `Open in Slack` row is the only one that uses `url`; every other standard button uses `host_prompt`. agntux-core's parser drops any row missing both fields — never emit a row with an empty/placeholder url just to keep the count.
 - Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
 - The draft body for every action item that ships a `Draft a reply` button is pre-composed at ingest time and stored in the `## Compose payload` body section. Canvas content for items that ship `Summarise to canvas` is pre-composed in `## Canvas payload`. See the §4 contract divergence note below. The `host_prompt` field itself remains free of pre-composed text — it routes to the view tool by action id only.
@@ -669,7 +687,7 @@ generated_at: <RFC 3339 of this run>
 ​```
 ```
 
-The compose / canvas iframes load these payload sections at click time via `mcp__agntux-slack__compose_view` and `mcp__agntux-slack__canvas_view` — see those tools' input schemas for the canonical contract. Hand-edits to either payload block survive the next sync run only when the action file is otherwise unchanged; a re-raise via dedup overwrite (rare, per Step 9) regenerates them.
+The compose / canvas iframes load these payload sections at click time via `mcp__agntux-slack__agntux_slack_compose_view` and `mcp__agntux-slack__agntux_slack_canvas_view` — see those tools' input schemas for the canonical contract. Hand-edits to either payload block survive the next sync run only when the action file is otherwise unchanged; a re-raise via dedup overwrite (rare, per Step 9) regenerates them.
 
 ---
 

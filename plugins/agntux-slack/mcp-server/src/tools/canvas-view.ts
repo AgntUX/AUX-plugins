@@ -179,7 +179,7 @@ function parseDraftedCanvas(raw: unknown): DraftedCanvas {
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 
 export const canvasViewTool = {
-  name: "canvas_view",
+  name: "agntux_slack_canvas_view",
   description:
     "Render the Slack canvas summariser iframe for an action item. Trigger " +
     "when the user says 'open the canvas summariser for action {id}'. Loads " +

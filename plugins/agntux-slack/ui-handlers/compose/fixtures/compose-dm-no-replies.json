@@ -18,7 +18,7 @@
     "channel": { "id": "D04AVERY", "name": "avery-rivera", "is_dm": true },
     "slack_permalink": null
   },
-  "prompt": "Call compose_view for a DM with no replies.",
+  "prompt": "Call agntux_slack_compose_view for a DM with no replies.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='compose-card']", "max_results": 1 }
   ],

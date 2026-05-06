@@ -210,6 +210,27 @@ export function ComposeCard({ payload }: ComposeCardProps) {
         />
       )}
 
+      {/* ── Success banner ────────────────────────────────────────────── */}
+      {commitState === "sent" && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="compose-success-banner"
+          className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[0.8125rem] text-green-800"
+        >
+          {(() => {
+            switch (mode) {
+              case "schedule":
+                return `Success — reply scheduled for ${formatDateTime(sendAt ?? "")} in #${channel.name}.`;
+              case "save_draft":
+                return `Success — saved as a Slack draft in #${channel.name}.`;
+              default:
+                return `Success — reply sent to #${channel.name}.`;
+            }
+          })()}
+        </div>
+      )}
+
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-2 pt-1">
         <button

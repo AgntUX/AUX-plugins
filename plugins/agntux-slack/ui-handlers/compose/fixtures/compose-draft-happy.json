@@ -25,7 +25,7 @@
     "channel": { "id": "C04PARTNERPLAT", "name": "partner-platforms", "is_dm": false },
     "slack_permalink": "https://myteam.slack.com/archives/C04PARTNERPLAT/p1745769600000100"
   },
-  "prompt": "Call compose_view and render the reply compose card.",
+  "prompt": "Call agntux_slack_compose_view and render the reply compose card.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='compose-card']", "max_results": 1 },
     { "type": "query", "selector": "[data-testid='compose-body']", "max_results": 1 },

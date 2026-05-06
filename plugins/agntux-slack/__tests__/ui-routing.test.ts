@@ -43,9 +43,9 @@ describe("compose UI routing", () => {
     expect(existsSync(composeMdPath)).toBe(true);
   });
 
-  it("frontmatter has view_tool: compose_view", () => {
+  it("frontmatter has view_tool: agntux_slack_compose_view (v4.0.0+ prefixed name)", () => {
     const fm = extractFrontmatter(readFile(composeMdPath));
-    expect(fm).toContain("view_tool: compose_view");
+    expect(fm).toContain("view_tool: agntux_slack_compose_view");
   });
 
   it('frontmatter has resource_uri: "ui://slack-compose"', () => {
@@ -121,9 +121,9 @@ describe("canvas UI routing", () => {
     expect(existsSync(canvasMdPath)).toBe(true);
   });
 
-  it("frontmatter has view_tool: canvas_view", () => {
+  it("frontmatter has view_tool: agntux_slack_canvas_view (v4.0.0+ prefixed name)", () => {
     const fm = extractFrontmatter(readFile(canvasMdPath));
-    expect(fm).toContain("view_tool: canvas_view");
+    expect(fm).toContain("view_tool: agntux_slack_canvas_view");
   });
 
   it('frontmatter has resource_uri: "ui://slack-canvas"', () => {

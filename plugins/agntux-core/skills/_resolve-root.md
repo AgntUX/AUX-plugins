@@ -24,21 +24,43 @@ host-picker dance.
 
 Walk these in order. Stop at the first match.
 
+**Path canonicalisation (mandatory).** Once a step matches and yields
+a directory path, **immediately resolve it to its absolute form** —
+expand `~` to the user's home directory, drop any `./` / `..` /
+duplicate-slash segments. Cache the absolute string as
+`<agntux project root>` for the rest of the run, and use **that exact
+string** in every subsequent `Read` / `Write` / `Edit` / `Glob` /
+`Grep` call.
+
+This canonicalisation is load-bearing for the host's permission
+allowlist. Hosts (Claude Code, Cursor, Cowork) key their "Allow for
+scheduled runs" decision on the **literal path string the tool was
+called with**. If one scheduled run reads `~/agntux/data/...` and the
+next reads `/Users/<you>/agntux/data/...`, the allowlist treats them
+as two distinct prompts and re-asks every time. Always emitting the
+absolute form makes one allow click hold across all runs.
+
 1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently.
    No banner, no chatty preamble — this is the expected case for any
    invocation from inside an agntux project. Continue with the user's
-   ask.
+   ask. (cwd is already absolute, so no canonicalisation work needed.)
 
 2. **Any ancestor of cwd has `basename().toLowerCase() === "agntux"`**
    → use the nearest such ancestor. Emit one short line, then
-   continue:
+   continue (the resolved ancestor is already absolute):
 
    > Working in the agntux project at `{root}`, found above your current directory.
 
-3. **`~/agntux/` exists and is a directory** → use it. Emit one short
-   line, then continue:
+3. **`~/agntux/` exists and is a directory** → use it, **but resolve
+   `~` to the absolute home directory first** (e.g.
+   `/Users/<username>/agntux` on macOS, `/home/<username>/agntux` on
+   Linux). Emit one short line using the absolute path, then continue:
 
-   > Using your AgntUX project at `~/agntux`.
+   > Using your AgntUX project at `/Users/<username>/agntux`.
+
+   Do **not** emit the literal `~/agntux` form in the message or in
+   any subsequent tool call — that breaks the host's permission
+   allowlist (see "Path canonicalisation" above).
 
 4. **None of the above** → ask once, verbatim:
 
@@ -77,3 +99,42 @@ to stderr.
 Interactive direct invocations of background-mode skills (the user
 types the slash command themselves) run the full ladder, including
 step 4.
+
+## Permission-allowlist note (host-level, for reference)
+
+If the host repeatedly prompts for filesystem access on every
+scheduled run despite "Allow for scheduled runs" being clicked, the
+two most likely causes are:
+
+1. **Path-string drift across runs.** Different runs hit different
+   absolute paths because the `~` expansion was not applied
+   consistently. The "Path canonicalisation" rule above fixes this on
+   the prompt side — every run now emits the same absolute string, so
+   one allow click holds across runs.
+2. **Per-run tool-name or glob drift.** The host may key its
+   allowlist on the *combination* of tool name + path. If the skill
+   uses `Read` once and `Glob` next, both need to be allowlisted.
+
+Users still hitting prompts after 4.0.0 / 6.0.0 ships can paste the
+following block into their host's `settings.local.json` (or the
+equivalent Claude Code `permissions.allow` array) to grant blanket
+read/write/glob/grep access to the resolved AgntUX root, replacing
+`<username>` with their actual username:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Read(/Users/<username>/agntux/**)",
+      "Write(/Users/<username>/agntux/**)",
+      "Edit(/Users/<username>/agntux/**)",
+      "Glob(/Users/<username>/agntux/**)",
+      "Grep(/Users/<username>/agntux/**)"
+    ]
+  }
+}
+```
+
+The host docs are the source of truth on the allowlist syntax — this
+block is just an example. Plugins do not (and cannot) modify the
+host's permissions config.

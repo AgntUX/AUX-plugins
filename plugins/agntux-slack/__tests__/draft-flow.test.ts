@@ -168,8 +168,8 @@ describe("draft SKILL.md simplified click-time flow (1.1.0+)", () => {
 describe("draft SKILL.md Step 8 uses agntux-core MCP for action mutation (A4)", () => {
   const src = readMd(DRAFT_MD);
 
-  it("Step 8 calls mcp__agntux-core__set_status", () => {
-    expect(src).toContain("mcp__agntux-core__set_status");
+  it("Step 8 calls mcp__agntux-core__agntux_core_set_status (v6.0.0+ prefixed name)", () => {
+    expect(src).toContain("mcp__agntux-core__agntux_core_set_status");
   });
 
   it("Step 8 explicitly forbids direct frontmatter writes", () => {
@@ -180,11 +180,11 @@ describe("draft SKILL.md Step 8 uses agntux-core MCP for action mutation (A4)", 
     expect(src).toContain("Do NOT fall back to direct frontmatter editing");
   });
 
-  it("tool surface lists mcp__agntux-core__set_status", () => {
+  it("tool surface lists mcp__agntux-core__agntux_core_set_status (v6.0.0+ prefixed name)", () => {
     const toolIdx = src.indexOf("## Tool surface");
     expect(toolIdx).toBeGreaterThan(0);
     const block = src.slice(toolIdx);
-    expect(block).toContain("mcp__agntux-core__set_status");
+    expect(block).toContain("mcp__agntux-core__agntux_core_set_status");
   });
 
   it("Step 8 success and failure messages are mode-aware (covers all four modes)", () => {
@@ -211,12 +211,12 @@ describe("committed envelope routing", () => {
     expect(src).toContain("Step 6.5");
   });
 
-  it("references mcp__agntux-slack__compose_view at least once", () => {
-    expect(src).toContain("mcp__agntux-slack__compose_view");
+  it("references mcp__agntux-slack__agntux_slack_compose_view at least once (v4.0.0+ prefixed name)", () => {
+    expect(src).toContain("mcp__agntux-slack__agntux_slack_compose_view");
   });
 
-  it("references mcp__agntux-slack__canvas_view at least once", () => {
-    expect(src).toContain("mcp__agntux-slack__canvas_view");
+  it("references mcp__agntux-slack__agntux_slack_canvas_view at least once (v4.0.0+ prefixed name)", () => {
+    expect(src).toContain("mcp__agntux-slack__agntux_slack_canvas_view");
   });
 
   it("compose committed-envelope regex is documented (commit the drafted reply for action)", () => {

@@ -41,15 +41,24 @@ Before Step 1, run TWO guards in order:
 <!-- canonical-mirror: agntux-core/skills/_resolve-root.md -->
 
 Resolve the AgntUX project root via this ladder. Stop at the first
-match:
+match. Whenever a step matches, **immediately resolve the path to its
+absolute form** (expand `~`, drop `./` / `..` / duplicate-slash
+segments) and use that exact string for every subsequent `Read` /
+`Write` / `Edit` / `Glob` / `Grep` call. The host's permission
+allowlist keys on the literal path string — canonicalising on
+resolution is what makes a single allow click persist across runs.
 
-1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently.
+1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently
+   (already absolute).
 2. **Any ancestor of cwd has `basename().toLowerCase() === "agntux"`**
-   → use the nearest. Emit one short line: "Working in the agntux
-   project at `{root}`, found above your current directory.", then
-   continue.
-3. **`~/agntux/` exists and is a directory** → use it. Emit one short
-   line: "Using your AgntUX project at `~/agntux`.", then continue.
+   → use the nearest (already absolute). Emit one short line:
+   "Working in the agntux project at `{root}`, found above your
+   current directory.", then continue.
+3. **`~/agntux/` exists and is a directory** → use it, **resolved to
+   the absolute home path** (e.g. `/Users/<username>/agntux`). Emit
+   one short line: "Using your AgntUX project at
+   `/Users/<username>/agntux`.", then continue. Do not emit the
+   literal `~/agntux` form anywhere.
 4. **None of the above** — this skill is interactive (fired by a
    suggested-action button click), so a user is always present. Ask
    once, verbatim:
@@ -159,9 +168,9 @@ Call the view tool that matches the verb with **only `{action_id}`** plus an `in
 
 | Verb | Tool call | Required args |
 |---|---|---|
-| draft a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "draft"` |
-| schedule a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "schedule"` |
-| summarise to canvas | `mcp__agntux-slack__canvas_view` | `action_id` |
+| draft a reply | `mcp__agntux-slack__agntux_slack_compose_view` | `action_id`, `initial_verb: "draft"` |
+| schedule a reply | `mcp__agntux-slack__agntux_slack_compose_view` | `action_id`, `initial_verb: "schedule"` |
+| summarise to canvas | `mcp__agntux-slack__agntux_slack_canvas_view` | `action_id` |
 
 If the action file has no `## Compose payload` section (pre-1.1.0 action authored before pre-composition shipped), `compose_view` returns the structured error `compose_payload_missing` — the iframe renders the error copy directly and there is nothing for this skill to do. Same for `canvas_payload_missing`.
 
@@ -259,7 +268,7 @@ After a successful `slack_send_message` / `slack_schedule_message` / `slack_crea
 
 1. **Mutate the action via the agntux-core MCP tool, NOT direct frontmatter editing.** Call:
    ```
-   mcp__agntux-core__set_status(action_id: "{id}", status: "done")
+   mcp__agntux-core__agntux_core_set_status(action_id: "{id}", status: "done")
    ```
    The MCP server (`set_status`, `dismiss`, `snooze`, `pivot`) is the canonical surface for action mutations. It updates `status`, `completed_at`, and any related index bookkeeping atomically. Direct frontmatter writes from this skill are forbidden — they bypass the MCP server's invariants.
 2. **After the MCP call succeeds**, separately Edit the action body to append an `## Activity` section bullet at the bottom (above the closing `---` if any). Body edits don't conflict with the MCP tool's frontmatter mutation. Include the committed `mode` in the bullet so the audit log shows which action the user took. Format:
@@ -274,10 +283,10 @@ After a successful `slack_send_message` / `slack_schedule_message` / `slack_crea
 3. The agntux-core PostToolUse maintain-index hook re-renders `actions/_index.md` either way.
 
 If the MCP call fails (e.g., agntux-core not loaded, or the action ID resolves to a missing file), surface one sentence — mode-aware:
-- `send` → `"Reply posted to Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- `schedule` → `"Reply scheduled in Slack, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- `canvas` → `"Canvas created and link posted, but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
-- `save_draft` → `"Saved as a Slack draft (no send), but couldn't mark the action done (mcp__agntux-core__set_status failed: <reason>). Mark it done from triage."`
+- `send` → `"Reply posted to Slack, but couldn't mark the action done (mcp__agntux-core__agntux_core_set_status failed: <reason>). Mark it done from triage."`
+- `schedule` → `"Reply scheduled in Slack, but couldn't mark the action done (mcp__agntux-core__agntux_core_set_status failed: <reason>). Mark it done from triage."`
+- `canvas` → `"Canvas created and link posted, but couldn't mark the action done (mcp__agntux-core__agntux_core_set_status failed: <reason>). Mark it done from triage."`
+- `save_draft` → `"Saved as a Slack draft (no send), but couldn't mark the action done (mcp__agntux-core__agntux_core_set_status failed: <reason>). Mark it done from triage."`
 
 Then stop. Do NOT fall back to direct frontmatter editing.
 
@@ -322,9 +331,9 @@ You do NOT:
 Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`. (Read for the action file in Step 2; Edit for the `## Activity` append in Step 8.)
-- View tools (called in Step 6 to render the iframe): `mcp__agntux-slack__compose_view`, `mcp__agntux-slack__canvas_view`.
+- View tools (called in Step 6 to render the iframe): `mcp__agntux-slack__agntux_slack_compose_view`, `mcp__agntux-slack__agntux_slack_canvas_view`.
 - Slack write tools (called only after a committed envelope arrives via Step 6.5): `slack_send_message`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`, `slack_send_message_draft`.
-- agntux-core MCP tools: `mcp__agntux-core__set_status` (called in Step 8 to mark the action done after a successful write).
+- agntux-core MCP tools: `mcp__agntux-core__agntux_core_set_status` (called in Step 8 to mark the action done after a successful write).
 - No direct frontmatter edits to action items.
 
 Slack read tools (`slack_read_thread`, `slack_read_user_profile`) are NOT used by this skill in 1.1.0+ — thread fetching and user-profile resolution happen at ingest time. The sync skill is the authorised caller.

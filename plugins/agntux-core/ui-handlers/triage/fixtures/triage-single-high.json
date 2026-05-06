@@ -1,6 +1,6 @@
 {
   "args": {},
-  "prompt": "Call triage_view with no arguments and render the result.",
+  "prompt": "Call agntux_core_triage_view with no arguments and render the result.",
   "interactions": [
     { "type": "query", "selector": "[data-testid^='action-card-']", "max_results": 5 },
     { "type": "query", "selector": "[data-testid^='priority-pill-']", "max_results": 5 },
@@ -9,5 +9,5 @@
     { "type": "click", "selector": "[data-testid='dismiss-confirm']" },
     { "type": "wait_for_hidden", "selector": "[data-testid='dismiss-confirm']" }
   ],
-  "_notes": "Drives the inline dismiss flow against the first action card the harness discovers. Component testids: action-card-{id} (rows), dismiss-{id} (per-row dismiss button), dismiss-outcome-{kind} (radio), dismiss-confirm (modal submit). The mutation calls callTool('dismiss', {id, outcome:'noise'}) which writes to the action item file, so this fixture has a side effect on the user's ~/agntux/actions/ unless AGNTUX_ROOT_OVERRIDE points at a fixture root."
+  "_notes": "Drives the inline dismiss flow against the first action card the harness discovers. Component testids: action-card-{id} (rows), dismiss-{id} (per-row dismiss button), dismiss-outcome-{kind} (radio), dismiss-confirm (modal submit). The mutation calls callTool('agntux_core_dismiss', {id, outcome:'noise'}) which writes to the action item file, so this fixture has a side effect on the user's ~/agntux/actions/ unless AGNTUX_ROOT_OVERRIDE points at a fixture root."
 }

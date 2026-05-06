@@ -1,7 +1,7 @@
 ---
 name: compose
 description: UI handler for the Slack-reply compose card. Renders thread context, the agent-drafted reply body, mode tabs (Send / Schedule / Save Slack draft), and the committed-envelope emitter. Engage when the draft skill calls compose_view after composing the draft body.
-tools: Read, mcp__agntux-slack__compose_view
+tools: Read, mcp__agntux-slack__agntux_slack_compose_view
 
 operational:
   catalogue_version: "1.0.0"
@@ -18,7 +18,7 @@ operational:
     - "open the reply composer in schedule mode for action"
     - "draft a reply for action"
     - "draft a reply and schedule it for action"
-  view_tool: compose_view
+  view_tool: agntux_slack_compose_view
   resource_uri: "ui://slack-compose"
   structured_content_schema:
     - "action_id (string — kebab-case slug from filename, no .md suffix)"
@@ -81,7 +81,7 @@ Handler subagent files at agents/ui-handlers/{name}.md are metadata carriers:
   - NO file writes happen from this file.
 
 The actual rendering is performed by the view tool at:
-  mcp-server/src/tools/compose-view.ts (registered as `compose_view`)
+  mcp-server/src/tools/compose-view.ts (registered as `agntux_slack_compose_view`)
 -->
 
 # Compose UI handler
@@ -90,7 +90,7 @@ The actual rendering is performed by the view tool at:
 
 Source: **Slack thread context** (passed by the draft skill from its working memory)
 UI component: `ui://slack-compose`
-View tool: `mcp__agntux-slack__compose_view`
+View tool: `mcp__agntux-slack__agntux_slack_compose_view`
 
 This handler renders the **Compose** card — the inline edit surface for drafting
 Slack replies. The draft skill fetches thread context, composes a reply body,

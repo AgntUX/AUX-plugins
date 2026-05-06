@@ -11,7 +11,7 @@ the user naming a specific entity, time window, topic, or meeting.
 This skill has **two paths** that share the same data source:
 
 - **Interactive** (user typed the slash command): render the
-  `ui://triage` MCP App by calling `mcp__agntux-core__triage_view`.
+  `ui://triage` MCP App by calling `mcp__agntux-core__agntux_core_triage_view`.
   The component shows priority-sorted open actions with snooze /
   dismiss / done controls and renders each item's
   `suggested_actions[]` as click-to-act buttons.
@@ -96,7 +96,7 @@ waiting interactively is a missed UX moment.
 
 ### Interactive path — render the UI
 
-Call `mcp__agntux-core__triage_view` with no arguments. The host
+Call `mcp__agntux-core__agntux_core_triage_view` with no arguments. The host
 reads the returned `_meta.ui.resourceUri` (`ui://triage`) and
 renders the MCP App, which is populated with the
 `structuredContent` payload the view tool emitted.
@@ -105,12 +105,12 @@ Do **not** print a text digest in the interactive path. The UI is
 the surface; printing a digest alongside it would duplicate the
 content and cost the user latency.
 
-If `triage_view` returns `{ error: "actions_index_missing" }`
+If `agntux_core_triage_view` returns `{ error: "actions_index_missing" }`
 (structured error, not an exception), surface one sentence — `"No
 action items yet — your ingest plugins haven't fired. They'll show
 up here as soon as they do."` — and stop.
 
-If `triage_view` returns any other structured error, surface its
+If `agntux_core_triage_view` returns any other structured error, surface its
 message and stop.
 
 ### Scheduled-background path — text digest
@@ -133,8 +133,9 @@ frame and dispatch.
   `/agntux-ask`.
 - Status edits typed in chat ("snooze action X") → `/agntux-ask`.
   (Status edits **clicked** in the triage UI are handled by the
-  component via `useAppsClient().callTool('snooze' | 'dismiss' |
-  'set_status', …)` and never come through this skill.)
+  component via `useAppsClient().callTool('agntux_core_snooze' |
+  'agntux_core_dismiss' | 'agntux_core_set_status', …)` and never
+  come through this skill.)
 - Drafting replies / scheduling messages / creating canvases — the
   triage UI emits `sendFollowUpMessage(host_prompt)` for those, and
   the source plugin's draft skill (e.g.,

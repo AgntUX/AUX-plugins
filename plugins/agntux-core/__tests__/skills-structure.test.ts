@@ -128,7 +128,9 @@ describe("UI handler manifests", () => {
     // operational is a YAML block — the parser only reads top-level scalars,
     // so we assert the presence of the operational marker via raw text.
     const raw = readFileSync(join(UI_HANDLERS_DIR, "triage.md"), "utf-8");
-    expect(raw).toContain("view_tool: triage_view");
+    // v6.0.0+ tool names are prefixed with `agntux_core_` so they don't
+    // collide with other servers' tool names at the host's MCP routing layer.
+    expect(raw).toContain("view_tool: agntux_core_triage_view");
     expect(raw).toContain('resource_uri: "ui://triage"');
     expect(raw).toContain("agntux-feedback-stop-raising");
     expect(raw).toContain("actions_index_missing");
@@ -136,7 +138,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 5.3.0 (5.3.0 added optimistic-hide in the triage iframe and a fire-and-forget Stop-raising fast-path in the user-feedback agent's Mode A)", () => {
+  it("plugin.json is at version 6.0.0 (6.0.0 prefixes all MCP tools with `agntux_core_`, ships the AgntUX logo + named header on the triage card, adds Created/Updated dates, a Most-recently-created sort option, a 'Do something else' affordance, success toasts, and modal-anchoring near the clicked card)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -146,7 +148,7 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("5.3.0");
+    expect(manifest.version).toBe("6.0.0");
   });
 
   it("mcp-server/package.json declares the ./agntux-root subpath export", () => {

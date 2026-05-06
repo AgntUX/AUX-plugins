@@ -233,6 +233,18 @@ export function CanvasCard({ payload }: CanvasCardProps) {
         <CanvasPreview title={title} canvas={currentCanvas} />
       )}
 
+      {/* ── Success banner ──────────────────────────────────────────── */}
+      {commitState === "sent" && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="canvas-success-banner"
+          className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[0.8125rem] text-green-800"
+        >
+          Success — canvas created and link posted to #{channel.name}.
+        </div>
+      )}
+
       {/* ── Footer ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-2 pt-1">
         <button

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 interface ScrollableModalProps {
   open: boolean;
@@ -12,6 +21,18 @@ interface ScrollableModalProps {
   labelledBy?: string;
   /** Optional id of the node that describes the modal's content. */
   describedBy?: string;
+  /**
+   * Optional anchor element. When provided, the modal panel positions itself
+   * vertically near the anchor (top edge ~16px below the anchor's top, clamped
+   * to the iframe's viewport so the panel never overflows). Horizontally it
+   * stays centered. The backdrop still spans the full viewport. When absent,
+   * the panel falls back to centered-in-viewport.
+   *
+   * Used by the triage UI so action-specific modals (Details, Snooze, Dismiss,
+   * Do something else) render *over the card the user is actually viewing*
+   * instead of yanking them to the iframe center on long lists.
+   */
+  anchor?: HTMLElement | null;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -25,11 +46,15 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+const VERTICAL_GAP_PX = 16;
+// Conservative cap so the anchored panel never reaches the iframe footer chrome.
+const MAX_PANEL_HEIGHT = 'min(560px, calc(100vh - 32px))';
+
 /**
  * ScrollableModal — canonical modal primitive for the 600px inline budget.
  *
  * Structure: sticky header + `flex-1 overflow-y-auto` body + sticky footer.
- * Max height is capped at `min(560px, calc(100% - 2rem))` so the primary
+ * Max height is capped at `min(560px, calc(100vh - 32px))` so the primary
  * action in the footer is always reachable inside an inline iframe
  * (~400-600px tall).
  *
@@ -51,11 +76,47 @@ export function ScrollableModal({
   footer,
   labelledBy,
   describedBy,
+  anchor,
 }: ScrollableModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const autoTitleId = useId();
   const titleId = labelledBy ?? autoTitleId;
+  const [topOffset, setTopOffset] = useState<number | null>(null);
+
+  // Recompute the anchored top offset whenever the anchor changes or the
+  // viewport resizes. Falls back to centered when no anchor is provided.
+  //
+  // useLayoutEffect (not useEffect) so the offset is computed *before* paint —
+  // eliminates the one-frame center flash that would otherwise happen when
+  // an anchored modal first mounts. Subsequent resize / scroll updates are
+  // fine in the next layout pass. SSR isn't a concern: MCP App iframes
+  // execute purely in the browser.
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (!anchor) {
+      setTopOffset(null);
+      return;
+    }
+    const compute = () => {
+      const rect = anchor.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || 0;
+      // Try to place the panel just above the card's top edge so the user can
+      // see *both* the card and the modal at once. Clamp to a 16px minimum
+      // top inset and a bottom inset that leaves the panel fully visible.
+      const desiredTop = Math.max(VERTICAL_GAP_PX, rect.top);
+      // Cap so the panel doesn't hang off the bottom — assume up to 480px tall.
+      const maxTop = Math.max(VERTICAL_GAP_PX, viewportHeight - 480 - VERTICAL_GAP_PX);
+      setTopOffset(Math.min(desiredTop, maxTop));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [open, anchor]);
 
   const getFocusables = useCallback((): HTMLElement[] => {
     const root = dialogRef.current;
@@ -107,11 +168,30 @@ export function ScrollableModal({
     };
   }, [open, onClose, getFocusables]);
 
+  // Backdrop layout switches between centered (no anchor) and top-aligned
+  // (anchored). Centered uses flex-center; anchored aligns the panel to the
+  // computed top offset and uses justify-center for horizontal centering.
+  const backdropClass = useMemo(() => {
+    if (anchor && topOffset !== null) {
+      return 'fixed inset-0 z-50 flex justify-center bg-foreground/40 p-4';
+    }
+    return 'fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4';
+  }, [anchor, topOffset]);
+
+  const panelStyle = useMemo(() => {
+    const base: Record<string, string> = { maxHeight: MAX_PANEL_HEIGHT };
+    if (anchor && topOffset !== null) {
+      base.marginTop = `${topOffset}px`;
+      base.alignSelf = 'flex-start';
+    }
+    return base;
+  }, [anchor, topOffset]);
+
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+      className={backdropClass}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -122,7 +202,7 @@ export function ScrollableModal({
         ref={dialogRef}
         tabIndex={-1}
         className="flex w-full max-w-md flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-lg outline-none"
-        style={{ maxHeight: 'min(560px, calc(100% - 2rem))' }}
+        style={panelStyle}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-5 py-3">

@@ -6,6 +6,67 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-05-06
+
+Coordinated release with `agntux-core` 6.0.0 — both ship together.
+
+### Changed (BREAKING)
+
+- **All MCP tool names are prefixed with `agntux_slack_`**:
+  `compose_view` → `agntux_slack_compose_view`, `canvas_view` →
+  `agntux_slack_canvas_view`. Tool descriptions, agent ui-handler
+  manifests (`view_tool:` field), the draft skill's tool surface
+  list, and the relevant tests are updated. Per the §5.1 rubric,
+  public-surface tool renames are MAJOR.
+- **`Mark done — already handled in Slack` is no longer authored** by
+  `skills/sync/SKILL.md`. The standard suggested-actions block now
+  emits three rows (`Draft a reply`, `Schedule a reply`, `Open in
+  Slack`) plus an optional `Summarise to canvas`. The retired row
+  was redundant with agntux-core's built-in triage Done button; the
+  `completed-externally` outcome marker the row was uniquely tagged
+  with is now reachable via the triage Dismiss modal's "Completed
+  externally" outcome option. User-visible button removal is MAJOR
+  per the rubric. Existing on-disk action files written by 3.x.x
+  ingest runs continue to render the old row as long as they live
+  in `actions/`; the click still routes correctly to
+  `mcp__agntux-core__agntux_core_set_status` (also renamed in 6.0.0).
+- **Cross-plugin reference updates.** The draft skill's Step 8 now
+  calls `mcp__agntux-core__agntux_core_set_status` (not
+  `mcp__agntux-core__set_status`). Same for the README's
+  suggested-action flow description, the agent ui-handler doc
+  references, and the `__tests__/draft-flow.test.ts` assertions.
+
+### Added
+
+- **AgntUX logo + named header on the compose and canvas iframes.**
+  Header now reads `[AgntUX wordmark] · Slack Compose · #{channel}`
+  (and analogous for canvas: `· Slack Canvas · #{channel}`).
+  Wordmark is an inline SVG that adapts to theme (`currentColor` for
+  "Agnt", fixed teal→blue→purple gradient for "UX") to match
+  `app/public/logo.svg`. Each component owns its own copy to keep
+  per-handler bundles self-contained.
+- **Success banner above the compose / canvas footer** after a
+  successful commit. Compose: mode-aware copy ("Success — reply
+  sent to #{channel}." / "Success — reply scheduled for {time} in
+  #{channel}." / "Success — saved as a Slack draft in #{channel}.").
+  Canvas: "Success — canvas created and link posted to #{channel}."
+  Banner uses `role="status"` + `aria-live="polite"`. The existing
+  primary-button morph (idle → sending → sent!) is unchanged; the
+  banner is a clearer secondary acknowledgement so the user can't
+  miss the success state.
+
+### Fixed
+
+- **Scheduled-run permission re-prompts.** Both `skills/sync/SKILL.md`
+  and `skills/draft/SKILL.md` now mirror agntux-core 6.0.0's
+  canonical path-resolution rule: `~/agntux/` must be expanded to
+  its absolute home form on resolution and used as that exact string
+  for every subsequent file op. The host's "Allow for scheduled
+  runs" allowlist keys on the literal path string, so consistent
+  canonicalisation lets one allow click hold across runs. See the
+  agntux-core 6.0.0 changelog for the full rationale and the
+  optional host-level allowlist block.
+
 ## [3.0.0] — 2026-05-05
 
 ### Changed (BREAKING)

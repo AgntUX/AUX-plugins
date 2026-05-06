@@ -13,7 +13,7 @@ operational:
     - "what's on my plate"
     - "triage me"
     - "what should I do today"
-  view_tool: triage_view
+  view_tool: agntux_core_triage_view
   resource_uri: "ui://triage"
   structured_content_schema:
     # ── Open + due-soon-snoozed actions (capped at 30) ─────────────
@@ -79,7 +79,7 @@ Handler subagent files at agents/ui-handlers/{name}.md exist as metadata carrier
   - NO file writes happen from this file.
 
 The actual rendering is performed by the view tool at:
-  mcp-server/src/tools/triage-view.ts (registered as `triage_view`)
+  mcp-server/src/tools/triage-view.ts (registered as `agntux_core_triage_view`)
 
 Triage is the one MCP App in this marketplace where the view-tool
 handler reads the local filesystem (per the AgntUX project root) to
@@ -96,7 +96,7 @@ network) and stateless across calls.
 
 Source: **AgntUX local knowledge store** (`<agntux project root>/actions/`)
 UI component: `ui://triage`
-View tool: `mcp__agntux-core__triage_view`
+View tool: `mcp__agntux-core__agntux_core_triage_view`
 
 This handler renders the **Triage** component — the primary inline
 UI for AgntUX. It surfaces priority-sorted open action items with
@@ -174,8 +174,9 @@ If the source returns a structured error, the view tool returns
 The component emits `sendFollowUpMessage(intent)` only for the
 "Stop raising items like this" affordance. Inline status
 mutations (snooze / dismiss / mark done) call MCP tools directly
-via `useAppsClient().callTool(name, args)` and never round-trip
-through the model.
+via `useAppsClient().callTool(name, args)` (with the `agntux_core_`
+prefixed tool names — see "Component → MCP tool calls" below) and
+never round-trip through the model.
 
 Suggested-action buttons emit the action item's pre-authored
 `host_prompt` verbatim — those host_prompts are NOT routed
@@ -208,10 +209,10 @@ directly via `useAppsClient().callTool(...)`:
 
 | Trigger | Tool | Args | After success |
 |---|---|---|---|
-| "Done" button | `set_status` | `{ id, status: 'done', outcome?: 'completed-externally' \| ... }` | re-call `triage_view`, optimistic-strike-through until refresh |
-| "Snooze 24h" preset | `snooze` | `{ id, until: <now+24h ISO> }` | re-call `triage_view` |
-| "Snooze (custom)" with date picker | `snooze` | `{ id, until: <user-picked ISO> }` | re-call `triage_view` |
-| "Dismiss" with outcome | `dismiss` | `{ id, outcome: 'noise' \| 'irrelevant' \| 'completed-externally' \| <free-form>, outcome_note?: string }` | re-call `triage_view`, append to handled_recent |
+| "Done" button | `agntux_core_set_status` | `{ id, status: 'done', outcome?: 'completed-externally' \| ... }` | re-call `agntux_core_triage_view`, optimistic-strike-through until refresh |
+| "Snooze 24h" preset | `agntux_core_snooze` | `{ id, until: <now+24h ISO> }` | re-call `agntux_core_triage_view` |
+| "Snooze (custom)" with date picker | `agntux_core_snooze` | `{ id, until: <user-picked ISO> }` | re-call `agntux_core_triage_view` |
+| "Dismiss" with outcome | `agntux_core_dismiss` | `{ id, outcome: 'noise' \| 'irrelevant' \| 'completed-externally' \| <free-form>, outcome_note?: string }` | re-call `agntux_core_triage_view`, append to handled_recent |
 
 The component caches the in-flight tool call's `id` in
 `useState<string \| null>()` (per `briefing-learnings.md` §1.12) so
