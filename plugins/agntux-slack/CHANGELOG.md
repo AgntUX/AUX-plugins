@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.2.3] — 2026-05-06
+
+### Fixed
+
+- **`_meta.ui.csp.resourceDomains` now includes `"data:"` and `"blob:"`.**
+  Empty `resourceDomains` caused Claude Cowork's strict iframe sandbox to
+  block `data:` / `blob:` URIs that the bundled single-file Vite output
+  relies on, leaving the compose / canvas iframes blank. MCPJam doesn't
+  enforce the CSP envelope, which is why the views rendered there but not
+  in Cowork. Restoring the previously-working CSP defaults.
+
 ## [5.2.2] — 2026-05-06
 
 The actual Cowork iframe-render fix matching agntux-core 6.2.3 and

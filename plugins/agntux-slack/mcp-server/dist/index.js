@@ -24837,7 +24837,7 @@ async function handleUIResource(uri) {
             prefersBorder: true,
             csp: {
               connectDomains: [],
-              resourceDomains: [],
+              resourceDomains: ["data:", "blob:"],
               frameDomains: [],
               baseUriDomains: []
             }
