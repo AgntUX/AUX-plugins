@@ -906,7 +906,7 @@ function DismissModal({
   onClose,
   onSubmit,
 }: DismissModalProps) {
-  const [outcome, setOutcome] = useState<DismissOutcome>('completed-externally');
+  const [outcome, setOutcome] = useState<DismissOutcome>(DISMISS_OUTCOMES[0]);
   const [note, setNote] = useState<string>('');
   const submit = () => onSubmit(action.id, outcome, note.trim());
   return (
