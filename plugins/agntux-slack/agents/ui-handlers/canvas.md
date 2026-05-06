@@ -6,10 +6,13 @@ tools: Read, mcp__agntux-slack__canvas_view
 operational:
   catalogue_version: "1.0.0"
   verb_phrases:
-    # Only invoked programmatically by the draft skill at click time — it has the
-    # required `drafted_canvas` + `channel` + `thread` args. The view tool is NOT
-    # user-callable from a generic chat prompt because those args can't be
-    # hallucinated.
+    # In 1.1.0+ the canvas sections are pre-composed at ingest time and live
+    # in the action file's `## Canvas payload` body section. The host can
+    # route the click-time prompt directly to canvas_view with only
+    # `{action_id}` — the view tool lifts the rest from disk. The legacy
+    # `summarise the thread for action` shape is still matched here for
+    # backward compat with action items written by 2.x.x ingest runs.
+    - "open the canvas summariser for action"
     - "summarise the thread for action"
   view_tool: canvas_view
   resource_uri: "ui://slack-canvas"

@@ -73,7 +73,8 @@ interface CanvasStructuredError {
     | "action_not_found"
     | "action_already_handled"
     | "agntux_root_missing"
-    | "license_paused";
+    | "license_paused"
+    | "canvas_payload_missing";
 }
 
 interface ViewToolMeta {
@@ -180,11 +181,15 @@ function parseDraftedCanvas(raw: unknown): DraftedCanvas {
 export const canvasViewTool = {
   name: "canvas_view",
   description:
-    "Render the agntux-slack Slack canvas summary card. Called by the draft " +
-    "skill after it has composed the canvas sections (title, TL;DR, decisions, " +
-    "open questions, participants). Returns a structured canvas payload the " +
-    "host renders as an editable canvas editor (ui://slack-canvas) with a " +
-    "'Create canvas + post link' action. Returns _meta.ui.resourceUri = ui://slack-canvas.",
+    "Render the Slack canvas summariser iframe for an action item. Trigger " +
+    "when the user says 'open the canvas summariser for action {id}'. Loads " +
+    "the canvas sections (title, TL;DR, decisions, open questions, " +
+    "participants) and follow-up message from the action file's `## Canvas " +
+    "payload` body section when only {action_id} is supplied. Inline args " +
+    "override the on-disk payload when both are present — kept for backward " +
+    "compat with any out-of-band caller. Action files that lack a `## Canvas " +
+    "payload` section surface the `canvas_payload_missing` structured error. " +
+    "Returns _meta.ui.resourceUri = ui://slack-canvas.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -194,7 +199,7 @@ export const canvasViewTool = {
       },
       drafted_canvas: {
         type: "object",
-        description: "Required. { title (≤80 chars), tldr (≤500 chars), decisions[] (≤8×200), open_questions[] (≤8×200), participants[] (≤12) }.",
+        description: "Optional. { title, tldr, decisions[], open_questions[], participants[] }. Override for the on-disk payload.",
         properties: {
           title: { type: "string" },
           tldr: { type: "string" },
@@ -205,7 +210,7 @@ export const canvasViewTool = {
       },
       channel: {
         type: "object",
-        description: "Required. { id: string, name: string }.",
+        description: "Optional. { id: string, name: string }. Override for the on-disk payload.",
         properties: {
           id: { type: "string" },
           name: { type: "string" },
@@ -213,7 +218,7 @@ export const canvasViewTool = {
       },
       thread: {
         type: "object",
-        description: "Required. { parent_ts: string, total_replies: number, participants: string[] }.",
+        description: "Optional. { parent_ts, total_replies, participants[] }. Override for the on-disk payload.",
         properties: {
           parent_ts: { type: "string" },
           total_replies: { type: "number" },
@@ -222,10 +227,10 @@ export const canvasViewTool = {
       },
       proposed_followup_message: {
         type: "string",
-        description: "Required. ≤200 chars. The reply body to post in the thread after canvas creation, e.g. 'Posted a thread summary: {url}'.",
+        description: "Optional. ≤200 chars. Override for the on-disk payload.",
       },
     },
-    required: ["action_id", "drafted_canvas", "channel", "thread", "proposed_followup_message"],
+    required: ["action_id"],
   },
   _meta: {
     ui: {
@@ -277,11 +282,62 @@ export async function handleCanvasView(
     );
   }
 
-  const channel = parseChannelArg(args.channel);
-  const thread = parseThreadArg(args.thread);
-  const draftedCanvas = parseDraftedCanvas(args.drafted_canvas);
+  // Dual-mode resolution. Inline args win; on-disk `## Canvas payload`
+  // supplies the fallback. Missing both surfaces canvas_payload_missing.
+  const onDisk = parsed.canvas_payload;
+  const inlineDraftedCanvas =
+    args.drafted_canvas && typeof args.drafted_canvas === "object"
+      ? (args.drafted_canvas as Record<string, unknown>)
+      : null;
+  const inlineDraftedTitle = inlineDraftedCanvas
+    ? asString(inlineDraftedCanvas.title)
+    : "";
+  const hasInlineDrafted = inlineDraftedTitle.length > 0;
+
+  if (!hasInlineDrafted && !onDisk) {
+    return structuredError(
+      "canvas_payload_missing",
+      `canvas_view: action ${actionId} has no \`## Canvas payload\` body section and no inline drafted_canvas was supplied.`,
+    );
+  }
+
+  const channel = args.channel
+    ? parseChannelArg(args.channel)
+    : onDisk
+      ? { id: onDisk.channel.id, name: onDisk.channel.name }
+      : { id: "", name: "" };
+  const thread = args.thread
+    ? parseThreadArg(args.thread)
+    : onDisk
+      ? {
+          parent_ts: onDisk.thread.parent_ts,
+          total_replies: onDisk.thread.total_replies,
+          participants: onDisk.thread.participants.slice(0, MAX_PARTICIPANTS),
+        }
+      : { parent_ts: "", total_replies: 0, participants: [] };
+  const draftedCanvas = inlineDraftedCanvas
+    ? parseDraftedCanvas(inlineDraftedCanvas)
+    : onDisk
+      ? {
+          title: truncate(onDisk.drafted_canvas.title, MAX_TITLE_CHARS),
+          tldr: truncate(onDisk.drafted_canvas.tldr, MAX_TLDR_CHARS),
+          decisions: onDisk.drafted_canvas.decisions
+            .slice(0, MAX_DECISIONS)
+            .map((d) => truncate(d, MAX_DECISION_CHARS)),
+          open_questions: onDisk.drafted_canvas.open_questions
+            .slice(0, MAX_OPEN_QUESTIONS)
+            .map((q) => truncate(q, MAX_QUESTION_CHARS)),
+          participants: onDisk.drafted_canvas.participants.slice(
+            0,
+            MAX_PARTICIPANTS,
+          ),
+        }
+      : { title: "", tldr: "", decisions: [], open_questions: [], participants: [] };
+  const inlineFollowup = asString(args.proposed_followup_message);
   const proposedFollowupMessage = truncate(
-    asString(args.proposed_followup_message),
+    inlineFollowup.length > 0
+      ? inlineFollowup
+      : onDisk?.proposed_followup_message ?? "",
     MAX_FOLLOWUP_CHARS,
   );
 

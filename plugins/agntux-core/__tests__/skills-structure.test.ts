@@ -136,7 +136,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 5.2.0 (5.2.0 added the optional `url` field on suggested actions so ingest plugins can emit pre-resolved deep links the triage UI dispatches via the host's openLink primitive)", () => {
+  it("plugin.json is at version 5.3.0 (5.3.0 added optimistic-hide in the triage iframe and a fire-and-forget Stop-raising fast-path in the user-feedback agent's Mode A)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -146,7 +146,7 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("5.2.0");
+    expect(manifest.version).toBe("5.3.0");
   });
 
   it("mcp-server/package.json declares the ./agntux-root subpath export", () => {

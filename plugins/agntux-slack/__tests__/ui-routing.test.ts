@@ -53,7 +53,13 @@ describe("compose UI routing", () => {
     expect(fm).toContain('resource_uri: "ui://slack-compose"');
   });
 
-  it("verb_phrases contains both click-time draft-skill-invoked phrases", () => {
+  it("verb_phrases contains the new 1.1.0+ direct-route phrases (action_id-only invocation)", () => {
+    const src = readFile(composeMdPath);
+    expect(src).toContain("open the reply composer for action");
+    expect(src).toContain("open the reply composer in schedule mode for action");
+  });
+
+  it("verb_phrases retains the legacy 2.x.x phrases for backward compat with already-emitted action files", () => {
     const src = readFile(composeMdPath);
     expect(src).toContain("draft a reply for action");
     expect(src).toContain("draft a reply and schedule it for action");
@@ -125,7 +131,12 @@ describe("canvas UI routing", () => {
     expect(fm).toContain('resource_uri: "ui://slack-canvas"');
   });
 
-  it("verb_phrases contains a phrase mentioning 'summarise the thread for action'", () => {
+  it("verb_phrases contains the new 1.1.0+ direct-route phrase (action_id-only invocation)", () => {
+    const src = readFile(canvasMdPath);
+    expect(src).toContain("open the canvas summariser for action");
+  });
+
+  it("verb_phrases retains the legacy 2.x.x 'summarise the thread for action' phrase", () => {
     const src = readFile(canvasMdPath);
     expect(src).toContain("summarise the thread for action");
   });
@@ -175,29 +186,31 @@ describe("canvas UI routing", () => {
 // suggested_actions surface alignment
 // ---------------------------------------------------------------------------
 
-describe("suggested_actions surface alignment", () => {
+describe("suggested_actions surface alignment (1.1.0+)", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
 
-  it("sync SKILL.md contains the Draft host_prompt that routes into compose_view", () => {
+  it("sync SKILL.md contains the Draft host_prompt that routes directly into compose_view", () => {
     const src = readFile(syncSkill);
-    // The exact template the suggested-action button writes; the host routes
-    // this through the draft skill which calls compose_view
+    // 1.1.0+ shape — prompt matches compose_view's tool description directly
+    // (no draft-skill round-trip). The view tool lifts drafted_body and
+    // thread_context from the action file's `## Compose payload` body
+    // section.
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to draft a reply for action {id}."
+      "ux: Use the agntux-slack plugin to open the reply composer for action {id}."
     );
   });
 
-  it("sync SKILL.md contains the Schedule host_prompt that routes into compose_view (schedule mode)", () => {
+  it("sync SKILL.md contains the Schedule host_prompt that routes directly into compose_view (schedule mode)", () => {
     const src = readFile(syncSkill);
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to draft a reply and schedule it for action {id}."
+      "ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}."
     );
   });
 
-  it("sync SKILL.md contains the Summarise to canvas host_prompt that routes into canvas_view", () => {
+  it("sync SKILL.md contains the Summarise host_prompt that routes directly into canvas_view", () => {
     const src = readFile(syncSkill);
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to summarise the thread for action {id} into a Slack canvas."
+      "ux: Use the agntux-slack plugin to open the canvas summariser for action {id}."
     );
   });
 });

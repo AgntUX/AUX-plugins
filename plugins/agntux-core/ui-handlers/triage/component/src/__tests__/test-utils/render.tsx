@@ -328,21 +328,28 @@ export interface CreateMainComponentPropsOptions {
 }
 
 /**
- * Result from createMainComponentProps
+ * Result from createMainComponentProps. Spy fields are typed with the
+ * loose `Mock<any[], any>` shape because the concrete `Mock<[A, B], R>`
+ * instances vitest produces aren't assignable to the unparameterised
+ * `Mock<any[], unknown>` (covariance mismatch). Tests only read
+ * `mock.calls` / call `mockImplementation`, both of which work uniformly
+ * across the loose shape.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LooseMock = ReturnType<typeof vi.fn<any[], any>>;
 export interface MainComponentPropsResult {
   /** Props to pass to MainComponent */
   props: MainComponentProps;
   /** Spy for setWidgetState calls */
-  setWidgetStateSpy: ReturnType<typeof vi.fn>;
+  setWidgetStateSpy: LooseMock;
   /** Spy for callTool calls */
-  callToolSpy: ReturnType<typeof vi.fn>;
+  callToolSpy: LooseMock;
   /** Spy for sendFollowUpMessage calls */
-  sendFollowUpMessageSpy: ReturnType<typeof vi.fn>;
+  sendFollowUpMessageSpy: LooseMock;
   /** Spy for openLink calls */
-  openLinkSpy: ReturnType<typeof vi.fn>;
+  openLinkSpy: LooseMock;
   /** Spy for requestDisplayMode calls */
-  requestDisplayModeSpy: ReturnType<typeof vi.fn>;
+  requestDisplayModeSpy: LooseMock;
   /** Current widget state (updated by setWidgetState calls) */
   getWidgetState: () => Record<string, unknown>;
 }

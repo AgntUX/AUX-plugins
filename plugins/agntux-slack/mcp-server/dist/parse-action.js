@@ -3,7 +3,10 @@
 // view tool needs. Stateless, read-only; never writes to disk.
 //
 // Frontmatter is parsed via the `yaml` package; body sections (`## Why this
-// matters`, `## Personalization fit`) are extracted by header lookup.
+// matters`, `## Personalization fit`, `## Compose payload`,
+// `## Canvas payload`) are extracted by header lookup. The two payload
+// sections wrap a fenced ```yaml block whose shape mirrors compose-view /
+// canvas-view's structuredContent contract.
 // =============================================================================
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
@@ -106,6 +109,126 @@ export function extractSection(body, header) {
     const sliceEnd = nextHeader ? nextHeader.index : after.length;
     return after.slice(0, sliceEnd).trim();
 }
+// Lift a YAML object out of a fenced ```yaml block under a `## ` header.
+// Returns the parsed object, or null when the header is absent, the fenced
+// block can't be located, or YAML parse fails. Mirrors agntux-core's
+// section-extraction idiom; the schema-validation work is the caller's.
+export function parseBodySection(body, header) {
+    const section = extractSection(body, header);
+    if (!section)
+        return null;
+    // Match a fenced YAML block; tolerate ```yml as an alias and stray
+    // whitespace after the opening fence. The closing fence must be the first
+    // bare ``` line at column zero.
+    const fenceRe = /^```ya?ml\s*\n([\s\S]*?)\n```\s*$/m;
+    const match = fenceRe.exec(section);
+    if (!match)
+        return null;
+    const yamlText = match[1];
+    try {
+        const parsed = parseYaml(yamlText);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+}
+function asNumber(v, fallback = 0) {
+    return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+function asBoolean(v, fallback = false) {
+    return typeof v === "boolean" ? v : fallback;
+}
+function normalizeMessagesPreview(v) {
+    if (!Array.isArray(v))
+        return [];
+    return v
+        .map((item) => {
+        if (!item || typeof item !== "object")
+            return null;
+        const r = item;
+        return {
+            ts: asString(r.ts),
+            author: asString(r.author),
+            body_excerpt: asString(r.body_excerpt),
+        };
+    })
+        .filter((x) => x !== null);
+}
+function normalizeComposePayload(raw) {
+    if (!raw)
+        return null;
+    const tcRaw = raw.thread_context && typeof raw.thread_context === "object"
+        ? raw.thread_context
+        : {};
+    const channelRaw = raw.channel && typeof raw.channel === "object"
+        ? raw.channel
+        : {};
+    const draftedBody = asString(raw.drafted_body);
+    if (!draftedBody)
+        return null;
+    return {
+        drafted_body: draftedBody,
+        personalization_signals: asStringArray(raw.personalization_signals),
+        thread_context: {
+            parent_ts: asString(tcRaw.parent_ts),
+            parent_author_real_name: asString(tcRaw.parent_author_real_name),
+            parent_excerpt: asString(tcRaw.parent_excerpt),
+            last_reply_ts: asStringOrNull(tcRaw.last_reply_ts),
+            last_reply_author_real_name: asStringOrNull(tcRaw.last_reply_author_real_name),
+            last_reply_excerpt: asStringOrNull(tcRaw.last_reply_excerpt),
+            total_replies: asNumber(tcRaw.total_replies),
+            participants: asStringArray(tcRaw.participants),
+            messages_preview: normalizeMessagesPreview(tcRaw.messages_preview),
+        },
+        channel: {
+            id: asString(channelRaw.id),
+            name: asString(channelRaw.name),
+            is_dm: asBoolean(channelRaw.is_dm),
+        },
+        slack_permalink: asStringOrNull(raw.slack_permalink),
+        generated_at: asStringOrNull(raw.generated_at),
+    };
+}
+function normalizeCanvasPayload(raw) {
+    if (!raw)
+        return null;
+    const draftedRaw = raw.drafted_canvas && typeof raw.drafted_canvas === "object"
+        ? raw.drafted_canvas
+        : {};
+    const channelRaw = raw.channel && typeof raw.channel === "object"
+        ? raw.channel
+        : {};
+    const threadRaw = raw.thread && typeof raw.thread === "object"
+        ? raw.thread
+        : {};
+    const title = asString(draftedRaw.title);
+    if (!title)
+        return null;
+    return {
+        drafted_canvas: {
+            title,
+            tldr: asString(draftedRaw.tldr),
+            decisions: asStringArray(draftedRaw.decisions),
+            open_questions: asStringArray(draftedRaw.open_questions),
+            participants: asStringArray(draftedRaw.participants),
+        },
+        channel: {
+            id: asString(channelRaw.id),
+            name: asString(channelRaw.name),
+        },
+        thread: {
+            parent_ts: asString(threadRaw.parent_ts),
+            total_replies: asNumber(threadRaw.total_replies),
+            participants: asStringArray(threadRaw.participants),
+        },
+        proposed_followup_message: asString(raw.proposed_followup_message),
+        generated_at: asStringOrNull(raw.generated_at),
+    };
+}
 export function parseActionFile(filePath) {
     const text = readFileSync(filePath, "utf8");
     const { frontmatter, body } = parseFrontmatter(text);
@@ -113,6 +236,8 @@ export function parseActionFile(filePath) {
         frontmatter,
         why_matters: extractSection(body, "Why this matters"),
         personalization_fit: extractSection(body, "Personalization fit"),
+        compose_payload: normalizeComposePayload(parseBodySection(body, "Compose payload")),
+        canvas_payload: normalizeCanvasPayload(parseBodySection(body, "Canvas payload")),
     };
 }
 //# sourceMappingURL=parse-action.js.map

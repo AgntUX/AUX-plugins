@@ -371,6 +371,199 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Optimistic hide (5.3.0) — terminating actions disappear from the list
+// immediately; status-mutating host_prompts also trigger the hide via the
+// regex match-guard; the hide reconciles when fresh toolOutput arrives.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MainComponent — optimistic hide on resolve', () => {
+  it('Done button hides the row immediately after the mutation resolves', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({ id: 'a-1', title: 'First' }),
+          makeAction({ id: 'a-2', title: 'Second' }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId('action-card-a-1')).toBeInTheDocument();
+    await user.click(screen.getByTestId('done-a-1'));
+    // After the no-op callTool resolves, the optimistic hide kicks in and
+    // a-1 disappears even though toolOutput hasn't been refreshed.
+    expect(screen.queryByTestId('action-card-a-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('action-card-a-2')).toBeInTheDocument();
+  });
+
+  it('Snooze submission hides the row immediately', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload(),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('snooze-fixture-action-1'));
+    await user.click(screen.getByTestId('snooze-preset-24h'));
+    await user.click(screen.getByTestId('snooze-confirm'));
+    expect(
+      screen.queryByTestId('action-card-fixture-action-1'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('Dismiss submission hides the row immediately for every outcome', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload(),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('dismiss-fixture-action-1'));
+    await user.click(screen.getByTestId('dismiss-outcome-noise'));
+    await user.click(screen.getByTestId('dismiss-confirm'));
+    expect(
+      screen.queryByTestId('action-card-fixture-action-1'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('Stop-raising button hides the row immediately and dispatches the user-feedback envelope', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload(),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('details-fixture-action-1'));
+    await user.click(screen.getByTestId('stop-raising'));
+    expect(
+      screen.queryByTestId('action-card-fixture-action-1'),
+    ).not.toBeInTheDocument();
+    // The feedback envelope still fires so the user-feedback agent's Stage 0
+    // fast-path captures the rule.
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('"Mark done — already handled in Slack" suggested action hides the row via the regex match-guard', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'mark-done-a',
+            suggested_actions: [
+              {
+                label: 'Mark done — already handled in Slack',
+                host_prompt:
+                  'ux: Use the agntux-core plugin to set action mark-done-a status to done with outcome "completed-externally" (already handled in Slack).',
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-mark-done-a-0'));
+    // Regex `set action ([\w-]+) status to done` matches → hide.
+    expect(screen.queryByTestId('action-card-mark-done-a')).not.toBeInTheDocument();
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('"Open the reply composer" suggested action does NOT hide the row (regex match-guard scopes hide to status-mutating prompts)', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'open-composer-a',
+            suggested_actions: [
+              {
+                label: 'Draft a reply',
+                host_prompt:
+                  'ux: Use the agntux-slack plugin to open the reply composer for action open-composer-a.',
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-open-composer-a-0'));
+    // Opening the composer iframe does NOT terminate the action — the row
+    // must stay visible until the user actually completes the reply via
+    // the iframe's Send button (which fires set_status separately).
+    expect(screen.getByTestId('action-card-open-composer-a')).toBeInTheDocument();
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('hidden id stays hidden when the server still lists the action as open (slow-write race guard)', async () => {
+    const user = userEvent.setup();
+    const { props, rerender } = (() => {
+      const created = createMainComponentProps({
+        toolOutput: makePayload({
+          actions: [makeAction({ id: 'race-a' })],
+        }),
+      });
+      const result = render(<MainComponent {...created.props} />);
+      return { ...created, ...result };
+    })();
+    await user.click(screen.getByTestId('done-race-a'));
+    expect(screen.queryByTestId('action-card-race-a')).not.toBeInTheDocument();
+    // Simulate a stale toolOutput refresh while the server hasn't yet
+    // observed the file mutation: action still appears as open.
+    const stalePayload = makePayload({
+      actions: [makeAction({ id: 'race-a' })],
+    });
+    rerender(<MainComponent {...{ ...props, toolOutput: stalePayload }} />);
+    expect(screen.queryByTestId('action-card-race-a')).not.toBeInTheDocument();
+  });
+
+  it('hidden id is dropped when the server has confirmed the action is gone (id no longer in data.actions)', async () => {
+    const user = userEvent.setup();
+    const { props, rerender } = (() => {
+      const created = createMainComponentProps({
+        toolOutput: makePayload({
+          actions: [
+            makeAction({ id: 'gone-a' }),
+            makeAction({ id: 'gone-b' }),
+          ],
+        }),
+      });
+      const result = render(<MainComponent {...created.props} />);
+      return { ...created, ...result };
+    })();
+    await user.click(screen.getByTestId('done-gone-a'));
+    expect(screen.queryByTestId('action-card-gone-a')).not.toBeInTheDocument();
+    // Server has now observed the resolution: gone-a no longer in
+    // data.actions. The reconcile effect drops it from optimisticallyHidden,
+    // but it remains absent from the visible list because data.actions also
+    // dropped it. (The action would re-appear if the server re-emitted it,
+    // which is the desired behavior for an LLM that retried.)
+    const refreshedPayload = makePayload({
+      actions: [makeAction({ id: 'gone-b' })],
+    });
+    rerender(<MainComponent {...{ ...props, toolOutput: refreshedPayload }} />);
+    expect(screen.queryByTestId('action-card-gone-a')).not.toBeInTheDocument();
+    expect(screen.getByTestId('action-card-gone-b')).toBeInTheDocument();
+  });
+
+  it('priority filter chip counts honour optimistic hide (header stays honest)', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({ id: 'h-1', priority: 'high' }),
+          makeAction({ id: 'h-2', priority: 'high' }),
+          makeAction({ id: 'm-1', priority: 'medium' }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId('filter-all').textContent).toBe('All · 3');
+    expect(screen.getByTestId('filter-high').textContent).toBe('High · 2');
+    await user.click(screen.getByTestId('done-h-1'));
+    expect(screen.getByTestId('filter-all').textContent).toBe('All · 2');
+    expect(screen.getByTestId('filter-high').textContent).toBe('High · 1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Filter chips + sort toggle persist to widgetState
 // ─────────────────────────────────────────────────────────────────────────────
 

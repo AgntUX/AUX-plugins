@@ -161,3 +161,146 @@ describe("handleCanvasView — happy path", () => {
     expect((sc.proposed_followup_message as string).length).toBeLessThanOrEqual(200);
   });
 });
+
+// ── Dual-mode resolution: action_id-only invocation lifts from `## Canvas payload` ──
+
+describe("handleCanvasView — dual-mode (3.0.0+ on-disk payload fallback)", () => {
+  function writeActionWithCanvasPayload(name: string): void {
+    const frontmatter = "id: " + name + "\nstatus: open\npriority: medium\nsource: slack";
+    const body = [
+      "## Why this matters",
+      "Test action with pre-composed canvas payload.",
+      "",
+      "## Canvas payload",
+      "",
+      "```yaml",
+      "drafted_canvas:",
+      "  title: \"Disk-loaded canvas title\"",
+      "  tldr: \"TL;DR loaded from the action file's body section.\"",
+      "  decisions:",
+      "    - Disk decision 1",
+      "    - Disk decision 2",
+      "  open_questions:",
+      "    - Disk open question 1?",
+      "  participants:",
+      "    - Alice",
+      "    - Bob",
+      "    - Carol",
+      "channel:",
+      "  id: C-DISK",
+      "  name: disk-channel",
+      "thread:",
+      "  parent_ts: \"1714300000.000100\"",
+      "  total_replies: 7",
+      "  participants:",
+      "    - Alice",
+      "    - Bob",
+      "proposed_followup_message: \"Disk-loaded follow-up message.\"",
+      "generated_at: \"2026-04-28T09:00:00Z\"",
+      "```",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, `${name}.md`),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+  }
+
+  it("invocation with only {action_id} lifts drafted_canvas, channel, thread, followup from disk", async () => {
+    writeActionWithCanvasPayload("canvas-action-1");
+    const result = await handleCanvasView({ action_id: "canvas-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    const dc = sc.drafted_canvas as Record<string, unknown>;
+    expect(dc.title).toBe("Disk-loaded canvas title");
+    expect((dc.decisions as string[]).length).toBe(2);
+    const ch = sc.channel as Record<string, unknown>;
+    expect(ch.id).toBe("C-DISK");
+    expect(ch.name).toBe("disk-channel");
+    const thread = sc.thread as Record<string, unknown>;
+    expect(thread.total_replies).toBe(7);
+    expect(sc.proposed_followup_message).toBe("Disk-loaded follow-up message.");
+    expect(sc.error).toBeUndefined();
+  });
+
+  it("inline drafted_canvas overrides the on-disk payload when both are present", async () => {
+    writeActionWithCanvasPayload("canvas-action-1");
+    const result = await handleCanvasView({
+      action_id: "canvas-action-1",
+      drafted_canvas: {
+        title: "Inline override title",
+        tldr: "Inline override tldr",
+        decisions: ["Inline decision A"],
+        open_questions: [],
+        participants: ["Alice"],
+      },
+      channel: { id: "C-INLINE", name: "inline-channel" },
+      thread: { parent_ts: "9999999999.000100", total_replies: 1, participants: [] },
+      proposed_followup_message: "Inline override followup",
+    });
+    const sc = result.structuredContent as Record<string, unknown>;
+    const dc = sc.drafted_canvas as Record<string, unknown>;
+    expect(dc.title).toBe("Inline override title");
+    const ch = sc.channel as Record<string, unknown>;
+    expect(ch.id).toBe("C-INLINE");
+    const thread = sc.thread as Record<string, unknown>;
+    expect(thread.total_replies).toBe(1);
+    expect(sc.proposed_followup_message).toBe("Inline override followup");
+  });
+
+  it("returns canvas_payload_missing when neither inline drafted_canvas nor on-disk payload exist", async () => {
+    writeAction(
+      "canvas-action-1",
+      "id: canvas-action-1\nstatus: open\npriority: medium\nsource: slack",
+      "## Why this matters\nThis action has no canvas payload.",
+    );
+    const result = await handleCanvasView({ action_id: "canvas-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("canvas_payload_missing");
+  });
+
+  it("returns canvas_payload_missing when the Canvas payload section has no fenced YAML block", async () => {
+    const frontmatter = "id: canvas-action-1\nstatus: open\npriority: medium";
+    const body = [
+      "## Canvas payload",
+      "",
+      "(canvas payload not yet generated.)",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, "canvas-action-1.md"),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+    const result = await handleCanvasView({ action_id: "canvas-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("canvas_payload_missing");
+  });
+
+  it("returns canvas_payload_missing when YAML parses but drafted_canvas.title is empty", async () => {
+    const frontmatter = "id: canvas-action-1\nstatus: open\npriority: medium";
+    const body = [
+      "## Canvas payload",
+      "",
+      "```yaml",
+      "drafted_canvas:",
+      "  title: \"\"",
+      "  tldr: \"Some tldr\"",
+      "  decisions: []",
+      "  open_questions: []",
+      "  participants: []",
+      "channel:",
+      "  id: C-X",
+      "  name: x",
+      "thread:",
+      "  parent_ts: \"123.456\"",
+      "  total_replies: 0",
+      "  participants: []",
+      "proposed_followup_message: \"\"",
+      "```",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, "canvas-action-1.md"),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+    const result = await handleCanvasView({ action_id: "canvas-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("canvas_payload_missing");
+  });
+});

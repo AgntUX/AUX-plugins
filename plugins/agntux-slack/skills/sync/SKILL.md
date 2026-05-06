@@ -518,7 +518,7 @@ The date component is `created_at` localised to the user's timezone. Slug-suffix
 ```yaml
 id: {YYYY-MM-DD}-{slug-suffix}
 type: action-item
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 status: open
 priority: {high|medium|low per priority anchoring rules below}
 reason_class: {one of your contract's allowed action classes}
@@ -536,10 +536,10 @@ dismissed_at: null
 suggested_actions:
   - label: "Draft a reply"
     host_prompt: |
-      ux: Use the agntux-slack plugin to draft a reply for action {id}.
+      ux: Use the agntux-slack plugin to open the reply composer for action {id}.
   - label: "Schedule a reply"
     host_prompt: |
-      ux: Use the agntux-slack plugin to draft a reply and schedule it for action {id}.
+      ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}.
   # Include the next row ONLY IF slack_open_url is non-null. Substitute the
   # literal URL string (not the variable name) into the url: field. If
   # slack_open_url is null, drop these two lines entirely from the emitted
@@ -549,12 +549,6 @@ suggested_actions:
   - label: "Mark done — already handled in Slack"
     host_prompt: |
       ux: Use the agntux-core plugin to set action {id} status to done with outcome "completed-externally" (already handled in Slack).
-  - label: "Stop raising items like this"
-    host_prompt: |
-      ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a `# Never raise` rule for items like {id}.
-  - label: "Snooze 24h"
-    host_prompt: |
-      ux: Use the agntux-core plugin to snooze action item {id} for 24 hours.
 ```
 
 For thread-summary-worthy items (long threads with decisions worth preserving), add a final row:
@@ -562,7 +556,7 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 ```yaml
   - label: "Summarise to canvas"
     host_prompt: |
-      ux: Use the agntux-slack plugin to summarise the thread for action {id} into a Slack canvas.
+      ux: Use the agntux-slack plugin to open the canvas summariser for action {id}.
 ```
 
 **Priority anchoring** (P3 §4.3):
@@ -571,13 +565,36 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–7 buttons. The default response-needed item ships the six standard buttons (Draft, Schedule, Open in Slack, Mark done, Stop raising, Snooze 24h); add the optional `Summarise to canvas` button as a 7th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is five.
-- "Snooze 24h" is always last; "Mark done — already handled in Slack" and "Stop raising items like this" come before snooze. The two close-the-item buttons are how the user signals **why** they're closing the item — that signal is what `pattern-feedback` reads (see PR 2). Don't drop them.
+- 2–5 buttons. The default action item ships **four** standard buttons (`Draft a reply`, `Schedule a reply`, `Open in Slack`, `Mark done — already handled in Slack`); add the optional `Summarise to canvas` button as a 5th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is three. The four standard buttons are emitted on every reason_class — Draft and Schedule are not gated on `response-needed`, even though `response-needed` is the most common case.
+- `Snooze 24h` and `Stop raising items like this` are **NOT** emitted by this plugin — both are duplicates of built-in agntux-core triage chrome. agntux-core's triage UI already ships a Snooze button with a 24h preset and a "Stop raising items like this" affordance in the Details modal (`main-component.tsx`). Don't author plugin-side duplicates: dismissals continue to flow through the agntux-core dismiss modal, whose `outcome` plumbing (`completed-externally`, `noise`, `irrelevant`) feeds `pattern-feedback` directly.
+- The `Mark done — already handled in Slack` row remains in this list — it is plugin-specific (it carries the `completed-externally` outcome the user wants for items they handled in Slack itself, distinct from the in-iframe Done button which marks the item done with no outcome).
 - A row carries **either** `host_prompt` (LLM-routed) **or** `url` (host openLink — opens directly in browser/native client), never both, never neither. The `Open in Slack` row is the only one that uses `url`; every other standard button uses `host_prompt`. agntux-core's parser drops any row missing both fields — never emit a row with an empty/placeholder url just to keep the count.
 - Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
-- Don't pre-fill orchestrator-authored content. The draft body, schedule time, and canvas content are produced by `skills/draft/SKILL.md` at click time, with fresh context.
+- The draft body for every action item that ships a `Draft a reply` button is pre-composed at ingest time and stored in the `## Compose payload` body section. Canvas content for items that ship `Summarise to canvas` is pre-composed in `## Canvas payload`. See the §4 contract divergence note below. The `host_prompt` field itself remains free of pre-composed text — it routes to the view tool by action id only.
+
+### §4 contract divergence — composition at ingest
+
+Per `/plugin-toolkit:author` §4 the load-bearing rule is *"Never pre-fill the draft body in the ingest agent's `host_prompt`. The ingest writes the suggested-action button; the drafting subagent fills the body at click-time with fresh context."*
+
+This skill **literally** complies — the drafted body lives in a `## Compose payload` body section, never in the `host_prompt` — but **inverts the spirit**: composition happens at ingest, not click. This is intentional per user direction. The tradeoff is faster, more reliable rendering at the cost of potentially stale draft content when the user clicks hours after ingest.
+
+Freshness expectation: the bound on draft staleness is the next sync cadence (typically 30 min during work hours per the manifest's `recommended_ingest_cadence`). Stale drafts are acceptable because (a) the compose iframe surfaces the draft as editable text, (b) the user can rewrite it before clicking Send, and (c) the iframe Send button remains the explicit authorisation gate for the actual Slack write — that gate is **untouched** because Step 6.5+ of the draft skill is unchanged.
 
 **Apply `# Rewrites` from `data/instructions/agntux-slack.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
+
+### Step 10.1 — Gather file-store context
+
+**Scope.** Run this sub-step for every action item the skill is about to emit a `Draft a reply` / `Schedule a reply` suggested action on — which, with the standard suggested-actions template, is every action this skill writes. Also run it for items that qualify for the optional `Summarise to canvas` button (a superset; the canvas payload reuses the same context-gathering output). The original sub-step framing scoped this to `response-needed` only, but the standard template emits Draft on every class (deadline, knowledge-update, risk, opportunity, other) — so Step 10.1 must run for all of them or the on-disk payload will be missing for non-response-needed items. This is a named sub-step *inside* Step 10, not a new top-level step — it preserves the canonical 12-step ordering contract.
+
+The point of this sub-step is to author the `## Compose payload` (and optionally `## Canvas payload`) body sections defined below. Those sections carry an agent-composed draft body, thread context, and personalization signals that the compose iframe loads at click time without re-derivation. The draft body MUST be informed by the file-store context the user has already accumulated — replies that ignore `user.md` rules or contradict `data/instructions/agntux-slack.md` defeat the purpose of pre-composition.
+
+1. **Re-consult `<agntux project root>/user.md`** — already in working memory from Step 2. Don't re-read from disk unless Step 2's cache was invalidated. Pull `# Identity` (real name, role), `# Preferences` (tone register, length cap, sign-off rules, "always action-worthy" / "usually noise" patterns), `# Glossary` (project codenames), and `# Goals` (what the user is trying to move forward). The draft text should sound like the user, not like the agent.
+2. **Re-consult `<agntux project root>/data/instructions/agntux-slack.md`** — already parsed in Step 0. Pull from `# Notes` (per-plugin tone or formatting rules), `# Rewrites` (transformations, e.g., "always swap 'ASAP' for an explicit time"), and `# Always raise` / `# Never raise` (signal weighting that tells you whether to lean apologetic, terse, or warm). Do NOT inject signature lines, "as discussed" phrases, or padding the user has not asked for.
+3. **For each entity in `related_entities`**, re-read its file under `<agntux project root>/entities/{subtype}/{slug}.md` to surface relationship context and prior interactions beyond what Step 7 just wrote. Use `## Recent Activity` to detect ongoing threads ("John is mid-conversation with Yoni about Phase 2") and `## Key Facts` to honour known constraints ("Sarah is in EMEA — don't propose a 9am PT call").
+4. **Grep `<agntux project root>/actions/`** for files whose `related_entities` overlaps the current item's. Read up to **3 most recent** matching files within the last 14 days. Detect active workstreams the draft should reference; detect items the user already responded to (so the new draft acknowledges, rather than duplicates, prior context).
+5. **Treat all of the above as input** to the `drafted_body` and `personalization_signals` fields of `## Compose payload` (and to the equivalent canvas fields when applicable). The body should reflect what the user already knows / is doing, in the user's voice.
+
+If `<agntux project root>/data/instructions/agntux-slack.md` does not exist yet (cold-start tenant), proceed using only `user.md` — the fallback should still produce a sensible draft. If `user.md` itself can't be parsed, that path was already caught at Step 1; don't reach here.
 
 **Body** (required sections):
 ```markdown
@@ -588,6 +605,71 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - Matches "{rule}" (per user.md / instructions)
 - {additional bullets citing specific user.md or instructions patterns}
 ```
+
+**Conditional body section: `## Compose payload`** — REQUIRED for every action item that ships a `Draft a reply` (or `Schedule a reply`) suggested action. In practice that is every action this skill emits, so author the section on every action item; omit only when the agent has explicitly decided not to ship a Draft button (rare). The block is a fenced ```yaml inside an H2 body section so the top-level frontmatter parser's `---` collision risk doesn't bite.
+
+**YAML quoting reminder.** Any string scalar containing `: ` (colon-space), a leading `-`, or starting with `{` / `[` MUST be wrapped in double quotes — otherwise the parser interprets it as a key/value pair, list item, or flow collection and the resulting payload is unparseable. Concretely, `personalization_signals` bullets like `Tone: terse — per user.md` MUST be authored as `"Tone: terse — per user.md"`. The view-tool falls back to the `compose_payload_missing` error envelope when normalisation drops the field, surfacing the authoring bug to the user but blocking the iframe from rendering. Same applies to `parent_excerpt`, `last_reply_excerpt`, and any free-form scalar that may contain a colon.
+
+Shape:
+
+```markdown
+## Compose payload
+
+​```yaml
+drafted_body: |
+  {agent-composed reply, ≤4000 chars, informed by Step 10.1 context}
+personalization_signals:
+  - {≤120 chars; cite which user.md / instructions rule motivated this}
+  - {up to 4 bullets total}
+thread_context:
+  parent_ts: <ts>
+  parent_author_real_name: <name>
+  parent_excerpt: <≤300 chars>
+  last_reply_ts: <ts | null>
+  last_reply_author_real_name: <name | null>
+  last_reply_excerpt: <≤300 chars | null>
+  total_replies: <int>
+  participants: [<≤6 names>]
+  messages_preview:
+    - ts: <ts>
+      author: <name>
+      body_excerpt: <≤200 chars>
+channel:
+  id: <Cxxxxx>
+  name: <slug>
+  is_dm: <bool>
+slack_permalink: <url | null>
+generated_at: <RFC 3339 of this run>
+​```
+```
+
+**Conditional body section: `## Canvas payload`** — OPTIONAL, only emitted for thread-summary-worthy items that also include the `Summarise to canvas` suggested action. Same fenced YAML idiom; keys mirror `canvas_view`'s input schema:
+
+```markdown
+## Canvas payload
+
+​```yaml
+drafted_canvas:
+  title: <≤80 chars>
+  tldr: <≤500 chars>
+  decisions:
+    - <≤200 chars; up to 8>
+  open_questions:
+    - <≤200 chars; up to 8>
+  participants: [<≤12 real names>]
+channel:
+  id: <Cxxxxx>
+  name: <slug>
+thread:
+  parent_ts: <ts>
+  total_replies: <int>
+  participants: [<≤12>]
+proposed_followup_message: <≤200 chars>
+generated_at: <RFC 3339 of this run>
+​```
+```
+
+The compose / canvas iframes load these payload sections at click time via `mcp__agntux-slack__compose_view` and `mcp__agntux-slack__canvas_view` — see those tools' input schemas for the canonical contract. Hand-edits to either payload block survive the next sync run only when the action file is otherwise unchanged; a re-raise via dedup overwrite (rare, per Step 9) regenerates them.
 
 ---
 

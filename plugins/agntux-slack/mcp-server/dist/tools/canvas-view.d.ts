@@ -23,7 +23,7 @@ interface CanvasStructuredContent {
     proposed_followup_message: string;
 }
 interface CanvasStructuredError {
-    error: "action_not_found" | "action_already_handled" | "agntux_root_missing" | "license_paused";
+    error: "action_not_found" | "action_already_handled" | "agntux_root_missing" | "license_paused" | "canvas_payload_missing";
 }
 interface ViewToolMeta {
     ui: {
@@ -60,7 +60,7 @@ export declare const canvasViewTool: {
             };
             readonly drafted_canvas: {
                 readonly type: "object";
-                readonly description: "Required. { title (≤80 chars), tldr (≤500 chars), decisions[] (≤8×200), open_questions[] (≤8×200), participants[] (≤12) }.";
+                readonly description: "Optional. { title, tldr, decisions[], open_questions[], participants[] }. Override for the on-disk payload.";
                 readonly properties: {
                     readonly title: {
                         readonly type: "string";
@@ -90,7 +90,7 @@ export declare const canvasViewTool: {
             };
             readonly channel: {
                 readonly type: "object";
-                readonly description: "Required. { id: string, name: string }.";
+                readonly description: "Optional. { id: string, name: string }. Override for the on-disk payload.";
                 readonly properties: {
                     readonly id: {
                         readonly type: "string";
@@ -102,7 +102,7 @@ export declare const canvasViewTool: {
             };
             readonly thread: {
                 readonly type: "object";
-                readonly description: "Required. { parent_ts: string, total_replies: number, participants: string[] }.";
+                readonly description: "Optional. { parent_ts, total_replies, participants[] }. Override for the on-disk payload.";
                 readonly properties: {
                     readonly parent_ts: {
                         readonly type: "string";
@@ -120,10 +120,10 @@ export declare const canvasViewTool: {
             };
             readonly proposed_followup_message: {
                 readonly type: "string";
-                readonly description: "Required. ≤200 chars. The reply body to post in the thread after canvas creation, e.g. 'Posted a thread summary: {url}'.";
+                readonly description: "Optional. ≤200 chars. Override for the on-disk payload.";
             };
         };
-        readonly required: readonly ["action_id", "drafted_canvas", "channel", "thread", "proposed_followup_message"];
+        readonly required: readonly ["action_id"];
     };
     readonly _meta: {
         readonly ui: {

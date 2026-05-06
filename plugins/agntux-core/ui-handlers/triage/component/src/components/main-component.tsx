@@ -14,7 +14,7 @@
  * classes; `source` is displayed as plain text (no icons, no per-source UX).
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   safeArray,
   safeBoolean,
@@ -324,6 +324,16 @@ function nowPlus24hISO(): string {
 function nowPlus3dISO(): string {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 }
+
+// Regex match-guard for status-mutating host_prompts so the optimistic
+// hide path is scoped to terminating verbs only — a `ux: ...open the reply
+// composer for action {id}` prompt opens an iframe and must NOT hide the
+// row. Module-scope constant so it isn't reallocated per render.
+const TERMINATING_PROMPT_PATTERNS: readonly RegExp[] = [
+  /set action ([\w-]+) status to done/i,
+  /snooze action item ([\w-]+)/i,
+  /dismiss action item ([\w-]+)/i,
+];
 
 function nextMondayMorningISO(): string {
   const d = new Date();
@@ -1155,6 +1165,42 @@ export function MainComponent(props: MainComponentProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
+  // Optimistic-hide set: ids the user has just resolved client-side. Plain
+  // useState (not widgetState) — should not survive an iframe remount or
+  // persist across host re-invokes. Reconciled per-id against fresh
+  // toolOutput below: keep an id while the server still lists it as open
+  // (slow-write race), drop it once the server agrees it's gone OR has
+  // moved it to handled_recent.
+  const [optimisticallyHidden, setOptimisticallyHidden] = useState<
+    Set<string>
+  >(() => new Set());
+
+  useEffect(() => {
+    setOptimisticallyHidden((prev) => {
+      if (prev.size === 0) return prev;
+      const stillOpen = new Set(data.actions.map((a) => a.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (stillOpen.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [data.actions, data.handled_recent]);
+
+  const hideOptimistically = useCallback((id: string) => {
+    setOptimisticallyHidden((s) => {
+      if (s.has(id)) return s;
+      const next = new Set(s);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
   // Skeleton: shown while no renderable data yet — gates on
   // hasAnyRenderableData per briefing-learnings §1.12.
   const hasAnyRenderableData =
@@ -1164,12 +1210,25 @@ export function MainComponent(props: MainComponentProps) {
     data.error !== null;
   const isLoading = !toolOutput && !hasAnyRenderableData;
 
+  // Filter through optimistic-hide first so all downstream views (counts,
+  // filter chips, handled accordion) stay honest about what the user has
+  // already resolved this session.
+  const visibleActions = useMemo(
+    () => data.actions.filter((a) => !optimisticallyHidden.has(a.id)),
+    [data.actions, optimisticallyHidden],
+  );
+  const visibleHandled = useMemo(
+    () =>
+      data.handled_recent.filter((h) => !optimisticallyHidden.has(h.id)),
+    [data.handled_recent, optimisticallyHidden],
+  );
+
   // Filter + sort.
   const filtered = useMemo(() => {
     const filteredByPriority =
       ui.priority_filter === 'all'
-        ? data.actions
-        : data.actions.filter((a) => a.priority === ui.priority_filter);
+        ? visibleActions
+        : visibleActions.filter((a) => a.priority === ui.priority_filter);
     const filteredByDone = ui.hide_done
       ? filteredByPriority.filter((a) => a.status !== 'snoozed' || true)
       : filteredByPriority; // hide_done currently affects handled list, retained for future
@@ -1183,14 +1242,19 @@ export function MainComponent(props: MainComponentProps) {
       return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
     });
     return sorted;
-  }, [data.actions, ui.priority_filter, ui.hide_done, ui.sort]);
+  }, [visibleActions, ui.priority_filter, ui.hide_done, ui.sort]);
 
   // Counts per priority filter chip.
   const priorityCounts = useMemo(() => {
-    const counts = { all: data.actions.length, high: 0, medium: 0, low: 0 };
-    for (const a of data.actions) counts[a.priority] += 1;
+    const counts = {
+      all: visibleActions.length,
+      high: 0,
+      medium: 0,
+      low: 0,
+    };
+    for (const a of visibleActions) counts[a.priority] += 1;
     return counts;
-  }, [data.actions]);
+  }, [visibleActions]);
 
   const setPriorityFilter = useCallback(
     (next: PriorityFilter) => {
@@ -1242,18 +1306,21 @@ export function MainComponent(props: MainComponentProps) {
 
   const handleDone = useCallback(
     (id: string) => {
-      void runMutation(id, 'set_status', { id, status: 'done' });
+      void runMutation(id, 'set_status', { id, status: 'done' }, () => {
+        hideOptimistically(id);
+      });
     },
-    [runMutation],
+    [runMutation, hideOptimistically],
   );
 
   const handleSnoozeSubmit = useCallback(
     (id: string, untilISO: string) => {
       void runMutation(id, 'snooze', { id, until: untilISO }, () => {
+        hideOptimistically(id);
         setSnoozeId(null);
       });
     },
-    [runMutation],
+    [runMutation, hideOptimistically],
   );
 
   const handleDismissSubmit = useCallback(
@@ -1261,10 +1328,11 @@ export function MainComponent(props: MainComponentProps) {
       const args: Record<string, unknown> = { id, outcome };
       if (note) args.outcome_note = note;
       void runMutation(id, 'dismiss', args, () => {
+        hideOptimistically(id);
         setDismissId(null);
       });
     },
-    [runMutation],
+    [runMutation, hideOptimistically],
   );
 
   const handleSuggested = useCallback(
@@ -1283,19 +1351,27 @@ export function MainComponent(props: MainComponentProps) {
         return;
       }
       if (action.host_prompt) {
+        for (const pattern of TERMINATING_PROMPT_PATTERNS) {
+          const match = pattern.exec(action.host_prompt);
+          if (match && match[1]) {
+            hideOptimistically(match[1]);
+            break;
+          }
+        }
         void sendFollowUpMessage(action.host_prompt);
       }
     },
-    [openLink, sendFollowUpMessage],
+    [openLink, sendFollowUpMessage, hideOptimistically],
   );
 
   const handleStopRaising = useCallback(
     (action: Action) => {
       const prompt = `ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'}).`;
+      hideOptimistically(action.id);
       void sendFollowUpMessage(prompt);
       setDetailId(null);
     },
-    [sendFollowUpMessage],
+    [sendFollowUpMessage, hideOptimistically],
   );
 
   const handleOnboard = useCallback(() => {
@@ -1441,9 +1517,9 @@ export function MainComponent(props: MainComponentProps) {
               More items available — ask in chat for the full list.
             </div>
           )}
-          {data.handled_recent.length > 0 && (
+          {visibleHandled.length > 0 && (
             <HandledAccordion
-              items={data.handled_recent}
+              items={visibleHandled}
               counts={data.counts}
               expanded={ui.handled_expanded}
               setExpanded={setHandledExpanded}

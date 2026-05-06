@@ -118,6 +118,11 @@ const ERROR_COPY: Record<string, { title: string; body: string; testId: string }
     body: "Run /agntux-onboard to set up your AgntUX workspace.",
     testId: "error-agntux-root-missing",
   },
+  compose_payload_missing: {
+    title: "Draft not available",
+    body: "This action was created before pre-composed drafts shipped. Open it in Slack to reply there.",
+    testId: "error-compose-payload-missing",
+  },
 };
 
 function ErrorState({ error }: { error: string }) {

@@ -137,11 +137,17 @@ function parseMessagesPreviewArg(raw) {
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 export const composeViewTool = {
     name: "compose_view",
-    description: "Render the agntux-slack Slack reply compose card. Called by the draft " +
-        "skill after it has fetched thread context from Slack and composed a " +
-        "draft body. Returns a structured compose payload the host renders as an " +
-        "editable reply card (ui://slack-compose) with Send / Schedule / Save as " +
-        "draft modes. Returns _meta.ui.resourceUri = ui://slack-compose.",
+    description: "Render the Slack reply composer iframe for an action item. Trigger when " +
+        "the user says 'open the reply composer for action {id}' or 'open the " +
+        "reply composer in schedule mode for action {id}'. Loads thread context " +
+        "and a pre-composed draft from the action file's `## Compose payload` " +
+        "body section when only {action_id, initial_verb} are supplied. Inline " +
+        "args (drafted_body, thread_context, channel, …) override the on-disk " +
+        "payload when both are present — kept for backward compat with any " +
+        "out-of-band caller that still produces a working-memory payload. Action " +
+        "files that lack a `## Compose payload` section (pre-1.1.0) surface the " +
+        "`compose_payload_missing` structured error envelope. Returns " +
+        "_meta.ui.resourceUri = ui://slack-compose.",
     inputSchema: {
         type: "object",
         properties: {
@@ -152,20 +158,20 @@ export const composeViewTool = {
             initial_verb: {
                 type: "string",
                 enum: ["draft", "schedule", "save_draft"],
-                description: "Which mode tab to pre-select: draft, schedule, or save_draft.",
+                description: "Optional. Which mode tab to pre-select. Defaults to 'draft'.",
             },
             drafted_body: {
                 type: "string",
-                description: "Agent-composed draft reply body, ≤4000 chars. Truncated if longer.",
+                description: "Optional. Inline override for the action file's `## Compose payload → drafted_body`. ≤4000 chars; truncated if longer.",
             },
             personalization_signals: {
                 type: "array",
                 items: { type: "string" },
-                description: "Optional. Up to 4 bullet strings (≤120 chars each) explaining why this draft fits the user.",
+                description: "Optional. Up to 4 bullet strings (≤120 chars each). Inline override for the on-disk payload.",
             },
             thread_context: {
                 type: "object",
-                description: "Required. Structured thread context: { parent_excerpt, parent_author_real_name, last_reply_excerpt, last_reply_author_real_name, last_reply_ts, total_replies, participants[], messages_preview[] }.",
+                description: "Optional. Structured thread context override. When omitted, lifted from the action file's `## Compose payload`.",
                 properties: {
                     parent_ts: { type: "string" },
                     parent_author_real_name: { type: "string" },
@@ -180,7 +186,7 @@ export const composeViewTool = {
             },
             channel: {
                 type: "object",
-                description: "Required. { id: string, name: string, is_dm: boolean }.",
+                description: "Optional. { id: string, name: string, is_dm: boolean }. Override for the on-disk payload.",
                 properties: {
                     id: { type: "string" },
                     name: { type: "string" },
@@ -193,10 +199,10 @@ export const composeViewTool = {
             },
             slack_permalink: {
                 type: "string",
-                description: "Optional URL to the source thread.",
+                description: "Optional URL to the source thread. Override for the on-disk payload.",
             },
         },
-        required: ["action_id", "initial_verb", "drafted_body", "thread_context", "channel"],
+        required: ["action_id"],
     },
     _meta: {
         ui: {
@@ -229,29 +235,70 @@ export async function handleComposeView(args) {
     if (isActionAlreadyHandled(fm.status, fm.snoozed_until)) {
         return structuredError("action_already_handled", `compose_view: action ${actionId} is no longer open (status: ${fm.status}).`);
     }
-    // Apply caps to agent-supplied args
-    const draftedBody = truncate(asString(args.drafted_body), MAX_DRAFTED_BODY_CHARS);
+    // Dual-mode resolution: prefer inline args (legacy draft-skill commit-side
+    // path) when present, otherwise fall back to the action file's `##
+    // Compose payload` body section. Either source can satisfy the contract;
+    // missing both surfaces compose_payload_missing.
+    const onDisk = parsed.compose_payload;
+    const inlineDraftedBody = asString(args.drafted_body);
+    const hasInlineBody = inlineDraftedBody.length > 0;
+    const inlineThreadCtx = args.thread_context && typeof args.thread_context === "object"
+        ? args.thread_context
+        : null;
+    const inlineChannel = args.channel && typeof args.channel === "object"
+        ? args.channel
+        : null;
+    if (!hasInlineBody && !onDisk) {
+        return structuredError("compose_payload_missing", `compose_view: action ${actionId} has no \`## Compose payload\` body section and no inline drafted_body was supplied.`);
+    }
+    const draftedBody = truncate(hasInlineBody ? inlineDraftedBody : onDisk?.drafted_body ?? "", MAX_DRAFTED_BODY_CHARS);
     const rawSignals = Array.isArray(args.personalization_signals)
         ? args.personalization_signals
-        : [];
+        : onDisk
+            ? onDisk.personalization_signals
+            : [];
     const personalizationSignals = rawSignals
         .slice(0, MAX_PERSONALIZATION_SIGNALS)
         .filter((s) => typeof s === "string")
         .map((s) => truncate(s, MAX_SIGNAL_CHARS));
-    const channel = parseChannelArg(args.channel);
-    const threadCtx = parseThreadContextArg(args.thread_context);
+    const channel = inlineChannel
+        ? parseChannelArg(inlineChannel)
+        : onDisk
+            ? {
+                id: onDisk.channel.id,
+                name: onDisk.channel.name,
+                is_dm: onDisk.channel.is_dm,
+            }
+            : { id: "", name: "", is_dm: false };
+    const threadCtx = inlineThreadCtx
+        ? parseThreadContextArg(inlineThreadCtx)
+        : onDisk
+            ? {
+                parent_ts: onDisk.thread_context.parent_ts,
+                parent_author_real_name: onDisk.thread_context.parent_author_real_name,
+                parent_excerpt: truncate(onDisk.thread_context.parent_excerpt, MAX_EXCERPT_CHARS),
+                last_reply_ts: onDisk.thread_context.last_reply_ts,
+                last_reply_author_real_name: onDisk.thread_context.last_reply_author_real_name,
+                last_reply_excerpt: onDisk.thread_context.last_reply_excerpt
+                    ? truncate(onDisk.thread_context.last_reply_excerpt, MAX_EXCERPT_CHARS)
+                    : null,
+                total_replies: onDisk.thread_context.total_replies,
+                participants: onDisk.thread_context.participants.slice(0, MAX_PARTICIPANTS),
+            }
+            : parseThreadContextArg(undefined);
     // Extract raw messages_preview once so the truncation check and the
-    // normalizer share a single source of truth.
-    const rawThreadCtx = args.thread_context && typeof args.thread_context === "object"
-        ? args.thread_context
-        : null;
-    const rawMessages = Array.isArray(rawThreadCtx?.messages_preview)
-        ? rawThreadCtx.messages_preview
-        : [];
+    // normalizer share a single source of truth. Inline override wins; on-disk
+    // payload supplies the fallback.
+    const rawMessages = inlineThreadCtx
+        ? Array.isArray(inlineThreadCtx.messages_preview)
+            ? inlineThreadCtx.messages_preview
+            : []
+        : (onDisk?.thread_context.messages_preview ?? []);
     const messagesPreview = parseMessagesPreviewArg(rawMessages);
     const messagesTruncated = rawMessages.length > MAX_MESSAGES_PREVIEW;
     const proposedSendTime = asStringOrNull(args.proposed_send_time);
-    const slackPermalink = asStringOrNull(args.slack_permalink);
+    const slackPermalink = asStringOrNull(args.slack_permalink) ??
+        (onDisk ? onDisk.slack_permalink : null);
     const initialVerb = asInitialVerb(args.initial_verb);
     const payload = {
         action_id: actionId,
