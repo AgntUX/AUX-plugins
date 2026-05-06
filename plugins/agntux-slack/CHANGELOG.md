@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-05-05
+
+### Added
+- **`Open in Slack` suggested action now carries a real deep link.** Previously the row used `host_prompt: "ux: Use the agntux-core plugin to print the Slack permalink for action {id}."`, which routed to a non-existent printer skill and never produced a working link. The row now carries a constructed `url` field (consumed by the new `url`-aware suggested-action surface in agntux-core 5.2.0). Clicking dispatches through the host's `openLink()` primitive — the link opens directly in the browser or native Slack client without round-tripping through the LLM.
+- **`workspace_subdomain` captured once per workspace and persisted in `data/learnings/agntux-slack/sync.md` frontmatter.** Parsed from any Slack MCP `Permalink:` field via the regex `^https?://([^.]+)\.slack\.com/`. The value is workspace-stable; once set it is never overwritten. Powers the URL templates the deep-link guide documents (`~/Downloads/slack-deeplink-guide.md`).
+- **Optional `slack_user_id` and `slack_dm_channel_id` frontmatter on `person` entities.** When the source artefact carries the relevant identifiers, they are persisted as additive optional frontmatter (no contract change — these are not in `proposed_schema.entity_subtypes[person].required_frontmatter`, and the validator hook at `plugins/agntux-core/hooks/validate-schema.mjs` only gates on the required-set; unknown frontmatter keys pass through). Pre-positions the data a future entity-chip UI needs to render `Open user profile` / `Open DM` buttons without forcing a re-sync.
+
+### Changed
+- `skills/sync/SKILL.md` Step 2 — `sync.md` template now includes `workspace_subdomain: null` on first creation.
+- `skills/sync/SKILL.md` Step 5b — discovery loop captures `workspace_subdomain` on first observed permalink.
+- `skills/sync/SKILL.md` Step 6 — person-entity creation/update now also persists optional Slack identifiers when available.
+- `skills/sync/SKILL.md` Step 10 — `Open in Slack` suggested-action row replaced with a `url:` form. URL is constructed from `workspace_subdomain` + `source_ref` for thread-rooted, top-level channel, and DM-rooted actions (single template covers all three). When `workspace_subdomain` is still `null` (cold-start, first run), the row is omitted entirely; the next run includes it once a permalink is observed.
+- `skills/sync/SKILL.md` Step 11 — added a step to persist `workspace_subdomain` alongside cursor advancement.
+
+### Compatibility
+- Requires **agntux-core ≥ 5.2.0** for the `url`-field-aware triage UI. On older agntux-core, an action-item row carrying only `url` (no `host_prompt`) would be dropped by the parser — `Open in Slack` would simply not appear; other suggested actions are unaffected.
+
+### Migration
+- No user data migration. On the next scheduled sync, sync.md gains the new `workspace_subdomain` field automatically. Existing action items continue to render their old buttons until they are re-raised; new action items emit the corrected `Open in Slack` row.
+
 ## [2.0.0] — 2026-05-04
 
 ### Added

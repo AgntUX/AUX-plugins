@@ -24,7 +24,7 @@ export interface MainComponentProps {
   sendFollowUpMessage: (prompt: string) => Promise<void>;
   displayMode: string;
   availableDisplayModes: string[];
-  requestDisplayMode: (mode: string) => Promise<void>;
+  requestDisplayMode: (mode: 'inline' | 'fullscreen' | 'pip') => Promise<void>;
   theme: string;
   locale: string;
   safeArea: { top: number; right: number; bottom: number; left: number };
