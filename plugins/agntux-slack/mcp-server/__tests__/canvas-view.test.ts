@@ -352,4 +352,29 @@ describe("canvasViewTool — descriptor contract", () => {
     expect(meta.ui.resourceUri).toBe("ui://slack-canvas");
     expect(meta["ui/resourceUri"]).toBe("ui://slack-canvas");
   });
+
+  // Regression guard for the Cowork iframe-not-opening bug. Without
+  // outputSchema, hosts can't tell structuredContent is iframe payload
+  // and fall back to text-rendering it. Mirrors the official ext-apps
+  // scenario-modeler-server example.
+  it("descriptor declares outputSchema covering success + error shapes", async () => {
+    const { canvasViewTool } = await import("../src/tools/canvas-view.js");
+    const schema = canvasViewTool.outputSchema as {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(schema.type).toBe("object");
+    for (const key of [
+      "action_id",
+      "channel",
+      "thread",
+      "drafted_canvas",
+      "proposed_followup_message",
+      "error",
+    ]) {
+      expect(schema.properties[key]).toBeDefined();
+    }
+    expect(schema.required ?? []).toEqual([]);
+  });
 });

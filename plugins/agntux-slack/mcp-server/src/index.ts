@@ -42,12 +42,14 @@ const TOOLS = {
   agntux_slack_compose_view: {
     description: composeViewTool.description,
     inputSchema: composeViewTool.inputSchema,
+    outputSchema: composeViewTool.outputSchema,
     _meta: composeViewTool._meta,
     handler: handleComposeView,
   },
   agntux_slack_canvas_view: {
     description: canvasViewTool.description,
     inputSchema: canvasViewTool.inputSchema,
+    outputSchema: canvasViewTool.outputSchema,
     _meta: canvasViewTool._meta,
     handler: handleCanvasView,
   },
@@ -71,6 +73,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     name,
     description: t.description,
     inputSchema: t.inputSchema,
+    // Forward optional `outputSchema` and `_meta` so MCP Apps hosts can
+    // (a) tell that structuredContent is iframe payload (outputSchema), and
+    // (b) find the UI resource to render (_meta.ui.resourceUri).
+    ...(("outputSchema" in t && (t as { outputSchema?: unknown }).outputSchema)
+      ? { outputSchema: (t as { outputSchema: unknown }).outputSchema }
+      : {}),
     ...(("_meta" in t && (t as { _meta?: unknown })._meta)
       ? { _meta: (t as { _meta: unknown })._meta }
       : {}),

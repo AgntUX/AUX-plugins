@@ -449,4 +449,29 @@ describe("composeViewTool — descriptor contract", () => {
     expect(meta.ui.resourceUri).toBe("ui://slack-compose");
     expect(meta["ui/resourceUri"]).toBe("ui://slack-compose");
   });
+
+  // Regression guard for the Cowork iframe-not-opening bug. Without
+  // outputSchema, hosts can't tell structuredContent is iframe payload
+  // and fall back to text-rendering it. Mirrors the official ext-apps
+  // scenario-modeler-server example.
+  it("descriptor declares outputSchema covering success + error shapes", async () => {
+    const { composeViewTool } = await import("../src/tools/compose-view.js");
+    const schema = composeViewTool.outputSchema as {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(schema.type).toBe("object");
+    for (const key of [
+      "action_id",
+      "initial_verb",
+      "channel",
+      "thread",
+      "drafted_body",
+      "error",
+    ]) {
+      expect(schema.properties[key]).toBeDefined();
+    }
+    expect(schema.required ?? []).toEqual([]);
+  });
 });

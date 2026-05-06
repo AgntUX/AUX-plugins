@@ -80,6 +80,86 @@ export declare const triageViewTool: {
         };
         readonly required: readonly [];
     };
+    readonly outputSchema: {
+        readonly type: "object";
+        readonly properties: {
+            readonly actions: {
+                readonly type: "array";
+                readonly items: {
+                    readonly type: "object";
+                    readonly properties: {
+                        readonly id: {
+                            readonly type: "string";
+                        };
+                        readonly title: {
+                            readonly type: "string";
+                        };
+                        readonly summary: {
+                            readonly type: "string";
+                        };
+                        readonly priority: {
+                            readonly type: "string";
+                        };
+                        readonly status: {
+                            readonly type: "string";
+                        };
+                        readonly reason_class: {
+                            readonly type: "string";
+                        };
+                        readonly due_by: {};
+                        readonly snoozed_until: {};
+                        readonly source: {};
+                        readonly related_entities: {
+                            readonly type: "array";
+                            readonly items: {
+                                readonly type: "string";
+                            };
+                        };
+                        readonly suggested_actions: {
+                            readonly type: "array";
+                        };
+                        readonly why_matters_excerpt: {
+                            readonly type: "string";
+                        };
+                        readonly personalization_fit_excerpt: {
+                            readonly type: "string";
+                        };
+                        readonly created_at: {};
+                        readonly updated_at: {};
+                    };
+                };
+            };
+            readonly handled_recent: {
+                readonly type: "array";
+            };
+            readonly counts: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly open: {
+                        readonly type: "number";
+                    };
+                    readonly snoozed: {
+                        readonly type: "number";
+                    };
+                    readonly handled_recent: {
+                        readonly type: "number";
+                    };
+                    readonly truncated: {
+                        readonly type: "boolean";
+                    };
+                };
+            };
+            readonly last_updated_at: {
+                readonly type: "string";
+            };
+            readonly bootstrap_mode: {
+                readonly type: "boolean";
+            };
+            readonly error: {
+                readonly type: "string";
+            };
+        };
+    };
     readonly _meta: {
         readonly ui: {
             readonly resourceUri: "ui://triage";

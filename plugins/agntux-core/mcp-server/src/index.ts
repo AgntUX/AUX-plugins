@@ -46,6 +46,7 @@ const TOOLS = {
   agntux_core_triage_view: {
     description: triageViewTool.description,
     inputSchema: triageViewTool.inputSchema,
+    outputSchema: triageViewTool.outputSchema,
     _meta: triageViewTool._meta,
     handler: handleTriageView,
   },
@@ -79,9 +80,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     name,
     description: t.description,
     inputSchema: t.inputSchema,
-    // Surface optional `_meta` (e.g., `_meta.ui.resourceUri` for MCP Apps
-    // hosts like MCPJam Inspector that key UI rendering off the tool
-    // descriptor, not the tool result).
+    // Forward optional `outputSchema` and `_meta` so MCP Apps hosts can
+    // (a) tell that structuredContent is iframe payload (outputSchema), and
+    // (b) find the UI resource to render (_meta.ui.resourceUri).
+    ...(("outputSchema" in t && (t as { outputSchema?: unknown }).outputSchema)
+      ? { outputSchema: (t as { outputSchema: unknown }).outputSchema }
+      : {}),
     ...(("_meta" in t && (t as { _meta?: unknown })._meta)
       ? { _meta: (t as { _meta: unknown })._meta }
       : {}),
