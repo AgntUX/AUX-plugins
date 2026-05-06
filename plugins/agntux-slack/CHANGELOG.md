@@ -6,18 +6,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.1.2] — 2026-05-06
+
+True root-cause fix for the **Schedule a reply** bug originally attributed
+to LLM tool-routing in 5.1.1. After 5.1.1 shipped, telemetry confirmed the
+host was passing the correct args (`{action_id, initial_verb: "schedule"}`)
+and the view tool was returning the correct `structuredContent`
+(populated `drafted_body`, `initial_verb: "schedule"`) — but the iframe
+still rendered an empty textarea with the **Send now** tab active. The
+defect is in the iframe component, not the LLM:
+
+`App.tsx` synthesizes a partial-shaped `toolOutput` envelope
+(`{ _meta: { payload: partialInput } }`) while the host streams
+`tool-input-partial` notifications, so `MainComponent` can render
+progressive partials. But the streaming-skeleton check was
+`!toolOutput && isStreaming` — and because `toolOutput` is *truthy*
+during streaming (it's the synthesized envelope), the check never
+fires. `ComposeCard` mounts during streaming with the partial-derived
+payload (empty `drafted_body`, `initial_verb` defaulted to `"draft"`),
+and `useState(drafted_body)` / `useState(initial_verb)` latch those
+values for the lifetime of the mount. When the real tool result
+arrives, the props update but the `useState`-backed `editedBody` and
+`mode` ignore them, leaving the textarea empty and the Send-now tab
+active. Channel/thread fields render correctly because they're read
+straight from props each render.
+
+### Fixed
+
+- **`MainComponent` streaming-skeleton check reordered**: `if
+  (isStreaming) return <streaming-skeleton />` is now the first branch
+  in both `plugins/agntux-slack/ui-handlers/compose/component/src/components/main-component.tsx`
+  and `…/canvas/component/src/components/main-component.tsx`. Loading-
+  skeleton is now `if (!toolOutput) return <loading-skeleton />`. The
+  card components (`ComposeCard`, `CanvasCard`) only mount once the
+  real tool result has arrived, so their `useState` initializers latch
+  the populated values. Same defect / same fix in canvas to prevent
+  Summarise-to-canvas regressing identically.
+
 ## [5.1.1] — 2026-05-06
 
-User-reported bug: clicking **Schedule a reply** in the triage UI opened the
-compose iframe with an empty drafted body and the **Send now** tab active
-instead of **Schedule**. The host LLM, given the prompt
-`ux: Use the agntux-slack plugin to open the reply composer in schedule mode
-for action {id}.`, was not reliably extracting `initial_verb: "schedule"` and
-in some cases passed partial inline args (empty `channel: {}`,
-`thread_context: {}`) that destructively overrode the action file's
-`## Compose payload` lookup, leaving the iframe with no draft to render.
-Clicking **Draft a reply** worked because the simpler prompt did not
-encourage inline-arg synthesis.
+Originally framed as a fix for the same Schedule-a-reply bug now fixed
+in 5.1.2. Post-mortem: the real defect was in the iframe component
+(`MainComponent` streaming-skeleton check) — see 5.1.2. The 5.1.1
+changes ship anyway as defensive descriptor hygiene: the rewritten
+tool descriptions are clearer, prevent a separate class of
+inline-args-overriding-on-disk regressions, and the new descriptor-
+contract tests pin the trigger-phrase mappings against future
+copy-edits.
 
 ### Fixed
 

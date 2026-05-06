@@ -87,6 +87,39 @@ describe("MainComponent — render branches (no-provider)", () => {
     expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
   });
 
+  // 5.1.2 regression guards. App.tsx synthesizes a partial-shaped toolOutput
+  // envelope (`{ _meta: { payload: partialInput } }`) while the host streams
+  // tool-input-partial notifications. The streaming-skeleton check MUST fire
+  // first — otherwise ComposeCard mounts with the partial-derived payload
+  // and useState(drafted_body) / useState(initial_verb) latch the empty
+  // values, ignoring the real payload when it arrives. Symptom users saw:
+  // empty textarea + Send-now tab active even though the tool result had
+  // initial_verb="schedule" and a populated drafted_body.
+  it("renders streaming skeleton when isStreaming is true even with a synthesized partial envelope", () => {
+    const partialInput = {
+      action_id: "test-action-1",
+      initial_verb: "schedule",
+    };
+    const { props } = createMainComponentProps({
+      toolOutput: { _meta: { payload: partialInput } },
+      isStreaming: true,
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId("streaming-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("compose-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("compose-body")).not.toBeInTheDocument();
+  });
+
+  it("renders streaming skeleton when isStreaming is true and toolOutput is undefined", () => {
+    const { props } = createMainComponentProps({
+      toolOutput: undefined,
+      isStreaming: true,
+    });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId("streaming-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("loading-skeleton")).not.toBeInTheDocument();
+  });
+
   it("renders action_not_found error state", () => {
     const { props } = createMainComponentProps({
       toolOutput: { error: "action_not_found" },
