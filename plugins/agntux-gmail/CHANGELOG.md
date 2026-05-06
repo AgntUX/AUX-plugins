@@ -6,6 +6,31 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-05-06
+
+Render-fix patch matching agntux-core 6.2.2 and agntux-slack 5.2.1: the
+reply composer now opens its iframe in Claude Cowork desktop, not just
+MCPJam. (1.0.0 shipped with the same bug the slack and core plugins had.)
+
+### Fixed
+
+- **`agntux_gmail_compose_view` descriptor now declares `outputSchema`.**
+  When a tool returns both `content[text]` and `structuredContent`, hosts
+  diverge on which channel to surface; the deciding factor is whether the
+  descriptor declares `outputSchema`. Without it, Cowork silently
+  text-renders the structuredContent and never opens the iframe. The
+  schema lists every top-level success-shape key plus `error`, with no
+  `required` fields so the structured-error envelope also validates.
+  Mirrors the official `scenario-modeler-server` example in
+  `modelcontextprotocol/ext-apps`.
+- **Descriptor `_meta` now emits both `ui.resourceUri` (modern, nested)
+  and `"ui/resourceUri"` (legacy, flat) keys.** Defensive against hosts
+  that only read one of the two synonymous keys.
+- **Removed bogus `visibility: ["model","app"]` from result `_meta.ui`.**
+  Per spec, `visibility` belongs on the descriptor; the default — both
+  surfaces can call — needs no annotation. (Inherited from the slack
+  template the plugin was scaffolded from.)
+
 ## [1.0.0] — 2026-05-06
 
 ### Added
