@@ -96,7 +96,7 @@ Stop-raising and in 4.0.0 for "Mark done".
 When you click `Draft a reply`, the host routes a `ux: Use the
 agntux-slack plugin to open the reply composer for action {id}.` prompt
 back to this plugin. The host's description-based auto-routing matches
-the prompt against the `compose_view` MCP tool directly — no draft skill
+the prompt against the `compose_view` MCP tool directly — no skill
 round-trip — and the iframe renders inline with the pre-composed draft
 already loaded.
 
@@ -110,14 +110,16 @@ already loaded.
    `## Compose payload` YAML, and renders the iframe with the editable
    draft already shown.
 3. You edit, then click Send. The compose iframe emits a committed
-   envelope back to chat (`ux: ...commit the drafted reply for action
-   {id} with body «…» (mode: send).`) which the draft skill matches and
-   parses. On a well-formed envelope, the draft skill calls
-   `slack_send_message` with the exact (possibly edited) body and marks
-   the action item `done` via `mcp__agntux-core__agntux_core_set_status`.
+   envelope back to chat that targets the user's **Slack Connector**
+   directly (`Use the Slack Connector to send a Slack message as a
+   thread reply. channel_id: …, thread_ts: …. Body: «…».`). The host
+   reads the envelope and dispatches to `slack_send_message` /
+   `slack_schedule_message` / `slack_send_message_draft` with the
+   channel_id + thread_ts inline in the envelope. No agntux-slack skill
+   round-trip, no disk read.
 
-No write tool is ever called without a committed envelope from the
-iframe. The iframe Send button is the explicit authorisation gate.
+No Slack write tool is ever called without a committed envelope from
+the iframe. The iframe Send button is the explicit authorisation gate.
 Action files written by 2.x.x sync runs (without `## Compose payload`)
 surface the graceful `compose_payload_missing` error inside the iframe.
 
@@ -142,10 +144,13 @@ parent message, the last reply quote, and an editable textarea prefilled
 with the draft. Mode tabs let you choose Send now / Schedule / Save
 Slack draft. A "Why this draft?" disclosure surfaces personalization
 signals from `user.md` and per-plugin instructions. The Send button
-emits a committed envelope (`ux: ...commit the drafted reply...`) back
-to chat — the draft skill matches the envelope and calls
-`slack_send_message` with your exact (possibly edited) body. The Send
-button is your explicit confirmation; no Slack write happens before it.
+emits a self-contained envelope addressed at the user's Slack Connector
+(`Use the Slack Connector to send a Slack message as a thread reply.
+channel_id: …, thread_ts: …. Body: «…».`). The host dispatches directly
+to `slack_send_message` / `slack_schedule_message` /
+`slack_send_message_draft`. The Send button is your explicit
+confirmation; no Slack write happens before it. **Discard** is a pure
+local action — it shows a "Discarded" banner and emits nothing to chat.
 
 **Slack canvas summariser** (`ui://slack-canvas`): When you click
 `Summarise to canvas` on an action item, the host routes the click
@@ -153,10 +158,13 @@ directly to the canvas view tool, which lifts the pre-composed canvas
 sections from the action file's `## Canvas payload` body section. Four
 editable section blocks (TL;DR, Decisions, Open questions, Participants)
 plus an editable title come pre-populated. A Preview tab shows the
-assembled markdown. The Create button emits the committed canvas
-envelope back to chat; the draft skill then calls `slack_create_canvas`,
-posts the canvas to the thread, and surfaces the canvas link back in
-the action item thread.
+assembled markdown. The Create button emits a Slack-Connector-targeted
+envelope (`Use the Slack Connector in two steps: 1. Create a Slack
+canvas titled «…» … 2. Post it as a thread reply in channel_id: …,
+thread_ts: …`). The host runs `slack_create_canvas`, takes the
+returned canvas URL, and posts it as a Slack mrkdwn link in the thread.
+**Discard** is a pure local action — it shows a "Discarded" banner and
+emits nothing to chat.
 
 Both UIs ship as embedded component bundles (no external S3 fetch). Build
 and bundle both after any UI component changes via the top-level builder:

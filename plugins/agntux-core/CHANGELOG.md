@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.1.0] — 2026-05-06
+
+Triage UX refinements based on user feedback that modals were appearing
+~⅓ of the way down the iframe (a stale anchor-clamp interacting badly with
+the modal's height-overflow guard) and that toast notifications were
+landing far from the resolved row.
+
+### Changed
+
+- **Replaced action-card modals with inline expansion panels.** Clicking
+  Details / Snooze / Dismiss / "Do something else…" on an action card
+  now expands a panel directly inside the card instead of opening a
+  centred (or imperfectly anchored) modal. Eliminates the positioning
+  math entirely and keeps the user's place in the list. `ScrollableModal`
+  is no longer used and the file is deleted.
+- **Replaced toast notifications with in-list feedback rows.** When a
+  terminal action (Done / Snooze / Dismiss / "Stop raising items like
+  this") resolves an action, the row is replaced *in its slot* by a
+  feedback row (e.g., `✓ Marked done · {action title}`) for 5 seconds,
+  then drops out of the list. Preserves the user's scroll position and
+  gives them a moment to register what just happened. The `Toast`
+  component and `toast-success` testid are removed.
+- **"Do something else" CTA renamed** from "Send to AgntUX" to
+  "Send prompt".
+
+### Removed
+
+- `components/scrollable-modal.tsx` and its test
+  `__tests__/components/scrollable-modal.test.tsx`.
+- `components/toast.tsx`.
+
 ## [6.0.0] — 2026-05-06
 
 Coordinated triage UX overhaul. Pairs with `agntux-slack` 4.0.0 — both

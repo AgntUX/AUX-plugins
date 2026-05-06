@@ -7,11 +7,19 @@
  * openLink (suggested actions with a `url` dispatch through the host's
  * openLink primitive; ones with only `host_prompt` fall back to
  * sendFollowUpMessage), every interactive control is gated by
- * <fieldset disabled={isStreaming}>, modals use ScrollableModal.
+ * <fieldset disabled={isStreaming}>.
  *
  * Source-agnostic: this component never branches on which plugin authored an
  * action. Reason-class styling falls back to a neutral default for unknown
  * classes; `source` is displayed as plain text (no icons, no per-source UX).
+ *
+ * v6.1.0: replaced modals with inline expansion panels and replaced toast
+ * notifications with in-list feedback rows that take the slot of the
+ * resolved item. Reason: in a 400–600px iframe, modals were either centred
+ * (yanking focus away from the row the user clicked) or anchored
+ * imperfectly (clamped to ~1/3 down by the height-overflow guard). Inline
+ * expansions sidestep the positioning math entirely; feedback rows
+ * preserve the user's place in the list when an action resolves the card.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,9 +32,7 @@ import {
   safeString,
 } from '../lib/safe-accessors';
 import { AgntuxLogo } from './agntux-logo';
-import { ScrollableModal } from './scrollable-modal';
 import { Spinner } from './spinner';
-import { Toast, type ToastState } from './toast';
 
 // =============================================================================
 // Types
@@ -65,6 +71,30 @@ const DISMISS_OUTCOMES = [
   'other',
 ] as const;
 type DismissOutcome = (typeof DISMISS_OUTCOMES)[number];
+
+type ExpandedKind =
+  | 'details'
+  | 'snooze'
+  | 'dismiss'
+  | 'do-something-else';
+
+interface ExpandedState {
+  id: string;
+  kind: ExpandedKind;
+}
+
+// Replaces toasts as of v6.1.0: when a terminal action (done / snooze /
+// dismiss / stop-raising) resolves a row, the row is replaced *in its slot*
+// by a feedback card so the user keeps their place in the list. Auto-fades
+// after FEEDBACK_FADE_MS, at which point the row is also dropped from the
+// optimistically-hidden set so any future re-fetch reconciles cleanly.
+interface FeedbackState {
+  kind: 'done' | 'snoozed' | 'dismissed' | 'stopped-raising';
+  title: string;
+  message: string;
+}
+
+const FEEDBACK_FADE_MS = 5000;
 
 interface SuggestedAction {
   label: string;
@@ -369,8 +399,24 @@ function truncate(s: string, max: number): string {
   return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
+function toLocalDatetimeInputValue(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+function fromLocalDatetimeInputValue(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return null;
+  return d.toISOString();
+}
+
 // =============================================================================
-// Sub-components
+// Sub-components — small badges
 // =============================================================================
 
 function PriorityPill({ priority }: { priority: Priority }) {
@@ -458,18 +504,574 @@ function StatusBadge({
   );
 }
 
-interface ActionCardProps {
+// =============================================================================
+// Inline expansion panels
+// =============================================================================
+//
+// Each panel renders below the action card's button row when the user clicks
+// the corresponding action button. They share a section divider style so the
+// expansion reads as part of the card, not as a separate element.
+
+function PanelSection({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-3 mt-1 -mb-3 rounded-b-md border-t border-dashed border-border bg-muted/40 px-3 py-3">
+      {children}
+    </div>
+  );
+}
+
+interface DetailsPanelProps {
   action: Action;
   pending: boolean;
   rowError: string | null;
+  onClose: () => void;
   onSuggested: (action: SuggestedAction, actionId: string) => void;
-  onDetails: (id: string) => void;
   onSnoozeOpen: (id: string) => void;
   onDismissOpen: (id: string) => void;
   onDone: (id: string) => void;
   onDoSomethingElse: (id: string) => void;
+  onStopRaising: (action: Action) => void;
+}
+
+function DetailsPanel({
+  action,
+  pending,
+  rowError,
+  onClose,
+  onSuggested,
+  onSnoozeOpen,
+  onDismissOpen,
+  onDone,
+  onDoSomethingElse,
+  onStopRaising,
+}: DetailsPanelProps) {
+  return (
+    <PanelSection>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Details
+        </h4>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Close details"
+          data-testid={`details-close-${action.id}`}
+        >
+          ×
+        </button>
+      </div>
+      <div className="mt-2 flex flex-col gap-4">
+        {action.why_matters_excerpt && (
+          <section>
+            <h5 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">
+              Why this matters
+            </h5>
+            <p className="whitespace-pre-line text-[0.8125rem] leading-relaxed text-muted-foreground">
+              {action.why_matters_excerpt}
+            </p>
+          </section>
+        )}
+        {action.personalization_fit_excerpt && (
+          <section>
+            <h5 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">
+              Personalization fit
+            </h5>
+            <p className="whitespace-pre-line text-[0.8125rem] leading-relaxed text-muted-foreground">
+              {action.personalization_fit_excerpt}
+            </p>
+          </section>
+        )}
+        {action.suggested_actions.length > 0 && (
+          <section>
+            <h5 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">
+              Suggested actions
+            </h5>
+            <div className="flex flex-wrap gap-2">
+              {action.suggested_actions.map((sa, idx) => (
+                <button
+                  key={`detail-sa-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    onSuggested(sa, action.id);
+                    onClose();
+                  }}
+                  className={
+                    idx === 0
+                      ? 'inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                      : 'inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                  }
+                  data-testid={`detail-suggested-${idx}`}
+                >
+                  {sa.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  onDoSomethingElse(action.id);
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="detail-do-something-else"
+              >
+                Do something else…
+              </button>
+            </div>
+          </section>
+        )}
+        {action.related_entities.length > 0 && (
+          <section>
+            <h5 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">
+              Related entities
+            </h5>
+            <div className="flex flex-wrap gap-1">
+              {action.related_entities.map((e) => (
+                <EntityBadge key={e} entity={e} />
+              ))}
+            </div>
+            <p className="mt-2 text-[0.6875rem] text-slate-400">
+              Tap-through to entity details ships in a follow-up.
+            </p>
+          </section>
+        )}
+        {rowError && (
+          <p className="text-xs text-red-700" role="alert">
+            {rowError}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onStopRaising(action)}
+            className="mr-auto rounded-md px-3 py-1.5 text-[0.8125rem] text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="stop-raising"
+          >
+            Stop raising items like this
+          </button>
+          <button
+            type="button"
+            onClick={() => onSnoozeOpen(action.id)}
+            disabled={pending}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          >
+            Snooze
+          </button>
+          <button
+            type="button"
+            onClick={() => onDismissOpen(action.id)}
+            disabled={pending}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          >
+            Dismiss
+          </button>
+          <button
+            type="button"
+            onClick={() => onDone(action.id)}
+            disabled={pending}
+            aria-busy={pending ? 'true' : 'false'}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          >
+            {pending ? (
+              <>
+                <Spinner size={12} />
+                Marking…
+              </>
+            ) : (
+              'Mark done'
+            )}
+          </button>
+        </div>
+      </div>
+    </PanelSection>
+  );
+}
+
+interface SnoozePanelProps {
+  action: Action;
+  pending: boolean;
+  rowError: string | null;
+  onClose: () => void;
+  onSubmit: (id: string, untilISO: string) => void;
+}
+
+function SnoozePanel({
+  action,
+  pending,
+  rowError,
+  onClose,
+  onSubmit,
+}: SnoozePanelProps) {
+  const [pickedISO, setPickedISO] = useState<string>(nowPlus24hISO());
+  const localValue = toLocalDatetimeInputValue(pickedISO);
+  const submit = () => onSubmit(action.id, pickedISO);
+  return (
+    <PanelSection>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Snooze
+        </h4>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Close snooze panel"
+          data-testid={`snooze-close-${action.id}`}
+        >
+          ×
+        </button>
+      </div>
+      <div className="mt-2 flex flex-col gap-3">
+        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+          Will reappear when the snooze ends.
+        </p>
+        <div>
+          <h5 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-slate-400">
+            Quick presets
+          </h5>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setPickedISO(nowPlus24hISO())}
+              data-testid="snooze-preset-24h"
+            >
+              24 hours
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setPickedISO(nowPlus3dISO())}
+              data-testid="snooze-preset-3d"
+            >
+              3 days
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setPickedISO(nextMondayMorningISO())}
+              data-testid="snooze-preset-monday"
+            >
+              Next Monday 9am
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={`snooze-until-${action.id}`}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Custom date &amp; time
+          </label>
+          <input
+            id={`snooze-until-${action.id}`}
+            type="datetime-local"
+            value={localValue}
+            onChange={(e) => {
+              const iso = fromLocalDatetimeInputValue(e.target.value);
+              if (iso) setPickedISO(iso);
+            }}
+            className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="snooze-input"
+          />
+        </div>
+        {rowError && (
+          <p className="text-xs text-red-700" role="alert">
+            {rowError}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="snooze-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={pending || !pickedISO}
+            aria-busy={pending ? 'true' : 'false'}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            data-testid="snooze-confirm"
+          >
+            {pending ? (
+              <>
+                <Spinner size={12} />
+                Snoozing…
+              </>
+            ) : (
+              'Snooze'
+            )}
+          </button>
+        </div>
+      </div>
+    </PanelSection>
+  );
+}
+
+interface DismissPanelProps {
+  action: Action;
+  pending: boolean;
+  rowError: string | null;
+  onClose: () => void;
+  onSubmit: (id: string, outcome: string, note: string) => void;
+}
+
+function DismissPanel({
+  action,
+  pending,
+  rowError,
+  onClose,
+  onSubmit,
+}: DismissPanelProps) {
+  const [outcome, setOutcome] = useState<DismissOutcome>(DISMISS_OUTCOMES[0]);
+  const [note, setNote] = useState<string>('');
+  const submit = () => onSubmit(action.id, outcome, note.trim());
+  return (
+    <PanelSection>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Dismiss
+        </h4>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Close dismiss panel"
+          data-testid={`dismiss-close-${action.id}`}
+        >
+          ×
+        </button>
+      </div>
+      <div className="mt-2 flex flex-col gap-3">
+        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+          Capturing why you dismissed this helps AgntUX learn what's signal vs
+          noise for you.
+        </p>
+        <fieldset
+          className="flex flex-col gap-2"
+          aria-labelledby={`dismiss-outcome-label-${action.id}`}
+        >
+          <span
+            id={`dismiss-outcome-label-${action.id}`}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Outcome
+          </span>
+          <DismissOption
+            value="completed-externally"
+            current={outcome}
+            onChange={setOutcome}
+            title="Completed externally."
+            body="I already handled this in the source app."
+          />
+          <DismissOption
+            value="noise"
+            current={outcome}
+            onChange={setOutcome}
+            title="Noise."
+            body="Items like this aren't worth surfacing."
+          />
+          <DismissOption
+            value="irrelevant"
+            current={outcome}
+            onChange={setOutcome}
+            title="Irrelevant."
+            body="Useful sometimes, but not for me."
+          />
+          <DismissOption
+            value="other"
+            current={outcome}
+            onChange={setOutcome}
+            title="Other"
+            body="— describe below."
+          />
+        </fieldset>
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={`dismiss-note-${action.id}`}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Note (optional)
+          </label>
+          <textarea
+            id={`dismiss-note-${action.id}`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="One line of context AgntUX can use to learn from this."
+            className="min-h-[60px] resize-y rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="dismiss-note"
+          />
+        </div>
+        {rowError && (
+          <p className="text-xs text-red-700" role="alert">
+            {rowError}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="dismiss-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={pending}
+            aria-busy={pending ? 'true' : 'false'}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            data-testid="dismiss-confirm"
+          >
+            {pending ? (
+              <>
+                <Spinner size={12} />
+                Dismissing…
+              </>
+            ) : (
+              'Dismiss action'
+            )}
+          </button>
+        </div>
+      </div>
+    </PanelSection>
+  );
+}
+
+function DismissOption({
+  value,
+  current,
+  onChange,
+  title,
+  body,
+}: {
+  value: DismissOutcome;
+  current: DismissOutcome;
+  onChange: (next: DismissOutcome) => void;
+  title: string;
+  body: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-[0.8125rem]">
+      <input
+        type="radio"
+        name={`dismiss-outcome-${value}`}
+        value={value}
+        checked={current === value}
+        onChange={() => onChange(value)}
+        className="mt-1"
+        data-testid={`dismiss-outcome-${value}`}
+      />
+      <span className="text-foreground">
+        <strong className="font-semibold">{title}</strong>{' '}
+        <span className="text-muted-foreground">{body}</span>
+      </span>
+    </label>
+  );
+}
+
+interface DoSomethingElsePanelProps {
+  action: Action;
+  onClose: () => void;
+  onSubmit: (action: Action, prompt: string) => void;
+}
+
+function DoSomethingElsePanel({
+  action,
+  onClose,
+  onSubmit,
+}: DoSomethingElsePanelProps) {
+  const [prompt, setPrompt] = useState<string>('');
+  const trimmed = prompt.trim();
+  const submit = () => {
+    if (!trimmed) return;
+    onSubmit(action, trimmed);
+  };
+  return (
+    <PanelSection>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Do something else
+        </h4>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Close do something else panel"
+          data-testid={`do-something-else-close-${action.id}`}
+        >
+          ×
+        </button>
+      </div>
+      <div className="mt-2 flex flex-col gap-3">
+        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+          Tell the host what to do. Your prompt will be sent back to chat with
+          the action's full context attached, so the host can act on it
+          without losing the details.
+        </p>
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor={`do-something-else-prompt-${action.id}`}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            What should we do?
+          </label>
+          <textarea
+            id={`do-something-else-prompt-${action.id}`}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. Draft a Linear ticket for this and assign it to me."
+            className="min-h-[100px] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="do-something-else-prompt"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="do-something-else-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!trimmed}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            data-testid="do-something-else-submit"
+          >
+            Send prompt
+          </button>
+        </div>
+      </div>
+    </PanelSection>
+  );
+}
+
+// =============================================================================
+// Action card — collapsed by default; renders a panel inline when expandedKind
+// is set for this action.
+// =============================================================================
+
+interface ActionCardProps {
+  action: Action;
+  pending: boolean;
+  rowError: string | null;
+  expandedKind: ExpandedKind | null;
+  onSuggested: (action: SuggestedAction, actionId: string) => void;
+  onExpand: (id: string, kind: ExpandedKind) => void;
+  onCollapse: () => void;
+  onDone: (id: string) => void;
+  onSnoozeSubmit: (id: string, untilISO: string) => void;
+  onDismissSubmit: (id: string, outcome: string, note: string) => void;
+  onDoSomethingElseSubmit: (action: Action, prompt: string) => void;
+  onStopRaising: (action: Action) => void;
   locale: string;
-  cardRef?: (el: HTMLElement | null) => void;
 }
 
 const MAX_ENTITIES_INLINE = 6;
@@ -479,14 +1081,16 @@ function ActionCard({
   action,
   pending,
   rowError,
+  expandedKind,
   onSuggested,
-  onDetails,
-  onSnoozeOpen,
-  onDismissOpen,
+  onExpand,
+  onCollapse,
   onDone,
-  onDoSomethingElse,
+  onSnoozeSubmit,
+  onDismissSubmit,
+  onDoSomethingElseSubmit,
+  onStopRaising,
   locale,
-  cardRef,
 }: ActionCardProps) {
   const titleId = `card-${action.id}-title`;
   const entitiesShown = action.related_entities.slice(0, MAX_ENTITIES_INLINE);
@@ -510,11 +1114,14 @@ function ActionCard({
     Number.isFinite(createdMs) &&
     Number.isFinite(updatedMs) &&
     Math.abs(updatedMs - createdMs) > 24 * 60 * 60 * 1000;
+
+  const toggle = (kind: ExpandedKind) => {
+    if (expandedKind === kind) onCollapse();
+    else onExpand(action.id, kind);
+  };
+
   return (
     <article
-      ref={(el) => {
-        if (cardRef) cardRef(el);
-      }}
       className="flex flex-col gap-2 rounded-md border border-border bg-card p-3 shadow-sm"
       role="listitem"
       aria-labelledby={titleId}
@@ -615,8 +1222,13 @@ function ActionCard({
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
         <button
           type="button"
-          onClick={() => onDetails(action.id)}
-          className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => toggle('details')}
+          aria-expanded={expandedKind === 'details'}
+          className={
+            expandedKind === 'details'
+              ? 'rounded-md bg-muted px-3 py-1.5 text-[0.8125rem] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+              : 'rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          }
           aria-label={`Expand details for ${action.title}`}
           data-testid={`details-${action.id}`}
         >
@@ -624,9 +1236,14 @@ function ActionCard({
         </button>
         <button
           type="button"
-          onClick={() => onDoSomethingElse(action.id)}
+          onClick={() => toggle('do-something-else')}
+          aria-expanded={expandedKind === 'do-something-else'}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className={
+            expandedKind === 'do-something-else'
+              ? 'rounded-md bg-muted px-3 py-1.5 text-[0.8125rem] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+              : 'rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+          }
           data-testid={`do-something-else-${action.id}`}
         >
           Do something else…
@@ -643,18 +1260,28 @@ function ActionCard({
         <span className="ml-auto" />
         <button
           type="button"
-          onClick={() => onSnoozeOpen(action.id)}
+          onClick={() => toggle('snooze')}
+          aria-expanded={expandedKind === 'snooze'}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className={
+            expandedKind === 'snooze'
+              ? 'rounded-md bg-muted px-3 py-1.5 text-[0.8125rem] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+              : 'rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+          }
           data-testid={`snooze-${action.id}`}
         >
           Snooze
         </button>
         <button
           type="button"
-          onClick={() => onDismissOpen(action.id)}
+          onClick={() => toggle('dismiss')}
+          aria-expanded={expandedKind === 'dismiss'}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className={
+            expandedKind === 'dismiss'
+              ? 'rounded-md bg-muted px-3 py-1.5 text-[0.8125rem] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+              : 'rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
+          }
           data-testid={`dismiss-${action.id}`}
         >
           Dismiss
@@ -677,566 +1304,78 @@ function ActionCard({
           )}
         </button>
       </div>
+      {expandedKind === 'details' && (
+        <DetailsPanel
+          action={action}
+          pending={pending}
+          rowError={rowError}
+          onClose={onCollapse}
+          onSuggested={onSuggested}
+          onSnoozeOpen={(id) => onExpand(id, 'snooze')}
+          onDismissOpen={(id) => onExpand(id, 'dismiss')}
+          onDone={onDone}
+          onDoSomethingElse={(id) => onExpand(id, 'do-something-else')}
+          onStopRaising={onStopRaising}
+        />
+      )}
+      {expandedKind === 'snooze' && (
+        <SnoozePanel
+          action={action}
+          pending={pending}
+          rowError={rowError}
+          onClose={onCollapse}
+          onSubmit={onSnoozeSubmit}
+        />
+      )}
+      {expandedKind === 'dismiss' && (
+        <DismissPanel
+          action={action}
+          pending={pending}
+          rowError={rowError}
+          onClose={onCollapse}
+          onSubmit={onDismissSubmit}
+        />
+      )}
+      {expandedKind === 'do-something-else' && (
+        <DoSomethingElsePanel
+          action={action}
+          onClose={onCollapse}
+          onSubmit={onDoSomethingElseSubmit}
+        />
+      )}
     </article>
   );
 }
 
 // =============================================================================
-// Modals
+// Feedback row — replaces an action card in its slot when a terminal action
+// resolves the row. Auto-fades after FEEDBACK_FADE_MS, at which point the
+// row is dropped from the optimistically-hidden set. Keeps the user's place
+// in the list and gives them a moment to register what just happened.
 // =============================================================================
 
-interface DetailModalProps {
-  action: Action;
-  pending: boolean;
-  rowError: string | null;
-  onClose: () => void;
-  onSuggested: (action: SuggestedAction, actionId: string) => void;
-  onSnoozeOpen: (id: string) => void;
-  onDismissOpen: (id: string) => void;
-  onDone: (id: string) => void;
-  onDoSomethingElse: (id: string) => void;
-  onStopRaising: (action: Action) => void;
-  locale: string;
-  anchor?: HTMLElement | null;
-}
-
-function DetailModal({
-  action,
-  pending,
-  rowError,
-  onClose,
-  onSuggested,
-  onSnoozeOpen,
-  onDismissOpen,
-  onDone,
-  onDoSomethingElse,
-  onStopRaising,
-  anchor,
-}: DetailModalProps) {
-  return (
-    <ScrollableModal
-      open
-      onClose={onClose}
-      anchor={anchor}
-      title={
-        <span className="flex items-center gap-2">
-          <PriorityPill priority={action.priority} />
-          <span className="text-sm font-semibold leading-snug">
-            {action.title}
-          </span>
-        </span>
-      }
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={() => onStopRaising(action)}
-            className="mr-auto rounded-md px-3 py-1.5 text-[0.8125rem] text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="stop-raising"
-          >
-            Stop raising items like this
-          </button>
-          <button
-            type="button"
-            onClick={() => onSnoozeOpen(action.id)}
-            disabled={pending}
-            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-          >
-            Snooze
-          </button>
-          <button
-            type="button"
-            onClick={() => onDismissOpen(action.id)}
-            disabled={pending}
-            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-          >
-            Dismiss
-          </button>
-          <button
-            type="button"
-            onClick={() => onDone(action.id)}
-            disabled={pending}
-            aria-busy={pending ? 'true' : 'false'}
-            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-          >
-            {pending ? (
-              <>
-                <Spinner size={12} />
-                Marking…
-              </>
-            ) : (
-              'Mark done'
-            )}
-          </button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        {action.why_matters_excerpt && (
-          <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Why this matters
-            </h4>
-            <p className="whitespace-pre-line text-[0.8125rem] leading-relaxed text-muted-foreground">
-              {action.why_matters_excerpt}
-            </p>
-          </section>
-        )}
-        {action.personalization_fit_excerpt && (
-          <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Personalization fit
-            </h4>
-            <p className="whitespace-pre-line text-[0.8125rem] leading-relaxed text-muted-foreground">
-              {action.personalization_fit_excerpt}
-            </p>
-          </section>
-        )}
-        {action.suggested_actions.length > 0 && (
-          <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Suggested actions
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {action.suggested_actions.map((sa, idx) => (
-                <button
-                  key={`detail-sa-${idx}`}
-                  type="button"
-                  onClick={() => {
-                    // Close the detail modal as soon as the user takes an
-                    // action — leaving it open after dispatch was confusing
-                    // (the underlying triage row may have already been
-                    // optimistically hidden, so the modal anchored back to
-                    // a stale view).
-                    onSuggested(sa, action.id);
-                    onClose();
-                  }}
-                  className={
-                    idx === 0
-                      ? 'inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                      : 'inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  }
-                  data-testid={`detail-suggested-${idx}`}
-                >
-                  {sa.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  onDoSomethingElse(action.id);
-                  onClose();
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                data-testid="detail-do-something-else"
-              >
-                Do something else…
-              </button>
-            </div>
-          </section>
-        )}
-        {action.related_entities.length > 0 && (
-          <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Related entities
-            </h4>
-            <div className="flex flex-wrap gap-1">
-              {action.related_entities.map((e) => (
-                <EntityBadge key={e} entity={e} />
-              ))}
-            </div>
-            <p className="mt-2 text-[0.6875rem] text-slate-400">
-              Tap-through to entity details ships in a follow-up.
-            </p>
-          </section>
-        )}
-        {rowError && (
-          <p className="text-xs text-red-700" role="alert">
-            {rowError}
-          </p>
-        )}
-      </div>
-    </ScrollableModal>
-  );
-}
-
-interface SnoozeModalProps {
-  action: Action;
-  pending: boolean;
-  rowError: string | null;
-  onClose: () => void;
-  onSubmit: (id: string, untilISO: string) => void;
-  anchor?: HTMLElement | null;
-}
-
-function toLocalDatetimeInputValue(iso: string): string {
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalDatetimeInputValue(value: string): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  if (!Number.isFinite(d.getTime())) return null;
-  return d.toISOString();
-}
-
-function SnoozeModal({
-  action,
-  pending,
-  rowError,
-  onClose,
-  onSubmit,
-  anchor,
-}: SnoozeModalProps) {
-  const [pickedISO, setPickedISO] = useState<string>(nowPlus24hISO());
-  const localValue = toLocalDatetimeInputValue(pickedISO);
-  const submit = () => onSubmit(action.id, pickedISO);
-  return (
-    <ScrollableModal
-      open
-      onClose={onClose}
-      anchor={anchor}
-      title="Snooze action"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="snooze-cancel"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={pending || !pickedISO}
-            aria-busy={pending ? 'true' : 'false'}
-            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-            data-testid="snooze-confirm"
-          >
-            {pending ? (
-              <>
-                <Spinner size={12} />
-                Snoozing…
-              </>
-            ) : (
-              'Snooze'
-            )}
-          </button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-          <strong className="text-foreground">{truncate(action.title, 70)}</strong>{' '}
-          will reappear when the snooze ends.
-        </p>
-        <section>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Quick presets
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setPickedISO(nowPlus24hISO())}
-              data-testid="snooze-preset-24h"
-            >
-              24 hours
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setPickedISO(nowPlus3dISO())}
-              data-testid="snooze-preset-3d"
-            >
-              3 days
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setPickedISO(nextMondayMorningISO())}
-              data-testid="snooze-preset-monday"
-            >
-              Next Monday 9am
-            </button>
-          </div>
-        </section>
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="snooze-until"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Custom date &amp; time
-          </label>
-          <input
-            id="snooze-until"
-            type="datetime-local"
-            value={localValue}
-            onChange={(e) => {
-              const iso = fromLocalDatetimeInputValue(e.target.value);
-              if (iso) setPickedISO(iso);
-            }}
-            className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="snooze-input"
-          />
-        </div>
-        {rowError && (
-          <p className="text-xs text-red-700" role="alert">
-            {rowError}
-          </p>
-        )}
-      </div>
-    </ScrollableModal>
-  );
-}
-
-interface DismissModalProps {
-  action: Action;
-  pending: boolean;
-  rowError: string | null;
-  onClose: () => void;
-  onSubmit: (id: string, outcome: string, note: string) => void;
-  anchor?: HTMLElement | null;
-}
-
-function DismissModal({
-  action,
-  pending,
-  rowError,
-  onClose,
-  onSubmit,
-  anchor,
-}: DismissModalProps) {
-  const [outcome, setOutcome] = useState<DismissOutcome>(DISMISS_OUTCOMES[0]);
-  const [note, setNote] = useState<string>('');
-  const submit = () => onSubmit(action.id, outcome, note.trim());
-  return (
-    <ScrollableModal
-      open
-      onClose={onClose}
-      anchor={anchor}
-      title="Dismiss action"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="dismiss-cancel"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={pending}
-            aria-busy={pending ? 'true' : 'false'}
-            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-            data-testid="dismiss-confirm"
-          >
-            {pending ? (
-              <>
-                <Spinner size={12} />
-                Dismissing…
-              </>
-            ) : (
-              'Dismiss action'
-            )}
-          </button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-          Capturing why you dismissed{' '}
-          <strong className="text-foreground">
-            {truncate(action.title, 70)}
-          </strong>{' '}
-          helps AgntUX learn what's signal vs noise for you.
-        </p>
-        <fieldset
-          className="flex flex-col gap-2"
-          aria-labelledby="dismiss-outcome-label"
-        >
-          <span
-            id="dismiss-outcome-label"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Outcome
-          </span>
-          <DismissOption
-            value="completed-externally"
-            current={outcome}
-            onChange={setOutcome}
-            title="Completed externally."
-            body="I already handled this in the source app."
-          />
-          <DismissOption
-            value="noise"
-            current={outcome}
-            onChange={setOutcome}
-            title="Noise."
-            body="Items like this aren't worth surfacing."
-          />
-          <DismissOption
-            value="irrelevant"
-            current={outcome}
-            onChange={setOutcome}
-            title="Irrelevant."
-            body="Useful sometimes, but not for me."
-          />
-          <DismissOption
-            value="other"
-            current={outcome}
-            onChange={setOutcome}
-            title="Other"
-            body="— describe below."
-          />
-        </fieldset>
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="dismiss-note"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Note (optional)
-          </label>
-          <textarea
-            id="dismiss-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="One line of context AgntUX can use to learn from this."
-            className="min-h-[60px] resize-y rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="dismiss-note"
-          />
-        </div>
-        {rowError && (
-          <p className="text-xs text-red-700" role="alert">
-            {rowError}
-          </p>
-        )}
-      </div>
-    </ScrollableModal>
-  );
-}
-
-function DismissOption({
-  value,
-  current,
-  onChange,
-  title,
-  body,
+function FeedbackRow({
+  id,
+  state,
 }: {
-  value: DismissOutcome;
-  current: DismissOutcome;
-  onChange: (next: DismissOutcome) => void;
-  title: string;
-  body: string;
+  id: string;
+  state: FeedbackState;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2 text-[0.8125rem]">
-      <input
-        type="radio"
-        name="dismiss-outcome"
-        value={value}
-        checked={current === value}
-        onChange={() => onChange(value)}
-        className="mt-1"
-        data-testid={`dismiss-outcome-${value}`}
-      />
-      <span className="text-foreground">
-        <strong className="font-semibold">{title}</strong>{' '}
-        <span className="text-muted-foreground">{body}</span>
-      </span>
-    </label>
-  );
-}
-
-// =============================================================================
-// "Do something else" modal — free-form prompt sent back to the host
-// =============================================================================
-
-interface DoSomethingElseModalProps {
-  action: Action;
-  onClose: () => void;
-  onSubmit: (action: Action, prompt: string) => void;
-  anchor?: HTMLElement | null;
-}
-
-function DoSomethingElseModal({
-  action,
-  onClose,
-  onSubmit,
-  anchor,
-}: DoSomethingElseModalProps) {
-  const [prompt, setPrompt] = useState<string>('');
-  const trimmed = prompt.trim();
-  const submit = () => {
-    if (!trimmed) return;
-    onSubmit(action, trimmed);
-  };
-  return (
-    <ScrollableModal
-      open
-      onClose={onClose}
-      anchor={anchor}
-      title="Do something else"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="do-something-else-cancel"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!trimmed}
-            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-            data-testid="do-something-else-submit"
-          >
-            Send to AgntUX
-          </button>
-        </>
-      }
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid={`feedback-${id}`}
+      className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[0.8125rem] text-green-800"
     >
-      <div className="flex flex-col gap-3">
-        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-          Tell the host what to do with{' '}
-          <strong className="text-foreground">
-            {truncate(action.title, 70)}
-          </strong>
-          . Your prompt will be sent back to chat with the action's full
-          context attached, so the host can act on it without losing the
-          details.
-        </p>
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="do-something-else-prompt"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            What should we do?
-          </label>
-          <textarea
-            id="do-something-else-prompt"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. Draft a Linear ticket for this and assign it to me."
-            className="min-h-[100px] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            data-testid="do-something-else-prompt"
-          />
-        </div>
-      </div>
-    </ScrollableModal>
+      <span aria-hidden="true">✓</span>
+      <span className="font-medium">{state.message}</span>
+      {state.title && (
+        <span className="truncate text-green-900/70">
+          · {truncate(state.title, 60)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1340,41 +1479,13 @@ export function MainComponent(props: MainComponentProps) {
   const ui = useMemo(() => readWidgetState(widgetState), [widgetState]);
 
   // Transient UI state.
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const [snoozeId, setSnoozeId] = useState<string | null>(null);
-  const [dismissId, setDismissId] = useState<string | null>(null);
-  const [doSomethingElseId, setDoSomethingElseId] = useState<string | null>(
-    null,
-  );
+  const [expanded, setExpanded] = useState<ExpandedState | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const toastNonceRef = useRef(0);
-
-  // Card refs keyed by action id — passed to ScrollableModal so each
-  // action-specific modal anchors near the card the user clicked instead
-  // of jumping to the iframe center on a long list.
-  const cardRefsRef = useRef(new Map<string, HTMLElement>());
-  const setCardRef = useCallback((id: string) => {
-    return (el: HTMLElement | null) => {
-      const map = cardRefsRef.current;
-      if (el) map.set(id, el);
-      else map.delete(id);
-    };
-  }, []);
-  const getAnchor = useCallback((id: string | null): HTMLElement | null => {
-    if (!id) return null;
-    return cardRefsRef.current.get(id) ?? null;
-  }, []);
-
-  const dispatchToast = useCallback(
-    (message: string, kind: 'success' | 'error' = 'success') => {
-      toastNonceRef.current += 1;
-      setToast({ message, kind, nonce: toastNonceRef.current });
-    },
-    [],
-  );
-  const dismissToast = useCallback(() => setToast(null), []);
+  const [feedback, setFeedback] = useState<Record<string, FeedbackState>>({});
+  // Track auto-fade timers so we can clean up on unmount and replace stale
+  // ones if the same id resolves twice in quick succession.
+  const feedbackTimersRef = useRef(new Map<string, number>());
 
   // Optimistic-hide set: ids the user has just resolved client-side. Plain
   // useState (not widgetState) — should not survive an iframe remount or
@@ -1412,6 +1523,55 @@ export function MainComponent(props: MainComponentProps) {
     });
   }, []);
 
+  // When a feedback row expires (timer fires, or the user re-triggers the
+  // same id), drop the feedback entry AND optimistically hide the row.
+  // Why both, in this order: the slot-replacement contract is "feedback
+  // takes the action card's slot for FEEDBACK_FADE_MS, then both the card
+  // and the feedback are gone." If we hid the action immediately on
+  // success, `filtered` would no longer contain the id and the feedback
+  // would render at the bottom of the list (the orphan-feedback path)
+  // instead of in the slot the user clicked.
+  const expireFeedback = useCallback(
+    (id: string) => {
+      setFeedback((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      hideOptimistically(id);
+    },
+    [hideOptimistically],
+  );
+
+  const showFeedback = useCallback(
+    (id: string, state: FeedbackState) => {
+      setFeedback((prev) => ({ ...prev, [id]: state }));
+      const timers = feedbackTimersRef.current;
+      const existing = timers.get(id);
+      if (existing) window.clearTimeout(existing);
+      const handle = window.setTimeout(() => {
+        timers.delete(id);
+        expireFeedback(id);
+      }, FEEDBACK_FADE_MS);
+      timers.set(id, handle);
+    },
+    [expireFeedback],
+  );
+
+  // Cleanup all pending fade timers on unmount so we don't leak handles
+  // across iframe remounts. (See briefing-learnings §1.12 — never leave
+  // setTimeouts dangling when the host can re-render us at any time.)
+  useEffect(() => {
+    const timers = feedbackTimersRef.current;
+    return () => {
+      for (const handle of timers.values()) {
+        window.clearTimeout(handle);
+      }
+      timers.clear();
+    };
+  }, []);
+
   // Skeleton: shown while no renderable data yet — gates on
   // hasAnyRenderableData per briefing-learnings §1.12.
   const hasAnyRenderableData =
@@ -1421,9 +1581,13 @@ export function MainComponent(props: MainComponentProps) {
     data.error !== null;
   const isLoading = !toolOutput && !hasAnyRenderableData;
 
-  // Filter through optimistic-hide first so all downstream views (counts,
-  // filter chips, handled accordion) stay honest about what the user has
-  // already resolved this session.
+  // `visibleActions` is the source for both the rendered list AND the
+  // count chips. We hide optimistic-hidden ids here. Feedback'd ids stay
+  // in `visibleActions` so the row renders as a feedback row IN its slot
+  // (the alternative — hiding immediately on success — pushes feedback to
+  // the bottom of the list, the exact UX the v6.1.0 change was meant to
+  // fix). The count chips below subtract feedback'd ids so "All · N" is
+  // honest about what's still actionable.
   const visibleActions = useMemo(
     () => data.actions.filter((a) => !optimisticallyHidden.has(a.id)),
     [data.actions, optimisticallyHidden],
@@ -1463,17 +1627,23 @@ export function MainComponent(props: MainComponentProps) {
     return sorted;
   }, [visibleActions, ui.priority_filter, ui.hide_done, ui.sort]);
 
-  // Counts per priority filter chip.
+  // Counts per priority filter chip. Excludes ids with active feedback —
+  // a row showing "✓ Marked done" is no longer actionable, so counting it
+  // toward "All · N" overstates the open queue.
   const priorityCounts = useMemo(() => {
     const counts = {
-      all: visibleActions.length,
+      all: 0,
       high: 0,
       medium: 0,
       low: 0,
     };
-    for (const a of visibleActions) counts[a.priority] += 1;
+    for (const a of visibleActions) {
+      if (a.id in feedback) continue;
+      counts.all += 1;
+      counts[a.priority] += 1;
+    }
     return counts;
-  }, [visibleActions]);
+  }, [visibleActions, feedback]);
 
   const setPriorityFilter = useCallback(
     (next: PriorityFilter) => {
@@ -1495,6 +1665,14 @@ export function MainComponent(props: MainComponentProps) {
     },
     [setWidgetState],
   );
+
+  const handleExpand = useCallback((id: string, kind: ExpandedKind) => {
+    setExpanded({ id, kind });
+  }, []);
+
+  const handleCollapse = useCallback(() => {
+    setExpanded(null);
+  }, []);
 
   // Tool-call wrappers.
   const runMutation = useCallback(
@@ -1523,51 +1701,69 @@ export function MainComponent(props: MainComponentProps) {
     [callTool],
   );
 
+  // Terminal-action handlers: on success, show feedback in the row's slot
+  // and collapse any inline panel. We deliberately do NOT call
+  // hideOptimistically here — that would remove the row from `filtered`
+  // immediately and force the feedback row to render at the bottom (the
+  // orphan-feedback path) instead of the slot. hideOptimistically fires
+  // when the feedback fades, in expireFeedback.
+
   const handleDone = useCallback(
     (id: string) => {
+      const action = data.actions.find((a) => a.id === id);
       void runMutation(
         id,
         'agntux_core_set_status',
         { id, status: 'done' },
         () => {
-          hideOptimistically(id);
-          dispatchToast('Marked done.');
+          setExpanded((cur) => (cur && cur.id === id ? null : cur));
+          showFeedback(id, {
+            kind: 'done',
+            title: action?.title ?? '',
+            message: 'Marked done',
+          });
         },
       );
     },
-    [runMutation, hideOptimistically, dispatchToast],
+    [data.actions, runMutation, showFeedback],
   );
 
   const handleSnoozeSubmit = useCallback(
     (id: string, untilISO: string) => {
+      const action = data.actions.find((a) => a.id === id);
       void runMutation(
         id,
         'agntux_core_snooze',
         { id, until: untilISO },
         () => {
-          hideOptimistically(id);
-          setSnoozeId(null);
+          setExpanded((cur) => (cur && cur.id === id ? null : cur));
           const formatted = formatDueDate(untilISO, locale);
-          dispatchToast(
-            formatted ? `Snoozed until ${formatted}.` : 'Snoozed.',
-          );
+          showFeedback(id, {
+            kind: 'snoozed',
+            title: action?.title ?? '',
+            message: formatted ? `Snoozed until ${formatted}` : 'Snoozed',
+          });
         },
       );
     },
-    [runMutation, hideOptimistically, dispatchToast, locale],
+    [data.actions, runMutation, showFeedback, locale],
   );
 
   const handleDismissSubmit = useCallback(
     (id: string, outcome: string, note: string) => {
+      const action = data.actions.find((a) => a.id === id);
       const args: Record<string, unknown> = { id, outcome };
       if (note) args.outcome_note = note;
       void runMutation(id, 'agntux_core_dismiss', args, () => {
-        hideOptimistically(id);
-        setDismissId(null);
-        dispatchToast('Dismissed.');
+        setExpanded((cur) => (cur && cur.id === id ? null : cur));
+        showFeedback(id, {
+          kind: 'dismissed',
+          title: action?.title ?? '',
+          message: 'Dismissed',
+        });
       });
     },
-    [runMutation, hideOptimistically, dispatchToast],
+    [data.actions, runMutation, showFeedback],
   );
 
   const handleDoSomethingElseSubmit = useCallback(
@@ -1606,10 +1802,9 @@ export function MainComponent(props: MainComponentProps) {
         );
       }
       void sendFollowUpMessage(lines.join('\n'));
-      setDoSomethingElseId(null);
-      dispatchToast('Sent to AgntUX.');
+      setExpanded(null);
     },
-    [sendFollowUpMessage, dispatchToast],
+    [sendFollowUpMessage],
   );
 
   const handleSuggested = useCallback(
@@ -1644,11 +1839,15 @@ export function MainComponent(props: MainComponentProps) {
   const handleStopRaising = useCallback(
     (action: Action) => {
       const prompt = `ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'}).`;
-      hideOptimistically(action.id);
       void sendFollowUpMessage(prompt);
-      setDetailId(null);
+      setExpanded((cur) => (cur && cur.id === action.id ? null : cur));
+      showFeedback(action.id, {
+        kind: 'stopped-raising',
+        title: action.title,
+        message: 'Asked AgntUX to stop raising items like this',
+      });
     },
-    [sendFollowUpMessage, hideOptimistically],
+    [sendFollowUpMessage, showFeedback],
   );
 
   const handleOnboard = useCallback(() => {
@@ -1695,18 +1894,16 @@ export function MainComponent(props: MainComponentProps) {
     );
   }
 
-  const detailAction = detailId
-    ? data.actions.find((a) => a.id === detailId) ?? null
-    : null;
-  const snoozeAction = snoozeId
-    ? data.actions.find((a) => a.id === snoozeId) ?? null
-    : null;
-  const dismissAction = dismissId
-    ? data.actions.find((a) => a.id === dismissId) ?? null
-    : null;
-  const doSomethingElseAction = doSomethingElseId
-    ? data.actions.find((a) => a.id === doSomethingElseId) ?? null
-    : null;
+  // Render strategy: walk the filtered list. For each id, if a feedback
+  // state exists, render FeedbackRow in that slot — keeps the user's place
+  // even after we've optimistically hidden the row from `visibleActions`.
+  // Feedback ids that no longer correspond to a previously-visible row
+  // (rare — e.g., the action was already gone before feedback fired) are
+  // appended after the visible items so the user still sees them.
+  const filteredIds = new Set(filtered.map((a) => a.id));
+  const orphanFeedbackIds = Object.keys(feedback).filter(
+    (id) => !filteredIds.has(id),
+  );
 
   return (
     <div
@@ -1791,25 +1988,42 @@ export function MainComponent(props: MainComponentProps) {
           role="list"
           aria-label="Open action items"
         >
-          {filtered.length === 0 && data.actions.length > 0 && (
-            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-              Nothing matches this filter.
-            </p>
-          )}
-          {filtered.map((a) => (
-            <ActionCard
-              key={a.id}
-              action={a}
-              pending={pendingId === a.id}
-              rowError={rowErrors[a.id] ?? null}
-              onSuggested={handleSuggested}
-              onDetails={setDetailId}
-              onSnoozeOpen={setSnoozeId}
-              onDismissOpen={setDismissId}
-              onDone={handleDone}
-              onDoSomethingElse={setDoSomethingElseId}
-              locale={locale}
-              cardRef={setCardRef(a.id)}
+          {filtered.length === 0 &&
+            data.actions.length > 0 &&
+            Object.keys(feedback).length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Nothing matches this filter.
+              </p>
+            )}
+          {filtered.map((a) => {
+            const fb = feedback[a.id];
+            if (fb) return <FeedbackRow key={a.id} id={a.id} state={fb} />;
+            const expandedKind =
+              expanded && expanded.id === a.id ? expanded.kind : null;
+            return (
+              <ActionCard
+                key={a.id}
+                action={a}
+                pending={pendingId === a.id}
+                rowError={rowErrors[a.id] ?? null}
+                expandedKind={expandedKind}
+                onSuggested={handleSuggested}
+                onExpand={handleExpand}
+                onCollapse={handleCollapse}
+                onDone={handleDone}
+                onSnoozeSubmit={handleSnoozeSubmit}
+                onDismissSubmit={handleDismissSubmit}
+                onDoSomethingElseSubmit={handleDoSomethingElseSubmit}
+                onStopRaising={handleStopRaising}
+                locale={locale}
+              />
+            );
+          })}
+          {orphanFeedbackIds.map((id) => (
+            <FeedbackRow
+              key={`orphan-${id}`}
+              id={id}
+              state={feedback[id]}
             />
           ))}
           {data.counts.truncated && (
@@ -1828,61 +2042,6 @@ export function MainComponent(props: MainComponentProps) {
           )}
         </div>
       </fieldset>
-
-      {detailAction && (
-        <DetailModal
-          action={detailAction}
-          pending={pendingId === detailAction.id}
-          rowError={rowErrors[detailAction.id] ?? null}
-          onClose={() => setDetailId(null)}
-          onSuggested={handleSuggested}
-          onSnoozeOpen={(id) => {
-            setDetailId(null);
-            setSnoozeId(id);
-          }}
-          onDismissOpen={(id) => {
-            setDetailId(null);
-            setDismissId(id);
-          }}
-          onDone={(id) => {
-            handleDone(id);
-            setDetailId(null);
-          }}
-          onDoSomethingElse={(id) => setDoSomethingElseId(id)}
-          onStopRaising={handleStopRaising}
-          locale={locale}
-          anchor={getAnchor(detailAction.id)}
-        />
-      )}
-      {snoozeAction && (
-        <SnoozeModal
-          action={snoozeAction}
-          pending={pendingId === snoozeAction.id}
-          rowError={rowErrors[snoozeAction.id] ?? null}
-          onClose={() => setSnoozeId(null)}
-          onSubmit={handleSnoozeSubmit}
-          anchor={getAnchor(snoozeAction.id)}
-        />
-      )}
-      {dismissAction && (
-        <DismissModal
-          action={dismissAction}
-          pending={pendingId === dismissAction.id}
-          rowError={rowErrors[dismissAction.id] ?? null}
-          onClose={() => setDismissId(null)}
-          onSubmit={handleDismissSubmit}
-          anchor={getAnchor(dismissAction.id)}
-        />
-      )}
-      {doSomethingElseAction && (
-        <DoSomethingElseModal
-          action={doSomethingElseAction}
-          onClose={() => setDoSomethingElseId(null)}
-          onSubmit={handleDoSomethingElseSubmit}
-          anchor={getAnchor(doSomethingElseAction.id)}
-        />
-      )}
-      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   );
 }

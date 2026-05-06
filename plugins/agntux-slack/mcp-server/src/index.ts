@@ -30,10 +30,14 @@ const server = new Server(
 // Tools surface (v4.0.0+ all tool names are prefixed with `agntux_slack_`
 // so they are unambiguous at the host's MCP routing layer — collisions
 // with other servers' tool names are no longer possible):
-//   - agntux_slack_compose_view — invoked by the draft skill after composing
-//     a Slack reply draft. Returns structuredContent for ui://slack-compose.
-//   - agntux_slack_canvas_view — invoked by the draft skill after composing
-//     canvas sections. Returns structuredContent for ui://slack-canvas.
+//   - agntux_slack_compose_view — invoked at click time. The host routes
+//     `ux: ...open the reply composer for action {id}` directly here. The
+//     view tool reads the action file's `## Compose payload` body section
+//     (pre-composed at ingest by skills/sync) and returns structuredContent
+//     for ui://slack-compose.
+//   - agntux_slack_canvas_view — invoked at click time. Same shape, lifts
+//     the `## Canvas payload` body section and returns structuredContent
+//     for ui://slack-canvas.
 const TOOLS = {
   agntux_slack_compose_view: {
     description: composeViewTool.description,

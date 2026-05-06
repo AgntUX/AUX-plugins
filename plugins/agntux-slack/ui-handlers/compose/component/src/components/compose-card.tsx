@@ -27,7 +27,6 @@ import { ExternalLink } from "./external-link.js";
 import { Spinner } from "./spinner.js";
 import { formatDateTime, defaultScheduleTime } from "../lib/format-date.js";
 import { useEmitCommit } from "../lib/emit-commit.js";
-import { useAppsClient } from "../lib/apps-react/index.js";
 
 interface ComposeCardProps {
   payload: ComposePayload;
@@ -53,9 +52,12 @@ export function ComposeCard({ payload }: ComposeCardProps) {
     proposed_send_time ?? defaultScheduleTime(),
   );
   const [showAllMessages, setShowAllMessages] = useState(false);
+  // 3.0.0: discard is a pure local action — no host round-trip. Setting
+  // `discarded` collapses the form into a "Discarded" banner so the user
+  // gets immediate feedback without sending a no-op prompt to chat.
+  const [discarded, setDiscarded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { commitState, commit, reset } = useEmitCommit();
-  const client = useAppsClient();
 
   // Auto-resize textarea on body changes.
   useEffect(() => {
@@ -77,12 +79,35 @@ export function ComposeCard({ payload }: ComposeCardProps) {
         : `Reply to @${thread.parent_author_real_name}`;
 
   function handleSend() {
-    void commit(action_id, mode === "draft" ? "send" : mode, editedBody, mode === "schedule" ? (sendAt ?? undefined) : undefined);
+    void commit(
+      action_id,
+      mode === "draft" ? "send" : mode,
+      editedBody,
+      channel,
+      { parent_ts: thread.parent_ts },
+      mode === "schedule" ? (sendAt ?? undefined) : undefined,
+    );
   }
 
   function handleDiscard() {
-    void client.sendFollowUpMessage(
-      `ux: Use the agntux-slack plugin to discard the draft for action ${action_id}.`,
+    setDiscarded(true);
+  }
+
+  if (discarded) {
+    return (
+      <div
+        data-testid="compose-card"
+        className="flex flex-col gap-2 bg-background text-foreground"
+      >
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="compose-discarded-banner"
+          className="rounded-md border border-border bg-muted px-3 py-2 text-[0.8125rem] text-muted-foreground"
+        >
+          Discarded — no message was sent. The action item is still open.
+        </div>
+      </div>
     );
   }
 

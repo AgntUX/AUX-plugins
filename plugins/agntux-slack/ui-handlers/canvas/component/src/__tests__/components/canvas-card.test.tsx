@@ -103,7 +103,7 @@ describe("MainComponent — canvas card render (with provider)", () => {
     expect(screen.getByTestId("decisions-editor-item-2")).toBeInTheDocument();
   });
 
-  it("primary button emits canvas envelope via sendFollowUpMessage", async () => {
+  it("primary button emits a Slack-Connector-targeted envelope with channel + thread context", async () => {
     const user = userEvent.setup();
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     const { adapter } = renderWithProvider(<MainComponent {...props} />, {
@@ -113,12 +113,17 @@ describe("MainComponent — canvas card render (with provider)", () => {
     await user.click(screen.getByTestId("primary-action"));
     expect(spy).toHaveBeenCalledTimes(1);
     const [msg] = spy.mock.calls[0] as [{ type: string; text: string }];
-    expect(msg.text).toMatch(/^ux: Use the agntux-slack plugin to commit the drafted canvas/);
-    expect(msg.text).toContain("canvas-action-1");
+    expect(msg.text).toMatch(/^Use the Slack Connector/);
+    expect(msg.text).toContain("Create a Slack canvas");
+    expect(msg.text).toContain("post it as a thread reply");
+    expect(msg.text).toContain("channel_id:");
+    expect(msg.text).toContain("thread_ts:");
+    expect(msg.text).toContain("(action_id: canvas-action-1)");
     expect(msg.text).toContain("«Thread summary: Apex Phase 2»");
+    expect(msg.text).not.toMatch(/agntux-slack plugin/);
   });
 
-  it("discard button emits discard envelope", async () => {
+  it("discard is a pure local action — does NOT send to host, shows the discarded banner", async () => {
     const user = userEvent.setup();
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     const { adapter } = renderWithProvider(<MainComponent {...props} />, {
@@ -126,10 +131,10 @@ describe("MainComponent — canvas card render (with provider)", () => {
     });
     const spy = vi.spyOn(adapter, "sendMessage");
     await user.click(screen.getByTestId("discard-button"));
-    expect(spy).toHaveBeenCalledTimes(1);
-    const [msg] = spy.mock.calls[0] as [{ type: string; text: string }];
-    expect(msg.text).toContain("discard");
-    expect(msg.text).toContain("canvas-action-1");
+    expect(spy).not.toHaveBeenCalled();
+    expect(
+      await screen.findByTestId("canvas-discarded-banner"),
+    ).toHaveTextContent(/Discarded/);
   });
 });
 

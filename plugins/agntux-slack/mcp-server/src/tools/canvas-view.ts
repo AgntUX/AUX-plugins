@@ -2,24 +2,28 @@
 // canvas_view — render tool for the agntux-slack Slack canvas-summary MCP App.
 //
 // Shape rules (mirrors compose-view.ts):
-//   - The draft skill has already composed the canvas sections.
-//   - This tool reads <root>/actions/{action_id}.md to verify the action
-//     exists and is still open.
+//   - The sync skill pre-composed the canvas sections at ingest time and
+//     stored them in the action file's `## Canvas payload` body section.
+//     This tool reads <root>/actions/{action_id}.md, verifies the action is
+//     still open, and lifts the payload — it does NOT call Slack tools
+//     (read-only, stateless).
+//   - Inline structured args still win when supplied (legacy / testing path).
 //   - Hard caps are enforced server-side. Never throws from the happy path.
 //
 // Returns:
 //   On success — { structuredContent: CanvasPayload, content: [...], _meta }
 //   On error   — { structuredContent: { error: '...' }, content: [...], _meta }
 //
-// Committed-envelope encoding (for draft-flow-author):
-//   Component emits: ux: Use the agntux-slack plugin to commit the drafted
-//   canvas for action {action_id} with title «{title}», tldr «{tldr}»,
-//   decisions «{d1||d2||d3}», open_questions «{q1||q2}», followup_message
-//   «{proposed_followup_message}».
-//   Unicode guillemets «» delimit each field. Within decisions and
-//   open_questions the list items are joined with the sentinel || and each
-//   item's literal | is doubled to || before joining. The draft skill parser
-//   reverses the doubling.
+// Committed-envelope encoding (5.0.0+):
+//   The component emits an envelope addressed at the user's Slack Connector
+//   directly — no agntux-slack draft skill in the chain (the skill was
+//   removed in 5.0.0). channel_id, thread_ts, scalar fields, and JSON-encoded
+//   list fields are all carried inline. The envelope instructs the host to
+//   call slack_create_canvas first, then post the canvas URL as a Slack
+//   mrkdwn link `<URL|title>` in the parent's thread (via
+//   slack_send_message). See
+//   ui-handlers/canvas/component/src/lib/build-canvas-envelope.ts for the
+//   full shape and rationale.
 // =============================================================================
 
 import { statSync } from "node:fs";

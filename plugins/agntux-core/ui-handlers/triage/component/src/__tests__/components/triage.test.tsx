@@ -823,24 +823,72 @@ describe('MainComponent — v6.0.0 features', () => {
     expect(sendFollowUpMessageSpy).not.toHaveBeenCalled();
   });
 
-  it('Done button shows a success toast', async () => {
+  it('Done button shows an inline feedback row in the resolved item slot', async () => {
     const user = userEvent.setup();
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('done-fixture-action-1'));
-    expect(await screen.findByTestId('toast-success')).toHaveTextContent(
-      /Marked done/,
-    );
+    expect(
+      await screen.findByTestId('feedback-fixture-action-1'),
+    ).toHaveTextContent(/Marked done/);
   });
 
-  it('Detail modal closes after a suggested-action click', async () => {
+  it('feedback row replaces the action card in the same DOM slot (not appended at the bottom)', async () => {
+    // Three actions; resolve the MIDDLE one. Assert the feedback row sits at
+    // the same DOM index in the list as the original action card did. This
+    // is the load-bearing UX promise made in the v6.1.0 CHANGELOG —
+    // breaking it puts feedback at the end of the list, far from the user's
+    // click, which is exactly the failure mode the toast→inline change was
+    // meant to fix.
+    const user = userEvent.setup();
+    const payload = makePayload({
+      actions: [
+        makeAction({ id: 'first' }),
+        makeAction({ id: 'middle' }),
+        makeAction({ id: 'last' }),
+      ],
+      counts: { open: 3, snoozed: 0, handled_recent: 0, truncated: false },
+    });
+    const { props } = createMainComponentProps({ toolOutput: payload });
+    render(<MainComponent {...props} />);
+
+    const list = screen.getByRole('list', { name: /open action items/i });
+    const before = Array.from(
+      list.querySelectorAll<HTMLElement>('[data-testid^="action-card-"]'),
+    ).map((el) => el.dataset.testid);
+    expect(before).toEqual([
+      'action-card-first',
+      'action-card-middle',
+      'action-card-last',
+    ]);
+
+    await user.click(screen.getByTestId('done-middle'));
+
+    // Feedback row appears.
+    await screen.findByTestId('feedback-middle');
+
+    // Walk the list children in DOM order. The middle slot must now hold
+    // the feedback row, with the unaffected cards above and below.
+    const after = Array.from(
+      list.querySelectorAll<HTMLElement>(
+        '[data-testid^="action-card-"], [data-testid^="feedback-"]',
+      ),
+    ).map((el) => el.dataset.testid);
+    expect(after).toEqual([
+      'action-card-first',
+      'feedback-middle',
+      'action-card-last',
+    ]);
+  });
+
+  it('Details panel closes after a suggested-action click', async () => {
     const user = userEvent.setup();
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('details-fixture-action-1'));
-    // Modal renders the same-keyed suggested action button; click index 0.
+    // The inline panel renders the same-keyed suggested-action button.
     await user.click(screen.getByTestId('detail-suggested-0'));
-    // The detail modal closes — the per-section heading is no longer present.
+    // The panel collapses — the per-section heading is no longer present.
     expect(
       screen.queryByText(/Why this matters/i),
     ).not.toBeInTheDocument();

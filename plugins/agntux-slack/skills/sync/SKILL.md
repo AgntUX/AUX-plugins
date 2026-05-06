@@ -25,11 +25,14 @@ do NOT cache raw source data locally.
 You are **read-only**. The Slack write tools
 (`slack_send_message`, `slack_send_message_draft`,
 `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`)
-are reserved for `skills/draft/SKILL.md` and only ever fire after
-explicit user confirmation in chat. **Calling any Slack write tool
-from this skill is a bug.** The general-purpose agent has access to
-them, but discipline at this prompt level is the safety property —
-same trust level as the draft skill's confirmation gate.
+only fire after the user clicks Send / Schedule / Save Draft / Create
+in the compose or canvas iframe — at which point the iframe emits a
+`Use the Slack Connector to …` envelope to chat carrying channel_id,
+thread_ts, body, and mode inline, and the host dispatches directly
+through the connector. **Calling any Slack write tool from this skill
+is a bug.** The general-purpose agent has access to them, but
+discipline at this prompt level is the safety property — the iframe
+Send button is the explicit authorisation gate.
 
 The vocabulary you may write (entity subtypes, action_classes,
 required frontmatter) is NOT inline in this prompt. It's defined in
@@ -596,7 +599,7 @@ Per `/plugin-toolkit:author` §4 the load-bearing rule is *"Never pre-fill the d
 
 This skill **literally** complies — the drafted body lives in a `## Compose payload` body section, never in the `host_prompt` — but **inverts the spirit**: composition happens at ingest, not click. This is intentional per user direction. The tradeoff is faster, more reliable rendering at the cost of potentially stale draft content when the user clicks hours after ingest.
 
-Freshness expectation: the bound on draft staleness is the next sync cadence (typically 30 min during work hours per the manifest's `recommended_ingest_cadence`). Stale drafts are acceptable because (a) the compose iframe surfaces the draft as editable text, (b) the user can rewrite it before clicking Send, and (c) the iframe Send button remains the explicit authorisation gate for the actual Slack write — that gate is **untouched** because Step 6.5+ of the draft skill is unchanged.
+Freshness expectation: the bound on draft staleness is the next sync cadence (typically 30 min during work hours per the manifest's `recommended_ingest_cadence`). Stale drafts are acceptable because (a) the compose iframe surfaces the draft as editable text, (b) the user can rewrite it before clicking Send, and (c) the iframe Send button remains the explicit authorisation gate for the actual Slack write — clicking it emits a `Use the Slack Connector to …` envelope addressed at the host's connector tools, with channel_id and thread_ts inline.
 
 **Apply `# Rewrites` from `data/instructions/agntux-slack.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
 
@@ -721,7 +724,7 @@ There is no separate "write learnings" step — agent-authored learnings files w
 - Never overwrite `## User notes` on an entity. Section preservation is load-bearing.
 - The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
 - If a per-plugin instruction is ambiguous ("never raise stuff from `notifications:*`" but the file references `bot_id:B0NOTIF`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
-- **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` are all reserved for `skills/draft/SKILL.md` after explicit user confirmation. The general-purpose agent has access to them; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
+- **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` only fire after the user clicks Send / Schedule / Save Draft / Create in the compose or canvas iframe; the iframe emits a `Use the Slack Connector to …` envelope and the host dispatches. The general-purpose agent has access to these tools; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
 - **Auto-resolution authority (Step 8.5).** This skill MAY transition an existing `status: open` action to `status: done` *without* a user click — but only when (a) `source: slack`, (b) `reason_class: response-needed`, (c) the action's `source_ref` thread or channel was just fetched, and (d) the Step 8a reply-state scan would conclude the user has already replied with no qualifying follow-up. The auto-resolved action MUST carry an `## Auto-resolved` body section so the user (and the `pattern-feedback` subagent) can see this was an automated transition. Outside those conditions, action-status writes flow through the agntux-core MCP server (`set_status`, `dismiss`, `snooze`) — not direct file edits from this skill.
 
 ## Concurrent-run note
@@ -733,7 +736,7 @@ If two ingest plugins run concurrently, agntux-core's index hook may briefly sho
 You do NOT:
 - Decide when you run — the host's scheduler does.
 - Create/edit scheduled tasks — host-UI primitive.
-- Draft proposed replies, schedule sends, or summarise threads to canvas — `skills/draft/SKILL.md` does this at click-time after explicit user confirmation. Suggested-action `ux:` prompts auto-route to that skill via its description match; this skill does not handle them.
+- Draft proposed replies, schedule sends, or summarise threads to canvas — those happen at click time. Suggested-action `ux:` prompts route directly to `compose_view` / `canvas_view` (the description-based MCP tool routing). This skill pre-composes the body inside `## Compose payload` / `## Canvas payload` so the view tool can lift it; the iframe presents it for edit; the user clicks Send and the iframe emits a `Use the Slack Connector to …` envelope. This skill does not handle the click-time path.
 - Call any Slack write tool. Read-only is non-negotiable.
 - Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
 - Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
@@ -747,4 +750,4 @@ Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
 - Slack read MCP tools (Cowork registers them under a per-instance UUID, so the names look like `mcp__<uuid>__slack_read_channel`): `slack_read_channel`, `slack_read_thread`, `slack_read_user_profile`, `slack_search_public_and_private`, `slack_search_channels`, `slack_read_canvas`.
-- Slack write tools are present in the inherited tool set but **forbidden by this prompt** — `skills/draft/SKILL.md` is the only authorised caller.
+- Slack write tools are present in the inherited tool set but **forbidden by this prompt** — the only authorised caller is the host, acting on a `Use the Slack Connector to …` envelope emitted by the compose / canvas iframe after an explicit Send / Schedule / Save Draft / Create click.

@@ -6,6 +6,60 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-05-06
+
+User-reported bug: clicking Send / Schedule / Save-as-Draft / Create-canvas
+in the Slack iframes asked the host to "use the agntux-slack plugin to
+commit the drafted reply…" — the host has no Slack write tools on
+agntux-slack (those live on the user's Slack Connector), and the envelope
+carried no channel_id / thread_ts so any indirect router would have had to
+re-read the action file from disk to recover the context. The chain was
+fragile and frequently failed to reach a Slack write call.
+
+### Changed (BREAKING)
+
+- **Committed envelopes now target the user's Slack Connector directly.**
+  All four iframe-emitted envelopes (`compose` Send / Schedule / Save Draft
+  and `canvas` Create) carry the channel_id, thread_ts, body, mode, and
+  send_at inline and instruct the host with `Use the Slack Connector to
+  …`. Threading is explicit: the envelope tells the host to reply in the
+  parent's thread and that the reply will start a thread on the parent if
+  one does not yet exist. The retired shape was
+  `ux: Use the agntux-slack plugin to commit the drafted reply for action
+  {id} with body «…» (mode: …)` (envelope carried no Slack arguments).
+  Per §5.1, any change to the `ux:` prompt surface is MAJOR.
+- **`skills/draft/` is removed.** The skill's only job (parse the
+  committed envelope → re-read the action file → invoke the Slack
+  Connector) is obsolete now that the envelope carries every Slack
+  Connector argument inline. Keeping it would create a competing parser
+  for the new envelope shape. The `__tests__/draft-flow.test.ts` and
+  `__tests__/envelope-shape.test.ts` files are removed for the same
+  reason — both targeted the now-deleted skill's regex contract. Envelope
+  shape is now covered by per-component unit tests under
+  `ui-handlers/{compose,canvas}/component/src/__tests__/lib/`.
+- **Discard is now a pure local action.** Clicking Discard in either
+  iframe sets a local `discarded` flag, replaces the form with a
+  "Discarded — no message was sent. The action item is still open."
+  banner, and emits **nothing** to chat. The retired no-op envelope
+  (`ux: Use the agntux-slack plugin to discard the draft for action {id}.`)
+  is no longer sent.
+- **Canvas commit is now a two-step host instruction.** The envelope
+  instructs the host to (1) call `slack_create_canvas` with the assembled
+  canvas content, then (2) call `slack_send_message` with the canvas URL
+  formatted as Slack mrkdwn `<URL|title>` posted as a thread reply.
+  Slack's auto-unfurl renders the link as a canvas-preview card. The
+  iframe cannot precompute the URL — only the host has it after step 1.
+- **`follow_up_intents` keys renamed** in `agents/ui-handlers/{compose,
+  canvas}.md` to reflect the new routing target: `agntux-slack-commit-*`
+  → `slack-connector-*`; `agntux-slack-{compose,canvas}-discard` →
+  `{compose,canvas}-discard-local`. Operational manifests only — no
+  runtime impact.
+
+### Removed
+
+- `skills/draft/SKILL.md` (and its `references/`).
+- `__tests__/draft-flow.test.ts` and `__tests__/envelope-shape.test.ts`.
+
 ## [4.0.0] — 2026-05-06
 
 Coordinated release with `agntux-core` 6.0.0 — both ship together.

@@ -138,7 +138,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 6.0.0 (6.0.0 prefixes all MCP tools with `agntux_core_`, ships the AgntUX logo + named header on the triage card, adds Created/Updated dates, a Most-recently-created sort option, a 'Do something else' affordance, success toasts, and modal-anchoring near the clicked card)", () => {
+  it("plugin.json is at version 6.1.0 (6.1.0 replaces action-card modals with inline expansion panels, replaces toast notifications with in-list feedback rows that take the resolved item's slot, and renames the 'Do something else' CTA from 'Send to AgntUX' to 'Send prompt')", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -148,7 +148,7 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("6.0.0");
+    expect(manifest.version).toBe("6.1.0");
   });
 
   it("mcp-server/package.json declares the ./agntux-root subpath export", () => {

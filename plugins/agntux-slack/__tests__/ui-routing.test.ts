@@ -65,23 +65,23 @@ describe("compose UI routing", () => {
     expect(src).toContain("draft a reply and schedule it for action");
   });
 
-  it("verb_phrases does NOT contain user-direct trigger phrases (compose_view requires args only the draft skill can produce)", () => {
-    // The view tool has 5 required arg objects (action_id, initial_verb,
-    // drafted_body, thread_context, channel). A user typing "compose slack
-    // reply" can't supply those, and the harness LLM can't hallucinate them.
-    // Removing the user-direct phrases avoids misleading the host into a
-    // dead-end routing path. See compose.md frontmatter comment.
+  it("verb_phrases does NOT contain user-direct trigger phrases (compose_view is suggested-action-driven, not chat-driven)", () => {
+    // The view tool needs `action_id` to resolve the action file's
+    // ## Compose payload. A user typing "compose slack reply" can't supply
+    // it, and the harness LLM can't hallucinate it. Removing the
+    // user-direct phrases avoids misleading the host into a dead-end
+    // routing path. See compose.md frontmatter comment.
     const src = readFile(composeMdPath);
     expect(src).not.toContain('"compose slack reply"');
     expect(src).not.toContain('"slack draft view"');
   });
 
-  it("follow_up_intents lists all four expected intent keys", () => {
+  it("follow_up_intents lists the 3.0.0 Slack-Connector-targeted commit keys plus local discard", () => {
     const src = readFile(composeMdPath);
-    expect(src).toContain("agntux-slack-commit-send");
-    expect(src).toContain("agntux-slack-commit-schedule");
-    expect(src).toContain("agntux-slack-commit-save-draft");
-    expect(src).toContain("agntux-slack-discard");
+    expect(src).toContain("slack-connector-send");
+    expect(src).toContain("slack-connector-schedule");
+    expect(src).toContain("slack-connector-save-draft");
+    expect(src).toContain("compose-discard-local");
   });
 
   it("degraded_states block has the canonical source_not_found key (lint rule E12)", () => {
@@ -141,21 +141,21 @@ describe("canvas UI routing", () => {
     expect(src).toContain("summarise the thread for action");
   });
 
-  it("verb_phrases does NOT contain user-direct trigger phrases (canvas_view requires args only the draft skill can produce)", () => {
-    // The view tool has 5 required arg objects (action_id, drafted_canvas,
-    // channel, thread, proposed_followup_message). A user typing "summarise
-    // to canvas" can't supply those, and the harness LLM can't hallucinate
-    // them. Removing the user-direct phrases avoids misleading the host into
-    // a dead-end routing path. See canvas.md frontmatter comment.
+  it("verb_phrases does NOT contain user-direct trigger phrases (canvas_view is suggested-action-driven, not chat-driven)", () => {
+    // The view tool needs `action_id` to resolve the action file's
+    // ## Canvas payload. A user typing "summarise to canvas" can't supply
+    // it, and the harness LLM can't hallucinate it. Removing the
+    // user-direct phrases avoids misleading the host into a dead-end
+    // routing path. See canvas.md frontmatter comment.
     const src = readFile(canvasMdPath);
     expect(src).not.toContain('"summarise to canvas"');
     expect(src).not.toContain('"slack canvas view"');
   });
 
-  it("follow_up_intents lists both canvas intent keys", () => {
+  it("follow_up_intents lists the 3.0.0 Slack-Connector-targeted canvas key plus local discard", () => {
     const src = readFile(canvasMdPath);
-    expect(src).toContain("agntux-slack-canvas-commit-create");
-    expect(src).toContain("agntux-slack-canvas-discard");
+    expect(src).toContain("slack-connector-create-canvas-and-post");
+    expect(src).toContain("canvas-discard-local");
   });
 
   it("degraded_states block has the canonical source_not_found key (lint rule E12)", () => {

@@ -39,6 +39,10 @@ export function CanvasCard({ payload }: CanvasCardProps) {
   const [openQuestions, setOpenQuestions] = useState<string[]>(drafted_canvas.open_questions);
   const [activeTab, setActiveTab] = useState<ActiveTab>("edit");
   const [commitState, setCommitState] = useState<CommitState>("idle");
+  // 3.0.0: discard is a pure local action — no host round-trip. Setting
+  // `discarded` collapses the form into a "Discarded" banner so the user
+  // gets immediate feedback without sending a no-op prompt to chat.
+  const [discarded, setDiscarded] = useState(false);
   // Ref-based double-click guard — see emit-commit.ts for rationale. The
   // disabled={isSending} prop on the primary button mitigates this in the
   // common case, but ref-based gating is bulletproof against fast event
@@ -60,6 +64,8 @@ export function CanvasCard({ payload }: CanvasCardProps) {
         decisions,
         openQuestions,
         proposed_followup_message,
+        channel,
+        { parent_ts: payload.thread.parent_ts },
       );
       await client.sendFollowUpMessage(prompt);
       setCommitState("sent");
@@ -71,8 +77,24 @@ export function CanvasCard({ payload }: CanvasCardProps) {
   }
 
   function handleDiscard() {
-    void client.sendFollowUpMessage(
-      `ux: Use the agntux-slack plugin to discard the canvas for action ${action_id}.`,
+    setDiscarded(true);
+  }
+
+  if (discarded) {
+    return (
+      <div
+        data-testid="canvas-card"
+        className="flex flex-col gap-2 bg-background text-foreground"
+      >
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="canvas-discarded-banner"
+          className="rounded-md border border-border bg-muted px-3 py-2 text-[0.8125rem] text-muted-foreground"
+        >
+          Discarded — no canvas was created. The action item is still open.
+        </div>
+      </div>
     );
   }
 
@@ -204,7 +226,7 @@ export function CanvasCard({ payload }: CanvasCardProps) {
           {/*
             ── Participants (READ-ONLY by design) ─────────────────────────
             Participants are derived from the source thread context (Slack
-            user IDs → real names) by the draft skill at click time. They
+            user IDs → real names) by the sync skill at ingest time and lifted by canvas_view. They
             are NOT included in the committed envelope (see
             ui-handlers/canvas/component/src/lib/build-canvas-envelope.ts).
             The skill re-reads the original participants list from the

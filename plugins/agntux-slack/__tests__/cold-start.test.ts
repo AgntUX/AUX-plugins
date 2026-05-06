@@ -12,7 +12,7 @@
  *   3. skills/sync/SKILL.md has no unsubstituted {{placeholder}} tokens,
  *      references the Slack read MCP tools, is read-only, and uses the
  *      top-level-skill pattern (context: fork + general-purpose).
- *   4. skills/draft/SKILL.md exists, references the write tools, and codifies
+ *   4. skills/draft/ is removed (5.0.0+ envelopes target the Slack Connector directly), and the sync skill codifies
  *      the "no write without explicit yes" rule.
  *   5. Both skills live under directory-shaped paths (skills/{name}/SKILL.md).
  *   6. The example entity files conform to the P3 entity schema.
@@ -101,14 +101,14 @@ describe("hooks shape (ingest variant)", () => {
 
 describe("ingest skill prompt", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
-  const draftSkill = join(PLUGIN_ROOT, "skills", "draft", "SKILL.md");
 
   it("skills/sync/SKILL.md exists", () => {
     expect(existsSync(syncSkill)).toBe(true);
   });
 
-  it("skills/draft/SKILL.md exists", () => {
-    expect(existsSync(draftSkill)).toBe(true);
+  it("skills/draft/ is removed in 5.0.0+ (envelopes target the Slack Connector directly — no skill round-trip)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "skills", "draft", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(PLUGIN_ROOT, "skills", "draft"))).toBe(false);
   });
 
   it("agents/ contains only ui-handlers/ manifests (no legacy orchestrator agents)", () => {
@@ -129,21 +129,8 @@ describe("ingest skill prompt", () => {
     expect(fm["tools"]).toBeUndefined();
   });
 
-  it("draft skill uses context: fork + general-purpose (no tools: whitelist)", () => {
-    const fm = parseFrontmatter(readMd(draftSkill));
-    expect(fm["context"]).toBe("fork");
-    expect(fm["agent"]).toBe("general-purpose");
-    expect(fm["tools"]).toBeUndefined();
-  });
-
   it("sync skill has no unsubstituted {{placeholder}} tokens", () => {
     const src = readMd(syncSkill);
-    const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
-    expect(matches).toHaveLength(0);
-  });
-
-  it("draft skill has no unsubstituted {{placeholder}} tokens", () => {
-    const src = readMd(draftSkill);
     const matches = src.match(/\{\{[\w-]+\}\}/g) ?? [];
     expect(matches).toHaveLength(0);
   });
@@ -427,7 +414,7 @@ describe("sync skill 4.0.0 — suggested_actions carries the three standard butt
     expect(src).not.toMatch(/^\s*-\s+label:\s*"Stop raising items like this"/m);
   });
 
-  it("Draft / Schedule / Summarise prompts route directly to the view tools (no draft skill round-trip)", () => {
+  it("Draft / Schedule / Summarise prompts route directly to the view tools (no skill round-trip)", () => {
     expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer for action \{id\}/);
     expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer in schedule mode for action \{id\}/);
     expect(src).toMatch(/Use the agntux-slack plugin to open the canvas summariser for action \{id\}/);
