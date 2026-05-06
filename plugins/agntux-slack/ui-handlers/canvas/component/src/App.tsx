@@ -32,6 +32,22 @@ import {
   type MainComponentProps,
 } from './components/main-component';
 import { ComponentErrorBoundary } from './components/error-boundary';
+import { detectErrorEnvelope } from './lib/detect-error-envelope.js';
+
+function LicenseErrorScreen({ message }: { message: string }) {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <h2 className="mb-3 text-base font-semibold text-neutral-900 dark:text-neutral-100">
+          This view can&apos;t load right now
+        </h2>
+        <p className="whitespace-pre-wrap break-words text-sm text-neutral-700 dark:text-neutral-300">
+          {message}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   // Apply theme class to document body
@@ -85,6 +101,22 @@ export function App() {
   // not yet arrived. Component MUST disable interactive controls while this
   // is true (see main-component.tsx for the fieldset-disabled pattern).
   const isStreaming = !toolOutput && !!partialInput;
+
+  // Short-circuit when the tool result is an MCP-layer error envelope
+  // (e.g. license gate returned `pairing_required` / `trial_expired`).
+  // The adapter strips `isError`, but the user-facing text survives in
+  // `_content[0].text` and the lack of any payload-shaped keys is the
+  // signature of an envelope without `structuredContent`.
+  const errorEnvelope = detectErrorEnvelope(toolOutput);
+  if (errorEnvelope) {
+    return (
+      <div className="h-full">
+        <ComponentErrorBoundary>
+          <LicenseErrorScreen message={errorEnvelope} />
+        </ComponentErrorBoundary>
+      </div>
+    );
+  }
 
   // Build props for MainComponent
   const props: MainComponentProps = {
