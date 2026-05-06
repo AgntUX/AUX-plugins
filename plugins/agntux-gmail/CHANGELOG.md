@@ -6,6 +6,17 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-05-06
+
+### Fixed
+
+- **`_meta.ui.csp.resourceDomains` now includes `"data:"` and `"blob:"`.**
+  Empty `resourceDomains` caused Claude Cowork's strict iframe sandbox to
+  block `data:` / `blob:` URIs that the bundled single-file Vite output
+  relies on, leaving the compose-reply iframe blank. MCPJam doesn't enforce
+  the CSP envelope, which is why the view rendered there but not in
+  Cowork. Restoring the previously-working CSP defaults.
+
 ## [1.0.2] — 2026-05-06
 
 The actual Cowork iframe-render fix matching agntux-core 6.2.3 and

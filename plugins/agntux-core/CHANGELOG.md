@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.4] — 2026-05-06
+
+Follow-up to 6.2.3. Iframe still rendered blank in Claude Cowork because the
+MCP UI resource declared an empty `_meta.ui.csp.resourceDomains`, which the
+host's strict iframe sandbox honours by blocking `data:` and `blob:` URIs
+that the bundled single-file Vite output relies on (inlined fonts, blob
+workers, etc.). MCPJam doesn't enforce the CSP envelope, which is why the
+UI rendered there. Restoring the previously-working defaults.
+
+### Fixed
+
+- **`_meta.ui.csp.resourceDomains` now includes `"data:"` and `"blob:"`.**
+  Matches the shape the legacy backend MCP server (deleted in app commit
+  `2410a9c`) merged in via `applyDefaultCspToMetaMcpApps()` — the
+  configuration that was working in Cowork before the migration to host
+  plugins.
+
 ## [6.2.3] — 2026-05-06
 
 The actual Cowork iframe-render fix. Prior 6.2.2 attempt was wrong-track —
