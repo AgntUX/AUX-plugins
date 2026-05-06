@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-06T01:05:53.245Z",
+  "generated_at": "2026-05-06T19:40:46.715Z",
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
@@ -78,7 +78,7 @@
     },
     "agntux-slack": {
       "tagline": "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts.",
-      "description": "Watches your Slack DMs, @mentions, and active threads; extracts people,\ncompanies, projects, and topics. Action items surface response-needed\nsignals, deadlines, and decisions buried in threads. One-click buttons —\nDraft, Schedule, Open in Slack, Mark done (already handled), Stop\nraising items like this, Snooze 24h — so dismissals carry intent.\nReplies sent in Slack auto-resolve matching open items on the next sync.\nDrafts ask for explicit confirmation before any send.\n",
+      "description": "Watches your Slack DMs, @mentions, and active threads; extracts people,\ncompanies, projects, and topics. Surfaces response-needed signals,\ndeadlines, and decisions. One-click buttons — Draft, Schedule, Open in\nSlack, Mark done — open the reply iframe with a pre-composed draft\ninformed by your profile and prior action items. Replies sent in Slack\nauto-resolve matching open items on the next sync. The iframe Send\nbutton is the explicit authorisation gate for any Slack write.\n",
       "categories": [
         "communication",
         "productivity"
