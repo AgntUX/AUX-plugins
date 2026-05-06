@@ -109,6 +109,7 @@ export function App() {
     // Actions
     callTool: client.callTool.bind(client),
     sendFollowUpMessage: client.sendFollowUpMessage.bind(client),
+    openLink: client.openLink.bind(client),
     requestDisplayMode: requestMode,
   };
 

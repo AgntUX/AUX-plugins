@@ -1,6 +1,6 @@
 {
   "name": "@agntux/orchestrator-mcp-server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Local stdio MCP server for the agntux-core orchestrator plugin. Also exposes the AgntUX project-root resolver as a sibling-plugin library subpath so other AgntUX plugins (e.g. agntux-slack) can reuse the same resolver instead of vendor-copying.",
   "type": "module",
   "engines": {

@@ -271,6 +271,78 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     );
   });
 
+  it('clicking a suggested action with `url` dispatches openLink, not sendFollowUpMessage', async () => {
+    const user = userEvent.setup();
+    const url = 'https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439';
+    const { props, sendFollowUpMessageSpy, openLinkSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            suggested_actions: [
+              { label: 'Open in Slack', url },
+              {
+                label: 'Draft a reply',
+                host_prompt:
+                  'ux: Use the agntux-slack plugin to draft a reply for action fixture-action-1.',
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-fixture-action-1-0'));
+    expect(openLinkSpy).toHaveBeenCalledWith(url);
+    expect(sendFollowUpMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it('prefers url when a single row carries both url and host_prompt', async () => {
+    const user = userEvent.setup();
+    const url = 'https://oatfi.slack.com/archives/C031V2MJ2KA/p1';
+    const { props, sendFollowUpMessageSpy, openLinkSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            suggested_actions: [
+              {
+                label: 'Open in Slack',
+                url,
+                host_prompt: 'ux: legacy chat-fallback prompt for action fixture-action-1.',
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-fixture-action-1-0'));
+    expect(openLinkSpy).toHaveBeenCalledTimes(1);
+    expect(openLinkSpy).toHaveBeenCalledWith(url);
+    expect(sendFollowUpMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an openLink rejection as an inline row error', async () => {
+    const user = userEvent.setup();
+    const url = 'https://oatfi.slack.com/archives/C0/p1';
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            suggested_actions: [{ label: 'Open in Slack', url }],
+          }),
+        ],
+      }),
+    });
+    // Override openLink to reject with a known message.
+    props.openLink = vi.fn(async () => {
+      throw new Error('host blocked the link');
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-fixture-action-1-0'));
+    const rowError = await screen.findByTestId('row-error-fixture-action-1');
+    expect(rowError.textContent).toContain('host blocked the link');
+  });
+
   it('"Stop raising items like this" emits the user-feedback envelope', async () => {
     const user = userEvent.setup();
     const { props, sendFollowUpMessageSpy } = createMainComponentProps({

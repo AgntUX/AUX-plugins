@@ -12,6 +12,7 @@ import { parse as parseYaml } from "yaml";
 export interface SuggestedActionRow {
   label: string;
   host_prompt: string;
+  url: string | null;
 }
 
 export interface ActionFrontmatter {
@@ -69,17 +70,34 @@ function asStringArray(v: unknown): string[] {
   return v.filter((x): x is string => typeof x === "string");
 }
 
+// Only http(s) URLs are accepted by the openLink dispatcher. This is the trust
+// boundary that catches buggy or hostile ingest plugins emitting `javascript:`,
+// `data:`, `file:`, or other schemes the host might dispatch unsafely.
+const SAFE_URL_RE = /^https?:\/\//i;
+
 function asSuggestedActions(v: unknown): SuggestedActionRow[] {
   if (!Array.isArray(v)) return [];
   return v
     .map((row): SuggestedActionRow | null => {
       if (!row || typeof row !== "object") return null;
       const r = row as Record<string, unknown>;
-      const label = asString(r.label);
-      const host_prompt = asString(r.host_prompt);
-      if (!label || !host_prompt) return null;
-      // Normalise newlines: YAML block scalars often end with a trailing \n.
-      return { label, host_prompt: host_prompt.trimEnd() };
+      const label = asString(r.label).trim();
+      const host_prompt = asString(r.host_prompt).trim();
+      const rawUrl = asString(r.url).trim();
+      // Drop any url that isn't an http(s) URL. Treat a rejected url as if
+      // the field were absent — the row is kept iff host_prompt fills in.
+      const url = rawUrl && SAFE_URL_RE.test(rawUrl) ? rawUrl : "";
+      // A row needs a label and at least one of host_prompt or url. The two
+      // are dispatch alternatives: url -> openLink (host primitive), host_prompt
+      // -> sendFollowUpMessage (chat-mediated). When both are present, the
+      // triage UI prefers url; host_prompt is kept as a chat-fallback for older
+      // hosts that don't expose openLink.
+      if (!label || (!host_prompt && !url)) return null;
+      return {
+        label,
+        host_prompt,
+        url: url || null,
+      };
     })
     .filter((row): row is SuggestedActionRow => row !== null);
 }

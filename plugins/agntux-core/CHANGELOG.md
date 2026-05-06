@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-05-05
+
+### Added
+- **`url` field on suggested actions.** `SuggestedActionRow` (consumed by the
+  `triage_view` MCP tool and rendered by the triage UI handler) now accepts an
+  optional `url` alongside `host_prompt`. When `url` is present, clicking the
+  button dispatches through the MCP App host's `openLink()` primitive — the
+  link opens directly in the browser / native client without routing the
+  request through the LLM. When only `host_prompt` is present, the legacy
+  `sendFollowUpMessage(host_prompt)` path is preserved unchanged.
+
+  The parser requires `label` and at least one of (`host_prompt`, `url`); rows
+  with neither are dropped. This is the additive surface change that lets
+  ingest plugins emit pre-resolved deep links — the first consumer is
+  `agntux-slack`'s `Open in Slack` action.
+
+### Changed
+- `mcp-server` package version 1.1.0 → 1.2.0 (MINOR — additive surface).
+
+### Migration
+- No user action required. Existing action files with only `host_prompt`
+  continue to work unchanged. Plugins that want to emit pre-resolved deep
+  links add `url:` to the suggested-action YAML in their generated
+  `actions/*.md` files.
+
 ## [5.1.0] — 2026-05-04
 
 ### Added

@@ -4,8 +4,9 @@
  * Inline-budget MCP App for AgntUX action-item triage. Rendering rules are
  * inherited from briefing-learnings.md §1: every field defaults defensively
  * (parsePayload + safe-accessors), every external link goes through
- * useAppsClient().openLink (we have none today — suggested-action buttons
- * dispatch via sendFollowUpMessage), every interactive control is gated by
+ * openLink (suggested actions with a `url` dispatch through the host's
+ * openLink primitive; ones with only `host_prompt` fall back to
+ * sendFollowUpMessage), every interactive control is gated by
  * <fieldset disabled={isStreaming}>, modals use ScrollableModal.
  *
  * Source-agnostic: this component never branches on which plugin authored an
@@ -58,6 +59,7 @@ type DismissOutcome = (typeof DISMISS_OUTCOMES)[number];
 interface SuggestedAction {
   label: string;
   host_prompt: string;
+  url: string | null;
 }
 
 interface Action {
@@ -131,6 +133,7 @@ export interface MainComponentProps {
   ) => void;
   callTool: (name: string, args?: Record<string, unknown>) => Promise<unknown>;
   sendFollowUpMessage: (prompt: string) => Promise<void>;
+  openLink: (url: string) => Promise<void>;
   displayMode: string;
   availableDisplayModes: string[];
   requestDisplayMode: (mode: 'inline' | 'fullscreen' | 'pip') => Promise<void>;
@@ -147,9 +150,11 @@ export interface MainComponentProps {
 
 function normalizeSuggestedAction(raw: unknown): SuggestedAction {
   const r = safeObject(raw);
+  const url = safeString(r.url);
   return {
     label: safeString(r.label),
     host_prompt: safeString(r.host_prompt),
+    url: url ? url : null,
   };
 }
 
@@ -193,7 +198,11 @@ function parsePayload(toolOutput?: Record<string, unknown>): TriageData {
   const meta = safeObject(toolOutput?._meta);
   const payload = safeObject(meta.payload ?? toolOutput);
   const counts = safeObject(payload.counts);
-  const error = safeEnum(payload.error, ERROR_KINDS, null as unknown as ErrorKind);
+  const error =
+    typeof payload.error === 'string' &&
+    (ERROR_KINDS as readonly string[]).includes(payload.error)
+      ? (payload.error as ErrorKind)
+      : null;
   return {
     actions: safeArray<unknown>(payload.actions)
       .map(normalizeAction)
@@ -213,9 +222,7 @@ function parsePayload(toolOutput?: Record<string, unknown>): TriageData {
     // server emits `bootstrap_mode: true` explicitly when the user has
     // onboarded but no ingest plugin has fired yet.
     bootstrap_mode: safeBoolean(payload.bootstrap_mode, false),
-    error: typeof payload.error === 'string' && (ERROR_KINDS as readonly string[]).includes(payload.error)
-      ? (payload.error as ErrorKind)
-      : null,
+    error,
   };
 }
 
@@ -429,7 +436,7 @@ interface ActionCardProps {
   action: Action;
   pending: boolean;
   rowError: string | null;
-  onSuggested: (host_prompt: string) => void;
+  onSuggested: (action: SuggestedAction, actionId: string) => void;
   onDetails: (id: string) => void;
   onSnoozeOpen: (id: string) => void;
   onDismissOpen: (id: string) => void;
@@ -527,7 +534,7 @@ function ActionCard({
                   ? 'inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
                   : 'inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
               }
-              onClick={() => onSuggested(sa.host_prompt)}
+              onClick={() => onSuggested(sa, action.id)}
               data-testid={`suggested-${action.id}-${idx}`}
             >
               {sa.label}
@@ -604,7 +611,7 @@ interface DetailModalProps {
   pending: boolean;
   rowError: string | null;
   onClose: () => void;
-  onSuggested: (host_prompt: string) => void;
+  onSuggested: (action: SuggestedAction, actionId: string) => void;
   onSnoozeOpen: (id: string) => void;
   onDismissOpen: (id: string) => void;
   onDone: (id: string) => void;
@@ -711,7 +718,7 @@ function DetailModal({
                 <button
                   key={`detail-sa-${idx}`}
                   type="button"
-                  onClick={() => onSuggested(sa.host_prompt)}
+                  onClick={() => onSuggested(sa, action.id)}
                   className={
                     idx === 0
                       ? 'inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -1135,6 +1142,7 @@ export function MainComponent(props: MainComponentProps) {
     setWidgetState,
     callTool,
     sendFollowUpMessage,
+    openLink,
     locale,
   } = props;
   const data = useMemo(() => parsePayload(toolOutput), [toolOutput]);
@@ -1260,10 +1268,25 @@ export function MainComponent(props: MainComponentProps) {
   );
 
   const handleSuggested = useCallback(
-    (host_prompt: string) => {
-      void sendFollowUpMessage(host_prompt);
+    (action: SuggestedAction, actionId: string) => {
+      // url wins over host_prompt: the host's openLink primitive opens the
+      // target directly (browser / native client deep link) without routing
+      // through the LLM. host_prompt is the legacy chat-mediated path and
+      // remains the fallback for actions a plugin couldn't pre-resolve.
+      if (action.url) {
+        const target = action.url;
+        openLink(target).catch((err: unknown) => {
+          const message =
+            err instanceof Error ? err.message : `Couldn't open ${target}.`;
+          setRowErrors((prev) => ({ ...prev, [actionId]: message }));
+        });
+        return;
+      }
+      if (action.host_prompt) {
+        void sendFollowUpMessage(action.host_prompt);
+      }
     },
-    [sendFollowUpMessage],
+    [openLink, sendFollowUpMessage],
   );
 
   const handleStopRaising = useCallback(
