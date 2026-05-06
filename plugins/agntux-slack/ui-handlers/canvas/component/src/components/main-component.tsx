@@ -5,6 +5,7 @@
 import { ScrollablePanel } from "./scrollable-panel.js";
 import { CanvasCard } from "./canvas-card.js";
 import { Spinner } from "./spinner.js";
+import { AgntuxLogo } from "./agntux-logo.js";
 import { normalizeCanvasPayload } from "../lib/normalize.js";
 
 export interface MainComponentProps {
@@ -74,7 +75,26 @@ export function MainComponent({ toolOutput, isStreaming }: MainComponentProps) {
   }
 
   return (
-    <ScrollablePanel title={`Canvas · #${data.channel.name}`}>
+    <ScrollablePanel
+      title={
+        <span
+          className="flex items-center gap-2"
+          data-testid="canvas-header"
+        >
+          <AgntuxLogo height={18} />
+          <span aria-hidden="true" className="text-slate-300">
+            ·
+          </span>
+          <span data-testid="canvas-header-title">Slack Canvas</span>
+          <span aria-hidden="true" className="text-slate-300">
+            ·
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">
+            #{data.channel.name}
+          </span>
+        </span>
+      }
+    >
       <CanvasCard payload={data} />
     </ScrollablePanel>
   );

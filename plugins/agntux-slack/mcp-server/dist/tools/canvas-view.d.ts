@@ -49,7 +49,7 @@ interface ViewToolError {
 }
 type ViewToolResult = ViewToolSuccess | ViewToolError;
 export declare const canvasViewTool: {
-    readonly name: "canvas_view";
+    readonly name: "agntux_slack_canvas_view";
     readonly description: string;
     readonly inputSchema: {
         readonly type: "object";

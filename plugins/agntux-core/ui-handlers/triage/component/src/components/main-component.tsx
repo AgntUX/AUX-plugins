@@ -14,7 +14,7 @@
  * classes; `source` is displayed as plain text (no icons, no per-source UX).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   safeArray,
   safeBoolean,
@@ -23,8 +23,10 @@ import {
   safeObject,
   safeString,
 } from '../lib/safe-accessors';
+import { AgntuxLogo } from './agntux-logo';
 import { ScrollableModal } from './scrollable-modal';
 import { Spinner } from './spinner';
+import { Toast, type ToastState } from './toast';
 
 // =============================================================================
 // Types
@@ -45,8 +47,16 @@ type ErrorKind = (typeof ERROR_KINDS)[number];
 const PRIORITY_FILTER_VALUES = ['all', 'high', 'medium', 'low'] as const;
 type PriorityFilter = (typeof PRIORITY_FILTER_VALUES)[number];
 
-const SORT_VALUES = ['priority', 'due'] as const;
+// 'created' was added in v6.0.0 to support the new "Most recently created"
+// dropdown option (replaces the priority↔due toggle).
+const SORT_VALUES = ['priority', 'due', 'created'] as const;
 type SortKey = (typeof SORT_VALUES)[number];
+
+const SORT_LABELS: Record<SortKey, string> = {
+  priority: 'Priority',
+  due: 'Due date',
+  created: 'Most recently created',
+};
 
 const DISMISS_OUTCOMES = [
   'completed-externally',
@@ -76,6 +86,10 @@ interface Action {
   suggested_actions: SuggestedAction[];
   why_matters_excerpt: string;
   personalization_fit_excerpt: string;
+  // Surfaced in v6.0.0 so the card can render "Created … / Updated …" lines
+  // and the new sort dropdown can offer "Most recently created".
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface HandledAction {
@@ -179,6 +193,8 @@ function normalizeAction(raw: unknown): Action {
     ),
     why_matters_excerpt: safeString(r.why_matters_excerpt),
     personalization_fit_excerpt: safeString(r.personalization_fit_excerpt),
+    created_at: typeof r.created_at === 'string' ? r.created_at : null,
+    updated_at: typeof r.updated_at === 'string' ? r.updated_at : null,
   };
 }
 
@@ -451,7 +467,9 @@ interface ActionCardProps {
   onSnoozeOpen: (id: string) => void;
   onDismissOpen: (id: string) => void;
   onDone: (id: string) => void;
+  onDoSomethingElse: (id: string) => void;
   locale: string;
+  cardRef?: (el: HTMLElement | null) => void;
 }
 
 const MAX_ENTITIES_INLINE = 6;
@@ -466,7 +484,9 @@ function ActionCard({
   onSnoozeOpen,
   onDismissOpen,
   onDone,
+  onDoSomethingElse,
   locale,
+  cardRef,
 }: ActionCardProps) {
   const titleId = `card-${action.id}-title`;
   const entitiesShown = action.related_entities.slice(0, MAX_ENTITIES_INLINE);
@@ -476,8 +496,25 @@ function ActionCard({
     0,
     MAX_SUGGESTED_INLINE,
   );
+  // Show updated_at only when meaningfully different from created_at
+  // (>1 day apart) — most actions stay at created_at == updated_at until a
+  // status flip or body append. Same-day edits (the user toggling sorts /
+  // filters within the same render cycle) stay collapsed into "Created X".
+  const createdMs = action.created_at
+    ? new Date(action.created_at).getTime()
+    : NaN;
+  const updatedMs = action.updated_at
+    ? new Date(action.updated_at).getTime()
+    : NaN;
+  const showSeparateUpdated =
+    Number.isFinite(createdMs) &&
+    Number.isFinite(updatedMs) &&
+    Math.abs(updatedMs - createdMs) > 24 * 60 * 60 * 1000;
   return (
     <article
+      ref={(el) => {
+        if (cardRef) cardRef(el);
+      }}
       className="flex flex-col gap-2 rounded-md border border-border bg-card p-3 shadow-sm"
       role="listitem"
       aria-labelledby={titleId}
@@ -510,6 +547,29 @@ function ActionCard({
       {action.summary && (
         <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
           {action.summary}
+        </p>
+      )}
+      {(action.created_at || action.updated_at) && (
+        <p
+          className="text-[0.6875rem] text-slate-400"
+          data-testid={`timestamps-${action.id}`}
+        >
+          {action.created_at && (
+            <>
+              Created{' '}
+              <time dateTime={action.created_at}>
+                {formatRelative(action.created_at, locale)}
+              </time>
+            </>
+          )}
+          {showSeparateUpdated && action.updated_at && (
+            <>
+              {' · '}Updated{' '}
+              <time dateTime={action.updated_at}>
+                {formatRelative(action.updated_at, locale)}
+              </time>
+            </>
+          )}
         </p>
       )}
       {entitiesShown.length > 0 && (
@@ -561,6 +621,15 @@ function ActionCard({
           data-testid={`details-${action.id}`}
         >
           Details
+        </button>
+        <button
+          type="button"
+          onClick={() => onDoSomethingElse(action.id)}
+          disabled={pending}
+          className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          data-testid={`do-something-else-${action.id}`}
+        >
+          Do something else…
         </button>
         {rowError && (
           <span
@@ -625,8 +694,10 @@ interface DetailModalProps {
   onSnoozeOpen: (id: string) => void;
   onDismissOpen: (id: string) => void;
   onDone: (id: string) => void;
+  onDoSomethingElse: (id: string) => void;
   onStopRaising: (action: Action) => void;
   locale: string;
+  anchor?: HTMLElement | null;
 }
 
 function DetailModal({
@@ -638,12 +709,15 @@ function DetailModal({
   onSnoozeOpen,
   onDismissOpen,
   onDone,
+  onDoSomethingElse,
   onStopRaising,
+  anchor,
 }: DetailModalProps) {
   return (
     <ScrollableModal
       open
       onClose={onClose}
+      anchor={anchor}
       title={
         <span className="flex items-center gap-2">
           <PriorityPill priority={action.priority} />
@@ -728,7 +802,15 @@ function DetailModal({
                 <button
                   key={`detail-sa-${idx}`}
                   type="button"
-                  onClick={() => onSuggested(sa, action.id)}
+                  onClick={() => {
+                    // Close the detail modal as soon as the user takes an
+                    // action — leaving it open after dispatch was confusing
+                    // (the underlying triage row may have already been
+                    // optimistically hidden, so the modal anchored back to
+                    // a stale view).
+                    onSuggested(sa, action.id);
+                    onClose();
+                  }}
                   className={
                     idx === 0
                       ? 'inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -739,6 +821,17 @@ function DetailModal({
                   {sa.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  onDoSomethingElse(action.id);
+                  onClose();
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-[0.8125rem] text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="detail-do-something-else"
+              >
+                Do something else…
+              </button>
             </div>
           </section>
         )}
@@ -773,6 +866,7 @@ interface SnoozeModalProps {
   rowError: string | null;
   onClose: () => void;
   onSubmit: (id: string, untilISO: string) => void;
+  anchor?: HTMLElement | null;
 }
 
 function toLocalDatetimeInputValue(iso: string): string {
@@ -797,6 +891,7 @@ function SnoozeModal({
   rowError,
   onClose,
   onSubmit,
+  anchor,
 }: SnoozeModalProps) {
   const [pickedISO, setPickedISO] = useState<string>(nowPlus24hISO());
   const localValue = toLocalDatetimeInputValue(pickedISO);
@@ -805,6 +900,7 @@ function SnoozeModal({
     <ScrollableModal
       open
       onClose={onClose}
+      anchor={anchor}
       title="Snooze action"
       footer={
         <>
@@ -907,6 +1003,7 @@ interface DismissModalProps {
   rowError: string | null;
   onClose: () => void;
   onSubmit: (id: string, outcome: string, note: string) => void;
+  anchor?: HTMLElement | null;
 }
 
 function DismissModal({
@@ -915,6 +1012,7 @@ function DismissModal({
   rowError,
   onClose,
   onSubmit,
+  anchor,
 }: DismissModalProps) {
   const [outcome, setOutcome] = useState<DismissOutcome>(DISMISS_OUTCOMES[0]);
   const [note, setNote] = useState<string>('');
@@ -923,6 +1021,7 @@ function DismissModal({
     <ScrollableModal
       open
       onClose={onClose}
+      anchor={anchor}
       title="Dismiss action"
       footer={
         <>
@@ -1060,6 +1159,88 @@ function DismissOption({
 }
 
 // =============================================================================
+// "Do something else" modal — free-form prompt sent back to the host
+// =============================================================================
+
+interface DoSomethingElseModalProps {
+  action: Action;
+  onClose: () => void;
+  onSubmit: (action: Action, prompt: string) => void;
+  anchor?: HTMLElement | null;
+}
+
+function DoSomethingElseModal({
+  action,
+  onClose,
+  onSubmit,
+  anchor,
+}: DoSomethingElseModalProps) {
+  const [prompt, setPrompt] = useState<string>('');
+  const trimmed = prompt.trim();
+  const submit = () => {
+    if (!trimmed) return;
+    onSubmit(action, trimmed);
+  };
+  return (
+    <ScrollableModal
+      open
+      onClose={onClose}
+      anchor={anchor}
+      title="Do something else"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-[0.8125rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="do-something-else-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!trimmed}
+            className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            data-testid="do-something-else-submit"
+          >
+            Send to AgntUX
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+          Tell the host what to do with{' '}
+          <strong className="text-foreground">
+            {truncate(action.title, 70)}
+          </strong>
+          . Your prompt will be sent back to chat with the action's full
+          context attached, so the host can act on it without losing the
+          details.
+        </p>
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="do-something-else-prompt"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            What should we do?
+          </label>
+          <textarea
+            id="do-something-else-prompt"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. Draft a Linear ticket for this and assign it to me."
+            className="min-h-[100px] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="do-something-else-prompt"
+          />
+        </div>
+      </div>
+    </ScrollableModal>
+  );
+}
+
+// =============================================================================
 // Empty / degraded states
 // =============================================================================
 
@@ -1162,8 +1343,38 @@ export function MainComponent(props: MainComponentProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [snoozeId, setSnoozeId] = useState<string | null>(null);
   const [dismissId, setDismissId] = useState<string | null>(null);
+  const [doSomethingElseId, setDoSomethingElseId] = useState<string | null>(
+    null,
+  );
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const toastNonceRef = useRef(0);
+
+  // Card refs keyed by action id — passed to ScrollableModal so each
+  // action-specific modal anchors near the card the user clicked instead
+  // of jumping to the iframe center on a long list.
+  const cardRefsRef = useRef(new Map<string, HTMLElement>());
+  const setCardRef = useCallback((id: string) => {
+    return (el: HTMLElement | null) => {
+      const map = cardRefsRef.current;
+      if (el) map.set(id, el);
+      else map.delete(id);
+    };
+  }, []);
+  const getAnchor = useCallback((id: string | null): HTMLElement | null => {
+    if (!id) return null;
+    return cardRefsRef.current.get(id) ?? null;
+  }, []);
+
+  const dispatchToast = useCallback(
+    (message: string, kind: 'success' | 'error' = 'success') => {
+      toastNonceRef.current += 1;
+      setToast({ message, kind, nonce: toastNonceRef.current });
+    },
+    [],
+  );
+  const dismissToast = useCallback(() => setToast(null), []);
 
   // Optimistic-hide set: ids the user has just resolved client-side. Plain
   // useState (not widgetState) — should not survive an iframe remount or
@@ -1238,6 +1449,14 @@ export function MainComponent(props: MainComponentProps) {
         if (cmp !== 0) return cmp;
         return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
       }
+      if (ui.sort === 'created') {
+        // Most recently created first; null/missing values sort last.
+        const at = a.created_at ? Date.parse(a.created_at) : NaN;
+        const bt = b.created_at ? Date.parse(b.created_at) : NaN;
+        const av = Number.isFinite(at) ? (at as number) : -Infinity;
+        const bv = Number.isFinite(bt) ? (bt as number) : -Infinity;
+        return bv - av;
+      }
       // 'due'
       return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
     });
@@ -1306,33 +1525,91 @@ export function MainComponent(props: MainComponentProps) {
 
   const handleDone = useCallback(
     (id: string) => {
-      void runMutation(id, 'set_status', { id, status: 'done' }, () => {
-        hideOptimistically(id);
-      });
+      void runMutation(
+        id,
+        'agntux_core_set_status',
+        { id, status: 'done' },
+        () => {
+          hideOptimistically(id);
+          dispatchToast('Marked done.');
+        },
+      );
     },
-    [runMutation, hideOptimistically],
+    [runMutation, hideOptimistically, dispatchToast],
   );
 
   const handleSnoozeSubmit = useCallback(
     (id: string, untilISO: string) => {
-      void runMutation(id, 'snooze', { id, until: untilISO }, () => {
-        hideOptimistically(id);
-        setSnoozeId(null);
-      });
+      void runMutation(
+        id,
+        'agntux_core_snooze',
+        { id, until: untilISO },
+        () => {
+          hideOptimistically(id);
+          setSnoozeId(null);
+          const formatted = formatDueDate(untilISO, locale);
+          dispatchToast(
+            formatted ? `Snoozed until ${formatted}.` : 'Snoozed.',
+          );
+        },
+      );
     },
-    [runMutation, hideOptimistically],
+    [runMutation, hideOptimistically, dispatchToast, locale],
   );
 
   const handleDismissSubmit = useCallback(
     (id: string, outcome: string, note: string) => {
       const args: Record<string, unknown> = { id, outcome };
       if (note) args.outcome_note = note;
-      void runMutation(id, 'dismiss', args, () => {
+      void runMutation(id, 'agntux_core_dismiss', args, () => {
         hideOptimistically(id);
         setDismissId(null);
+        dispatchToast('Dismissed.');
       });
     },
-    [runMutation, hideOptimistically],
+    [runMutation, hideOptimistically, dispatchToast],
+  );
+
+  const handleDoSomethingElseSubmit = useCallback(
+    (action: Action, userPrompt: string) => {
+      // Build a context-rich prompt the host can act on without re-fetching
+      // the action file. Keep the lead line stable so the host's tool-router
+      // can short-circuit to the right lane.
+      const lines: string[] = [
+        'Please take the following action based on the action item below:',
+        '',
+        userPrompt,
+        '',
+        '---',
+        `Action ID: ${action.id}`,
+        `Title: ${action.title}`,
+        `Priority: ${action.priority}`,
+      ];
+      if (action.reason_class) lines.push(`Reason class: ${action.reason_class}`);
+      if (action.due_by) lines.push(`Due by: ${action.due_by}`);
+      if (action.source) lines.push(`Source: ${action.source}`);
+      if (action.created_at)
+        lines.push(`Created at: ${action.created_at}`);
+      if (action.related_entities.length > 0)
+        lines.push(`Related entities: ${action.related_entities.join(', ')}`);
+      if (action.summary) {
+        lines.push('', 'Summary:', action.summary);
+      }
+      if (action.why_matters_excerpt) {
+        lines.push('', 'Why it matters:', action.why_matters_excerpt);
+      }
+      if (action.personalization_fit_excerpt) {
+        lines.push(
+          '',
+          'Personalization fit:',
+          action.personalization_fit_excerpt,
+        );
+      }
+      void sendFollowUpMessage(lines.join('\n'));
+      setDoSomethingElseId(null);
+      dispatchToast('Sent to AgntUX.');
+    },
+    [sendFollowUpMessage, dispatchToast],
   );
 
   const handleSuggested = useCallback(
@@ -1427,6 +1704,9 @@ export function MainComponent(props: MainComponentProps) {
   const dismissAction = dismissId
     ? data.actions.find((a) => a.id === dismissId) ?? null
     : null;
+  const doSomethingElseAction = doSomethingElseId
+    ? data.actions.find((a) => a.id === doSomethingElseId) ?? null
+    : null;
 
   return (
     <div
@@ -1436,9 +1716,18 @@ export function MainComponent(props: MainComponentProps) {
       <fieldset disabled={isStreaming} className="contents">
         <header className="sticky top-0 z-[5] flex flex-col gap-3 border-b border-border bg-background px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="m-0 text-base font-semibold tracking-tight">
-              Triage
-            </h2>
+            <div className="flex items-center gap-2">
+              <AgntuxLogo height={20} />
+              <span aria-hidden="true" className="text-slate-300">
+                ·
+              </span>
+              <h2
+                className="m-0 text-base font-semibold tracking-tight"
+                data-testid="triage-title"
+              >
+                Action Item Triage
+              </h2>
+            </div>
             {data.last_updated_at && (
               <span className="text-xs text-slate-400">
                 Updated{' '}
@@ -1478,14 +1767,23 @@ export function MainComponent(props: MainComponentProps) {
               testId="filter-low"
             />
             <span className="ml-auto" />
-            <FilterChip
-              label={`Sort · ${ui.sort === 'priority' ? 'priority' : 'due date'}`}
-              pressed={false}
-              onClick={() =>
-                setSort(ui.sort === 'priority' ? 'due' : 'priority')
-              }
-              testId="sort-toggle"
-            />
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="sr-only">Sort actions by</span>
+              Sort
+              <select
+                value={ui.sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="rounded-full border border-border bg-card px-2.5 py-1 text-xs text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="sort-select"
+                aria-label="Sort actions by"
+              >
+                {SORT_VALUES.map((key) => (
+                  <option key={key} value={key}>
+                    {SORT_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </header>
         <div
@@ -1509,7 +1807,9 @@ export function MainComponent(props: MainComponentProps) {
               onSnoozeOpen={setSnoozeId}
               onDismissOpen={setDismissId}
               onDone={handleDone}
+              onDoSomethingElse={setDoSomethingElseId}
               locale={locale}
+              cardRef={setCardRef(a.id)}
             />
           ))}
           {data.counts.truncated && (
@@ -1548,8 +1848,10 @@ export function MainComponent(props: MainComponentProps) {
             handleDone(id);
             setDetailId(null);
           }}
+          onDoSomethingElse={(id) => setDoSomethingElseId(id)}
           onStopRaising={handleStopRaising}
           locale={locale}
+          anchor={getAnchor(detailAction.id)}
         />
       )}
       {snoozeAction && (
@@ -1559,6 +1861,7 @@ export function MainComponent(props: MainComponentProps) {
           rowError={rowErrors[snoozeAction.id] ?? null}
           onClose={() => setSnoozeId(null)}
           onSubmit={handleSnoozeSubmit}
+          anchor={getAnchor(snoozeAction.id)}
         />
       )}
       {dismissAction && (
@@ -1568,8 +1871,18 @@ export function MainComponent(props: MainComponentProps) {
           rowError={rowErrors[dismissAction.id] ?? null}
           onClose={() => setDismissId(null)}
           onSubmit={handleDismissSubmit}
+          anchor={getAnchor(dismissAction.id)}
         />
       )}
+      {doSomethingElseAction && (
+        <DoSomethingElseModal
+          action={doSomethingElseAction}
+          onClose={() => setDoSomethingElseId(null)}
+          onSubmit={handleDoSomethingElseSubmit}
+          anchor={getAnchor(doSomethingElseAction.id)}
+        />
+      )}
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   );
 }

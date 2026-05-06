@@ -6,6 +6,104 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.0.0] — 2026-05-06
+
+Coordinated triage UX overhaul. Pairs with `agntux-slack` 4.0.0 — both
+ship together. Five user-visible improvements; one pure rename pass on
+the MCP tool surface.
+
+### Changed (BREAKING)
+
+- **All MCP tool names are prefixed with `agntux_core_`** so they no
+  longer collide with whatever other servers the host has loaded:
+  `triage_view` → `agntux_core_triage_view`, `set_status` →
+  `agntux_core_set_status`, `snooze` → `agntux_core_snooze`, `dismiss`
+  → `agntux_core_dismiss`. The component's `useAppsClient().callTool()`
+  calls and the agntux-slack draft skill's `mcp__agntux-core__set_status`
+  reference are updated to match. Per the §5.1 rubric, any change to
+  the public tool surface is MAJOR. Existing in-flight tool calls from
+  pre-6.0.0 hosts will fail with `Unknown tool` once the new bundle
+  loads — no fallback shim by design (a shim would mask the breakage
+  and the renames are user-visible in tool-call traces anyway).
+
+### Added
+
+- **AgntUX logo + named header on the triage card.** Header now
+  reads `[AgntUX wordmark] · Action Item Triage` (was just `Triage`).
+  Wordmark is an inline SVG that adapts to theme (`currentColor` for
+  the "Agnt" portion, fixed teal→blue→purple gradient for "UX") to
+  match `app/public/logo.svg`.
+- **Created / Updated dates on every action card.** A new
+  `Created … · Updated …` line renders below the summary using the
+  `created_at` frontmatter field plus the file's mtime. The
+  `updated_at` half is collapsed when the two timestamps are within
+  a day of each other so steady-state cards stay quiet.
+- **Sort dropdown replaces the priority↔due toggle.** Three options:
+  Priority (default), Due date, Most recently created. The "Most
+  recently created" sort uses the new `created_at` field surfaced
+  in the payload.
+- **"Do something else…" button on every action card** plus a matching
+  affordance in the Detail modal. Opens a small modal with a textarea;
+  on submit dispatches `sendFollowUpMessage` with a `Please take the
+  following action based on the action item below: {prompt}` envelope
+  followed by the action's id, title, priority, reason class, source,
+  related entities, summary, why-it-matters, and personalization-fit
+  text — so the host can act on the prompt with full context without
+  re-fetching the action file.
+- **Success-feedback toasts.** `Marked done.` / `Snoozed until {date}.`
+  / `Dismissed.` / `Sent to AgntUX.` toasts surface in the top-right
+  for 3 s after each successful mutation. Renders with
+  `role="status"` + `aria-live="polite"` so screen readers announce
+  the result without interrupting. Errors keep the existing red-line
+  row indicator.
+- **`triage_view` payload now exposes `actions[].created_at` and
+  `actions[].updated_at`.** `created_at` is read from the action
+  frontmatter; `updated_at` is the file mtime (frontmatter doesn't
+  carry an `updated_at` for actions, and mtime captures status flips,
+  body appends, and suggested-action edits without coupling to a
+  writer that remembers to bump a field).
+
+### Fixed
+
+- **Action-specific modals (Details, Snooze, Dismiss, Do something
+  else) anchor to the card the user clicked** instead of jumping to
+  the iframe center. `ScrollableModal` accepts a new optional
+  `anchor` prop; when provided, the panel positions absolutely near
+  the trigger card (clamped to viewport bounds), and falls back to
+  the centered behavior when omitted. Closes the long-list yank
+  problem reported on triage backlogs of 20+ items.
+- **The Detail modal closes after a suggested-action click.**
+  Previously the modal stayed open and the underlying card had
+  already been optimistically hidden, leaving the user staring at a
+  modal anchored to a stale view. Now any suggested-action button
+  inside the Detail modal calls `onClose()` after dispatch (matches
+  the existing Done-button behavior).
+- **Scheduled-task permission re-prompts.** Updated
+  `skills/_resolve-root.md` (and the slack mirrors) to require
+  resolving `~/agntux/` to its absolute path **on resolution**. The
+  host's "Allow for scheduled runs" allowlist keys on the literal
+  path string a tool was called with — emitting `~/agntux/...` on
+  one run and `/Users/<you>/agntux/...` on the next caused the host
+  to re-prompt every run. Canonicalising the path on resolution
+  makes one allow click hold across all subsequent scheduled runs.
+  See "Permission-allowlist note" at the bottom of
+  `skills/_resolve-root.md` for the host-level allowlist block users
+  can paste into `settings.local.json` if prompts persist.
+
+### Internal
+
+- **Triage component splits new files** under
+  `ui-handlers/triage/component/src/components/`:
+  `agntux-logo.tsx` (the inline SVG wordmark) and `toast.tsx` (the
+  transient success/error notification primitive).
+- **`scrollable-modal.tsx` adds an `anchor?: HTMLElement | null` prop**
+  and a viewport-clamped top-offset compute so the panel positions
+  near the trigger element without overflowing the iframe.
+- **`triage-view.ts` reads file mtime via `statSync` per action** to
+  populate `updated_at`. The handler still skips malformed files; an
+  mtime read failure now also degrades gracefully (returns `null`
+  rather than crashing the render).
+
 ## [5.3.0] — 2026-05-05
 
 ### Added

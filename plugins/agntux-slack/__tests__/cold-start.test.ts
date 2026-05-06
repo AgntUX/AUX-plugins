@@ -395,16 +395,15 @@ describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
   });
 });
 
-describe("sync skill 1.1.0 — suggested_actions carries the four standard buttons", () => {
+describe("sync skill 4.0.0 — suggested_actions carries the three standard buttons", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
   const src = readMd(syncSkill);
 
-  it("default suggested_actions includes the four standard buttons in order", () => {
+  it("default suggested_actions includes the three standard buttons in order", () => {
     const labelOrder = [
       `label: "Draft a reply"`,
       `label: "Schedule a reply"`,
       `label: "Open in Slack"`,
-      `label: "Mark done — already handled in Slack"`,
     ];
     let cursor = 0;
     for (const label of labelOrder) {
@@ -414,8 +413,13 @@ describe("sync skill 1.1.0 — suggested_actions carries the four standard butto
     }
   });
 
-  it("Mark done routes to agntux-core set_status with outcome=completed-externally", () => {
-    expect(src).toMatch(/Use the agntux-core plugin to set action \{id\} status to done with outcome "completed-externally"/);
+  it("'Mark done — already handled in Slack' is NOT emitted as a YAML row in 4.0.0+ (redundant with triage Done button)", () => {
+    // Removed in 4.0.0 because the agntux-core triage Done button covers
+    // the same outcome. The phrase may still appear in *prose* explaining
+    // the removal — assert only on the YAML row shape.
+    expect(src).not.toMatch(
+      /^\s*-\s+label:\s*"Mark done — already handled in Slack"/m,
+    );
   });
 
   it("Snooze 24h and Stop raising buttons are NOT emitted (duplicates of agntux-core triage chrome)", () => {
@@ -429,8 +433,8 @@ describe("sync skill 1.1.0 — suggested_actions carries the four standard butto
     expect(src).toMatch(/Use the agntux-slack plugin to open the canvas summariser for action \{id\}/);
   });
 
-  it("suggested_actions rules document the 2–5 button range", () => {
-    expect(src).toMatch(/2[–-]5 buttons/);
+  it("suggested_actions rules document the 2–4 button range (4.0.0+ — was 2–5 before Mark done was retired)", () => {
+    expect(src).toMatch(/2[–-]4 buttons/);
   });
 });
 
@@ -579,12 +583,15 @@ describe("example action item", () => {
     expect(content).toContain("topics/project-mango");
   });
 
-  it("ships the four default suggested-action buttons (3.0.0 — Snooze 24h and Stop raising removed)", () => {
+  it("ships the three default suggested-action buttons (4.0.0 — Mark done also removed; Snooze 24h / Stop raising were retired in 3.0.0)", () => {
     const content = readMd(actionPath);
     expect(content).toContain("Draft a reply");
     expect(content).toContain("Schedule a reply");
     expect(content).toContain("Open in Slack");
-    expect(content).toContain("Mark done — already handled in Slack");
+    // 4.0.0 removed the Mark done row (covered by agntux-core triage Done).
+    expect(content).not.toMatch(
+      /^\s*-\s+label:\s*"Mark done — already handled in Slack"/m,
+    );
     // 3.0.0 removed both — both are duplicates of agntux-core triage chrome.
     expect(content).not.toContain("Snooze 24h");
     expect(content).not.toContain("Stop raising items like this");

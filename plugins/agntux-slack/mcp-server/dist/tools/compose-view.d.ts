@@ -59,7 +59,7 @@ interface ViewToolError {
 }
 type ViewToolResult = ViewToolSuccess | ViewToolError;
 export declare const composeViewTool: {
-    readonly name: "compose_view";
+    readonly name: "agntux_slack_compose_view";
     readonly description: string;
     readonly inputSchema: {
         readonly type: "object";

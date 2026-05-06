@@ -16,7 +16,7 @@
     },
     "channel": { "id": "C123", "name": "general", "is_dm": false }
   },
-  "prompt": "Call compose_view for a nonexistent action to exercise the error state.",
+  "prompt": "Call agntux_slack_compose_view for a nonexistent action to exercise the error state.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='error-action-not-found']", "max_results": 1 }
   ],

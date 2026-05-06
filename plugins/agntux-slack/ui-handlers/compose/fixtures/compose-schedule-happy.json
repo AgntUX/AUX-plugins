@@ -23,7 +23,7 @@
     "channel": { "id": "C04PARTNERPLAT", "name": "partner-platforms", "is_dm": false },
     "slack_permalink": null
   },
-  "prompt": "Call compose_view with schedule mode and render the card.",
+  "prompt": "Call agntux_slack_compose_view with schedule mode and render the card.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='datetime-picker']", "max_results": 1 },
     { "type": "query", "selector": "[data-testid='mode-tab-schedule']", "max_results": 1 }

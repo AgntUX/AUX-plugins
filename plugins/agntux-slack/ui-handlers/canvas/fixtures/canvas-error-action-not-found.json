@@ -12,7 +12,7 @@
     "thread": { "parent_ts": "ts", "total_replies": 0, "participants": [] },
     "proposed_followup_message": "Posted."
   },
-  "prompt": "Call canvas_view for a nonexistent action to exercise the error state.",
+  "prompt": "Call agntux_slack_canvas_view for a nonexistent action to exercise the error state.",
   "interactions": [
     { "type": "query", "selector": "[data-testid='error-action-not-found']", "max_results": 1 }
   ],

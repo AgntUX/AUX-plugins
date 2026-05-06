@@ -71,6 +71,15 @@ interface TriageActionRow {
   suggested_actions: SuggestedActionRow[];
   why_matters_excerpt: string;
   personalization_fit_excerpt: string;
+  // Created/updated timestamps surfaced so the component can render
+  // "Created X ago / Updated Y ago" lines and offer a sort-by-recency option.
+  // `created_at` is read from frontmatter; `updated_at` is the file mtime
+  // (frontmatter doesn't carry an `updated_at` for actions, so file mtime
+  // is the most accurate signal of recency — captures status flips, body
+  // appends, suggested-action edits all without coupling to a writer that
+  // remembers to bump a field).
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface TriageHandledRow {
@@ -209,7 +218,7 @@ function indexLastUpdated(actionsDir: string): string {
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 
 export const triageViewTool = {
-  name: "triage_view",
+  name: "agntux_core_triage_view",
   description:
     "Render the AgntUX triage UI populated with priority-sorted open " +
     "action items and the most recently-handled items. Reads the local " +
@@ -283,8 +292,14 @@ export async function handleTriageView(
 
   for (const filePath of files) {
     let parsed;
+    let fileMtime: string | null = null;
     try {
       parsed = parseActionFile(filePath);
+      try {
+        fileMtime = new Date(statSync(filePath).mtimeMs).toISOString();
+      } catch {
+        fileMtime = null;
+      }
     } catch {
       // Skip malformed files; never crash the whole render.
       continue;
@@ -313,6 +328,8 @@ export async function handleTriageView(
         ),
         why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
         personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
+        created_at: fm.created_at || null,
+        updated_at: fileMtime,
       });
       continue;
     }

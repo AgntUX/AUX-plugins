@@ -14,6 +14,8 @@ interface TriageActionRow {
     suggested_actions: SuggestedActionRow[];
     why_matters_excerpt: string;
     personalization_fit_excerpt: string;
+    created_at: string | null;
+    updated_at: string | null;
 }
 interface TriageHandledRow {
     id: string;
@@ -67,7 +69,7 @@ interface ViewToolError {
 }
 type ViewToolResult = ViewToolSuccess | ViewToolError;
 export declare const triageViewTool: {
-    readonly name: "triage_view";
+    readonly name: "agntux_core_triage_view";
     readonly description: string;
     readonly inputSchema: {
         readonly type: "object";

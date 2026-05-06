@@ -11,24 +11,27 @@ import { dismissTool } from "./tools/dismiss.js";
 import { setStatusTool } from "./tools/set-status.js";
 import { triageViewTool, handleTriageView } from "./tools/triage-view.js";
 const PLUGIN_NAME = "agntux-core";
-const PLUGIN_VERSION = "5.0.0";
+const PLUGIN_VERSION = "6.0.0";
 const gate = createLicenseGate({
     pluginName: PLUGIN_NAME,
     pluginVersion: PLUGIN_VERSION,
 });
 const server = new Server({ name: PLUGIN_NAME, version: PLUGIN_VERSION }, { capabilities: { resources: {}, tools: {} } });
-// Tools surface:
-//   - snooze, dismiss, set_status — invoked by the triage component via
-//     useAppsClient().callTool() for inline mutations. NOT routed through
-//     the LLM, so their args are component-supplied and effectively free.
-//   - triage_view — invoked by the host's agent loop in response to
-//     `/agntux-triage` (or any of the routed verb phrases). Returns the
+// Tools surface (v6.0.0+ all tool names are prefixed with `agntux_core_` so
+// they are unambiguous at the host's MCP routing layer — collisions with
+// other servers' tool names are no longer possible):
+//   - agntux_core_snooze / agntux_core_dismiss / agntux_core_set_status —
+//     invoked by the triage component via useAppsClient().callTool() for
+//     inline mutations. NOT routed through the LLM, so their args are
+//     component-supplied and effectively free.
+//   - agntux_core_triage_view — invoked by the host's agent loop in response
+//     to `/agntux-triage` (or any of the routed verb phrases). Returns the
 //     structuredContent payload for ui://triage.
 const TOOLS = {
-    snooze: { ...snoozeTool, handler: snoozeTool.handler },
-    dismiss: { ...dismissTool, handler: dismissTool.handler },
-    set_status: { ...setStatusTool, handler: setStatusTool.handler },
-    triage_view: {
+    agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
+    agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
+    agntux_core_set_status: { ...setStatusTool, handler: setStatusTool.handler },
+    agntux_core_triage_view: {
         description: triageViewTool.description,
         inputSchema: triageViewTool.inputSchema,
         _meta: triageViewTool._meta,

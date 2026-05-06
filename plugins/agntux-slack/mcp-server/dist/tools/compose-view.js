@@ -136,7 +136,7 @@ function parseMessagesPreviewArg(raw) {
 }
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 export const composeViewTool = {
-    name: "compose_view",
+    name: "agntux_slack_compose_view",
     description: "Render the Slack reply composer iframe for an action item. Trigger when " +
         "the user says 'open the reply composer for action {id}' or 'open the " +
         "reply composer in schedule mode for action {id}'. Loads thread context " +

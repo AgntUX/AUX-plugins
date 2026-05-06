@@ -1,7 +1,7 @@
 ---
 name: canvas
 description: UI handler for the Slack canvas summary card. Renders editable canvas sections (title, TL;DR, decisions, open questions, participants) and a "Create canvas + post link" action. Engage when the draft skill calls canvas_view after composing the canvas sections.
-tools: Read, mcp__agntux-slack__canvas_view
+tools: Read, mcp__agntux-slack__agntux_slack_canvas_view
 
 operational:
   catalogue_version: "1.0.0"
@@ -14,7 +14,7 @@ operational:
     # backward compat with action items written by 2.x.x ingest runs.
     - "open the canvas summariser for action"
     - "summarise the thread for action"
-  view_tool: canvas_view
+  view_tool: agntux_slack_canvas_view
   resource_uri: "ui://slack-canvas"
   structured_content_schema:
     - "action_id (string — kebab-case slug from filename, no .md suffix)"
@@ -64,7 +64,7 @@ The body is METADATA ONLY.
 
 Source: **Slack thread context** (passed by the draft skill)
 UI component: `ui://slack-canvas`
-View tool: `mcp__agntux-slack__canvas_view`
+View tool: `mcp__agntux-slack__agntux_slack_canvas_view`
 
 This handler renders the **Canvas** card — the inline editor for creating a
 Slack canvas thread summary. The user can edit the title, TL;DR, decisions,

@@ -82,14 +82,16 @@ per-plugin instruction in
 
 ## Suggested-action flow
 
-Action items raised by `skills/sync/SKILL.md` ship four buttons by
-default (`Draft a reply`, `Schedule a reply`, `Open in Slack`,
-`Mark done — already handled in Slack`) plus an optional fifth
-(`Summarise to canvas`) for thread-summary-worthy items. Snooze and
-"Stop raising items like this" are intentionally NOT plugin-authored
-— both are built-in agntux-core triage chrome (Snooze button with 24h
-preset; Stop-raising in the Details modal), so plugin-side duplicates
-were retired in 3.0.0.
+Action items raised by `skills/sync/SKILL.md` ship three buttons by
+default (`Draft a reply`, `Schedule a reply`, `Open in Slack`) plus an
+optional fourth (`Summarise to canvas`) for thread-summary-worthy
+items. Snooze, "Stop raising items like this", and "Mark done —
+already handled in Slack" are intentionally NOT plugin-authored —
+all three are redundant with built-in agntux-core triage chrome
+(Snooze button with 24h preset; Stop-raising in the Details modal;
+primary Done button on every card; Dismiss → "Completed externally"
+outcome). Plugin-side duplicates were retired in 3.0.0 for Snooze /
+Stop-raising and in 4.0.0 for "Mark done".
 
 When you click `Draft a reply`, the host routes a `ux: Use the
 agntux-slack plugin to open the reply composer for action {id}.` prompt
@@ -112,7 +114,7 @@ already loaded.
    {id} with body «…» (mode: send).`) which the draft skill matches and
    parses. On a well-formed envelope, the draft skill calls
    `slack_send_message` with the exact (possibly edited) body and marks
-   the action item `done` via `mcp__agntux-core__set_status`.
+   the action item `done` via `mcp__agntux-core__agntux_core_set_status`.
 
 No write tool is ever called without a committed envelope from the
 iframe. The iframe Send button is the explicit authorisation gate.

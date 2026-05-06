@@ -8,8 +8,9 @@
  *     / license_paused / populated list
  *   - card content: title, summary, priority pill, reason badge, entity badges,
  *     suggested-action buttons
- *   - inline mutations: Done → callTool('set_status'), Snooze → modal → callTool('snooze'),
- *     Dismiss → modal → callTool('dismiss')
+ *   - inline mutations: Done → callTool('agntux_core_set_status'),
+ *     Snooze → modal → callTool('agntux_core_snooze'),
+ *     Dismiss → modal → callTool('agntux_core_dismiss')
  *   - suggested-action click → sendFollowUpMessage(host_prompt)
  *   - "Stop raising items like this" → sendFollowUpMessage with the
  *     user-feedback envelope
@@ -183,20 +184,20 @@ describe('MainComponent — render branches', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('MainComponent — inline mutations', () => {
-  it('Done button calls callTool("set_status", { id, status: "done" })', async () => {
+  it('Done button calls callTool("agntux_core_set_status", { id, status: "done" })', async () => {
     const user = userEvent.setup();
     const { props, callToolSpy } = createMainComponentProps({
       toolOutput: makePayload(),
     });
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('done-fixture-action-1'));
-    expect(callToolSpy).toHaveBeenCalledWith('set_status', {
+    expect(callToolSpy).toHaveBeenCalledWith('agntux_core_set_status', {
       id: 'fixture-action-1',
       status: 'done',
     });
   });
 
-  it('Snooze opens the picker; preset click → callTool("snooze", { id, until })', async () => {
+  it('Snooze opens the picker; preset click → callTool("agntux_core_snooze", { id, until })', async () => {
     const user = userEvent.setup();
     const { props, callToolSpy } = createMainComponentProps({
       toolOutput: makePayload(),
@@ -207,7 +208,7 @@ describe('MainComponent — inline mutations', () => {
     await user.click(screen.getByTestId('snooze-confirm'));
     expect(callToolSpy).toHaveBeenCalledTimes(1);
     const [tool, args] = callToolSpy.mock.calls[0];
-    expect(tool).toBe('snooze');
+    expect(tool).toBe('agntux_core_snooze');
     expect((args as Record<string, unknown>).id).toBe('fixture-action-1');
     expect(typeof (args as Record<string, unknown>).until).toBe('string');
     // Until value is roughly 24h from now (allow a 5-min skew window).
@@ -218,7 +219,7 @@ describe('MainComponent — inline mutations', () => {
     expect(Math.abs(untilMs - expected)).toBeLessThan(5 * 60 * 1000);
   });
 
-  it('Dismiss opens the picker; selecting "noise" + submitting → callTool("dismiss", …)', async () => {
+  it('Dismiss opens the picker; selecting "noise" + submitting → callTool("agntux_core_dismiss", …)', async () => {
     const user = userEvent.setup();
     const { props, callToolSpy } = createMainComponentProps({
       toolOutput: makePayload(),
@@ -227,7 +228,7 @@ describe('MainComponent — inline mutations', () => {
     await user.click(screen.getByTestId('dismiss-fixture-action-1'));
     await user.click(screen.getByTestId('dismiss-outcome-noise'));
     await user.click(screen.getByTestId('dismiss-confirm'));
-    expect(callToolSpy).toHaveBeenCalledWith('dismiss', {
+    expect(callToolSpy).toHaveBeenCalledWith('agntux_core_dismiss', {
       id: 'fixture-action-1',
       outcome: 'noise',
     });
@@ -246,7 +247,7 @@ describe('MainComponent — inline mutations', () => {
       'Not for me right now',
     );
     await user.click(screen.getByTestId('dismiss-confirm'));
-    expect(callToolSpy).toHaveBeenCalledWith('dismiss', {
+    expect(callToolSpy).toHaveBeenCalledWith('agntux_core_dismiss', {
       id: 'fixture-action-1',
       outcome: 'irrelevant',
       outcome_note: 'Not for me right now',
@@ -579,15 +580,18 @@ describe('MainComponent — filters + sort persist to widgetState', () => {
     expect(getWidgetState().priority_filter).toBe('high');
   });
 
-  it('sort toggle flips priority ↔ due in widgetState', async () => {
+  it('sort dropdown writes the selected sort option into widgetState (v6.0.0+ — replaces the priority↔due toggle)', async () => {
     const user = userEvent.setup();
     const { props, getWidgetState } = createMainComponentProps({
       toolOutput: makePayload(),
       widgetState: { sort: 'priority' },
     });
     render(<MainComponent {...props} />);
-    await user.click(screen.getByTestId('sort-toggle'));
+    const select = screen.getByTestId('sort-select') as HTMLSelectElement;
+    await user.selectOptions(select, 'due');
     expect(getWidgetState().sort).toBe('due');
+    await user.selectOptions(select, 'created');
+    expect(getWidgetState().sort).toBe('created');
   });
 
   it('filtering hides non-matching actions from the list', () => {
@@ -692,6 +696,154 @@ describe('MainComponent — inline viewport budget', () => {
     // must exist in the DOM for the user to reach it via scroll.
     expect(lastDone).toBeInTheDocument();
     unmount();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v6.0.0 — branded header, dates, sort dropdown, do-something-else, toasts
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MainComponent — v6.0.0 features', () => {
+  it('renders the AgntUX-branded header ("Action Item Triage", was "Triage")', () => {
+    const { props } = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...props} />);
+    expect(screen.getByTestId('triage-title')).toHaveTextContent(
+      'Action Item Triage',
+    );
+  });
+
+  it('renders Created/Updated relative dates on each card when timestamps are present', () => {
+    const created = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const updated = new Date(Date.now() - 60 * 1000).toISOString();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'with-dates',
+            created_at: created,
+            updated_at: updated,
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    const ts = screen.getByTestId('timestamps-with-dates');
+    expect(ts).toHaveTextContent(/Created/);
+    // Created and Updated are >1 day apart? created=2h ago, updated=1m ago →
+    // 2h diff is < 24h, so the "Updated" half should be collapsed for noise
+    // reduction. Just assert "Created" is rendered.
+    expect(ts.textContent).toContain('Created');
+  });
+
+  it('shows separate Updated time when created and updated diverge by >1 day', () => {
+    const created = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const updated = new Date(Date.now() - 60 * 1000).toISOString();
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'divergent',
+            created_at: created,
+            updated_at: updated,
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    const ts = screen.getByTestId('timestamps-divergent');
+    expect(ts.textContent).toContain('Created');
+    expect(ts.textContent).toContain('Updated');
+  });
+
+  it('sort dropdown exposes priority / due / created options', () => {
+    const { props } = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...props} />);
+    const select = screen.getByTestId('sort-select') as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toEqual(['priority', 'due', 'created']);
+  });
+
+  it('"Do something else…" button on the card opens the prompt modal', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('do-something-else-fixture-action-1'));
+    expect(screen.getByTestId('do-something-else-prompt')).toBeInTheDocument();
+    expect(screen.getByTestId('do-something-else-submit')).toBeDisabled();
+  });
+
+  it('"Do something else…" submit dispatches sendFollowUpMessage with action context envelope', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'ctx-1',
+            title: 'Reply to Avery',
+            priority: 'high',
+            reason_class: 'response-needed',
+            source: 'slack',
+            related_entities: ['person/avery-rivera'],
+            why_matters_excerpt: 'Avery asked about delivery confidence.',
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('do-something-else-ctx-1'));
+    await user.type(
+      screen.getByTestId('do-something-else-prompt'),
+      'Draft a Linear ticket for this.',
+    );
+    await user.click(screen.getByTestId('do-something-else-submit'));
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+    const sent = sendFollowUpMessageSpy.mock.calls[0][0] as string;
+    expect(sent).toContain(
+      'Please take the following action based on the action item below:',
+    );
+    expect(sent).toContain('Draft a Linear ticket for this.');
+    expect(sent).toContain('Action ID: ctx-1');
+    expect(sent).toContain('Title: Reply to Avery');
+    expect(sent).toContain('Priority: high');
+    expect(sent).toContain('Reason class: response-needed');
+    expect(sent).toContain('Source: slack');
+    expect(sent).toContain('Related entities: person/avery-rivera');
+    expect(sent).toContain('Avery asked about delivery confidence.');
+  });
+
+  it('"Do something else…" submit does nothing when prompt is whitespace-only', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload(),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('do-something-else-fixture-action-1'));
+    await user.type(screen.getByTestId('do-something-else-prompt'), '   ');
+    expect(screen.getByTestId('do-something-else-submit')).toBeDisabled();
+    expect(sendFollowUpMessageSpy).not.toHaveBeenCalled();
+  });
+
+  it('Done button shows a success toast', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('done-fixture-action-1'));
+    expect(await screen.findByTestId('toast-success')).toHaveTextContent(
+      /Marked done/,
+    );
+  });
+
+  it('Detail modal closes after a suggested-action click', async () => {
+    const user = userEvent.setup();
+    const { props } = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('details-fixture-action-1'));
+    // Modal renders the same-keyed suggested action button; click index 0.
+    await user.click(screen.getByTestId('detail-suggested-0'));
+    // The detail modal closes — the per-section heading is no longer present.
+    expect(
+      screen.queryByText(/Why this matters/i),
+    ).not.toBeInTheDocument();
   });
 });
 

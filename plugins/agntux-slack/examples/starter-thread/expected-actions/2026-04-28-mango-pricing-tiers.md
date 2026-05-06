@@ -25,9 +25,6 @@ suggested_actions:
       ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action 2026-04-28-mango-pricing-tiers.
   - label: "Open in Slack"
     url: "https://oatfi.slack.com/archives/C01PROJMANGO/p1714300000000100"
-  - label: "Mark done — already handled in Slack"
-    host_prompt: |
-      ux: Use the agntux-core plugin to set action 2026-04-28-mango-pricing-tiers status to done with outcome "completed-externally" (already handled in Slack).
 ---
 
 ## Why this matters

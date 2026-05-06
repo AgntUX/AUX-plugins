@@ -127,7 +127,7 @@ function indexLastUpdated(actionsDir) {
 }
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 export const triageViewTool = {
-    name: "triage_view",
+    name: "agntux_core_triage_view",
     description: "Render the AgntUX triage UI populated with priority-sorted open " +
         "action items and the most recently-handled items. Reads the local " +
         "AgntUX knowledge store server-side; no required arguments. Use when " +
@@ -176,8 +176,15 @@ export async function handleTriageView(args) {
     let snoozedCount = 0;
     for (const filePath of files) {
         let parsed;
+        let fileMtime = null;
         try {
             parsed = parseActionFile(filePath);
+            try {
+                fileMtime = new Date(statSync(filePath).mtimeMs).toISOString();
+            }
+            catch {
+                fileMtime = null;
+            }
         }
         catch {
             // Skip malformed files; never crash the whole render.
@@ -205,6 +212,8 @@ export async function handleTriageView(args) {
                 suggested_actions: fm.suggested_actions.slice(0, MAX_SUGGESTED_ACTIONS),
                 why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
                 personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
+                created_at: fm.created_at || null,
+                updated_at: fileMtime,
             });
             continue;
         }
