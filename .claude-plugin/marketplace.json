@@ -28,10 +28,29 @@
       "category": "meta"
     },
     {
+      "name": "agntux-gmail",
+      "source": "./plugins/agntux-gmail",
+      "description": "Gmail integration for AgntUX. Ingests inbox threads into your knowledge store, drafts replies on demand, and saves them to Gmail Drafts for one-click review-and-send.",
+      "version": "1.0.0",
+      "author": {
+        "name": "AgntUX"
+      },
+      "homepage": "https://agntux.ai/plugins/agntux-gmail",
+      "license": "Elastic-2.0",
+      "keywords": [
+        "gmail",
+        "email",
+        "inbox",
+        "threads",
+        "action-items"
+      ],
+      "category": "communication"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
-      "version": "5.1.3",
+      "version": "5.2.0",
       "author": {
         "name": "AgntUX"
       },
