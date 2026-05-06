@@ -167,15 +167,16 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 1. **`<agntux project root>/user.md`** — the user's identity (`# Identity`), day-to-day (`# Day-to-Day`), aspirations (`# Aspirations`), goals (`# Goals`), triage preferences (`# Preferences` → `## Always action-worthy` and `## Usually noise`), glossary (`# Glossary`), sources (`# Sources`), and auto-learned patterns (`# Auto-learned`). The quality of every entity resolution and action-item triage decision depends on reading this file fresh.
 
-2. **`<agntux project root>/data/learnings/agntux-slack/sync.md`** — your section-of-one. Read `cursor`, `discovery_ts`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
+2. **`<agntux project root>/data/learnings/agntux-slack/sync.md`** — your section-of-one. Read `cursor`, `discovery_ts`, `workspace_subdomain`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
 
-   - If the file does not exist, create it from the standard template with: `cursor: {}`, `discovery_ts: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
+   - If the file does not exist, create it from the standard template with: `cursor: {}`, `discovery_ts: null`, `workspace_subdomain: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
    - The sync-file path is **per-plugin** (`data/learnings/agntux-slack/sync.md`).
    - The `cursor` field is a JSON object on a single line. **It is a unified map with two key shapes** (no separate `threads:` field):
      - `<channel_id>` (e.g., `"C01ABC"`, `"D03GHI"`) → channel-level cursor. Value is the newest parent-message `ts` processed in that channel, or `null` for discovered-but-not-bootstrapped channels.
      - `<channel_id>#<thread_ts>` (e.g., `"C01ABC#1714043640.001200"`) → per-thread cursor. Value is the newest reply `ts` processed in that thread.
      Parse with `JSON.parse(cursor)`. Serialise with `JSON.stringify(map)`. cursor-strategies.md's Slack section already permits DM channels (`D…`) in the same map; thread-shaped keys add a `#` separator without a schema extension.
    - The `discovery_ts` field is the newest message ts surfaced by any of the three discovery search queries — used as the `after:` filter on the next run.
+   - The `workspace_subdomain` field is the tenant subdomain used to construct Slack deep links offline (e.g. `"oatfi"` for `oatfi.slack.com`). It is captured **once**, the first time any Slack MCP read tool returns a `Permalink:` field — see Step 5b. Once set, it persists across runs and is treated as immutable for the lifetime of the cursor file. When still `null`, the `Open in Slack` suggested action is omitted from action items written this run; subsequent runs include it once a permalink is observed. **Workspace renames** (rare; an admin changes the URL slug, or an Enterprise Grid migration moves the workspace) are out of band — links written before the rename will 404. The user clears `workspace_subdomain` from this file manually to force re-derivation on the next run; we do not auto-detect drift.
 
 3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
 
@@ -243,6 +244,7 @@ For each result:
 - If the result is a thread reply (`thread_ts != ts`) AND `<channel_id>#<thread_ts>` is missing from the map, add it with value `null` (bootstrap on per-thread pass; Step 5d handles the null case by fetching the full thread). No separate threads field — the `#`-separator distinguishes shape.
 - Discovery only **upserts missing keys** — it must NOT overwrite an existing channel-shaped or thread-shaped cursor value. The actual cursor advancement happens in Steps 5c and 5d.
 - Update `discovery_ts` to the newest message `ts` seen across all three queries.
+- **Capture `workspace_subdomain` if not already set.** If `workspace_subdomain` is still `null` from Step 2 AND the result envelope includes a `Permalink:` field (every `slack_search_*` result does), apply the regex `^https?://([^.]+)\.slack\.com/` to the permalink string and store the captured group 1 verbatim into `sync.md → workspace_subdomain`. Persist atomically as part of this run's sync.md write (Step 11). Once set, do **not** re-derive on subsequent results — the value is workspace-stable. If discovery returns no permalinks at all (rare; first-run with empty workspace), leave `workspace_subdomain: null` and Step 10 will omit the `Open in Slack` row this run.
 
 **First-run consent failure.** `slack_search_public_and_private` requires user consent. If the host returns a consent-denied error on any of the three queries, log kind `auth` to `sync.md → errors` with the message `"slack search consent denied — grant the connector's search permission and re-run /agntux-slack:sync"` and exit cleanly. Do NOT proceed with per-channel polling — without discovery the coverage is incomplete and we'd false-advertise "no missed activity".
 
@@ -344,6 +346,12 @@ For each candidate entity:
    e. Only when no match exists: create a new entity file (Step 6 continued).
 
 3. **Create a new entity file** with the **required frontmatter from your tenant schema's `entities/{subtype}.md`** (read it once at Step 0 if you haven't). The validator will reject any write missing required fields.
+
+   **Optional Slack-deep-link frontmatter (additive — pre-positions data for future "Open in Slack" links from entity chips).** When the subtype is `person` and the source artefact carries the relevant identifiers, also include:
+   - `slack_user_id` — the Slack `U…` user id resolved from the source message author or `slack_read_user_profile` lookup. Set on creation; updated only if missing.
+   - `slack_dm_channel_id` — the Slack `D…` DM channel id, set when this person is a DM partner of the user (i.e. the source message lived in a DM channel with `channel_id` starting with `D`). Set on creation; updated only if missing.
+
+   Both fields are **optional** — they are not part of the contract's `# Allowed entity subtypes → person → required_frontmatter` and the validator does not gate on them. Omit either field if the data isn't available; never write a placeholder. They are not used by the sync skill itself; they exist so a future triage entity-chip UI can render `https://{workspace_subdomain}.slack.com/team/{slack_user_id}` (profile) or `https://{workspace_subdomain}.slack.com/archives/{slack_dm_channel_id}` (open DM) without forcing a re-sync.
 
    Body sections (all four required, in order, per the tenant schema):
    ```markdown
@@ -484,6 +492,27 @@ Write `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suffix}.md` conformant t
 
 The date component is `created_at` localised to the user's timezone. Slug-suffix per P3 §2.4. Collision: append `-2`, `-3`, etc.
 
+**Construct the `Open in Slack` URL FIRST** (before assembling the suggested_actions block below). Construction is purely deterministic:
+
+1. **If `workspace_subdomain` is `null`** (cold-start: no MCP permalink observed yet this run), set `slack_open_url := null`. The `Open in Slack` row will be omitted from the YAML below — see "suggested_actions rules" further down.
+2. **Otherwise:** split `source_ref` on `#` to get `channel_id` and the trailing `ts_or_thread_ts` value. Build a path-segment by removing the dot and prepending `p` (e.g. `1777391863.734439` → `p1777391863734439`). Assemble:
+
+   ```
+   slack_open_url := https://{workspace_subdomain}.slack.com/archives/{channel_id}/{p_segment}
+   ```
+
+   The same template covers every action shape this skill emits — the channel-id prefix does not change the URL family:
+
+   | `source_ref` shape | Example channel id prefix | Notes |
+   |---|---|---|
+   | Thread-rooted action `<channel_id>#<thread_ts>` | `C` (public), `G` (private), `D` (DM), `C…`/`G…` (mpim group DM) | URL lands the user on the thread parent in Slack. |
+   | Top-level channel message `<channel_id>#<ts>` | same | URL lands on the message. |
+   | DM-rooted action `<D…>#<ts>` (1:1 DM) | `D` only | Same template; DM channel ids slot into the same `archives/{id}/p…` form. |
+
+   We do **not** branch on the channel-id prefix — Slack's `https://{ws}.slack.com/archives/{any_channel_id}/p{ts_no_dot}` URL family accepts every channel-id shape Slack issues (public `C`, legacy private `G`, DM `D`, and the `C`/`G`/`D` shapes used for group DMs). The reply-level `?thread_ts=…&cid=…` query form documented in `~/Downloads/slack-deeplink-guide.md` is intentionally out of scope here — landing on the thread parent is the desired UX for "Open in Slack".
+
+   Worked example: `workspace_subdomain: "oatfi"`, `source_ref: "C031V2MJ2KA#1777391863.734439"` → `slack_open_url := "https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439"`.
+
 **Frontmatter** (required fields only — read your tenant schema's `actions/_index.md` for the canonical list; the validator rejects missing fields):
 
 ```yaml
@@ -511,9 +540,12 @@ suggested_actions:
   - label: "Schedule a reply"
     host_prompt: |
       ux: Use the agntux-slack plugin to draft a reply and schedule it for action {id}.
+  # Include the next row ONLY IF slack_open_url is non-null. Substitute the
+  # literal URL string (not the variable name) into the url: field. If
+  # slack_open_url is null, drop these two lines entirely from the emitted
+  # YAML — do not write a row with an empty or placeholder url.
   - label: "Open in Slack"
-    host_prompt: |
-      ux: Use the agntux-core plugin to print the Slack permalink for action {id}.
+    url: "{slack_open_url}"
   - label: "Mark done — already handled in Slack"
     host_prompt: |
       ux: Use the agntux-core plugin to set action {id} status to done with outcome "completed-externally" (already handled in Slack).
@@ -525,7 +557,7 @@ suggested_actions:
       ux: Use the agntux-core plugin to snooze action item {id} for 24 hours.
 ```
 
-For thread-summary-worthy items (long threads with decisions worth preserving), add a fifth button:
+For thread-summary-worthy items (long threads with decisions worth preserving), add a final row:
 
 ```yaml
   - label: "Summarise to canvas"
@@ -539,8 +571,9 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–7 buttons. The default response-needed item ships the six standard buttons (Draft, Schedule, Open in Slack, Mark done, Stop raising, Snooze 24h); add the optional `Summarise to canvas` button as the 7th for canvas-worthy items.
-- "Snooze 24h" is always last; "Mark done — already handled in Slack" and "Stop raising items like this" come before snooze. The two new buttons are how the user signals **why** they're closing the item — that signal is what `pattern-feedback` reads (see PR 2). Don't drop them.
+- 2–7 buttons. The default response-needed item ships the six standard buttons (Draft, Schedule, Open in Slack, Mark done, Stop raising, Snooze 24h); add the optional `Summarise to canvas` button as a 7th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is five.
+- "Snooze 24h" is always last; "Mark done — already handled in Slack" and "Stop raising items like this" come before snooze. The two close-the-item buttons are how the user signals **why** they're closing the item — that signal is what `pattern-feedback` reads (see PR 2). Don't drop them.
+- A row carries **either** `host_prompt` (LLM-routed) **or** `url` (host openLink — opens directly in browser/native client), never both, never neither. The `Open in Slack` row is the only one that uses `url`; every other standard button uses `host_prompt`. agntux-core's parser drops any row missing both fields — never emit a row with an empty/placeholder url just to keep the count.
 - Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
 - Don't pre-fill orchestrator-authored content. The draft body, schedule time, and canvas content are produced by `skills/draft/SKILL.md` at click time, with fresh context.
 
@@ -567,8 +600,9 @@ After processing all items:
    - Thread-shaped keys (`<channel_id>#<thread_ts>`): set to the newest reply ts processed in that thread. Evict thread-shaped entries with no activity for ≥30 days. **Channel-shaped entries are never evicted.**
    Serialise the whole map as a single-line JSON object. Atomic write to `data/learnings/agntux-slack/sync.md`.
 2. **Advance `discovery_ts`** to the newest message ts surfaced by any of the three discovery search queries.
-3. **Update run stats**: `last_run`, `last_success`, increment `items_processed`.
-4. **Release the lock**: `- lock: null`. Atomic write.
+3. **Persist `workspace_subdomain`** if it was captured for the first time during Step 5b. Once non-null, this value is workspace-stable and never overwritten on subsequent runs.
+4. **Update run stats**: `last_run`, `last_success`, increment `items_processed`.
+5. **Release the lock**: `- lock: null`. Atomic write.
 
 | Layer | Key shape in `cursor` map | What advances | When advanced |
 |---|---|---|---|
