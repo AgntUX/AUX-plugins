@@ -16,20 +16,27 @@
  * component must build before the server.
  *
  * Usage:
- *   node scripts/build-plugin.mjs <slug>           # build one plugin
- *   node scripts/build-plugin.mjs --all            # build every plugin
- *   node scripts/build-plugin.mjs <slug> --serve   # build + launch in HTTP_MODE
+ *   node scripts/build-plugin.mjs <slug> [<slug>...]     # build one or more plugins
+ *   node scripts/build-plugin.mjs --all                   # build every plugin
+ *   node scripts/build-plugin.mjs <slug> --serve          # build + launch in HTTP_MODE
+ *   node scripts/build-plugin.mjs <slug1> <slug2> --serve # build all, run all servers in parallel
  *   node scripts/build-plugin.mjs <slug> --skip-install
- *                                                  # skip `npm install` steps
- *                                                  # (CI sets this once at top)
+ *                                                         # skip `npm install` steps
+ *                                                         # (CI sets this once at top)
+ *
+ * Workspace-rooted plugins (those whose plugin-root package.json declares
+ * `workspaces`) get a single `npm install` at the plugin root instead of
+ * per-member installs. This is required for npm 10.9+, whose arborist
+ * crashes ("Cannot read properties of null (reading 'package')") if you
+ * run `npm install` inside a workspace member directory.
  *
  * Exit codes:
  *   0 — success (every component, mcp-server, packages/mcp-license built; sync ok)
  *   1 — any step failed
  */
 
-import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,7 +50,7 @@ const argv = parseArgs(process.argv.slice(2));
 
 if (argv._.length === 0 && !argv.all) {
   fail(
-    "usage: node scripts/build-plugin.mjs <slug>|--all [--serve] [--skip-install] [--port <n>]",
+    "usage: node scripts/build-plugin.mjs <slug>... | --all [--serve] [--skip-install] [--port <n>]",
   );
 }
 
@@ -65,8 +72,11 @@ if (slugs.length === 0) {
   fail("No plugins found.");
 }
 
-if (argv.serve && slugs.length > 1) {
-  fail("--serve can only be used with a single plugin slug.");
+if (argv.serve && argv.port && slugs.length > 1) {
+  fail(
+    "--port cannot be combined with --serve and multiple slugs " +
+      "(each server has its own default; specify --port for one plugin at a time)",
+  );
 }
 
 // Always build the shared license package first — every plugin's mcp-server
@@ -81,12 +91,15 @@ for (const slug of slugs) {
 }
 
 if (argv.serve) {
-  const slug = slugs[0];
-  servePlugin(slug, argv.port);
+  log(`built ${slugs.length} plugin(s) successfully; launching server(s)`);
+  servePlugins(slugs, argv.port);
+  // servePlugins handles its own process exit (single) or keeps the event
+  // loop alive via child stdio pipes (multi). Control does not reach the
+  // success-log path below.
+} else {
+  log(`built ${slugs.length} plugin(s) successfully.`);
+  process.exit(0);
 }
-
-log(`built ${slugs.length} plugin(s) successfully.`);
-process.exit(0);
 
 // ── steps ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +115,18 @@ function buildSharedLicensePackage(skipInstall) {
 function buildPlugin(slug, pluginDir, skipInstall) {
   log(`[${slug}] starting build`);
 
+  // npm 10.9+ crashes ("Cannot read properties of null (reading 'package')")
+  // if you run `npm install` inside a workspace member directory. When the
+  // plugin's root package.json declares workspaces, do ONE install at the
+  // plugin root and skip per-member installs — the workspace install
+  // populates everything via npm's hoisting.
+  const wsRooted = isWorkspaceRooted(pluginDir);
+  const memberInstall = !skipInstall && !wsRooted;
+  if (!skipInstall && wsRooted) {
+    log(`[${slug}] workspace install (plugin root, hoists to all members)`);
+    runOrFail("npm", ["install", "--no-audit", "--no-fund"], pluginDir);
+  }
+
   const components = discoverComponents(pluginDir);
   log(
     `[${slug}] discovered ${components.length} UI component(s): ${
@@ -112,7 +137,7 @@ function buildPlugin(slug, pluginDir, skipInstall) {
   // Component build (each ui-handler's component/ has its own package.json).
   for (const c of components) {
     log(`[${slug}/${c.uiName}] building component`);
-    if (!skipInstall) {
+    if (memberInstall) {
       runOrFail("npm", ["install", "--no-audit", "--no-fund"], c.componentDir);
     }
     runOrFail("npm", ["run", "build"], c.componentDir);
@@ -127,7 +152,7 @@ function buildPlugin(slug, pluginDir, skipInstall) {
   const mcpServerDir = join(pluginDir, "mcp-server");
   if (existsSync(mcpServerDir)) {
     log(`[${slug}] building mcp-server (tsc + embed-bundle)`);
-    if (!skipInstall) {
+    if (memberInstall) {
       runOrFail("npm", ["install", "--no-audit", "--no-fund"], mcpServerDir);
     }
     runOrFail("npm", ["run", "build"], mcpServerDir);
@@ -137,17 +162,27 @@ function buildPlugin(slug, pluginDir, skipInstall) {
   }
 }
 
-function servePlugin(slug, portArg) {
+function servePlugins(slugs, portArg) {
+  if (slugs.length === 1) {
+    serveSingle(slugs[0], portArg);
+    return;
+  }
+  serveMany(slugs);
+}
+
+function serveSingle(slug, portArg) {
   const mcpServerDir = join(PLUGINS_DIR, slug, "mcp-server");
   const entry = join(mcpServerDir, "dist", "index.js");
   if (!existsSync(entry)) {
     fail(`[${slug}] mcp-server/dist/index.js missing — build must have failed.`);
   }
-  const port = portArg ?? "5180";
+  const env = { ...process.env, HTTP_MODE: "1" };
+  if (portArg !== undefined) env.PORT = String(portArg);
   log(
-    `[${slug}] launching MCP server in HTTP_MODE on http://127.0.0.1:${port} (Ctrl-C to stop)`,
+    `[${slug}] launching MCP server in HTTP_MODE${
+      portArg !== undefined ? ` on port ${portArg}` : " (using server's default port)"
+    } — Ctrl-C to stop`,
   );
-  const env = { ...process.env, HTTP_MODE: "1", PORT: String(port) };
   const result = spawnSync("node", [entry], {
     stdio: "inherit",
     env,
@@ -156,7 +191,88 @@ function servePlugin(slug, portArg) {
   process.exit(result.status ?? 0);
 }
 
+function serveMany(slugs) {
+  // Each MCP server has its own default PORT (e.g. agntux-core=5170,
+  // agntux-slack=5180). We do NOT pass PORT, so each picks its own default
+  // and ports don't collide. Use --serve with one slug + --port to override.
+  const procs = [];
+  let exiting = false;
+
+  const stopAll = (signal) => {
+    if (exiting) return;
+    exiting = true;
+    for (const { slug, proc } of procs) {
+      log(`[${slug}] stopping (${signal ?? "SIGTERM"})`);
+      try {
+        proc.kill("SIGTERM");
+      } catch {
+        // Already dead.
+      }
+    }
+  };
+
+  for (const slug of slugs) {
+    const mcpServerDir = join(PLUGINS_DIR, slug, "mcp-server");
+    const entry = join(mcpServerDir, "dist", "index.js");
+    if (!existsSync(entry)) {
+      fail(`[${slug}] mcp-server/dist/index.js missing — build must have failed.`);
+    }
+    log(`[${slug}] launching MCP server in HTTP_MODE (using server's default port)`);
+    const env = { ...process.env, HTTP_MODE: "1" };
+    const proc = spawn("node", [entry], {
+      env,
+      cwd: mcpServerDir,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    pipeWithPrefix(proc.stdout, slug, process.stdout);
+    pipeWithPrefix(proc.stderr, slug, process.stderr);
+    proc.on("exit", (code, signal) => {
+      // First child to exit unexpectedly tears down the rest so the user
+      // doesn't end up with one server running and one dead.
+      if (!exiting) {
+        log(`[${slug}] exited (${signal ?? `code ${code}`}); stopping others`);
+        stopAll(signal ?? "child-exit");
+      }
+    });
+    procs.push({ slug, proc });
+  }
+
+  process.on("SIGINT", () => stopAll("SIGINT"));
+  process.on("SIGTERM", () => stopAll("SIGTERM"));
+  // Don't process.exit here — let the children keep the event loop alive
+  // via their pipes; the script exits naturally when all have exited.
+}
+
+function pipeWithPrefix(src, slug, dst) {
+  let buf = "";
+  src.setEncoding("utf8");
+  src.on("data", (chunk) => {
+    buf += chunk;
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      dst.write(`[${slug}] ${line}\n`);
+    }
+  });
+  src.on("end", () => {
+    if (buf) dst.write(`[${slug}] ${buf}\n`);
+  });
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+function isWorkspaceRooted(pluginDir) {
+  const pkgPath = join(pluginDir, "package.json");
+  if (!existsSync(pkgPath)) return false;
+  let pkg;
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  } catch {
+    return false;
+  }
+  return Array.isArray(pkg.workspaces) && pkg.workspaces.length > 0;
+}
 
 function discoverComponents(pluginDir) {
   const out = [];

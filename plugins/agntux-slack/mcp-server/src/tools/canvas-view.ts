@@ -185,15 +185,20 @@ function parseDraftedCanvas(raw: unknown): DraftedCanvas {
 export const canvasViewTool = {
   name: "agntux_slack_canvas_view",
   description:
-    "Render the Slack canvas summariser iframe for an action item. Trigger " +
-    "when the user says 'open the canvas summariser for action {id}'. Loads " +
-    "the canvas sections (title, TL;DR, decisions, open questions, " +
-    "participants) and follow-up message from the action file's `## Canvas " +
-    "payload` body section when only {action_id} is supplied. Inline args " +
-    "override the on-disk payload when both are present — kept for backward " +
-    "compat with any out-of-band caller. Action files that lack a `## Canvas " +
-    "payload` section surface the `canvas_payload_missing` structured error. " +
-    "Returns _meta.ui.resourceUri = ui://slack-canvas.",
+    "Render the Slack canvas summariser iframe for an action item. " +
+    "TRIGGER PHRASE (map verbatim to args — do not paraphrase): " +
+    "'open the canvas summariser for action {id}' → call with {action_id: id}. " +
+    "For this click-time prompt, pass ONLY action_id. The tool reads the " +
+    "action file's `## Canvas payload` body section and lifts the canvas " +
+    "sections (title, TL;DR, decisions, open questions, participants), " +
+    "channel, thread, and follow-up message from disk. Do NOT pass " +
+    "drafted_canvas, channel, thread, or proposed_followup_message inline — " +
+    "those args are a legacy back-compat surface for out-of-band working- " +
+    "memory callers, and any inline value (including partial / empty " +
+    "objects) overrides the on-disk payload destructively, producing an " +
+    "empty UI. Action files that lack a `## Canvas payload` section surface " +
+    "the `canvas_payload_missing` structured error envelope. Returns " +
+    "_meta.ui.resourceUri = ui://slack-canvas.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -203,7 +208,10 @@ export const canvasViewTool = {
       },
       drafted_canvas: {
         type: "object",
-        description: "Optional. { title, tldr, decisions[], open_questions[], participants[] }. Override for the on-disk payload.",
+        description:
+          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+          "the tool lifts the canvas content from the action file's `## Canvas " +
+          "payload`. Inline override for out-of-band working-memory callers.",
         properties: {
           title: { type: "string" },
           tldr: { type: "string" },
@@ -214,7 +222,10 @@ export const canvasViewTool = {
       },
       channel: {
         type: "object",
-        description: "Optional. { id: string, name: string }. Override for the on-disk payload.",
+        description:
+          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+          "the tool lifts channel from the action file's `## Canvas payload`. " +
+          "Inline override for out-of-band working-memory callers.",
         properties: {
           id: { type: "string" },
           name: { type: "string" },
@@ -222,7 +233,10 @@ export const canvasViewTool = {
       },
       thread: {
         type: "object",
-        description: "Optional. { parent_ts, total_replies, participants[] }. Override for the on-disk payload.",
+        description:
+          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+          "the tool lifts thread from the action file's `## Canvas payload`. " +
+          "Inline override for out-of-band working-memory callers.",
         properties: {
           parent_ts: { type: "string" },
           total_replies: { type: "number" },
@@ -231,7 +245,9 @@ export const canvasViewTool = {
       },
       proposed_followup_message: {
         type: "string",
-        description: "Optional. ≤200 chars. Override for the on-disk payload.",
+        description:
+          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
+          "Inline override for out-of-band working-memory callers.",
       },
     },
     required: ["action_id"],

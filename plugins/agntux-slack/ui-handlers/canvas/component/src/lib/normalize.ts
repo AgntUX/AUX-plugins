@@ -8,7 +8,7 @@ import {
   safeNumber,
   safeObject,
   safeEnum,
-} from "./safe-accessors.js";
+} from "@agntux/ui-primitives";
 import type {
   CanvasPayload,
   CanvasError,

@@ -2,10 +2,8 @@
 // main-component.tsx — canvas card main component.
 // =============================================================================
 
-import { ScrollablePanel } from "./scrollable-panel.js";
+import { AgntuxLogo, ScrollablePanel, Spinner } from "@agntux/ui-primitives";
 import { CanvasCard } from "./canvas-card.js";
-import { Spinner } from "./spinner.js";
-import { AgntuxLogo } from "./agntux-logo.js";
 import { normalizeCanvasPayload } from "../lib/normalize.js";
 
 export interface MainComponentProps {

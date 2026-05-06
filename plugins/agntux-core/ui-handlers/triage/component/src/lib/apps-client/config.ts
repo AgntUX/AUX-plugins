@@ -78,9 +78,9 @@ export function getMcpServerConfig(): McpServerConfig {
   }
 
   // Check for build-time injection (vite plugin)
-  // eslint-disable-next-line no-undef, @typescript-eslint/no-unnecessary-condition
+   
   if (typeof __MCP_SERVER_CONFIG__ !== 'undefined' && __MCP_SERVER_CONFIG__) {
-    // eslint-disable-next-line no-undef
+     
     return __MCP_SERVER_CONFIG__;
   }
 

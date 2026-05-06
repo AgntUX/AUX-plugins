@@ -5,10 +5,8 @@
 // protocol-level additions (new host notifications, new hooks).
 // =============================================================================
 
-import { ScrollablePanel } from "./scrollable-panel.js";
+import { AgntuxLogo, ScrollablePanel, Spinner } from "@agntux/ui-primitives";
 import { ComposeCard } from "./compose-card.js";
-import { Spinner } from "./spinner.js";
-import { AgntuxLogo } from "./agntux-logo.js";
 import { normalizeComposePayload } from "../lib/normalize.js";
 
 export interface MainComponentProps {

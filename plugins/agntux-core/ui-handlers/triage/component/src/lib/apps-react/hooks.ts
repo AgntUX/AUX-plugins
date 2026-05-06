@@ -311,7 +311,7 @@ export function useUpdateModelContext(): (
   return useCallback(
     async (params: UpdateModelContextParams) => {
       if (!client) {
-        // eslint-disable-next-line no-console
+         
         console.warn('[useUpdateModelContext] Client not available');
         return;
       }

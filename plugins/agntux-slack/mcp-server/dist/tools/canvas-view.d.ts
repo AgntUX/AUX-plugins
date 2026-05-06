@@ -60,7 +60,7 @@ export declare const canvasViewTool: {
             };
             readonly drafted_canvas: {
                 readonly type: "object";
-                readonly description: "Optional. { title, tldr, decisions[], open_questions[], participants[] }. Override for the on-disk payload.";
+                readonly description: string;
                 readonly properties: {
                     readonly title: {
                         readonly type: "string";
@@ -90,7 +90,7 @@ export declare const canvasViewTool: {
             };
             readonly channel: {
                 readonly type: "object";
-                readonly description: "Optional. { id: string, name: string }. Override for the on-disk payload.";
+                readonly description: string;
                 readonly properties: {
                     readonly id: {
                         readonly type: "string";
@@ -102,7 +102,7 @@ export declare const canvasViewTool: {
             };
             readonly thread: {
                 readonly type: "object";
-                readonly description: "Optional. { parent_ts, total_replies, participants[] }. Override for the on-disk payload.";
+                readonly description: string;
                 readonly properties: {
                     readonly parent_ts: {
                         readonly type: "string";
@@ -120,7 +120,7 @@ export declare const canvasViewTool: {
             };
             readonly proposed_followup_message: {
                 readonly type: "string";
-                readonly description: "Optional. ≤200 chars. Override for the on-disk payload.";
+                readonly description: string;
             };
         };
         readonly required: readonly ["action_id"];

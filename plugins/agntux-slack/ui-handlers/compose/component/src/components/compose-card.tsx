@@ -24,7 +24,7 @@ import { DatetimePicker } from "./datetime-picker.js";
 import { PersonalizationDisclosure } from "./personalization-disclosure.js";
 import { MessagesPreview } from "./messages-preview.js";
 import { ExternalLink } from "./external-link.js";
-import { Spinner } from "./spinner.js";
+import { Spinner } from "@agntux/ui-primitives";
 import { formatDateTime, defaultScheduleTime } from "../lib/format-date.js";
 import { useEmitCommit } from "../lib/emit-commit.js";
 

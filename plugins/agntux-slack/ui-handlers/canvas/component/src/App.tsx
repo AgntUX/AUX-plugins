@@ -31,23 +31,11 @@ import {
   MainComponent,
   type MainComponentProps,
 } from './components/main-component';
-import { ComponentErrorBoundary } from './components/error-boundary';
-import { detectErrorEnvelope } from './lib/detect-error-envelope.js';
-
-function LicenseErrorScreen({ message }: { message: string }) {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <h2 className="mb-3 text-base font-semibold text-neutral-900 dark:text-neutral-100">
-          This view can&apos;t load right now
-        </h2>
-        <p className="whitespace-pre-wrap break-words text-sm text-neutral-700 dark:text-neutral-300">
-          {message}
-        </p>
-      </div>
-    </div>
-  );
-}
+import {
+  ComponentErrorBoundary,
+  LicenseErrorScreen,
+  detectErrorEnvelope,
+} from '@agntux/ui-primitives';
 
 export function App() {
   // Apply theme class to document body

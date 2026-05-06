@@ -150,18 +150,42 @@ locally for testing, use the commands below. Don't reach for the manual
 flow and is easy to get wrong (it's per-handler, so a multi-handler plugin
 like agntux-slack needs the chain repeated for every handler).
 
-| Request phrasing                                     | Command                                                  |
-|------------------------------------------------------|----------------------------------------------------------|
-| "build {slug}" / "build the {slug} component(s)"     | `node scripts/build-plugin.mjs {slug}`                   |
-| "build all plugins"                                  | `node scripts/build-plugin.mjs --all`                    |
-| "run {slug} for local testing" / "start {slug}"      | `cd plugins/{slug} && npm run dev`                       |
-| "build and run {slug} for local testing"             | `cd plugins/{slug} && npm run dev`                       |
-| "verify {slug} bundle is in sync"                    | `npm --prefix plugins/{slug}/mcp-server run check:bundle-sync` |
+`scripts/build-plugin.mjs` is the single entry point — it accepts one or
+more slugs, with optional `--serve` to launch each plugin's MCP server in
+HTTP_MODE after the build. Each plugin's MCP server has its own default
+port (agntux-core=5170, agntux-slack=5180), so multi-plugin `--serve`
+doesn't need port flags.
 
-`npm run dev` (per-plugin) builds every UI handler component, builds the
-mcp-server (which embeds the components), runs `check:bundle-sync`, and
-launches the MCP server in HTTP_MODE so a separately-running MCPJam
-Inspector can connect to it.
+| Request phrasing                                                                          | Command                                                                |
+|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| "build {slug}" / "build the {slug} component(s)"                                          | `node scripts/build-plugin.mjs {slug}`                                 |
+| "build {slug1} and {slug2}"                                                               | `node scripts/build-plugin.mjs {slug1} {slug2}`                        |
+| "build all plugins"                                                                       | `node scripts/build-plugin.mjs --all`                                  |
+| "run {slug} for local testing" / "start {slug}" / "build and run {slug}"                  | `node scripts/build-plugin.mjs {slug} --serve`                         |
+| "build the plugins and start the MCP servers for {slug1} and {slug2}" / "run X and Y together" | `node scripts/build-plugin.mjs {slug1} {slug2} --serve`            |
+| "build all plugins and serve them"                                                        | `node scripts/build-plugin.mjs --all --serve`                          |
+| "verify {slug} bundle is in sync"                                                         | `npm --prefix plugins/{slug}/mcp-server run check:bundle-sync`         |
+
+`build-plugin.mjs` builds every UI handler component, builds the
+mcp-server (which embeds the components), runs `check:bundle-sync`, and —
+with `--serve` — launches the MCP server(s) in HTTP_MODE so a separately-
+running MCPJam Inspector can connect.
+
+When `--serve` is given multiple slugs, each server's stdout/stderr is
+prefixed with `[{slug}]` and Ctrl-C tears all of them down.
+
+The legacy per-plugin shortcut `cd plugins/{slug} && npm run dev` still
+works for the single-plugin case (it delegates to `build-plugin.mjs`),
+but prefer the top-level command above so multi-plugin and single-plugin
+phrasings route the same way.
+
+**Workspace note.** Each plugin's root `package.json` declares its UI
+components and `mcp-server/` as npm workspaces. `build-plugin.mjs`
+auto-detects this and runs ONE `npm install` at the plugin root rather
+than per-member, because npm 10.9+ crashes
+(`Cannot read properties of null (reading 'package')`) if you run
+`npm install` inside a workspace member. CI keeps using `--skip-install`
+unchanged.
 
 MCPJam Inspector is a separate process. The user runs it themselves in a
 different terminal (typically `npm --prefix /path/to/MCPJam-inspector run dev`).

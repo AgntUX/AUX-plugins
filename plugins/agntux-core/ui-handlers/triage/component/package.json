@@ -19,6 +19,7 @@
     "test:e2e:check": "plugin-toolkit-test render --plugin ../../.. --tool triage_view --fixture ../fixtures/triage-empty.json --check"
   },
   "dependencies": {
+    "@agntux/ui-primitives": "file:../../../../../packages/agntux-ui-primitives",
     "jose": "^5.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

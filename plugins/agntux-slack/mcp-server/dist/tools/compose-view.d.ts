@@ -71,22 +71,22 @@ export declare const composeViewTool: {
             readonly initial_verb: {
                 readonly type: "string";
                 readonly enum: readonly ["draft", "schedule", "save_draft"];
-                readonly description: "Optional. Which mode tab to pre-select. Defaults to 'draft'.";
+                readonly description: string;
             };
             readonly drafted_body: {
                 readonly type: "string";
-                readonly description: "Optional. Inline override for the action file's `## Compose payload → drafted_body`. ≤4000 chars; truncated if longer.";
+                readonly description: string;
             };
             readonly personalization_signals: {
                 readonly type: "array";
                 readonly items: {
                     readonly type: "string";
                 };
-                readonly description: "Optional. Up to 4 bullet strings (≤120 chars each). Inline override for the on-disk payload.";
+                readonly description: string;
             };
             readonly thread_context: {
                 readonly type: "object";
-                readonly description: "Optional. Structured thread context override. When omitted, lifted from the action file's `## Compose payload`.";
+                readonly description: string;
                 readonly properties: {
                     readonly parent_ts: {
                         readonly type: "string";
@@ -122,7 +122,7 @@ export declare const composeViewTool: {
             };
             readonly channel: {
                 readonly type: "object";
-                readonly description: "Optional. { id: string, name: string, is_dm: boolean }. Override for the on-disk payload.";
+                readonly description: string;
                 readonly properties: {
                     readonly id: {
                         readonly type: "string";
@@ -137,11 +137,11 @@ export declare const composeViewTool: {
             };
             readonly proposed_send_time: {
                 readonly type: "string";
-                readonly description: "Optional RFC 3339 datetime for schedule mode.";
+                readonly description: string;
             };
             readonly slack_permalink: {
                 readonly type: "string";
-                readonly description: "Optional URL to the source thread. Override for the on-disk payload.";
+                readonly description: string;
             };
         };
         readonly required: readonly ["action_id"];
