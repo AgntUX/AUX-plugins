@@ -113,7 +113,7 @@ export class MockAdapter implements ProtocolAdapter {
 
   async connect(): Promise<void> {
     this.connected = true;
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] Connected');
   }
 
@@ -127,7 +127,7 @@ export class MockAdapter implements ProtocolAdapter {
     name: string,
     args: Record<string, unknown>,
   ): Promise<unknown> {
-    // eslint-disable-next-line no-console
+     
     console.log(`[MockAdapter] callTool("${name}",`, args, ')');
 
     // Return a mock result
@@ -145,7 +145,7 @@ export class MockAdapter implements ProtocolAdapter {
   // === Messaging ===
 
   async sendMessage(content: { type: string; text: string }): Promise<void> {
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] sendMessage:', content);
   }
 
@@ -156,7 +156,7 @@ export class MockAdapter implements ProtocolAdapter {
 
   async updateModelContext(params: UpdateModelContextParams): Promise<void> {
     this.lastModelContext = params;
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] updateModelContext:', params);
   }
 
@@ -170,12 +170,12 @@ export class MockAdapter implements ProtocolAdapter {
   // === Navigation ===
 
   async openLink(url: string): Promise<void> {
-    // eslint-disable-next-line no-console
+     
     console.log(`[MockAdapter] openLink("${url}")`);
   }
 
   async requestDisplayMode(mode: string): Promise<{ mode: string }> {
-    // eslint-disable-next-line no-console
+     
     console.log(`[MockAdapter] requestDisplayMode("${mode}")`);
     this.context = {
       ...this.context,
@@ -186,7 +186,7 @@ export class MockAdapter implements ProtocolAdapter {
   }
 
   requestClose(): void {
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] requestClose()');
   }
 
@@ -198,14 +198,14 @@ export class MockAdapter implements ProtocolAdapter {
 
   setState<S>(state: S): void {
     this.state = state;
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] setState:', state);
   }
 
   // === Resources ===
 
   async readResource(uri: string): Promise<{ contents: ResourceContent[] }> {
-    // eslint-disable-next-line no-console
+     
     console.log(`[MockAdapter] readResource("${uri}")`);
     return { contents: [] };
   }
@@ -213,7 +213,7 @@ export class MockAdapter implements ProtocolAdapter {
   // === Logging ===
 
   log(level: string, data: unknown): void {
-    /* eslint-disable no-console */
+     
     const logFn =
       {
         debug: console.debug,
@@ -221,7 +221,7 @@ export class MockAdapter implements ProtocolAdapter {
         warning: console.warn,
         error: console.error,
       }[level] ?? console.log;
-    /* eslint-enable no-console */
+     
     logFn('[MockAdapter]', data);
   }
 
@@ -363,7 +363,7 @@ export class MockAdapter implements ProtocolAdapter {
       | 'emergency',
     data: unknown,
   ): Promise<void> {
-    // eslint-disable-next-line no-console
+     
     console.log(`[MockAdapter] sendLog(${level}):`, data);
   }
 
@@ -377,7 +377,7 @@ export class MockAdapter implements ProtocolAdapter {
     }>,
   ): Promise<{ processed: number }> {
     for (const entry of entries) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[MockAdapter] sendLogs(${entry.level}):`,
         entry.message,
@@ -390,7 +390,7 @@ export class MockAdapter implements ProtocolAdapter {
   // === Size Notifications ===
 
   async sendSizeChanged(params: SizeChangedParams): Promise<void> {
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] sendSizeChanged:', params);
   }
 
@@ -405,13 +405,13 @@ export class MockAdapter implements ProtocolAdapter {
 
   setCallToolHandler(handler: CallToolHandler): void {
     this.callToolHandler = handler;
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] setCallToolHandler: handler registered');
   }
 
   setListToolsHandler(handler: ListToolsHandler): void {
     this.listToolsHandler = handler;
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] setListToolsHandler: handler registered');
   }
 
@@ -502,7 +502,7 @@ export class MockAdapter implements ProtocolAdapter {
     params?: Record<string, unknown>,
   ): Promise<void> {
     this.notificationLog.push({ method, params });
-    // eslint-disable-next-line no-console
+     
     console.log('[MockAdapter] sendNotification:', method, params);
   }
 

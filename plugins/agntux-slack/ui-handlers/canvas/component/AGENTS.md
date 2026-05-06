@@ -156,11 +156,12 @@ The host gives inline/inline-card iframes ~400–600px of height (`hostContext.c
 **Required patterns:**
 
 1. **Scrollable root** — top-level container is `h-full overflow-y-auto`, or wrapped by `<InlineLayout maxHeight={viewport.height}>`. The template's `InlineLayout` and `InlineCardLayout` default `overflow-y: auto` on.
-2. **Internal-scroll modals** — use `<ScrollableModal>` from `src/components/scrollable-modal.tsx`. Structure: sticky header + `flex-1 overflow-y-auto` body + sticky footer with the primary action.
-3. **Sticky primary actions** — any form/wizard with a Submit/Next button places it in a `sticky bottom-0` footer inside the scroll container.
-4. **Sticky table headers** — data tables use a sticky `<thead>` so column labels stay visible as rows scroll.
+2. **Internal scroll + sticky footer** — use `<ScrollablePanel>` from `@agntux/ui-primitives` as the top-level layout. Structure: sticky header + `flex-1 overflow-y-auto` body + sticky footer for the primary action. ScrollablePanel is the canonical frame for any inline-iframe view (and the recommended building block when an agntux-core handler needs an in-list expansion panel anchored to a row).
+3. **No modals.** Modals are forbidden in inline/inline-card iframes: they yank focus away from the row that opened them, and the host's height-overflow guard pushes them to roughly ⅓ down the iframe regardless of where the user clicked. Render the same "details / edit / confirm" content inside the ScrollablePanel body (or, in the agntux-core hub, anchored to the relevant row).
+4. **Sticky primary actions** — any form/wizard with a Submit/Next button places it in a `sticky bottom-0` footer inside the scroll container. ScrollablePanel's `footer` prop wires this for you.
+5. **Sticky table headers** — data tables use a sticky `<thead>` so column labels stay visible as rows scroll.
 
-**Reference:** `references/ref-inline-scroll-patterns.tsx` has runnable examples for (a) scrollable list, (b) `<ScrollableModal>` usage, (c) scrollable table with sticky header, (d) form with sticky submit.
+**Reference:** `references/ref-scrollable-panel.tsx` has runnable examples for (a) scrollable list, (b) `<ScrollablePanel>` usage, (c) scrollable table with sticky header, (d) form with sticky submit.
 
 **Tests:** every component's test suite must include a 600px budget check via `renderAtInlineViewport` from `src/__tests__/test-utils/viewport.ts`. Assert the root scroll container exists and that the primary action node is reachable via `scrollIntoView()`.
 

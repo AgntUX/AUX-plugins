@@ -6,6 +6,78 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.1.1] — 2026-05-06
+
+User-reported bug: clicking **Schedule a reply** in the triage UI opened the
+compose iframe with an empty drafted body and the **Send now** tab active
+instead of **Schedule**. The host LLM, given the prompt
+`ux: Use the agntux-slack plugin to open the reply composer in schedule mode
+for action {id}.`, was not reliably extracting `initial_verb: "schedule"` and
+in some cases passed partial inline args (empty `channel: {}`,
+`thread_context: {}`) that destructively overrode the action file's
+`## Compose payload` lookup, leaving the iframe with no draft to render.
+Clicking **Draft a reply** worked because the simpler prompt did not
+encourage inline-arg synthesis.
+
+### Fixed
+
+- **`compose_view` tool description rewritten** to map trigger phrases to
+  args verbatim — `'open the reply composer for action {id}'` →
+  `{action_id}`, `'open the reply composer in schedule mode for action {id}'`
+  → `{action_id, initial_verb: "schedule"}` — and to label the inline-args
+  surface (`drafted_body`, `thread_context`, `channel`,
+  `personalization_signals`, `proposed_send_time`, `slack_permalink`) as
+  **LEGACY back-compat only**, with explicit "Do NOT pass for click-time
+  trigger phrases" guidance on each parameter description. The `initial_verb`
+  parameter description now spells out the prompt-phrase → enum-value
+  mapping. Behavior of the handler is unchanged; only the tool description
+  visible to the host LLM is updated.
+- **`canvas_view` tool description rewritten** with the same shape
+  (`'open the canvas summariser for action {id}'` → `{action_id}` only;
+  inline `drafted_canvas`, `channel`, `thread`, and
+  `proposed_followup_message` labelled LEGACY back-compat only) so the
+  Summarise-to-canvas click path doesn't regress in the same way.
+
+No `ux:` prompt surface, no schema, no public-facing copy changed — patch
+bump per §5.1.
+
+## [5.1.0] — 2026-05-06
+
+Internal refactor + dead-code cleanup. No user-visible behaviour change.
+
+### Changed
+
+- **Shared UI primitives moved to `@agntux/ui-primitives`.** The compose and
+  canvas handlers now import `ScrollablePanel`, `AgntuxLogo`, `Spinner`,
+  `ComponentErrorBoundary`, `LicenseErrorScreen`, `detectErrorEnvelope`,
+  and the `safe-accessors` helpers from a new private workspace package
+  at `packages/agntux-ui-primitives/`. Each handler used to ship its own
+  byte-identical copy of these files; centralising them prevents the drift
+  that accumulated across handlers.
+- **Tailwind content config updated** in both compose and canvas handlers
+  to scan `../../../../../packages/agntux-ui-primitives/src/**/*.{js,ts,jsx,tsx}`
+  so the package's utility classes are picked up at build time.
+- **Updated AGENTS.md authoring guidance** in both handlers to make
+  `<ScrollablePanel>` (from the shared package) the canonical top-level
+  layout primitive and to label modals as forbidden in inline-iframe
+  surfaces. The reference file `references/ref-scrollable-panel.tsx`
+  replaces the prior `ref-inline-scroll-patterns.tsx`.
+
+### Removed
+
+- `ui-handlers/{compose,canvas}/component/src/components/scrollable-modal.tsx`
+  and the matching
+  `__tests__/components/scrollable-modal.test.tsx` files. ScrollableModal
+  was already retired in 5.0.0; this release deletes the dead-code files
+  the bundle never referenced.
+- Per-handler copies of `agntux-logo.tsx`, `spinner.tsx`,
+  `error-boundary.tsx`, `scrollable-panel.tsx`,
+  `lib/detect-error-envelope.ts`, `lib/safe-accessors.ts`, and the
+  matching `__tests__/lib/detect-error-envelope.test.ts`. All consolidated
+  into `@agntux/ui-primitives`.
+- `references/ref-inline-scroll-patterns.tsx` (replaced by
+  `references/ref-scrollable-panel.tsx`).
+
 ## [5.0.0] — 2026-05-06
 
 User-reported bug: clicking Send / Schedule / Save-as-Draft / Create-canvas

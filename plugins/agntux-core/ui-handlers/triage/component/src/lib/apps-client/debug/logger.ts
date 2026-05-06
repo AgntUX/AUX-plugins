@@ -477,13 +477,13 @@ export class ClientDebugLogger {
         error instanceof Error ? error.message : String(error);
       if (this.config.transport === 'api' && !this.apiTransportFailed) {
         this.apiTransportFailed = true;
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[ClientDebugLogger] API log transport failed: ${errorMessage}. Will only use console`,
         );
       } else if (this.config.transport === 'tool' && !this.mcpTransportFailed) {
         this.mcpTransportFailed = true;
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[ClientDebugLogger] MCP log transport failed: ${errorMessage}. Will only use console`,
         );
@@ -510,7 +510,7 @@ export class ClientDebugLogger {
     const formattedMessage = `${prefix} ${message}`;
 
     try {
-      /* eslint-disable no-console */
+       
       switch (entry.level) {
         case 'debug':
           console.debug(formattedMessage);
@@ -525,7 +525,7 @@ export class ClientDebugLogger {
           console.error(formattedMessage);
           break;
       }
-      /* eslint-enable no-console */
+       
     } catch {
       // Ignore console errors in restricted environments
     }

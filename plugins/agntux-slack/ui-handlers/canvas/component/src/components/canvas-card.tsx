@@ -17,7 +17,7 @@ import type { CanvasPayload } from "../lib/types.js";
 import type { DraftedCanvas } from "../lib/types.js";
 import { ListEditor } from "./list-editor.js";
 import { CanvasPreview } from "./canvas-preview.js";
-import { Spinner } from "./spinner.js";
+import { Spinner } from "@agntux/ui-primitives";
 import { buildCanvasEnvelope } from "../lib/build-canvas-envelope.js";
 import { useAppsClient } from "../lib/apps-react/index.js";
 

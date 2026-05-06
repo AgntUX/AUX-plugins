@@ -10,7 +10,9 @@
  * Asserted contract:
  *   1. No args → exit 1 with usage text.
  *   2. Unknown flag → exit 1 naming the flag.
- *   3. `--serve` with multiple slugs → exit 1.
+ *   3. `--serve` with multiple slugs is allowed (each plugin's MCP server
+ *      uses its own default port); pairing it with `--port` is the only
+ *      conflict and exits 1.
  *   4. Non-existent slug → exit 1 naming the missing path.
  *      (Skipped in the no-op happy path; our script's design also
  *      requires the shared license package to build first, which we
@@ -54,10 +56,18 @@ describe("build-plugin.mjs CLI", () => {
     expect(r.stderr).toMatch(/Unknown flag: --bogus/);
   });
 
-  it("exits 1 when --serve is combined with multiple slugs", () => {
-    const r = run(["agntux-core", "agntux-slack", "--serve"]);
+  it("exits 1 when --serve and multiple slugs are combined with --port", () => {
+    const r = run([
+      "agntux-core",
+      "agntux-slack",
+      "--serve",
+      "--port",
+      "9999",
+    ]);
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/--serve can only be used with a single plugin slug/);
+    expect(r.stderr).toMatch(
+      /--port cannot be combined with --serve and multiple slugs/,
+    );
   });
 
   it("rejects an unknown slug before doing any expensive work", () => {

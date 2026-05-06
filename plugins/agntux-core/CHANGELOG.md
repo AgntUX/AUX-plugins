@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.0] — 2026-05-06
+
+Internal refactor only — no user-visible behaviour change.
+
+### Changed
+
+- **Shared UI primitives moved to `@agntux/ui-primitives`.** The triage
+  handler now imports `ScrollablePanel`, `AgntuxLogo`, `Spinner`,
+  `ComponentErrorBoundary`, `LicenseErrorScreen`, `detectErrorEnvelope`,
+  and the `safeArray`/`safeString`/`safeNumber`/`safeBoolean`/`safeObject`/
+  `safeEnum`/`safeDate`/`formatTime`/`daysSince` helpers from a new private
+  workspace package at `packages/agntux-ui-primitives/`. Each handler used
+  to ship its own byte-identical copy of these files; centralising them
+  prevents the drift that accumulated across handlers.
+- **Tailwind content config updated** to scan
+  `../../../../../packages/agntux-ui-primitives/src/**/*.{js,ts,jsx,tsx}`
+  so the package's utility classes are picked up at build time.
+
+### Removed
+
+- `components/agntux-logo.tsx`, `components/spinner.tsx`,
+  `components/error-boundary.tsx`, `components/scrollable-panel.tsx`
+  (the latter was already unused in 6.1.0).
+- `lib/detect-error-envelope.ts`, `lib/safe-accessors.ts`.
+- `__tests__/lib/detect-error-envelope.test.ts` (coverage moved to the
+  shared package's own test suite).
+
 ## [6.1.0] — 2026-05-06
 
 Triage UX refinements based on user feedback that modals were appearing

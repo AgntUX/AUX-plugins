@@ -142,15 +142,21 @@ function parseMessagesPreviewArg(raw) {
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 export const composeViewTool = {
     name: "agntux_slack_compose_view",
-    description: "Render the Slack reply composer iframe for an action item. Trigger when " +
-        "the user says 'open the reply composer for action {id}' or 'open the " +
-        "reply composer in schedule mode for action {id}'. Loads thread context " +
-        "and a pre-composed draft from the action file's `## Compose payload` " +
-        "body section when only {action_id, initial_verb} are supplied. Inline " +
-        "args (drafted_body, thread_context, channel, …) override the on-disk " +
-        "payload when both are present — kept for backward compat with any " +
-        "out-of-band caller that still produces a working-memory payload. Action " +
-        "files that lack a `## Compose payload` section (pre-1.1.0) surface the " +
+    description: "Render the Slack reply composer iframe for an action item. " +
+        "TRIGGER PHRASES (map verbatim to args — do not paraphrase): " +
+        "'open the reply composer for action {id}' → call with {action_id: id}; " +
+        "'open the reply composer in schedule mode for action {id}' → call with " +
+        "{action_id: id, initial_verb: \"schedule\"}. " +
+        "For these click-time prompts, pass ONLY action_id (and initial_verb when " +
+        "the phrase contains 'in schedule mode'). The tool reads the action " +
+        "file's `## Compose payload` body section and lifts drafted_body, " +
+        "thread_context, channel, personalization_signals, and slack_permalink " +
+        "from disk. Do NOT pass drafted_body, thread_context, channel, " +
+        "personalization_signals, or slack_permalink inline — those args are a " +
+        "legacy back-compat surface for out-of-band working-memory callers, and " +
+        "any inline value (including partial / empty objects) overrides the " +
+        "on-disk payload destructively, producing an empty UI. Action files that " +
+        "lack a `## Compose payload` section (pre-1.1.0) surface the " +
         "`compose_payload_missing` structured error envelope. Returns " +
         "_meta.ui.resourceUri = ui://slack-compose.",
     inputSchema: {
@@ -163,20 +169,28 @@ export const composeViewTool = {
             initial_verb: {
                 type: "string",
                 enum: ["draft", "schedule", "save_draft"],
-                description: "Optional. Which mode tab to pre-select. Defaults to 'draft'.",
+                description: "Which mode tab to pre-select. REQUIRED to be 'schedule' when the " +
+                    "trigger phrase contains 'in schedule mode' (e.g., 'open the reply " +
+                    "composer in schedule mode for action {id}'). Otherwise omit (defaults " +
+                    "to 'draft'). 'save_draft' is reserved for legacy out-of-band callers.",
             },
             drafted_body: {
                 type: "string",
-                description: "Optional. Inline override for the action file's `## Compose payload → drafted_body`. ≤4000 chars; truncated if longer.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+                    "the tool lifts the body from the action file's `## Compose payload`. " +
+                    "Inline override for out-of-band working-memory callers. ≤4000 chars.",
             },
             personalization_signals: {
                 type: "array",
                 items: { type: "string" },
-                description: "Optional. Up to 4 bullet strings (≤120 chars each). Inline override for the on-disk payload.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
+                    "Inline override for out-of-band working-memory callers.",
             },
             thread_context: {
                 type: "object",
-                description: "Optional. Structured thread context override. When omitted, lifted from the action file's `## Compose payload`.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+                    "the tool lifts thread context from the action file's `## Compose " +
+                    "payload`. Inline override for out-of-band working-memory callers.",
                 properties: {
                     parent_ts: { type: "string" },
                     parent_author_real_name: { type: "string" },
@@ -191,7 +205,9 @@ export const composeViewTool = {
             },
             channel: {
                 type: "object",
-                description: "Optional. { id: string, name: string, is_dm: boolean }. Override for the on-disk payload.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+                    "the tool lifts channel from the action file's `## Compose payload`. " +
+                    "Inline override for out-of-band working-memory callers.",
                 properties: {
                     id: { type: "string" },
                     name: { type: "string" },
@@ -200,11 +216,14 @@ export const composeViewTool = {
             },
             proposed_send_time: {
                 type: "string",
-                description: "Optional RFC 3339 datetime for schedule mode.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
+                    "the user picks the send time inside the iframe. Optional RFC 3339 " +
+                    "datetime for out-of-band callers that pre-compute a schedule time.",
             },
             slack_permalink: {
                 type: "string",
-                description: "Optional URL to the source thread. Override for the on-disk payload.",
+                description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
+                    "Inline override for out-of-band working-memory callers.",
             },
         },
         required: ["action_id"],

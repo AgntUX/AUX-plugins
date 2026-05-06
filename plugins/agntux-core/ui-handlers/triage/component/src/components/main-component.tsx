@@ -24,15 +24,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AgntuxLogo,
+  Spinner,
   safeArray,
   safeBoolean,
   safeEnum,
   safeNumber,
   safeObject,
   safeString,
-} from '../lib/safe-accessors';
-import { AgntuxLogo } from './agntux-logo';
-import { Spinner } from './spinner';
+} from '@agntux/ui-primitives';
 
 // =============================================================================
 // Types

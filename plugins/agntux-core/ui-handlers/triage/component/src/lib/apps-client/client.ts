@@ -216,7 +216,7 @@ class AppsClientImpl<T extends ToolDefs = ToolDefs> implements AppsClient<T> {
       typeof window === 'undefined' ||
       typeof ResizeObserver === 'undefined'
     ) {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
+       
       return () => {};
     }
 
