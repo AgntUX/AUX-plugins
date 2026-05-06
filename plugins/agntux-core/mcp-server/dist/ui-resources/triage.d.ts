@@ -6,4 +6,3 @@ export declare const triageBundleDescriptor: {
     readonly uri: "ui://triage";
     readonly mimeType: "text/html;profile=mcp-app";
 };
-//# sourceMappingURL=triage.d.ts.map

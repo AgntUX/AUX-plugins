@@ -19,4 +19,3 @@ export declare function resolveAgntuxRoot(cwd?: string): string | null;
  * Honors `AGNTUX_ROOT_OVERRIDE` via `resolveAgntuxRoot()`.
  */
 export declare function expectedAgntuxRoot(cwd?: string): string;
-//# sourceMappingURL=agntux-root.d.ts.map

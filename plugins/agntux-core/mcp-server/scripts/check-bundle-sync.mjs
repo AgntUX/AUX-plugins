@@ -49,9 +49,21 @@ if (!exists(pluginsDir)) {
   fail(`Could not find plugins/ directory at ${pluginsDir}.`);
 }
 
-const plugins = readdirSync(pluginsDir).filter(
+// Each plugin has its own copy of this script at
+// plugins/<slug>/mcp-server/scripts/check-bundle-sync.mjs. Scope the check
+// to that plugin so a build of one plugin (which `rm -rf dist` first) doesn't
+// false-positive on a sibling plugin whose dist hasn't been rebuilt yet in
+// the same `build-plugin.mjs` run.
+const scriptScope = (() => {
+  const scriptPath = fileURLToPath(import.meta.url);
+  const m = scriptPath.match(/\/plugins\/([^/]+)\/mcp-server\/scripts\//);
+  return m ? m[1] : null;
+})();
+
+const allPlugins = readdirSync(pluginsDir).filter(
   (d) => exists(join(pluginsDir, d, 'mcp-server')),
 );
+const plugins = scriptScope ? allPlugins.filter((d) => d === scriptScope) : allPlugins;
 
 let drift = 0;
 

@@ -290,4 +290,3 @@ function structuredError(kind, message) {
         },
     };
 }
-//# sourceMappingURL=triage-view.js.map

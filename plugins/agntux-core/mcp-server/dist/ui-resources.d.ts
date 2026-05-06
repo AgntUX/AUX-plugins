@@ -21,4 +21,3 @@ export declare const UI_RESOURCE_LIST: {
     mimeType: string;
 }[];
 export {};
-//# sourceMappingURL=ui-resources.d.ts.map

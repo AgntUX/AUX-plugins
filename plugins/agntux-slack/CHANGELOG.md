@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.1.3] — 2026-05-06
+
+Build-only fix for hosts that launch `mcp-server/dist/index.js` without
+running `npm install` first (Claude Cowork desktop, and any other host
+that follows the marketplace "no install step" contract documented in
+the AUX-plugins repo's `CLAUDE.md`).
+
+### Fixed
+
+- **`mcp-server/dist/index.js` is now a self-contained esbuild bundle.**
+  Previously the build was `tsc && embed-bundle.mjs`, which only
+  transpiled TypeScript and left bare `import "@agntux/mcp-license"`,
+  `import "@modelcontextprotocol/sdk"`, `import "@agntux/orchestrator-mcp-server/agntux-root"`,
+  and `import "yaml"` statements in the dist. When a host extracted
+  the plugin without installing workspace packages or `node_modules/`
+  (the marketplace path), Node failed at the first import with
+  `ERR_MODULE_NOT_FOUND` and the MCP server crashed silently — skills
+  still surfaced (slash commands worked) but `agntux_slack_compose_view`
+  and `agntux_slack_canvas_view` tools were invisible to chats. The
+  build now runs `tsc --noEmit` for type-check, then `esbuild --bundle`
+  to produce a single self-contained ~1.5 MB bundle that inlines
+  `@agntux/mcp-license`, `@modelcontextprotocol/sdk`, `yaml`, and the
+  cross-plugin `@agntux/orchestrator-mcp-server/agntux-root` import.
+  Verified by running the bundle from a scratch directory with no
+  `node_modules/` and no co-located `packages/` — exit 0 on stdin
+  close.
+- **`scripts/check-bundle-sync.mjs` is now scoped to its own plugin.**
+  Same fix as agntux-core 6.2.1 — each plugin's copy of the script
+  validates only its own dist, preventing a false positive when
+  `build-plugin.mjs` rebuilds plugins serially after `rm -rf dist`.
+
+### Internal
+
+- Bumped esbuild ^0.24.0 into `mcp-server/devDependencies`. No new
+  runtime dependency.
+
 ## [5.1.2] — 2026-05-06
 
 True root-cause fix for the **Schedule a reply** bug originally attributed

@@ -19,7 +19,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc && node scripts/embed-bundle.mjs",
+    "build": "rm -rf dist && tsc --noEmit && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --target=node18 --sourcemap --banner:js='import { createRequire as _esmCreateRequire } from \"module\"; const require = _esmCreateRequire(import.meta.url);' && node scripts/embed-bundle.mjs",
     "check:bundle-sync": "node scripts/check-bundle-sync.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "esbuild": "^0.24.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

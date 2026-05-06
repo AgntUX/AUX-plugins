@@ -95,4 +95,3 @@ export const UI_RESOURCE_LIST = Object.values(UI_BUNDLES).map((b) => ({
     name: "Action item triage view",
     mimeType: b.mimeType,
 }));
-//# sourceMappingURL=ui-resources.js.map

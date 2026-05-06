@@ -55,4 +55,3 @@ export const dismissTool = {
         return { content: [{ type: "text", text: `Dismissed ${id}${outcomeSuffix}.` }] };
     },
 };
-//# sourceMappingURL=dismiss.js.map
