@@ -33,7 +33,7 @@ interface ComposeStructuredContent {
     slack_permalink: string | null;
 }
 interface ComposeStructuredError {
-    error: "action_not_found" | "action_already_handled" | "agntux_root_missing" | "license_paused";
+    error: "action_not_found" | "action_already_handled" | "agntux_root_missing" | "license_paused" | "compose_payload_missing";
 }
 interface ViewToolMeta {
     ui: {
@@ -71,22 +71,22 @@ export declare const composeViewTool: {
             readonly initial_verb: {
                 readonly type: "string";
                 readonly enum: readonly ["draft", "schedule", "save_draft"];
-                readonly description: "Which mode tab to pre-select: draft, schedule, or save_draft.";
+                readonly description: "Optional. Which mode tab to pre-select. Defaults to 'draft'.";
             };
             readonly drafted_body: {
                 readonly type: "string";
-                readonly description: "Agent-composed draft reply body, ≤4000 chars. Truncated if longer.";
+                readonly description: "Optional. Inline override for the action file's `## Compose payload → drafted_body`. ≤4000 chars; truncated if longer.";
             };
             readonly personalization_signals: {
                 readonly type: "array";
                 readonly items: {
                     readonly type: "string";
                 };
-                readonly description: "Optional. Up to 4 bullet strings (≤120 chars each) explaining why this draft fits the user.";
+                readonly description: "Optional. Up to 4 bullet strings (≤120 chars each). Inline override for the on-disk payload.";
             };
             readonly thread_context: {
                 readonly type: "object";
-                readonly description: "Required. Structured thread context: { parent_excerpt, parent_author_real_name, last_reply_excerpt, last_reply_author_real_name, last_reply_ts, total_replies, participants[], messages_preview[] }.";
+                readonly description: "Optional. Structured thread context override. When omitted, lifted from the action file's `## Compose payload`.";
                 readonly properties: {
                     readonly parent_ts: {
                         readonly type: "string";
@@ -122,7 +122,7 @@ export declare const composeViewTool: {
             };
             readonly channel: {
                 readonly type: "object";
-                readonly description: "Required. { id: string, name: string, is_dm: boolean }.";
+                readonly description: "Optional. { id: string, name: string, is_dm: boolean }. Override for the on-disk payload.";
                 readonly properties: {
                     readonly id: {
                         readonly type: "string";
@@ -141,10 +141,10 @@ export declare const composeViewTool: {
             };
             readonly slack_permalink: {
                 readonly type: "string";
-                readonly description: "Optional URL to the source thread.";
+                readonly description: "Optional URL to the source thread. Override for the on-disk payload.";
             };
         };
-        readonly required: readonly ["action_id", "initial_verb", "drafted_body", "thread_context", "channel"];
+        readonly required: readonly ["action_id"];
     };
     readonly _meta: {
         readonly ui: {

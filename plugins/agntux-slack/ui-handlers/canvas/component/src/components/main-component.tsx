@@ -96,6 +96,11 @@ const ERROR_COPY: Record<string, { title: string; body: string; testId: string }
     body: "Run /agntux-onboard to set up your AgntUX workspace.",
     testId: "error-agntux-root-missing",
   },
+  canvas_payload_missing: {
+    title: "Canvas summary not available",
+    body: "This action was created before pre-composed canvases shipped, or wasn't flagged as canvas-worthy. Open it in Slack to summarise the thread there.",
+    testId: "error-canvas-payload-missing",
+  },
 };
 
 function ErrorState({ error }: { error: string }) {

@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.3.0] — 2026-05-05
+
+### Added
+- **Optimistic hide in the triage UI.** The triage iframe now hides resolved
+  rows client-side immediately after Snooze / Dismiss / Mark-done /
+  "Mark done — already handled" / "Stop raising items like this" — without
+  re-invoking `triage_view`. The hide is tracked in a transient
+  `optimisticallyHidden: Set<string>` (plain `useState`, NOT widgetState —
+  it should not survive an iframe remount). The set reconciles per-id
+  against fresh `toolOutput`: an id stays hidden as long as the server
+  still lists it in `data.actions` (slow-write race guard) and drops out
+  once the server has moved it to `data.handled_recent` or removed it
+  entirely. Filter chips and priority counts honour the hide so the
+  header stays honest. Closes the UX gap where a successful mutation left
+  the row visible because the iframe never re-rendered against new state.
+- **Regex match-guard on suggested-action `host_prompt` dispatch.** Before
+  adding an id to `optimisticallyHidden`, the dispatch path matches the
+  prompt against three terminating patterns (`set action {id} status to
+  done`, `snooze action item {id}`, `dismiss action item {id}`). The new
+  agntux-slack 3.0.0 `ux: ...open the reply composer for action {id}`
+  prompts intentionally do NOT match — clicking "Draft a reply" opens an
+  iframe, it does not change the action's triage status, so the row must
+  stay visible.
+- **Fire-and-forget Stage 0 in `agents/user-feedback.md` Mode A.** When the
+  orchestrator dispatches the "Stop raising items like this" triage-button
+  prompt (`...items like {id} (reason_class: {class}, source: {source})`),
+  the agent now parses `id`, `reason_class`, and `source` from the
+  parenthetical, appends a `# Never raise` rule of the inferred shape to
+  `<root>/data/instructions/{plugin-slug}.md`, confirms with one short
+  line ("Captured: stop raising {reason_class} from {source}."), and
+  stops. Zero clarifying questions. The triage button passes a
+  fully-formed-rule signal — there is nothing to interview about. Mode
+  A's interactive path is preserved for non-triage imperatives (e.g.,
+  the user typing "never flag email from notifications@*" in chat).
+
+### Changed
+- `ui-handlers/triage/component/src/components/main-component.tsx` —
+  `runMutation`'s `onSuccess` callback now hides the row optimistically
+  on every status mutation; `handleSuggested` regex-matches terminating
+  host_prompts before hiding; `handleStopRaising` hides immediately;
+  `data.actions` and `data.handled_recent` are filtered through the
+  hidden set before render; `priorityCounts` derives from the filtered
+  list.
+
+### Migration
+- No user data migration. The hide is purely client-side and resets on
+  every iframe remount. Existing scheduled `triage_view` invocations are
+  unchanged. Plugins that emit suggested-action `host_prompt` strings
+  matching the three terminating patterns above will now drive optimistic
+  hide on click — that is the intended behaviour for `set_status` /
+  `snooze` / `dismiss`-shaped prompts and is harmless for any plugin
+  whose prompts don't match.
+
 ## [5.2.0] — 2026-05-05
 
 ### Added

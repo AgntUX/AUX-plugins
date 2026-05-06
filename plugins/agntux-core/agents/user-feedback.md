@@ -55,6 +55,59 @@ If the trigger is ambiguous (the user said something that could be either a tria
 
 The user said an imperative. Your job: classify, identify the plugin slug, append to that plugin's instructions file, confirm.
 
+### Stage 0 — Triage-button fast-path (zero-question branch)
+
+The triage UI's "Stop raising items like this" button dispatches an
+orchestrator prompt of the exact shape:
+
+```
+ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a `# Never raise` rule for items like {id} (reason_class: {reason_class}, source: {source}).
+```
+
+This dispatch carries a fully-formed-rule signal — there is nothing to
+interview about. **When the inbound prompt matches the regex
+`/items like ([\w-]+)\s*\(reason_class:\s*([^,]+?)\s*,\s*source:\s*([^)]+?)\s*\)/i`**,
+take the fast-path branch:
+
+1. Capture `id`, `reason_class`, and `source` from the regex groups.
+   Treat literal values `unknown` (either field) as missing — fall
+   through to the standard Mode A flow if so. The button only emits
+   `unknown` as a placeholder when the source action lacked the field
+   on disk; in that case there's not enough signal to author a rule
+   without asking, so revert to the interactive flow below.
+2. Resolve the plugin slug from `source` (e.g., `slack` →
+   `agntux-slack`, `email`/`gmail` → `agntux-gmail` if installed,
+   etc.). If the slug doesn't resolve to an installed plugin, fall
+   through to the standard Mode A flow.
+3. Append a single bullet under `# Never raise` in
+   `<agntux project root>/data/instructions/{plugin-slug}.md` with
+   `status: final` (matches Stage 3 below — Mode A captures are
+   finished rules). Format the bullet:
+
+   ```
+   - {reason_class} from {source}: stop raising
+     (source: {YYYY-MM-DD} triage button — items like {id})
+   ```
+
+   If the file doesn't yet exist, create it with the standard
+   frontmatter + four section headings (per Stage 3) before
+   appending.
+4. Update frontmatter `updated_at`. Save atomically.
+5. Confirm with **exactly one** line and stop:
+
+   > Captured: stop raising {reason_class} from {source}.
+
+   No clarifying questions, no follow-up prompts, no Mode C
+   structural-ask probe. The user clicked a button — they don't want
+   a conversation. End your turn.
+
+If any step above can't complete cleanly (file write fails, plugin
+slug unresolvable), surface one short error sentence and stop —
+**don't** silently fall back to the interactive flow, which would
+turn a button click into an unwanted question. Logging the failure
+to surface upstream is the correct behaviour; the user can re-click
+or re-author the rule via chat.
+
 ### Stage 1 — Identify the plugin slug
 
 1. The orchestrator may pass the slug if it can infer it (e.g., "never flag email from X" + only one email plugin installed → `gmail-ingest`).

@@ -209,3 +209,172 @@ describe("handleComposeView — happy path", () => {
     expect(sc.proposed_send_time).toBe("2026-05-05T09:00:00Z");
   });
 });
+
+// ── Dual-mode resolution: action_id-only invocation lifts from `## Compose payload` ──
+
+describe("handleComposeView — dual-mode (3.0.0+ on-disk payload fallback)", () => {
+  function writeActionWithComposePayload(name: string): void {
+    const frontmatter = "id: " + name + "\nstatus: open\npriority: high\nsource: slack";
+    const body = [
+      "## Why this matters",
+      "Test action with pre-composed payload.",
+      "",
+      "## Compose payload",
+      "",
+      "```yaml",
+      "drafted_body: |",
+      "  Pre-composed reply from disk.",
+      "  Multi-paragraph body.",
+      "personalization_signals:",
+      "  - \"Tone: terse — per user.md\"",
+      "  - \"Direct stakeholder\"",
+      "thread_context:",
+      "  parent_ts: \"1714300000.000100\"",
+      "  parent_author_real_name: John Smith",
+      "  parent_excerpt: \"Original parent message.\"",
+      "  last_reply_ts: \"1714386500.000300\"",
+      "  last_reply_author_real_name: Sarah Lee",
+      "  last_reply_excerpt: \"Latest reply text.\"",
+      "  total_replies: 2",
+      "  participants:",
+      "    - John Smith",
+      "    - Sarah Lee",
+      "  messages_preview:",
+      "    - ts: \"1714300000.000100\"",
+      "      author: John Smith",
+      "      body_excerpt: \"Original parent message.\"",
+      "channel:",
+      "  id: C01ABC",
+      "  name: proj-mango",
+      "  is_dm: false",
+      "slack_permalink: \"https://oatfi.slack.com/archives/C01ABC/p1714300000000100\"",
+      "generated_at: \"2026-04-28T09:00:00Z\"",
+      "```",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, `${name}.md`),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+  }
+
+  it("invocation with only {action_id} lifts drafted_body, channel, thread_context from disk", async () => {
+    writeActionWithComposePayload("test-action-1");
+    const result = await handleComposeView({ action_id: "test-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect((sc.drafted_body as string)).toContain("Pre-composed reply from disk.");
+    const channel = sc.channel as Record<string, unknown>;
+    expect(channel.id).toBe("C01ABC");
+    expect(channel.name).toBe("proj-mango");
+    const thread = sc.thread as Record<string, unknown>;
+    expect(thread.parent_ts).toBe("1714300000.000100");
+    expect(thread.total_replies).toBe(2);
+    expect((sc.personalization_signals as string[]).length).toBe(2);
+    // initial_verb defaults to "draft" when omitted
+    expect(sc.initial_verb).toBe("draft");
+    // No error envelope returned
+    expect(sc.error).toBeUndefined();
+  });
+
+  it("invocation with {action_id, initial_verb: 'schedule'} preserves the requested mode", async () => {
+    writeActionWithComposePayload("test-action-1");
+    const result = await handleComposeView({
+      action_id: "test-action-1",
+      initial_verb: "schedule",
+    });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.initial_verb).toBe("schedule");
+    expect(sc.error).toBeUndefined();
+  });
+
+  it("inline drafted_body overrides the on-disk payload when both are present", async () => {
+    writeActionWithComposePayload("test-action-1");
+    const result = await handleComposeView({
+      action_id: "test-action-1",
+      initial_verb: "draft",
+      drafted_body: "Inline override body — fresh working memory.",
+      thread_context: {
+        parent_ts: "9999999999.000100",
+        parent_author_real_name: "Inline Author",
+        parent_excerpt: "Inline excerpt",
+        total_replies: 99,
+        participants: ["Inline Person"],
+        messages_preview: [],
+      },
+      channel: { id: "C-INLINE", name: "inline-channel", is_dm: true },
+    });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.drafted_body).toBe("Inline override body — fresh working memory.");
+    const channel = sc.channel as Record<string, unknown>;
+    expect(channel.id).toBe("C-INLINE");
+    expect(channel.is_dm).toBe(true);
+    const thread = sc.thread as Record<string, unknown>;
+    expect(thread.total_replies).toBe(99);
+  });
+
+  it("returns compose_payload_missing when neither inline drafted_body nor on-disk payload exist", async () => {
+    // Action file without a `## Compose payload` body section
+    writeAction(
+      "test-action-1",
+      "id: test-action-1\nstatus: open\npriority: high\nsource: slack",
+      "## Why this matters\nThis action predates pre-composed drafts.",
+    );
+    const result = await handleComposeView({ action_id: "test-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("compose_payload_missing");
+  });
+
+  it("returns compose_payload_missing when the Compose payload section is missing the fenced YAML block", async () => {
+    // The parser only recognises a fenced ```yaml block; prose-only sections
+    // produce no payload and surface the missing-payload error.
+    const frontmatter = "id: test-action-1\nstatus: open\npriority: high\nsource: slack";
+    const body = [
+      "## Compose payload",
+      "",
+      "(payload not yet generated — the next sync run will fill this in.)",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, "test-action-1.md"),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+    const result = await handleComposeView({ action_id: "test-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("compose_payload_missing");
+  });
+
+  it("returns compose_payload_missing when the YAML parses but lacks drafted_body", async () => {
+    // normalizeComposePayload returns null when drafted_body is empty —
+    // an empty draft is useless, so we treat it as missing.
+    const frontmatter = "id: test-action-1\nstatus: open\npriority: high\nsource: slack";
+    const body = [
+      "## Compose payload",
+      "",
+      "```yaml",
+      "personalization_signals:",
+      "  - \"Some signal\"",
+      "channel:",
+      "  id: C-X",
+      "  name: x",
+      "  is_dm: false",
+      "```",
+    ].join("\n");
+    writeFileSync(
+      join(actionsDir, "test-action-1.md"),
+      `---\n${frontmatter}\n---\n\n${body}\n`,
+    );
+    const result = await handleComposeView({ action_id: "test-action-1" });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.error).toBe("compose_payload_missing");
+  });
+
+  it("falls back to on-disk slack_permalink when inline arg omits it", async () => {
+    writeActionWithComposePayload("test-action-1");
+    const result = await handleComposeView({
+      action_id: "test-action-1",
+      initial_verb: "draft",
+    });
+    const sc = result.structuredContent as Record<string, unknown>;
+    expect(sc.slack_permalink).toBe(
+      "https://oatfi.slack.com/archives/C01ABC/p1714300000000100",
+    );
+  });
+});

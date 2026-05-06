@@ -105,32 +105,45 @@ describe("draft SKILL.md payload integrity", () => {
     expect(src).toContain("No injected signatures");
   });
 
-  it("does not pre-fill orchestrator-authored content during ingest", () => {
-    expect(src).toContain("Do not pre-fill orchestrator-authored content");
+  it("3.0.0+ inverts the pre-fill rule — composition is at ingest, not at click", () => {
+    // The retired hard-rule line ("Do not pre-fill orchestrator-authored
+    // content during ingest") is intentionally absent in 1.1.0+. The new
+    // hard rule names the body sections that carry pre-composed content.
+    expect(src).not.toContain("Do not pre-fill orchestrator-authored content during ingest");
+    expect(src).toContain("Composition is at ingest, not at click");
+    expect(src).toContain("## Compose payload");
+    expect(src).toContain("## Canvas payload");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Pass 4: read-only context fetch happens before draft
+// Pass 4: simplified click-time flow — Step 2 reads source_ref only, Step 6
+// renders the iframe with action_id-only invocation
 // ---------------------------------------------------------------------------
 
-describe("draft SKILL.md read-before-write order", () => {
+describe("draft SKILL.md simplified click-time flow (1.1.0+)", () => {
   const src = readMd(DRAFT_MD);
 
-  it("Step 3 fetches the full thread context via slack_read_thread", () => {
-    // The "Step 3" header should reference slack_read_thread
-    const stepThreeIdx = src.indexOf("## Step 3");
-    expect(stepThreeIdx).toBeGreaterThan(0);
-    const stepFourIdx = src.indexOf("## Step 4");
-    const stepThree = src.slice(stepThreeIdx, stepFourIdx > 0 ? stepFourIdx : undefined);
-    expect(stepThree).toContain("slack_read_thread");
+  it("Step 2 reads only source_ref + status from the action file (no thread fetch, no body composition)", () => {
+    const stepTwoIdx = src.indexOf("## Step 2");
+    expect(stepTwoIdx).toBeGreaterThan(0);
+    const stepSixIdx = src.indexOf("## Step 6");
+    const stepTwo = src.slice(stepTwoIdx, stepSixIdx > 0 ? stepSixIdx : undefined);
+    expect(stepTwo).toContain("source_ref");
+    // The thread-fetch + body-composition steps are gone in 1.1.0+. Verify
+    // Step 2 does NOT instruct a slack_read_thread call.
+    expect(stepTwo).not.toContain("slack_read_thread");
   });
 
-  it("Step 5 (draft payload) precedes any write tool reference in flow", () => {
-    const stepFiveIdx = src.indexOf("## Step 5");
-    const stepSixIdx = src.indexOf("## Step 6");
-    const stepFive = src.slice(stepFiveIdx, stepSixIdx > 0 ? stepSixIdx : undefined);
-    expect(stepFive.toLowerCase()).toContain("do not call any write tool yet");
+  it("Step 6 renders the iframe with action_id-only invocation (no working-memory payload)", () => {
+    const stepSixIdx = src.indexOf("## Step 6 ");
+    expect(stepSixIdx).toBeGreaterThan(0);
+    const stepSixFiveIdx = src.indexOf("## Step 6.5");
+    const stepSix = src.slice(stepSixIdx, stepSixFiveIdx > 0 ? stepSixFiveIdx : undefined);
+    // Both view tools listed; required args reduced to action_id (+ initial_verb for compose)
+    expect(stepSix).toContain("compose_view");
+    expect(stepSix).toContain("canvas_view");
+    expect(stepSix).toContain("action_id");
   });
 
   it("Step 7 mode-branch is the only place that calls write tools (after committed envelope)", () => {

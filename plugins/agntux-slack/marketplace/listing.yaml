@@ -1,12 +1,12 @@
 tagline: "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts."
 description: |
   Watches your Slack DMs, @mentions, and active threads; extracts people,
-  companies, projects, and topics. Action items surface response-needed
-  signals, deadlines, and decisions buried in threads. One-click buttons —
-  Draft, Schedule, Open in Slack, Mark done (already handled), Stop
-  raising items like this, Snooze 24h — so dismissals carry intent.
-  Replies sent in Slack auto-resolve matching open items on the next sync.
-  Drafts ask for explicit confirmation before any send.
+  companies, projects, and topics. Surfaces response-needed signals,
+  deadlines, and decisions. One-click buttons — Draft, Schedule, Open in
+  Slack, Mark done — open the reply iframe with a pre-composed draft
+  informed by your profile and prior action items. Replies sent in Slack
+  auto-resolve matching open items on the next sync. The iframe Send
+  button is the explicit authorisation gate for any Slack write.
 categories:
   - communication
   - productivity

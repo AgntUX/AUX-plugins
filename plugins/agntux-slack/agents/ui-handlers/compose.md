@@ -6,10 +6,16 @@ tools: Read, mcp__agntux-slack__compose_view
 operational:
   catalogue_version: "1.0.0"
   verb_phrases:
-    # Only invoked programmatically by the draft skill at click time — it has the
-    # required `drafted_body` + `thread_context` + `channel` args. The view tool
-    # is NOT user-callable from a generic chat prompt because those args can't
-    # be hallucinated.
+    # In 1.1.0+ the draft body and thread_context are pre-composed at ingest
+    # time and live in the action file's `## Compose payload` body section.
+    # The host can route these click-time prompts directly to compose_view
+    # with only `{action_id}` and `initial_verb` — the view tool lifts the
+    # rest from disk. The legacy `draft a reply for action` / `draft a reply
+    # and schedule it for action` shapes are still matched here for backward
+    # compat with action items written by 2.x.x ingest runs (the draft skill
+    # handles them at click time and re-routes through compose_view).
+    - "open the reply composer for action"
+    - "open the reply composer in schedule mode for action"
     - "draft a reply for action"
     - "draft a reply and schedule it for action"
   view_tool: compose_view

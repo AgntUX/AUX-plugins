@@ -395,18 +395,16 @@ describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
   });
 });
 
-describe("sync skill 1.1.0 — suggested_actions carries new buttons", () => {
+describe("sync skill 1.1.0 — suggested_actions carries the four standard buttons", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
   const src = readMd(syncSkill);
 
-  it("default suggested_actions includes the six standard buttons in order", () => {
+  it("default suggested_actions includes the four standard buttons in order", () => {
     const labelOrder = [
       `label: "Draft a reply"`,
       `label: "Schedule a reply"`,
       `label: "Open in Slack"`,
       `label: "Mark done — already handled in Slack"`,
-      `label: "Stop raising items like this"`,
-      `label: "Snooze 24h"`,
     ];
     let cursor = 0;
     for (const label of labelOrder) {
@@ -420,14 +418,51 @@ describe("sync skill 1.1.0 — suggested_actions carries new buttons", () => {
     expect(src).toMatch(/Use the agntux-core plugin to set action \{id\} status to done with outcome "completed-externally"/);
   });
 
-  it("Stop raising routes to the agntux-core user-feedback subagent", () => {
-    expect(src).toMatch(/Use the agntux-core plugin to engage the user-feedback subagent/);
-    expect(src).toMatch(/`# Never raise` rule/);
+  it("Snooze 24h and Stop raising buttons are NOT emitted (duplicates of agntux-core triage chrome)", () => {
+    expect(src).not.toMatch(/^\s*-\s+label:\s*"Snooze 24h"/m);
+    expect(src).not.toMatch(/^\s*-\s+label:\s*"Stop raising items like this"/m);
   });
 
-  it("suggested_actions rules document the 2–7 button range and the position of Snooze last", () => {
-    expect(src).toMatch(/2[–-]7 buttons/);
-    expect(src).toMatch(/"Snooze 24h" is always last/);
+  it("Draft / Schedule / Summarise prompts route directly to the view tools (no draft skill round-trip)", () => {
+    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer for action \{id\}/);
+    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer in schedule mode for action \{id\}/);
+    expect(src).toMatch(/Use the agntux-slack plugin to open the canvas summariser for action \{id\}/);
+  });
+
+  it("suggested_actions rules document the 2–5 button range", () => {
+    expect(src).toMatch(/2[–-]5 buttons/);
+  });
+});
+
+describe("sync skill 1.1.0 — Compose / Canvas payload body sections", () => {
+  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const src = readMd(syncSkill);
+
+  it("inline schema_version is bumped to 1.1.0", () => {
+    expect(src).toMatch(/schema_version:\s*"1\.1\.0"/);
+  });
+
+  it("Step 10.1 — Gather file-store context — is documented as a sub-step inside Step 10", () => {
+    expect(src).toMatch(/Step 10\.1\s*—\s*Gather file-store context/);
+    expect(src).toMatch(/response-needed/);
+  });
+
+  it("authoring rules describe a `## Compose payload` body section with a fenced YAML block", () => {
+    expect(src).toMatch(/##\s+Compose payload/);
+    expect(src).toMatch(/drafted_body:/);
+    expect(src).toMatch(/personalization_signals:/);
+    expect(src).toMatch(/thread_context:/);
+  });
+
+  it("authoring rules describe a `## Canvas payload` body section for canvas-worthy items", () => {
+    expect(src).toMatch(/##\s+Canvas payload/);
+    expect(src).toMatch(/drafted_canvas:/);
+    expect(src).toMatch(/proposed_followup_message:/);
+  });
+
+  it("the §4 contract divergence note documents composition-at-ingest", () => {
+    expect(src).toMatch(/§4 contract divergence/);
+    expect(src).toMatch(/composition at ingest/i);
   });
 });
 
@@ -517,7 +552,7 @@ describe("example action item", () => {
     const fm = parseFrontmatter(content);
     expect(fm.id).toBe("2026-04-28-mango-pricing-tiers");
     expect(fm.type).toBe("action-item");
-    expect(fm.schema_version).toBe('"1.0.0"');
+    expect(fm.schema_version).toBe('"1.1.0"');
     expect(fm.status).toBe("open");
     expect(["high", "medium", "low"]).toContain(fm.priority);
     expect(["deadline", "response-needed", "knowledge-update", "risk", "opportunity", "other"]).toContain(fm.reason_class);
@@ -544,12 +579,30 @@ describe("example action item", () => {
     expect(content).toContain("topics/project-mango");
   });
 
-  it("ships the four default suggested-action buttons", () => {
+  it("ships the four default suggested-action buttons (3.0.0 — Snooze 24h and Stop raising removed)", () => {
     const content = readMd(actionPath);
     expect(content).toContain("Draft a reply");
     expect(content).toContain("Schedule a reply");
     expect(content).toContain("Open in Slack");
-    expect(content).toContain("Snooze 24h");
+    expect(content).toContain("Mark done — already handled in Slack");
+    // 3.0.0 removed both — both are duplicates of agntux-core triage chrome.
+    expect(content).not.toContain("Snooze 24h");
+    expect(content).not.toContain("Stop raising items like this");
+  });
+
+  it("Open in Slack uses url: (3.0.0 spec — no host_prompt)", () => {
+    const content = readMd(actionPath);
+    expect(content).toMatch(/-\s+label:\s+"Open in Slack"\s+url:\s+"https:\/\/[^"]+\.slack\.com\/archives\/[^"]+"/);
+  });
+
+  it("carries a `## Compose payload` body section with the YAML draft block", () => {
+    const content = readMd(actionPath);
+    expect(content).toMatch(/^##\s+Compose payload\s*$/m);
+    expect(content).toContain("drafted_body:");
+    expect(content).toContain("personalization_signals:");
+    expect(content).toContain("thread_context:");
+    expect(content).toContain("channel:");
+    expect(content).toContain("generated_at:");
   });
 
   it("suggested_actions host_prompts start with ux: and name a plugin", () => {

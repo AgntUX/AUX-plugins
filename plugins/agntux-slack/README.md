@@ -84,26 +84,40 @@ per-plugin instruction in
 
 Action items raised by `skills/sync/SKILL.md` ship four buttons by
 default (`Draft a reply`, `Schedule a reply`, `Open in Slack`,
-`Snooze 24h`) plus a fifth (`Summarise to canvas`) for
-thread-summary-worthy items.
+`Mark done — already handled in Slack`) plus an optional fifth
+(`Summarise to canvas`) for thread-summary-worthy items. Snooze and
+"Stop raising items like this" are intentionally NOT plugin-authored
+— both are built-in agntux-core triage chrome (Snooze button with 24h
+preset; Stop-raising in the Details modal), so plugin-side duplicates
+were retired in 3.0.0.
 
-When you click `Draft a reply`, the host routes a `ux:` prompt back to
-this plugin. The host's description-based auto-routing matches the
-prompt against `skills/draft/SKILL.md` directly — there is no router
-skill or sub-agent in between. The draft skill then:
+When you click `Draft a reply`, the host routes a `ux: Use the
+agntux-slack plugin to open the reply composer for action {id}.` prompt
+back to this plugin. The host's description-based auto-routing matches
+the prompt against the `compose_view` MCP tool directly — no draft skill
+round-trip — and the iframe renders inline with the pre-composed draft
+already loaded.
 
-1. Reads the action item to recover `source_ref` (always the parent
-   `<channel_id>#<thread_ts>`) and related entities.
-2. Calls `slack_read_thread` to fetch full thread context.
-3. Reads `<agntux project root>/user.md → # Preferences` for tone.
-4. Drafts a body, shows it in chat with the channel name and the message
-   it's replying to, and asks `Send this now? (yes / no / edit)`.
-5. On `yes`, calls `slack_send_message` with the exact body shown and
-   marks the action item `done` via `mcp__agntux-core__set_status`.
+1. The sync skill runs at scheduled cadence and pre-composes the draft
+   body for every `Draft a reply`-bearing action item, informed by
+   `user.md → # Preferences`, `data/instructions/agntux-slack.md`,
+   related-entity files, and the 3 most recent overlapping action items.
+   The drafted body, thread context, and personalization signals are
+   stored in the action file's `## Compose payload` body section.
+2. At click time, `compose_view` reads the action file, lifts the
+   `## Compose payload` YAML, and renders the iframe with the editable
+   draft already shown.
+3. You edit, then click Send. The compose iframe emits a committed
+   envelope back to chat (`ux: ...commit the drafted reply for action
+   {id} with body «…» (mode: send).`) which the draft skill matches and
+   parses. On a well-formed envelope, the draft skill calls
+   `slack_send_message` with the exact (possibly edited) body and marks
+   the action item `done` via `mcp__agntux-core__set_status`.
 
-No write tool is ever called without an explicit `yes` in the
-immediately preceding turn. There is no implicit "you said draft, here's
-what I sent" path.
+No write tool is ever called without a committed envelope from the
+iframe. The iframe Send button is the explicit authorisation gate.
+Action files written by 2.x.x sync runs (without `## Compose payload`)
+surface the graceful `compose_payload_missing` error inside the iframe.
 
 Both skills run with `context: fork` and `agent: general-purpose` per
 the [Claude Code skill docs](https://code.claude.com/docs/en/skills).
@@ -118,31 +132,41 @@ frontmatter edit).
 ## UI handlers
 
 **Slack reply composer** (`ui://slack-compose`): When you click `Draft a
-reply` or `Schedule a reply` on an action item, the draft skill calls the
-compose view tool with thread context and an agent-drafted reply body.
-The iframe shows the channel name, the parent message, the last reply
-quote, and an editable textarea prefilled with the draft. Mode tabs let
-you choose Send now / Schedule / Save Slack draft. A "Why this draft?"
-disclosure surfaces personalization signals from `user.md` and per-plugin
-instructions. The Send button emits a committed envelope back to the draft
-skill — this is your explicit confirmation before any message is sent to
-Slack.
+reply` or `Schedule a reply` on an action item, the host routes the
+click directly to the compose view tool, which lifts the pre-composed
+draft + thread context from the action file's `## Compose payload` body
+section and renders the iframe inline. You see the channel name, the
+parent message, the last reply quote, and an editable textarea prefilled
+with the draft. Mode tabs let you choose Send now / Schedule / Save
+Slack draft. A "Why this draft?" disclosure surfaces personalization
+signals from `user.md` and per-plugin instructions. The Send button
+emits a committed envelope (`ux: ...commit the drafted reply...`) back
+to chat — the draft skill matches the envelope and calls
+`slack_send_message` with your exact (possibly edited) body. The Send
+button is your explicit confirmation; no Slack write happens before it.
 
 **Slack canvas summariser** (`ui://slack-canvas`): When you click
-`Summarise to canvas` on an action item, the canvas view tool renders four
+`Summarise to canvas` on an action item, the host routes the click
+directly to the canvas view tool, which lifts the pre-composed canvas
+sections from the action file's `## Canvas payload` body section. Four
 editable section blocks (TL;DR, Decisions, Open questions, Participants)
-plus an editable title. A Preview tab shows the assembled markdown. The
-Create button confirms the canvas; the draft skill then calls
-`slack_create_canvas`, posts the canvas to the thread, and surfaces the
-canvas link back in the action item thread.
+plus an editable title come pre-populated. A Preview tab shows the
+assembled markdown. The Create button emits the committed canvas
+envelope back to chat; the draft skill then calls `slack_create_canvas`,
+posts the canvas to the thread, and surfaces the canvas link back in
+the action item thread.
 
 Both UIs ship as embedded component bundles (no external S3 fetch). Build
-and bundle both after any UI component changes:
+and bundle both after any UI component changes via the top-level builder:
 
 ```sh
-(cd ui-handlers/compose/component && npm install && npm run build)
-(cd ui-handlers/canvas/component && npm install && npm run build)
-(cd mcp-server && npm install && npm run build && npm run check:bundle-sync)
+node scripts/build-plugin.mjs agntux-slack
+```
+
+Or, when iterating locally with MCPJam Inspector:
+
+```sh
+node scripts/build-plugin.mjs agntux-slack --serve
 ```
 
 ## Limitations

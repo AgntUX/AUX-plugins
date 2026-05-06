@@ -1,6 +1,6 @@
 ---
 name: draft
-description: On-demand Slack drafting flow. Triggers on suggested-action `ux:` prompts back to agntux-slack — verbs include `draft a reply for action {id}`, `draft a reply and schedule it for action {id}`, `summarise the thread for action {id} into a Slack canvas`, and committed-envelope callbacks `commit the drafted reply for action {id}`, `commit the drafted canvas for action {id}`, and `discard the draft/canvas for action {id}`. Renders compose/canvas iframes via view tools; committed envelopes from the iframe are the authoritative send confirmation. Never sends without a committed envelope from the iframe.
+description: On-demand Slack drafting commit handler. Triggers on suggested-action `ux:` prompts back to agntux-slack — primarily the committed-envelope callbacks `commit the drafted reply for action {id}`, `commit the drafted canvas for action {id}`, and `discard the draft/canvas for action {id}` emitted by the compose/canvas iframes. Legacy click-time verbs (`draft a reply for action {id}`, `summarise the thread for action {id} into a Slack canvas`) are still routed here for backward compat with pre-1.1.0 action files; new action files route the click directly to `compose_view` / `canvas_view` via `open the reply composer for action {id}` / `open the canvas summariser for action {id}` prompts that match those tools' descriptions, bypassing this skill on the click-side. Never sends without a committed envelope from the iframe.
 context: fork
 agent: general-purpose
 ---
@@ -90,13 +90,15 @@ print this message and stop:
 
 Two distinct flows share this skill. The inbound prompt determines which route runs.
 
-### Click-time verbs (ingest writes these into `suggested_actions`; user click → host routes here → render iframe)
+### Click-time verbs (legacy / pre-1.1.0 only; new action files bypass this skill on the click-side)
 
 | Inbound verb | Outbound action |
 |---|---|
-| `draft a reply for action {id}` | Call `compose_view(initial_verb: "draft", …)` then await committed envelope |
-| `draft a reply and schedule it for action {id}` | Call `compose_view(initial_verb: "schedule", …)` then await committed envelope |
-| `summarise the thread for action {id} into a Slack canvas` | Call `canvas_view(…)` then await committed envelope |
+| `draft a reply for action {id}` (legacy) | Call `compose_view(action_id, initial_verb: "draft")` then await committed envelope |
+| `draft a reply and schedule it for action {id}` (legacy) | Call `compose_view(action_id, initial_verb: "schedule")` then await committed envelope |
+| `summarise the thread for action {id} into a Slack canvas` (legacy) | Call `canvas_view(action_id)` then await committed envelope |
+
+In agntux-slack 3.0.0+ ingest writes the new `ux: ...open the reply composer for action {id}` / `...open the canvas summariser for action {id}` shape, which `compose_view` / `canvas_view` match directly via their tool descriptions — no draft-skill round-trip. The verbs above remain matched here so legacy action files written by 2.x.x ingest runs continue to work during the transition window.
 
 ### Committed envelopes (iframe emits these after the user clicks a primary action button)
 
@@ -122,7 +124,7 @@ a fresh committed envelope.
 
 The inbound prompt body (after the host strips `ux: `) is one of:
 
-**Click-time verbs** (→ continue to Step 2):
+**Click-time verbs** (legacy / pre-1.1.0 ingest output → continue to Step 2):
 - `Use the agntux-slack plugin to draft a reply for action {id}.`
 - `Use the agntux-slack plugin to draft a reply and schedule it for action {id}.`
 - `Use the agntux-slack plugin to summarise the thread for action {id} into a Slack canvas.`
@@ -136,77 +138,36 @@ The inbound prompt body (after the host strips `ux: `) is one of:
 
 Extract `{id}` (the action item filename minus `.md`) and the verb. If `{id}` is missing or doesn't match an existing action item, surface one sentence — `"I need an action item ID to draft against. Try clicking the action again from the triage view."` — and stop.
 
----
-
-## Step 2 — Read the action item
-
-Read `<agntux project root>/actions/{id}.md`. Extract:
-- `source_ref` — the parent thread identifier (`<channel_id>#<thread_ts>` for thread-rooted items; `<channel_id>#<ts>` for non-threaded). Split on `#` to get `channel_id` and `thread_ts`.
-- `related_entities` — the people/companies/topics already resolved by ingest.
-- `## Why this matters` body — the situation the action describes. Use this for context; do not re-derive *why* the action exists.
-- `priority` — informs how aggressively to call out urgency in the draft.
-
-If the action is `status: done`, `dismissed_at` non-null, or `snoozed_until` in the future, surface one sentence — `"This action is no longer open. Want me to draft against a different one?"` — and stop.
+The new `open the reply composer for action {id}` / `open the canvas summariser for action {id}` ux: prompts emitted by 1.1.0+ ingest do **not** match this skill — they match `compose_view` / `canvas_view` directly via those tools' descriptions. Don't try to handle them here.
 
 ---
 
-## Step 3 — Fetch full Slack context
+## Step 2 — Read the action item (legacy click-time path only)
 
-Call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` to fetch the parent message plus every reply. For the `summarise` verb, also call `slack_read_user_profile(user_id)` for each unique participant to resolve real names (cache per-run; never call profile lookup twice for the same user_id in one draft session).
+Read `<agntux project root>/actions/{id}.md`. Extract only the fields this skill needs at click time:
 
-If `slack_read_thread` fails, surface one sentence — `"Couldn't fetch the thread (Slack returned <kind>: <message>). Try again in a moment."` — and stop. Do NOT proceed to draft on stale context.
+- `source_ref` — the parent thread identifier (`<channel_id>#<thread_ts>` for thread-rooted items; `<channel_id>#<ts>` for non-threaded). Split on `#` to get `channel_id` and `thread_ts`. Required at Step 7 to call `slack_send_message` (and friends).
+- `status` / `dismissed_at` / `snoozed_until` — sanity check. If the action is `status: done`, `dismissed_at` non-null, or `snoozed_until` in the future, surface one sentence — `"This action is no longer open. Want me to draft against a different one?"` — and stop.
 
----
-
-## Step 4 — Read user preferences
-
-Read `<agntux project root>/user.md` and pull from `# Preferences`:
-- Tone register (terse / casual / formal).
-- Length preferences (e.g., "keep replies under 3 sentences").
-- Signature or sign-off conventions, if any.
-
-Read `<agntux project root>/data/instructions/agntux-slack.md` if it exists. Pull from:
-- `# Notes` — per-plugin tone or formatting rules (e.g., "always thread replies", "never use exclamation points").
-- `# Rewrites` — transformations to apply (e.g., always swap "ASAP" for an explicit time).
-
-Do NOT inject signature lines, "as discussed" phrases, or padding the user has not asked for. Tone discipline is load-bearing.
-
----
-
-## Step 5 — Draft the payload (in working memory; do not call any write tool yet)
-
-Compose the payload appropriate for the verb:
-
-- **Draft a reply** — a message body of 1–3 paragraphs, respecting `user.md → # Preferences`. Reply to the most recent meaningful turn in the thread; quote it briefly when the thread is long enough that context isn't obvious.
-- **Schedule a reply** — same body as `draft a reply`. Default proposed send time: "tomorrow 09:00 user-local time" (RFC 3339). Pass as `proposed_send_time` to `compose_view`.
-- **Summarise to canvas** — five sections: a title (≤80 chars), a one-paragraph TL;DR (≤500 chars), a "Decisions" list (≤8 items, ≤200 chars each), an "Open questions" list (≤8 items, ≤200 chars each), and a "Participants" list of real names (≤12). Sized for a quick-read canvas; do not paste the entire transcript. Also draft a short `proposed_followup_message` (≤200 chars) to post in the thread after canvas creation, e.g. "Posted a thread summary: {url}".
-
-Personalisation fit comes from the action item's `## Why this matters` body. Don't re-derive *why*; respond to the situation already described.
-
-Also synthesise a `personalization_signals` array — up to 4 short bullets (≤120 chars each) explaining *why* the draft looks the way it does. Cite `user.md → # Preferences` rules, `data/instructions/agntux-slack.md → # Notes` rules, or `# Auto-learned` patterns. Examples:
-- "Tone: terse — per user.md → # Preferences"
-- "Skipping signature line — never asked for one"
-- "Direct manager (per # Always raise: VIP) — keep formal"
-
-These are passed to `compose_view` as `personalization_signals`. Canvas calls (`canvas_view`) do not have a parallel personalization disclosure surface — omit.
+That is the entire on-disk read for the click-side path. Body composition (the prior Step 4 user-prefs read, Step 3 thread fetch, and Step 5 working-memory drafting) is not part of this skill in 1.1.0+ — those happened at ingest time and live in the action file's `## Compose payload` / `## Canvas payload` body sections, which `compose_view` / `canvas_view` lift directly.
 
 ---
 
 ## Step 6 — Render the iframe
 
-Call the view tool that matches the verb. Pass the working-memory payload as args. The host renders the iframe; the user reviews, edits, and commits inside it. The view tool's `inputSchema` is enforced by the MCP server — read each tool's schema for the exact arg shape.
+Call the view tool that matches the verb with **only `{action_id}`** plus an `initial_verb` for compose mode. The view tool reads the action file's `## Compose payload` (or `## Canvas payload`) body section, lifts `drafted_body`, `thread_context`, `channel`, `personalization_signals`, and `slack_permalink` from there, applies the same caps it would apply to inline args, and renders. No working-memory payload composition is needed.
 
 | Verb | Tool call | Required args |
 |---|---|---|
-| draft a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "draft"`, `drafted_body`, `personalization_signals`, `thread_context: { parent_ts, parent_author_real_name, parent_excerpt, last_reply_ts, last_reply_author_real_name, last_reply_excerpt, total_replies, participants[], messages_preview[] }`, `channel: { id, name, is_dm }`, `slack_permalink?` |
-| schedule a reply | `mcp__agntux-slack__compose_view` | as above + `initial_verb: "schedule"`, `proposed_send_time` (RFC 3339, default "tomorrow 09:00 user-local") |
-| summarise to canvas | `mcp__agntux-slack__canvas_view` | `action_id`, `drafted_canvas: { title, tldr, decisions[], open_questions[], participants[] }`, `channel: { id, name }`, `thread: { parent_ts, total_replies, participants[] }`, `proposed_followup_message` |
+| draft a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "draft"` |
+| schedule a reply | `mcp__agntux-slack__compose_view` | `action_id`, `initial_verb: "schedule"` |
+| summarise to canvas | `mcp__agntux-slack__canvas_view` | `action_id` |
+
+If the action file has no `## Compose payload` section (pre-1.1.0 action authored before pre-composition shipped), `compose_view` returns the structured error `compose_payload_missing` — the iframe renders the error copy directly and there is nothing for this skill to do. Same for `canvas_payload_missing`.
 
 After the call returns, **stop and wait** for the next user turn. Do not narrate. The next inbound prompt the host delivers will be one of the committed envelopes from the "Committed envelopes" section above (or a discard envelope, or a freeform reply — see Step 7).
 
 **Renderer-availability assumption (locked):** Assume the renderer is always available. Do not author a chat-only fallback path. If the iframe fails to render, the user will surface that conversationally; pre-authored fallback language at this layer would confuse the host into skipping the iframe path.
-
-**Do NOT pre-fill orchestrator-authored content during ingest** — bodies, schedule times, and canvas content are produced HERE at click time, with fresh thread context.
 
 ---
 
@@ -339,7 +300,7 @@ Then stop.
 - **Never auto-pivot verbs.** "Actually summarise it instead" → re-confirm the new verb, draft fresh, call the appropriate view tool, await a fresh committed envelope.
 - **Tone discipline.** Respect `user.md → # Preferences` (terseness, register) and per-plugin instructions. No injected signatures, "as discussed" phrases, or other padding.
 - **Personalisation fit comes from the action item.** Do not re-derive *why* the action exists; respond to the situation already described.
-- **Do not pre-fill orchestrator-authored content during ingest.** The ingest skill writes the action item with the suggested-actions list, but the body of any reply / canvas is composed here, at click time, with fresh thread context.
+- **Composition is at ingest, not at click.** In 1.1.0+ the draft body / canvas content lives in the action file's `## Compose payload` / `## Canvas payload` body sections. This skill does **not** re-compose at click time — it reads only `source_ref` (Step 2) and routes to the view tool with `{action_id}` (Step 6). User edits inside the iframe remain authoritative through the committed envelope.
 
 ---
 
@@ -360,9 +321,10 @@ You do NOT:
 
 Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
 
-- Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
-- Slack read tools (Cowork-prefixed at runtime): `slack_read_thread`, `slack_read_user_profile`.
+- Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`. (Read for the action file in Step 2; Edit for the `## Activity` append in Step 8.)
 - View tools (called in Step 6 to render the iframe): `mcp__agntux-slack__compose_view`, `mcp__agntux-slack__canvas_view`.
 - Slack write tools (called only after a committed envelope arrives via Step 6.5): `slack_send_message`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`, `slack_send_message_draft`.
 - agntux-core MCP tools: `mcp__agntux-core__set_status` (called in Step 8 to mark the action done after a successful write).
 - No direct frontmatter edits to action items.
+
+Slack read tools (`slack_read_thread`, `slack_read_user_profile`) are NOT used by this skill in 1.1.0+ — thread fetching and user-profile resolution happen at ingest time. The sync skill is the authorised caller.
