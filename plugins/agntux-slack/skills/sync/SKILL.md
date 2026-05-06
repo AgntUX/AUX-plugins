@@ -464,38 +464,80 @@ If you decide to raise: proceed to Step 9.
 
 After per-item triage (Step 8) and before dedup (Step 9), reconcile **already-open** action items against the freshly-fetched Slack data so items the user has since handled in Slack don't stay open and noisy.
 
-1. Scan `actions/_index.md` for entries with `status: open`, `source: slack`, `reason_class: response-needed`.
-2. For each, check whether its `source_ref` (`<channel_id>#<thread_ts>` or `<channel_id>#<ts>`) corresponds to a channel or thread touched in this run's fetch (i.e., the parent or thread is in the working-memory fetch buffer).
-3. If touched, run the **same Step 8a reply-state scan** against the latest data — using the action's original trigger ts as the candidate trigger.
-4. If the user has now replied AND no qualifying follow-up appeared after their reply: rewrite the action file with `status: done`, `completed_at: <now RFC 3339>`, and append the following body section (do not overwrite existing body content; append after the existing `## Personalization fit` section):
+1. Scan `actions/_index.md` for entries with `status: open`, `reason_class: response-needed`, regardless of `source`.
+2. For each candidate, the resolution check has two paths:
+
+   **Path A — same-source action (`source: slack`)**:
+   - Check whether its `source_ref` (`<channel_id>#<thread_ts>` or `<channel_id>#<ts>`) corresponds to a channel or thread touched in this run's fetch (i.e., the parent or thread is in the working-memory fetch buffer).
+   - If touched, run the **same Step 8a reply-state scan** against the latest data — using the action's original trigger ts as the candidate trigger.
+
+   **Path B — cross-source action with `## Cross-source links`** (5.2.0+):
+   - Read the action body. If a `## Cross-source links` body section exists and lists a `slack thread:` or `slack channel:` line whose `<channel_id>#<thread_ts>` (or `<channel_id>#<ts>`) matches a parent or thread touched in this run, run the Step 8a reply-state scan against that thread.
+   - This honours the cross-source merge protocol: replying in Slack resolves an action originally raised by another plugin (typically `agntux-gmail`) and merged via Step 9. Replying in any channel listed under `## Cross-source links` resolves the whole cross-channel action.
+
+3. If the user has now replied AND no qualifying follow-up appeared after their reply: rewrite the action file with `status: done`, `completed_at: <now RFC 3339>`, and append the following body section (do not overwrite existing body content; append after the existing `## Personalization fit` section):
 
    ```markdown
    ## Auto-resolved
-   {YYYY-MM-DD HH:MM} — Detected user reply in this thread/channel after the
-   triggering message, with no further follow-up question or escalation.
-   Closed automatically. If this was wrong, re-open from `actions/_index.md`.
+   {YYYY-MM-DD HH:MM} — Detected user reply via slack in this thread/channel
+   after the triggering message, with no further follow-up question or
+   escalation. Closed automatically. If this was wrong, re-open from
+   `actions/_index.md`.
    ```
 
    Write atomically (temp + rename). The `agntux-core` PostToolUse hook updates `actions/_index.md` after the write — do NOT touch `_index.md` directly.
 
-5. If the open action is still valid (user hasn't replied, or a qualifying follow-up appeared after their reply), leave it untouched. Step 9's dedup will prevent a duplicate from being raised this run.
+4. If the open action is still valid (user hasn't replied, or a qualifying follow-up appeared after their reply), leave it untouched. Step 9's dedup will prevent a duplicate from being raised this run.
 
-This is a real new automated state transition (`open` → `done` without user click). It is bounded: only `source: slack` + `reason_class: response-needed`, only when the relevant thread/channel was just fetched, only when the reply-state scan returns the same conclusion it would for a fresh candidate. The "Honesty rules" and "Out of scope" sections below document this authority.
+This is a real new automated state transition (`open` → `done` without user click). It is bounded: only `reason_class: response-needed`, only when the relevant slack thread/channel was just fetched, only when the reply-state scan returns the same conclusion it would for a fresh candidate. Path A handles slack-authored actions; Path B handles cross-source-merged actions where another plugin owns the action but slack contributed a reply path. The "Honesty rules" and "Out of scope" sections below document this authority.
 
 If a reconciliation write fails (e.g., file moved, permission), log a `slack-reconcile-failed` entry to `sync.md → errors` with the action `id` and continue — better to leave the action open than to write half-state.
 
 ---
 
-## Step 9 — Dedupe against existing action items
+## Step 9 — Dedupe against existing action items (with cross-source merge)
 
 Scan `actions/_index.md` for entries matching `related_entities` and `reason_class`. Read candidate duplicates in full.
 
-**Dedup keys on parent `source_ref`:** for thread-rooted items, `source_ref` is `<channel_id>#<thread_ts>` (the parent identifier). A new reply on a thread that already raised a `response-needed` action does not raise a second one.
+**Same-source dedup (slack vs. slack):**
+
+Dedup keys on parent `source_ref`. For thread-rooted items, `source_ref` is `<channel_id>#<thread_ts>` (the parent identifier). A new reply on a thread that already raised a `response-needed` action does not raise a second one.
 
 - Already open → do NOT create a duplicate. For active Slack threads, the right path is usually to update the existing item's `## Why this matters` body to cite the new reply rather than create a duplicate. Skip otherwise.
 - Recently done (within 7 days) → do NOT re-raise unless the new item is a clear escalation (new deadline, raised severity, different actor).
 - Recently dismissed → do NOT re-raise. (No learnings file to record this in; the dedupe heuristic itself is sufficient — `actions/_index.md` already shows the prior dismissal.)
-- No match → proceed to Step 10.
+
+**Cross-source merge (5.2.0+ — slack merging into another plugin's open action):**
+
+When this candidate is `reason_class: response-needed` AND there is an open action authored by another plugin (`source != slack`, `reason_class == response-needed`) created within the last **48 hours**, apply the LLM-judged topic-overlap test:
+
+1. Read the candidate sibling's `## Why this matters` body section.
+2. Read the new slack thread (parent + replies, the merged in-memory view from Step 6).
+3. Decide: **"Are these the same conversation, topic, project, or decision being negotiated, just in different channels?"** Use your judgment. Person-overlap alone is NOT a sufficient match — colleagues commonly span many unrelated topics. Look at *what is being asked* and *what is being decided*.
+
+If you judge overlap:
+- **Edit the existing action file** (do not create a new one):
+  - Append two rows to `suggested_actions` (preserving any existing rows authored by the original plugin):
+    ```yaml
+    - label: "Draft a Slack reply"
+      host_prompt: |
+        ux: Use the agntux-slack plugin to open the reply composer for action {existing_id}.
+    - label: "Open in Slack"
+      url: "{slack_open_url}"
+    ```
+    The `slack_open_url` is constructed per Step 10's recipe; omit the `Open in Slack` row if `workspace_subdomain` is null this run.
+  - Append a `## Cross-source links` body section (or extend an existing one — newest entries at top):
+    ```markdown
+    ## Cross-source links
+    - slack thread: {channel_id}#{thread_ts} (#{channel_name}: "{first-line excerpt}") — added {YYYY-MM-DD HH:MM}
+    ```
+  - Append a `## Compose payload (slack)` body section carrying the slack-specific compose payload (same shape as the bare `## Compose payload` defined in Step 10, just under a namespaced header so the agntux-slack compose view tool reads it without colliding with a sibling `## Compose payload (gmail)` block).
+  - Update `updated_at` frontmatter.
+- **Skip creating a new slack action file.** Append a `slack-merged-into-{existing_id}` debug entry to `sync.md → errors`.
+
+If no overlap match: write a fresh slack action file as normal (Step 10).
+
+- No match (no same-source dup, no cross-source merge candidate) → proceed to Step 10.
 
 ---
 

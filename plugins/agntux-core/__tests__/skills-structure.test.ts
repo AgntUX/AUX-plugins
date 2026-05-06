@@ -138,7 +138,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 6.2.0 (6.2.0 extracts shared UI primitives — ScrollablePanel, AgntuxLogo, Spinner, ComponentErrorBoundary, LicenseErrorScreen, detectErrorEnvelope, safe-accessors — into the @agntux/ui-primitives workspace package; no user-visible behaviour change)", () => {
+  it("plugin.json is at version 6.2.1 (6.2.0 extracted shared UI primitives into @agntux/ui-primitives; 6.2.1 ships a self-contained esbuild bundle of mcp-server/dist/index.js so Cowork can launch the server without npm install)", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -148,7 +148,7 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("6.2.0");
+    expect(manifest.version).toBe("6.2.1");
   });
 
   it("mcp-server/package.json declares the ./agntux-root subpath export", () => {

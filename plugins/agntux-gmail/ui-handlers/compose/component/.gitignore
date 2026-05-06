@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+# `out/` is the vite build target. CI rebuilds it on push to main and commits
+# it back so users get a runnable plugin on `/plugin install` (the host's
+# install model has no build step). See repo-root .gitignore + CLAUDE.md.
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# E2E artifacts (plugin-toolkit-test render output) and kept-session lockfile
+test-results/
+.plugin-toolkit-test/
+
+# Environment (should not be committed)
+.env
+.env.local
+.env.*.local
