@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.2] — 2026-05-06
+
+Render-fix patch: `/agntux-triage` now opens the iframe in Claude Cowork
+desktop, not just MCPJam. Previously Cowork dumped the structuredContent
+JSON into chat instead of rendering the triage UI.
+
+### Fixed
+
+- **`agntux_core_triage_view` descriptor now declares `outputSchema`.**
+  When a tool returns both `content[text]` and `structuredContent`, hosts
+  diverge on which channel to surface; the deciding factor is whether the
+  descriptor declares `outputSchema`. Without it, Cowork (and per the
+  upstream app project's `c023186` fix, ChatGPT) silently text-render the
+  structuredContent and never open the iframe. The `outputSchema` lists
+  every top-level success-shape key plus `error`, with no `required`
+  fields so the structured-error envelope (`{error: ...}`) also
+  validates. Mirrors the official `scenario-modeler-server` example in
+  `modelcontextprotocol/ext-apps`, which has the same shape we do
+  (content[text] + structuredContent + ui:// iframe).
+- **Descriptor `_meta` now emits both `ui.resourceUri` (modern, nested)
+  and `"ui/resourceUri"` (legacy, flat) keys.** The MCP Apps spec defines
+  these as synonymous; the upstream `registerAppTool` helper in
+  `@modelcontextprotocol/ext-apps` populates both, so we do too —
+  defensive against any host that only reads one of them.
+- **Removed bogus `visibility: ["model","app"]` from result `_meta.ui`.**
+  Per spec, `visibility` belongs on the descriptor (and its values are
+  things like `["model"]` to make a tool model-only). The default — both
+  surfaces can call — needs no annotation, so the field was just noise on
+  the result envelope.
+
+### Tests
+
+- New regression guard asserts the descriptor's `_meta` carries both the
+  modern and legacy `resourceUri` keys.
+- New regression guard asserts the descriptor declares `outputSchema`
+  with the expected top-level keys (`actions`, `handled_recent`,
+  `counts`, `last_updated_at`, `bootstrap_mode`, `error`) and no
+  `required` fields, so both the success payload and the structured-error
+  envelope validate.
+
 ## [6.2.1] — 2026-05-06
 
 Build-only fix for hosts that launch `mcp-server/dist/index.js` without

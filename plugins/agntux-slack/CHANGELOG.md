@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.2.1] — 2026-05-06
+
+Render-fix patch matching agntux-core 6.2.2 and agntux-gmail 1.0.1: the
+reply composer and canvas summariser now open their iframes in Claude
+Cowork desktop, not just MCPJam.
+
+### Fixed
+
+- **`agntux_slack_compose_view` and `agntux_slack_canvas_view` descriptors
+  now declare `outputSchema`.** Without it, Cowork text-renders the
+  structuredContent JSON in chat instead of routing it to the iframe.
+  Mirrors the official `scenario-modeler-server` example in
+  `modelcontextprotocol/ext-apps` and the app project's `c023186` fix.
+  Each schema lists every top-level success-shape key plus `error`, with
+  no `required` fields so the structured-error envelope also validates.
+- **Descriptor `_meta` now emits both `ui.resourceUri` (modern, nested)
+  and `"ui/resourceUri"` (legacy, flat) keys.** Defensive against hosts
+  that only read one of the two synonymous keys, matching what
+  `registerAppTool` from `@modelcontextprotocol/ext-apps` does.
+- **Removed bogus `visibility: ["model","app"]` from result `_meta.ui`.**
+  Per spec, `visibility` belongs on the descriptor; the default — both
+  surfaces can call — needs no annotation.
+
+### Tests
+
+- New regression guards on both `composeViewTool` and `canvasViewTool`
+  descriptors assert the dual `_meta` keys and the presence of
+  `outputSchema` with the expected top-level properties and no
+  `required` fields.
+
 ## [5.2.0] — 2026-05-06
 
 Symmetric cross-source action-merge with `agntux-gmail`. Ships alongside
