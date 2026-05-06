@@ -284,6 +284,9 @@ export const defaultMainComponentProps: MainComponentProps = {
   sendFollowUpMessage: async () => {
     /* no-op */
   },
+  openLink: async () => {
+    /* no-op */
+  },
   displayMode: 'inline',
   availableDisplayModes: ['inline', 'fullscreen', 'pip'],
   requestDisplayMode: async () => {
@@ -336,6 +339,8 @@ export interface MainComponentPropsResult {
   callToolSpy: ReturnType<typeof vi.fn>;
   /** Spy for sendFollowUpMessage calls */
   sendFollowUpMessageSpy: ReturnType<typeof vi.fn>;
+  /** Spy for openLink calls */
+  openLinkSpy: ReturnType<typeof vi.fn>;
   /** Spy for requestDisplayMode calls */
   requestDisplayModeSpy: ReturnType<typeof vi.fn>;
   /** Current widget state (updated by setWidgetState calls) */
@@ -393,6 +398,10 @@ export function createMainComponentProps(
     /* no-op */
   });
 
+  const openLinkSpy = vi.fn(async () => {
+    /* no-op */
+  });
+
   const requestDisplayModeSpy = vi.fn(async () => {
     /* no-op */
   });
@@ -406,6 +415,7 @@ export function createMainComponentProps(
     setWidgetState: setWidgetStateSpy,
     callTool: callToolSpy,
     sendFollowUpMessage: sendFollowUpMessageSpy,
+    openLink: openLinkSpy,
     displayMode: options.displayMode ?? 'inline',
     availableDisplayModes:
       options.availableDisplayModes ??
@@ -423,6 +433,7 @@ export function createMainComponentProps(
     setWidgetStateSpy,
     callToolSpy,
     sendFollowUpMessageSpy,
+    openLinkSpy,
     requestDisplayModeSpy,
     getWidgetState: () => widgetState,
   };

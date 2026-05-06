@@ -148,11 +148,13 @@ suggested_actions:
         label: "Draft a reply",
         host_prompt:
           "ux: Use the agntux-slack plugin to draft a reply for action test-1.",
+        url: null,
       },
       {
         label: "Snooze 24h",
         host_prompt:
           "ux: Use the agntux-core plugin to snooze action item test-1 for 24 hours.",
+        url: null,
       },
     ]);
     expect(a.why_matters_excerpt).toContain("test rationale");
@@ -360,6 +362,103 @@ related_entities:
     const result = await handleTriageView({});
     const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
     expect((a.related_entities as string[]).length).toBe(6);
+  });
+
+  it("accepts a suggested_action with url-only (no host_prompt) and threads url through", async () => {
+    writeAction(
+      "url-only",
+      `id: url-only
+status: open
+priority: medium
+suggested_actions:
+  - label: "Open in Slack"
+    url: "https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439"
+  - label: "Draft a reply"
+    host_prompt: "ux: Use the agntux-slack plugin to draft a reply for action url-only."`,
+    );
+    const result = await handleTriageView({});
+    const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
+    expect(a.suggested_actions).toEqual([
+      {
+        label: "Open in Slack",
+        host_prompt: "",
+        url: "https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439",
+      },
+      {
+        label: "Draft a reply",
+        host_prompt:
+          "ux: Use the agntux-slack plugin to draft a reply for action url-only.",
+        url: null,
+      },
+    ]);
+  });
+
+  it("rejects unsafe url schemes (javascript:, data:, file:) and drops the row when no host_prompt fallback", async () => {
+    writeAction(
+      "unsafe-url",
+      `id: unsafe-url
+status: open
+priority: medium
+suggested_actions:
+  - label: "javascript scheme"
+    url: "javascript:alert(1)"
+  - label: "data scheme"
+    url: "data:text/html,<script>alert(1)</script>"
+  - label: "Open in Slack"
+    url: "https://oatfi.slack.com/archives/C0/p1"
+  - label: "Has chat fallback"
+    url: "javascript:noop"
+    host_prompt: "ux: do something"`,
+    );
+    const result = await handleTriageView({});
+    const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
+    const sas = a.suggested_actions as Array<Record<string, unknown>>;
+    // javascript: and data: rows have no host_prompt fallback -> dropped.
+    // The https row survives. The "Has chat fallback" row keeps host_prompt
+    // and silently nulls the unsafe url.
+    expect(sas.length).toBe(2);
+    expect(sas[0].label).toBe("Open in Slack");
+    expect(sas[0].url).toBe("https://oatfi.slack.com/archives/C0/p1");
+    expect(sas[1].label).toBe("Has chat fallback");
+    expect(sas[1].url).toBeNull();
+    expect(sas[1].host_prompt).toBe("ux: do something");
+  });
+
+  it("treats whitespace-only fields as absent (drops a row with no real content)", async () => {
+    writeAction(
+      "whitespace",
+      `id: whitespace
+status: open
+priority: medium
+suggested_actions:
+  - label: "   "
+    host_prompt: "real prompt"
+  - label: "Real label"
+    host_prompt: "   "
+    url: "   "`,
+    );
+    const result = await handleTriageView({});
+    const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
+    expect((a.suggested_actions as unknown[]).length).toBe(0);
+  });
+
+  it("drops a suggested_action row that has neither host_prompt nor url", async () => {
+    writeAction(
+      "label-only",
+      `id: label-only
+status: open
+priority: medium
+suggested_actions:
+  - label: "Just a label"
+  - label: "Open in Slack"
+    url: "https://oatfi.slack.com/archives/C0/p1"`,
+    );
+    const result = await handleTriageView({});
+    const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
+    expect((a.suggested_actions as unknown[]).length).toBe(1);
+    expect(((a.suggested_actions as unknown[])[0] as { label: string }).label).toBe(
+      "Open in Slack",
+    );
   });
 
   it("caps suggested_actions at 6", async () => {

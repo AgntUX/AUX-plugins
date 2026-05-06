@@ -35,6 +35,10 @@ function asStringArray(v) {
         return [];
     return v.filter((x) => typeof x === "string");
 }
+// Only http(s) URLs are accepted by the openLink dispatcher. This is the trust
+// boundary that catches buggy or hostile ingest plugins emitting `javascript:`,
+// `data:`, `file:`, or other schemes the host might dispatch unsafely.
+const SAFE_URL_RE = /^https?:\/\//i;
 function asSuggestedActions(v) {
     if (!Array.isArray(v))
         return [];
@@ -43,12 +47,24 @@ function asSuggestedActions(v) {
         if (!row || typeof row !== "object")
             return null;
         const r = row;
-        const label = asString(r.label);
-        const host_prompt = asString(r.host_prompt);
-        if (!label || !host_prompt)
+        const label = asString(r.label).trim();
+        const host_prompt = asString(r.host_prompt).trim();
+        const rawUrl = asString(r.url).trim();
+        // Drop any url that isn't an http(s) URL. Treat a rejected url as if
+        // the field were absent — the row is kept iff host_prompt fills in.
+        const url = rawUrl && SAFE_URL_RE.test(rawUrl) ? rawUrl : "";
+        // A row needs a label and at least one of host_prompt or url. The two
+        // are dispatch alternatives: url -> openLink (host primitive), host_prompt
+        // -> sendFollowUpMessage (chat-mediated). When both are present, the
+        // triage UI prefers url; host_prompt is kept as a chat-fallback for older
+        // hosts that don't expose openLink.
+        if (!label || (!host_prompt && !url))
             return null;
-        // Normalise newlines: YAML block scalars often end with a trailing \n.
-        return { label, host_prompt: host_prompt.trimEnd() };
+        return {
+            label,
+            host_prompt,
+            url: url || null,
+        };
     })
         .filter((row) => row !== null);
 }

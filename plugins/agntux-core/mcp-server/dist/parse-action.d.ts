@@ -1,6 +1,7 @@
 export interface SuggestedActionRow {
     label: string;
     host_prompt: string;
+    url: string | null;
 }
 export interface ActionFrontmatter {
     id: string;
