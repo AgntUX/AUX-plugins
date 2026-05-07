@@ -7,15 +7,34 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL_PATH = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
-const SKILL_TEXT = existsSync(SKILL_PATH)
-  ? readFileSync(SKILL_PATH, "utf-8")
-  : "";
+
+// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
+// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
+// break grep-style assertions. Pass-through for all other paths.
+function readSkill(p: string): string {
+  if (!existsSync(p)) return "";
+  const content = readFileSync(p, "utf-8");
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
+    const resourcesDir = join(dirname(p), "resources");
+    if (existsSync(resourcesDir)) {
+      const parts = [content];
+      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+        parts.push(`\n<!-- ${name} -->\n`);
+        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+      }
+      return parts.join("");
+    }
+  }
+  return content;
+}
+
+const SKILL_TEXT = readSkill(SKILL_PATH);
 
 describe("source_ref shape", () => {
   it("the sync skill specifies thread_id (NOT a per-message id) as the source_ref", () => {
