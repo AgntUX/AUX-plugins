@@ -8,7 +8,7 @@ any ingest plugin (`agntux-slack`, `agntux-gmail`, `agntux-jira`, etc. — every
 
 | File | Status |
 |---|---|
-| `skills/sync/SKILL.md` | T19 — delivered (replaces the legacy `agents/ingest.md` + `skills/orchestrator.md` pair; now a top-level skill with `context: fork` + `agent: general-purpose`, no sub-agent indirection) |
+| `skills/sync/SKILL.md` | T19 — delivered. Lineage: `agents/ingest.md` + `skills/orchestrator.md` pair → top-level skill with `context: fork` + `agent: general-purpose` → top-level skill that runs **inline** (no fork, no nested agent). Each iteration removed one context boundary; the inline shape is what lets one host-level "Allow for all scheduled runs" click hold across every subsequent fire. |
 | `agents/ui-handlers/_template.md` | T20 — delivered (UI handlers stay as metadata-carrier files per P9 §7) |
 
 ## Placeholder registry
@@ -27,7 +27,7 @@ runtime/host-filled — NOT P6-substituted.
 | `{{source-slug}}` | `gmail` | `slack` | per-source spec; the bare source name (substring after `agntux-`); appears in entity source maps, action-item `source:` fields, and the `# {{source-slug}}` heading inside `data/learnings/{{plugin-slug}}/sync.md` |
 | `{{recommended-cadence}}` | `Daily 04:00` | `Every 30 min, 7am–10pm weekdays only` | manifest `recommended_ingest_cadence` field — free-form descriptive string (friendly cadence, cron expression, or natural-language description); personalization reads it verbatim and hands it to the host's scheduled-task tool |
 | `{{source-cursor-semantics}}` | `Gmail historyId (opaque integer string)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
-| `{{source-mcp-tools}}` | `gmail_list_messages, gmail_get_message` | `slack_read_channel, slack_read_thread, slack_search_public_and_private` (Cowork: prefixed with a per-instance UUID at runtime; the general-purpose agent inherits whatever the host exposes — no `tools:` whitelist needed) | per-source spec; comma list of tool root names |
+| `{{source-mcp-tools}}` | `gmail_list_messages, gmail_get_message` | `slack_read_channel, slack_read_thread, slack_search_public_and_private` (Cowork: prefixed with a per-instance UUID at runtime; the inline-running skill inherits whatever the host exposes — no `tools:` whitelist needed) | per-source spec; comma list of tool root names |
 | `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components)` | `- "display the slack thread UI for {ref}" → call mcp__agntux-slack-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string. Used by UI-handler metadata files (P9 §7), not by the sync skill. |
 
 ### UI-handler subagent template only (`agents/ui-handlers/_template.md`)

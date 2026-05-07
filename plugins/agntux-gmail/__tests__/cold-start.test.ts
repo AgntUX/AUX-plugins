@@ -11,8 +11,9 @@
  *   2. listing.yaml is well-formed with proposed_schema, ui_components,
  *      requires_source_mcp, and required marketplace fields.
  *   3. skills/sync/SKILL.md has no unsubstituted {{placeholder}} tokens,
- *      references Gmail read tools, is read-only re: create_draft, and uses
- *      the top-level-skill pattern (context: fork + general-purpose).
+ *      references Gmail read tools, is read-only re: create_draft, and
+ *      runs inline (no `context: fork`, no nested `general-purpose`
+ *      agent — forking broke "Allow for all scheduled runs" inheritance).
  *   4. The compose UI handler exists at ui-handlers/compose/component/.
  *   5. mcp-server/src/index.ts wires the @agntux/mcp-license gate around
  *      tools/call (NOT resources/read).
@@ -121,13 +122,13 @@ describe("skills/sync/SKILL.md", () => {
     expect(existsSync(skillPath)).toBe(true);
   });
 
-  it("uses the top-level-skill pattern (context: fork, agent: general-purpose)", () => {
+  it("runs inline — no `context: fork`, no nested agent, no `tools:` whitelist", () => {
     expect(skillText).toMatch(/^---/);
-    expect(skillText).toMatch(/context:\s*fork/);
-    expect(skillText).toMatch(/agent:\s*general-purpose/);
-    // No frontmatter `tools:` whitelist — top-level skills inherit the host's tools.
     const fmMatch = skillText.match(/^---\n([\s\S]*?)\n---/);
+    expect(fmMatch).not.toBeNull();
     if (fmMatch) {
+      expect(fmMatch[1]).not.toMatch(/^context:/m);
+      expect(fmMatch[1]).not.toMatch(/^agent:/m);
       expect(fmMatch[1]).not.toMatch(/^tools:/m);
     }
   });

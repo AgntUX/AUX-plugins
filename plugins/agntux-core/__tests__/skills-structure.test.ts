@@ -138,7 +138,7 @@ describe("UI handler manifests", () => {
 });
 
 describe("agntux-core plugin manifest version", () => {
-  it("plugin.json is at version 6.2.1 (6.2.0 extracted shared UI primitives into @agntux/ui-primitives; 6.2.1 ships a self-contained esbuild bundle of mcp-server/dist/index.js so Cowork can launch the server without npm install)", () => {
+  it("plugin.json version matches the most-recent CHANGELOG entry", () => {
     const manifestPath = join(
       PLUGIN_ROOT,
       ".claude-plugin",
@@ -148,7 +148,21 @@ describe("agntux-core plugin manifest version", () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe("6.2.1");
+    expect(typeof manifest.version).toBe("string");
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+
+    // Cross-check: the manifest version MUST match the first non-Unreleased
+    // header in CHANGELOG.md. Same invariant the marketplace linter enforces;
+    // surfacing it here gives a fast vitest signal so the literal-version
+    // pin doesn't drift across version bumps (which is exactly what happened
+    // when 6.2.1 was pinned and 6.2.2-6.2.5 shipped without updating it).
+    const changelogPath = join(PLUGIN_ROOT, "CHANGELOG.md");
+    const changelog = readFileSync(changelogPath, "utf-8");
+    const versionHeader = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m);
+    expect(versionHeader, "CHANGELOG.md is missing a versioned ## header").not.toBeNull();
+    if (versionHeader) {
+      expect(manifest.version).toBe(versionHeader[1]);
+    }
   });
 
   it("mcp-server/package.json declares the ./agntux-root subpath export", () => {
