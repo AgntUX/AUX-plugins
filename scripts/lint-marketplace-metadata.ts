@@ -19,10 +19,6 @@ import * as yaml from "js-yaml";
 import { imageSize } from "image-size";
 import { ListingSchema } from "../lib/marketplace-schema.js";
 import {
-  pass6HandlerFrontmatter,
-  pass6CanonicalHandlers,
-} from "./lint/lint-handler-frontmatter.js";
-import {
   pass7NoThirdPartyInViews,
   pass7CanonicalHandlers,
 } from "./lint/lint-no-third-party-in-views.js";
@@ -284,26 +280,10 @@ function pass2Schema(
       });
     }
 
-    // ui_components cross-check: agents/ui-handlers/{name}.md must exist
-    if (listing.ui_components) {
-      for (const comp of listing.ui_components) {
-        const handlerPath = path.join(
-          pluginDir,
-          "agents",
-          "ui-handlers",
-          `${comp.name}.md`,
-        );
-        if (!fileExists(handlerPath)) {
-          emit(findings, {
-            code: "E06",
-            severity: "error",
-            plugin: pluginSlug,
-            file: rel(listingPath),
-            message: `ui_components[].name "${comp.name}" has no matching agents/ui-handlers/${comp.name}.md`,
-          });
-        }
-      }
-    }
+    // Note: ui_components no longer cross-checks against agents/ui-handlers/
+    // — those metadata files were retired in the de-fork sweep. The view-tool
+    // descriptor in mcp-server/src/tools/{name}-view.ts is now the single
+    // source of truth for trigger phrases, output shape, and resource URI.
   }
 }
 
@@ -649,8 +629,6 @@ export function lintPlugin(
   pass2Schema(pluginSlug, pluginDir, opts.pluginsDir, opts.repoRoot, findings);
   pass3Images(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass4ReadmeChangelog(pluginSlug, pluginDir, opts.repoRoot, findings);
-  // Pass 6 — operational frontmatter validation
-  pass6HandlerFrontmatter(pluginSlug, pluginDir, opts.repoRoot, findings);
   // Pass 7 — no third-party MCP calls in view tools
   pass7NoThirdPartyInViews(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
@@ -754,11 +732,10 @@ if (isMain) {
     }
   }
 
-  // Pass 6 + Pass 7 on canonical ui-handlers (not per-plugin slugs)
+  // Pass 7 on canonical ui-handlers (not per-plugin slugs).
   // Only run when not filtering to a specific plugin slug.
   if (!pluginFilter) {
     const canonicalFindings: Finding[] = [];
-    pass6CanonicalHandlers(repoRoot, canonicalFindings);
     pass7CanonicalHandlers(repoRoot, canonicalFindings);
     for (const f of canonicalFindings) {
       allFindings.push(f);

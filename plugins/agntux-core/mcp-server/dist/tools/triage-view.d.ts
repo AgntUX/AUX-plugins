@@ -69,16 +69,7 @@ export declare const triageViewTool: {
     readonly description: string;
     readonly inputSchema: {
         readonly type: "object";
-        readonly properties: {
-            readonly view_handled_days: {
-                readonly type: "number";
-                readonly description: "Optional. Time window for handled-recent items, in days. Default 7, max 30.";
-            };
-            readonly limit: {
-                readonly type: "number";
-                readonly description: "Optional. Cap on the open-actions list. Default 30, max 50.";
-            };
-        };
+        readonly properties: {};
         readonly required: readonly [];
     };
     readonly outputSchema: {
@@ -168,5 +159,5 @@ export declare const triageViewTool: {
         readonly "ui/resourceUri": "ui://triage";
     };
 };
-export declare function handleTriageView(args: Record<string, unknown>): Promise<ViewToolResult>;
+export declare function handleTriageView(_args: Record<string, unknown>): Promise<ViewToolResult>;
 export {};

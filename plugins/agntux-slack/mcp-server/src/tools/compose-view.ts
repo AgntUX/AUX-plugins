@@ -8,7 +8,12 @@
 //     the action is still open (not done/dismissed/snoozed-future), and
 //     lifts the payload — it does NOT call Slack tools (read-only,
 //     stateless).
-//   - Inline structured args still win when supplied (legacy / testing path).
+//   - Single-mode (6.0.0+): the action file's `## Compose payload` is the
+//     ONLY payload source. Pre-launch the legacy inline-override path was
+//     removed alongside the `agents/ui-handlers/compose.md` metadata file;
+//     the only input arg is `action_id`. The iframe always opens in
+//     default Draft mode — the user clicks the Schedule tab inside the
+//     iframe to switch.
 //   - Hard caps are enforced server-side. Never throws from the happy path.
 //
 // Returns:
@@ -125,28 +130,6 @@ function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-function asStringOrNull(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-
-function asNumber(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function asBoolean(v: unknown, fallback = false): boolean {
-  return typeof v === "boolean" ? v : fallback;
-}
-
-function asStringArray(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === "string");
-}
-
-function asInitialVerb(v: unknown): InitialVerb {
-  if (v === "draft" || v === "schedule" || v === "save_draft") return v;
-  return "draft";
-}
-
 function structuredError(
   kind: ComposeStructuredError["error"],
   message: string,
@@ -165,44 +148,6 @@ function isActionAlreadyHandled(status: string, snoozedUntil: string | null): bo
     if (Number.isFinite(until) && until > Date.now()) return true;
   }
   return false;
-}
-
-function parseChannelArg(raw: unknown): ChannelInfo {
-  if (!raw || typeof raw !== "object") return { id: "", name: "", is_dm: false };
-  const r = raw as Record<string, unknown>;
-  return {
-    id: asString(r.id),
-    name: asString(r.name),
-    is_dm: asBoolean(r.is_dm),
-  };
-}
-
-function parseThreadContextArg(raw: unknown): Omit<ThreadInfo, "participants"> & { participants: string[] } {
-  if (!raw || typeof raw !== "object") {
-    return {
-      parent_ts: "",
-      parent_author_real_name: "",
-      parent_excerpt: "",
-      last_reply_ts: null,
-      last_reply_author_real_name: null,
-      last_reply_excerpt: null,
-      total_replies: 0,
-      participants: [],
-    };
-  }
-  const r = raw as Record<string, unknown>;
-  return {
-    parent_ts: asString(r.parent_ts),
-    parent_author_real_name: asString(r.parent_author_real_name),
-    parent_excerpt: truncate(asString(r.parent_excerpt), MAX_EXCERPT_CHARS),
-    last_reply_ts: asStringOrNull(r.last_reply_ts),
-    last_reply_author_real_name: asStringOrNull(r.last_reply_author_real_name),
-    last_reply_excerpt: asStringOrNull(r.last_reply_excerpt)
-      ? truncate(asString(r.last_reply_excerpt), MAX_EXCERPT_CHARS)
-      : null,
-    total_replies: asNumber(r.total_replies),
-    participants: asStringArray(r.participants).slice(0, MAX_PARTICIPANTS),
-  };
 }
 
 function parseMessagesPreviewArg(raw: unknown): MessagePreview[] {
@@ -226,96 +171,23 @@ function parseMessagesPreviewArg(raw: unknown): MessagePreview[] {
 export const composeViewTool = {
   name: "agntux_slack_compose_view",
   description:
-    "Render the Slack reply composer iframe for an action item. " +
-    "TRIGGER PHRASES (map verbatim to args — do not paraphrase): " +
-    "'open the reply composer for action {id}' → call with {action_id: id}; " +
-    "'open the reply composer in schedule mode for action {id}' → call with " +
-    "{action_id: id, initial_verb: \"schedule\"}. " +
-    "For these click-time prompts, pass ONLY action_id (and initial_verb when " +
-    "the phrase contains 'in schedule mode'). The tool reads the action " +
-    "file's `## Compose payload` body section and lifts drafted_body, " +
-    "thread_context, channel, personalization_signals, and slack_permalink " +
-    "from disk. Do NOT pass drafted_body, thread_context, channel, " +
-    "personalization_signals, or slack_permalink inline — those args are a " +
-    "legacy back-compat surface for out-of-band working-memory callers, and " +
-    "any inline value (including partial / empty objects) overrides the " +
-    "on-disk payload destructively, producing an empty UI. Action files that " +
-    "lack a `## Compose payload` section (pre-1.1.0) surface the " +
-    "`compose_payload_missing` structured error envelope. Returns " +
-    "_meta.ui.resourceUri = ui://slack-compose.",
+    "Open the Slack reply composer for an action. Use when the user asks " +
+    "to draft a reply / schedule a reply / save a Slack draft for an " +
+    "action ID, when prompted with phrases like 'open the reply composer " +
+    "for action {id}' / 'draft a reply for action {id}' / 'reply to " +
+    "action {id}', or when triage's Draft/Schedule buttons fire this tool " +
+    "via host_prompt. Pass ONLY action_id; the handler reads the action " +
+    "file's `## Compose payload` body section from disk. The iframe " +
+    "always opens in Draft mode — the user clicks the Schedule tab in " +
+    "the iframe to switch. Action files that lack a `## Compose payload` " +
+    "section surface the `compose_payload_missing` structured error " +
+    "envelope. Returns _meta.ui.resourceUri = ui://slack-compose.",
   inputSchema: {
     type: "object" as const,
     properties: {
       action_id: {
         type: "string",
         description: "Slug of the action item (from filename, no .md suffix).",
-      },
-      initial_verb: {
-        type: "string",
-        enum: ["draft", "schedule", "save_draft"],
-        description:
-          "Which mode tab to pre-select. MUST be set to 'schedule' when the " +
-          "trigger phrase contains 'in schedule mode' (e.g., 'open the reply " +
-          "composer in schedule mode for action {id}'). Otherwise omit (defaults " +
-          "to 'draft'). 'save_draft' is reserved for legacy out-of-band callers.",
-      },
-      drafted_body: {
-        type: "string",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts the body from the action file's `## Compose payload`. " +
-          "Inline override for out-of-band working-memory callers. ≤4000 chars; " +
-          "truncated if longer.",
-      },
-      personalization_signals: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
-          "Inline override for out-of-band working-memory callers.",
-      },
-      thread_context: {
-        type: "object",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts thread context from the action file's `## Compose " +
-          "payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          parent_ts: { type: "string" },
-          parent_author_real_name: { type: "string" },
-          parent_excerpt: { type: "string" },
-          last_reply_ts: { type: "string" },
-          last_reply_author_real_name: { type: "string" },
-          last_reply_excerpt: { type: "string" },
-          total_replies: { type: "number" },
-          participants: { type: "array", items: { type: "string" } },
-          messages_preview: { type: "array" },
-        },
-      },
-      channel: {
-        type: "object",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts channel from the action file's `## Compose payload`. " +
-          "Inline override for out-of-band working-memory callers.",
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          is_dm: { type: "boolean" },
-        },
-      },
-      proposed_send_time: {
-        type: "string",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the user picks the send time inside the iframe. Optional RFC 3339 " +
-          "datetime for out-of-band callers that pre-compute a schedule time.",
-      },
-      slack_permalink: {
-        type: "string",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
-          "Inline override for out-of-band working-memory callers.",
       },
     },
     required: ["action_id"],
@@ -418,119 +290,63 @@ export async function handleComposeView(
     );
   }
 
-  // Dual-mode resolution: prefer inline args (legacy draft-skill commit-side
-  // path) when present, otherwise fall back to the action file's `##
-  // Compose payload` body section. Either source can satisfy the contract;
-  // missing both surfaces compose_payload_missing.
   const onDisk = parsed.compose_payload;
-  const inlineDraftedBody = asString(args.drafted_body);
-  const hasInlineBody = inlineDraftedBody.length > 0;
-  const inlineThreadCtx =
-    args.thread_context && typeof args.thread_context === "object"
-      ? (args.thread_context as Record<string, unknown>)
-      : null;
-  const inlineChannel =
-    args.channel && typeof args.channel === "object"
-      ? (args.channel as Record<string, unknown>)
-      : null;
-
-  if (!hasInlineBody && !onDisk) {
+  if (!onDisk) {
     return structuredError(
       "compose_payload_missing",
-      `compose_view: action ${actionId} has no \`## Compose payload\` body section and no inline drafted_body was supplied.`,
+      `compose_view: action ${actionId} has no \`## Compose payload\` body section.`,
     );
   }
 
-  const draftedBody = truncate(
-    hasInlineBody ? inlineDraftedBody : onDisk?.drafted_body ?? "",
-    MAX_DRAFTED_BODY_CHARS,
-  );
+  const draftedBody = truncate(onDisk.drafted_body, MAX_DRAFTED_BODY_CHARS);
 
-  const rawSignals = Array.isArray(args.personalization_signals)
-    ? (args.personalization_signals as unknown[])
-    : onDisk
-      ? onDisk.personalization_signals
-      : [];
-  const personalizationSignals = rawSignals
+  const personalizationSignals = onDisk.personalization_signals
     .slice(0, MAX_PERSONALIZATION_SIGNALS)
     .filter((s): s is string => typeof s === "string")
     .map((s) => truncate(s, MAX_SIGNAL_CHARS));
 
-  const channel = inlineChannel
-    ? parseChannelArg(inlineChannel)
-    : onDisk
-      ? {
-          id: onDisk.channel.id,
-          name: onDisk.channel.name,
-          is_dm: onDisk.channel.is_dm,
-        }
-      : { id: "", name: "", is_dm: false };
+  const channel: ChannelInfo = {
+    id: onDisk.channel.id,
+    name: onDisk.channel.name,
+    is_dm: onDisk.channel.is_dm,
+  };
 
-  const threadCtx = inlineThreadCtx
-    ? parseThreadContextArg(inlineThreadCtx)
-    : onDisk
-      ? {
-          parent_ts: onDisk.thread_context.parent_ts,
-          parent_author_real_name:
-            onDisk.thread_context.parent_author_real_name,
-          parent_excerpt: truncate(
-            onDisk.thread_context.parent_excerpt,
-            MAX_EXCERPT_CHARS,
-          ),
-          last_reply_ts: onDisk.thread_context.last_reply_ts,
-          last_reply_author_real_name:
-            onDisk.thread_context.last_reply_author_real_name,
-          last_reply_excerpt: onDisk.thread_context.last_reply_excerpt
-            ? truncate(
-                onDisk.thread_context.last_reply_excerpt,
-                MAX_EXCERPT_CHARS,
-              )
-            : null,
-          total_replies: onDisk.thread_context.total_replies,
-          participants: onDisk.thread_context.participants.slice(
-            0,
-            MAX_PARTICIPANTS,
-          ),
-        }
-      : parseThreadContextArg(undefined);
-
-  // Extract raw messages_preview once so the truncation check and the
-  // normalizer share a single source of truth. Inline override wins; on-disk
-  // payload supplies the fallback.
-  const rawMessages = inlineThreadCtx
-    ? Array.isArray(inlineThreadCtx.messages_preview)
-      ? (inlineThreadCtx.messages_preview as unknown[])
-      : []
-    : (onDisk?.thread_context.messages_preview ?? []);
+  const rawMessages = onDisk.thread_context.messages_preview ?? [];
   const messagesPreview = parseMessagesPreviewArg(rawMessages);
   const messagesTruncated = rawMessages.length > MAX_MESSAGES_PREVIEW;
 
-  const proposedSendTime = asStringOrNull(args.proposed_send_time);
-  const slackPermalink =
-    asStringOrNull(args.slack_permalink) ??
-    (onDisk ? onDisk.slack_permalink : null);
-  const initialVerb = asInitialVerb(args.initial_verb);
-
   const payload: ComposeStructuredContent = {
     action_id: actionId,
-    initial_verb: initialVerb,
+    initial_verb: "draft",
     channel,
     thread: {
-      parent_ts: threadCtx.parent_ts,
-      parent_author_real_name: threadCtx.parent_author_real_name,
-      parent_excerpt: threadCtx.parent_excerpt,
-      last_reply_ts: threadCtx.last_reply_ts,
-      last_reply_author_real_name: threadCtx.last_reply_author_real_name,
-      last_reply_excerpt: threadCtx.last_reply_excerpt,
-      total_replies: threadCtx.total_replies,
-      participants: threadCtx.participants,
+      parent_ts: onDisk.thread_context.parent_ts,
+      parent_author_real_name: onDisk.thread_context.parent_author_real_name,
+      parent_excerpt: truncate(
+        onDisk.thread_context.parent_excerpt,
+        MAX_EXCERPT_CHARS,
+      ),
+      last_reply_ts: onDisk.thread_context.last_reply_ts,
+      last_reply_author_real_name:
+        onDisk.thread_context.last_reply_author_real_name,
+      last_reply_excerpt: onDisk.thread_context.last_reply_excerpt
+        ? truncate(
+            onDisk.thread_context.last_reply_excerpt,
+            MAX_EXCERPT_CHARS,
+          )
+        : null,
+      total_replies: onDisk.thread_context.total_replies,
+      participants: onDisk.thread_context.participants.slice(
+        0,
+        MAX_PARTICIPANTS,
+      ),
     },
     messages_preview: messagesPreview,
     messages_truncated: messagesTruncated,
     drafted_body: draftedBody,
     personalization_signals: personalizationSignals,
-    proposed_send_time: proposedSendTime,
-    slack_permalink: slackPermalink,
+    proposed_send_time: null,
+    slack_permalink: onDisk.slack_permalink,
   };
 
   const channelLabel = channel.is_dm ? `DM` : `#${channel.name}`;
@@ -540,7 +356,7 @@ export async function handleComposeView(
     content: [
       {
         type: "text",
-        text: `compose_view rendered for action ${actionId} (${channelLabel}, mode: ${initialVerb}).`,
+        text: `compose_view rendered for action ${actionId} (${channelLabel}, mode: draft).`,
       },
     ],
     _meta: {

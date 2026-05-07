@@ -7,7 +7,10 @@
 //     This tool reads <root>/actions/{action_id}.md, verifies the action is
 //     still open, and lifts the payload — it does NOT call Slack tools
 //     (read-only, stateless).
-//   - Inline structured args still win when supplied (legacy / testing path).
+//   - Single-mode (6.0.0+): the action file's `## Canvas payload` is the
+//     ONLY payload source. Pre-launch the legacy inline-override path was
+//     removed alongside the `agents/ui-handlers/canvas.md` metadata file;
+//     the only input arg is `action_id`.
 //   - Hard caps are enforced server-side. Never throws from the happy path.
 //
 // Returns:
@@ -115,15 +118,6 @@ function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-function asNumber(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function asStringArray(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === "string");
-}
-
 function structuredError(
   kind: CanvasStructuredError["error"],
   message: string,
@@ -144,110 +138,29 @@ function isActionAlreadyHandled(status: string, snoozedUntil: string | null): bo
   return false;
 }
 
-function parseChannelArg(raw: unknown): ChannelInfo {
-  if (!raw || typeof raw !== "object") return { id: "", name: "" };
-  const r = raw as Record<string, unknown>;
-  return { id: asString(r.id), name: asString(r.name) };
-}
-
-function parseThreadArg(raw: unknown): ThreadInfo {
-  if (!raw || typeof raw !== "object") {
-    return { parent_ts: "", total_replies: 0, participants: [] };
-  }
-  const r = raw as Record<string, unknown>;
-  return {
-    parent_ts: asString(r.parent_ts),
-    total_replies: asNumber(r.total_replies),
-    participants: asStringArray(r.participants).slice(0, MAX_PARTICIPANTS),
-  };
-}
-
-function parseDraftedCanvas(raw: unknown): DraftedCanvas {
-  if (!raw || typeof raw !== "object") {
-    return { title: "", tldr: "", decisions: [], open_questions: [], participants: [] };
-  }
-  const r = raw as Record<string, unknown>;
-  return {
-    title: truncate(asString(r.title), MAX_TITLE_CHARS),
-    tldr: truncate(asString(r.tldr), MAX_TLDR_CHARS),
-    decisions: asStringArray(r.decisions)
-      .slice(0, MAX_DECISIONS)
-      .map((d) => truncate(d, MAX_DECISION_CHARS)),
-    open_questions: asStringArray(r.open_questions)
-      .slice(0, MAX_OPEN_QUESTIONS)
-      .map((q) => truncate(q, MAX_QUESTION_CHARS)),
-    participants: asStringArray(r.participants).slice(0, MAX_PARTICIPANTS),
-  };
-}
-
 // ── Tool descriptor ──────────────────────────────────────────────────────────
 
 export const canvasViewTool = {
   name: "agntux_slack_canvas_view",
   description:
-    "Render the Slack canvas summariser iframe for an action item. " +
-    "TRIGGER PHRASE (map verbatim to args — do not paraphrase): " +
-    "'open the canvas summariser for action {id}' → call with {action_id: id}. " +
-    "For this click-time prompt, pass ONLY action_id. The tool reads the " +
-    "action file's `## Canvas payload` body section and lifts the canvas " +
-    "sections (title, TL;DR, decisions, open questions, participants), " +
-    "channel, thread, and follow-up message from disk. Do NOT pass " +
-    "drafted_canvas, channel, thread, or proposed_followup_message inline — " +
-    "those args are a legacy back-compat surface for out-of-band " +
-    "working-memory callers, and any inline value (including partial / empty " +
-    "objects) overrides the on-disk payload destructively, producing an " +
-    "empty UI. Action files that lack a `## Canvas payload` section surface " +
-    "the `canvas_payload_missing` structured error envelope. Returns " +
-    "_meta.ui.resourceUri = ui://slack-canvas.",
+    "Open the Slack canvas summariser for an action. Use when the user " +
+    "asks to summarise a thread / open the canvas summariser for an " +
+    "action ID, when prompted with phrases like 'summarise the thread " +
+    "for action {id}' / 'open the canvas summariser for action {id}' / " +
+    "'create a canvas for action {id}', or when triage's Open canvas " +
+    "button fires this tool via host_prompt. Pass ONLY action_id; the " +
+    "handler reads the action file's `## Canvas payload` body section " +
+    "from disk and lifts the canvas sections (title, TL;DR, decisions, " +
+    "open questions, participants), channel, thread, and follow-up " +
+    "message. Action files that lack a `## Canvas payload` section " +
+    "surface the `canvas_payload_missing` structured error envelope. " +
+    "Returns _meta.ui.resourceUri = ui://slack-canvas.",
   inputSchema: {
     type: "object" as const,
     properties: {
       action_id: {
         type: "string",
         description: "Slug of the action item (from filename, no .md suffix).",
-      },
-      drafted_canvas: {
-        type: "object",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts the canvas content from the action file's `## Canvas " +
-          "payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          title: { type: "string" },
-          tldr: { type: "string" },
-          decisions: { type: "array", items: { type: "string" } },
-          open_questions: { type: "array", items: { type: "string" } },
-          participants: { type: "array", items: { type: "string" } },
-        },
-      },
-      channel: {
-        type: "object",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts channel from the action file's `## Canvas payload`. " +
-          "Inline override for out-of-band working-memory callers.",
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-        },
-      },
-      thread: {
-        type: "object",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases — " +
-          "the tool lifts thread from the action file's `## Canvas payload`. " +
-          "Inline override for out-of-band working-memory callers.",
-        properties: {
-          parent_ts: { type: "string" },
-          total_replies: { type: "number" },
-          participants: { type: "array", items: { type: "string" } },
-        },
-      },
-      proposed_followup_message: {
-        type: "string",
-        description:
-          "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. " +
-          "Inline override for out-of-band working-memory callers.",
       },
     },
     required: ["action_id"],
@@ -348,62 +261,39 @@ export async function handleCanvasView(
     );
   }
 
-  // Dual-mode resolution. Inline args win; on-disk `## Canvas payload`
-  // supplies the fallback. Missing both surfaces canvas_payload_missing.
   const onDisk = parsed.canvas_payload;
-  const inlineDraftedCanvas =
-    args.drafted_canvas && typeof args.drafted_canvas === "object"
-      ? (args.drafted_canvas as Record<string, unknown>)
-      : null;
-  const inlineDraftedTitle = inlineDraftedCanvas
-    ? asString(inlineDraftedCanvas.title)
-    : "";
-  const hasInlineDrafted = inlineDraftedTitle.length > 0;
-
-  if (!hasInlineDrafted && !onDisk) {
+  if (!onDisk) {
     return structuredError(
       "canvas_payload_missing",
-      `canvas_view: action ${actionId} has no \`## Canvas payload\` body section and no inline drafted_canvas was supplied.`,
+      `canvas_view: action ${actionId} has no \`## Canvas payload\` body section.`,
     );
   }
 
-  const channel = args.channel
-    ? parseChannelArg(args.channel)
-    : onDisk
-      ? { id: onDisk.channel.id, name: onDisk.channel.name }
-      : { id: "", name: "" };
-  const thread = args.thread
-    ? parseThreadArg(args.thread)
-    : onDisk
-      ? {
-          parent_ts: onDisk.thread.parent_ts,
-          total_replies: onDisk.thread.total_replies,
-          participants: onDisk.thread.participants.slice(0, MAX_PARTICIPANTS),
-        }
-      : { parent_ts: "", total_replies: 0, participants: [] };
-  const draftedCanvas = inlineDraftedCanvas
-    ? parseDraftedCanvas(inlineDraftedCanvas)
-    : onDisk
-      ? {
-          title: truncate(onDisk.drafted_canvas.title, MAX_TITLE_CHARS),
-          tldr: truncate(onDisk.drafted_canvas.tldr, MAX_TLDR_CHARS),
-          decisions: onDisk.drafted_canvas.decisions
-            .slice(0, MAX_DECISIONS)
-            .map((d) => truncate(d, MAX_DECISION_CHARS)),
-          open_questions: onDisk.drafted_canvas.open_questions
-            .slice(0, MAX_OPEN_QUESTIONS)
-            .map((q) => truncate(q, MAX_QUESTION_CHARS)),
-          participants: onDisk.drafted_canvas.participants.slice(
-            0,
-            MAX_PARTICIPANTS,
-          ),
-        }
-      : { title: "", tldr: "", decisions: [], open_questions: [], participants: [] };
-  const inlineFollowup = asString(args.proposed_followup_message);
+  const channel: ChannelInfo = {
+    id: onDisk.channel.id,
+    name: onDisk.channel.name,
+  };
+  const thread: ThreadInfo = {
+    parent_ts: onDisk.thread.parent_ts,
+    total_replies: onDisk.thread.total_replies,
+    participants: onDisk.thread.participants.slice(0, MAX_PARTICIPANTS),
+  };
+  const draftedCanvas: DraftedCanvas = {
+    title: truncate(onDisk.drafted_canvas.title, MAX_TITLE_CHARS),
+    tldr: truncate(onDisk.drafted_canvas.tldr, MAX_TLDR_CHARS),
+    decisions: onDisk.drafted_canvas.decisions
+      .slice(0, MAX_DECISIONS)
+      .map((d) => truncate(d, MAX_DECISION_CHARS)),
+    open_questions: onDisk.drafted_canvas.open_questions
+      .slice(0, MAX_OPEN_QUESTIONS)
+      .map((q) => truncate(q, MAX_QUESTION_CHARS)),
+    participants: onDisk.drafted_canvas.participants.slice(
+      0,
+      MAX_PARTICIPANTS,
+    ),
+  };
   const proposedFollowupMessage = truncate(
-    inlineFollowup.length > 0
-      ? inlineFollowup
-      : onDisk?.proposed_followup_message ?? "",
+    onDisk.proposed_followup_message ?? "",
     MAX_FOLLOWUP_CHARS,
   );
 

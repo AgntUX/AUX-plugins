@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [7.0.0] — 2026-05-07
+
+De-fork sweep (Phase 1 of plugin-architecture cleanup): the six classical
+sub-agents that the entry-point skills used to dispatch via `Task` are now
+absorbed inline into their owning skills. The `agents/` directory is gone
+entirely. Every `/agntux-*` slash command runs as a single inline skill in
+the parent dispatch context — no fork, no working-directory grant
+re-prompt on scheduled runs.
+
+### Removed
+
+- **BREAKING — `plugins/agntux-core/agents/` deleted entirely.** Six
+  classical sub-agents — `retrieval`, `personalization`, `data-architect`,
+  `pattern-feedback`, `user-feedback`, `_sources` — and the
+  `ui-handlers/triage` metadata file are gone. Consumers that invoked
+  these via `Task({subagent_type: ...})` must now invoke the equivalent
+  slash command:
+  - `retrieval` → `/agntux-ask`
+  - `personalization` (Mode A — onboarding interview / Stage 0) → `/agntux-onboard`
+  - `personalization` (Modes B/C/D — ongoing profile updates) → `/agntux-profile`
+  - `data-architect` (all modes) → `/agntux-schema`
+  - `pattern-feedback` → `/agntux-feedback-review`
+  - `user-feedback` → `/agntux-teach`
+- **BREAKING — `agents/ui-handlers/triage.md` deleted.** The view tool's
+  `description` field in `mcp-server/src/tools/triage-view.ts` is now the
+  single source of truth for the trigger phrases that fire it
+  (`/agntux-triage`, `show triage`, `what's hot`, etc.).
+
+### Changed
+
+- **`agntux_core_triage_view` inputSchema is now empty** (zero arguments).
+  The previously-optional `view_handled_days` and `limit` fields are
+  dropped; server-side caps (DEFAULT_HANDLED_DAYS, DEFAULT_LIMIT) remain
+  as constants. Saves the LLM a tool-call argument decision.
+- `_preconditions.md` rewords every "dispatch the X subagent in Mode Y"
+  line to "route to /agntux-{ask,profile,onboard,schema,feedback-review,
+  teach} (it owns Mode Y)". Same effect, no fork.
+- `agents/_sources.md` content moves to
+  `plugins/agntux-core/skills/_sources.md` (sibling reference, same
+  `_`-prefix convention as `_preconditions.md` / `_resolve-root.md`).
+
 ## [6.2.5] — 2026-05-06
 
 ### Fixed

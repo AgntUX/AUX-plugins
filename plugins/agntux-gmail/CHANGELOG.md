@@ -6,6 +6,34 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-05-07
+
+De-fork sweep (Phase 1 of plugin-architecture cleanup). Companion to
+agntux-core 7.0.0 and agntux-slack 6.0.0. Trigger phrases for the view
+tool now live inline in the tool `description`; `agents/ui-handlers/`
+metadata is deleted.
+
+### Removed
+
+- **BREAKING — `plugins/agntux-gmail/agents/` deleted entirely.** The
+  metadata file `agents/ui-handlers/compose.md` is gone; trigger
+  phrases (formerly `verb_phrases:`), structured-content shape, and
+  resource URI all live inline in
+  `mcp-server/src/tools/compose-view.ts` now.
+
+### Changed
+
+- **`suggested_actions[*].host_prompt` shortened.** The verbose
+  `ux: Use the agntux-gmail plugin to open the email composer for
+  action {id}.` is replaced by `ux: open the email composer for action
+  {id}` — the trigger phrases that actually steer routing now live in
+  the view tool's `description` field, so the host_prompt only carries
+  the action-id reference. Pre-launch only; no on-disk migration is
+  required because action files are re-emitted on every sync.
+- Step 10 `suggested_actions` rules and the `### §4 contract divergence`
+  framing are trimmed; same composition-at-ingest semantics, fewer
+  authoring surfaces.
+
 ## [1.2.0] — 2026-05-07
 
 ### Added
