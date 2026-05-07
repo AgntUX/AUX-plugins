@@ -6,6 +6,17 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-05-06
+
+### Fixed
+
+- **`tools/call` result `_meta` now emits BOTH the modern nested
+  `_meta.ui.resourceUri` AND the legacy flat `_meta["ui/resourceUri"]`
+  for `agntux_gmail_compose_view`.** The legacy flat key was already
+  present on the tool descriptor, but the call result still only carried
+  the nested form, so any host that reads the legacy key off the call
+  result (rather than the descriptor) would not see it.
+
 ## [1.0.3] — 2026-05-06
 
 ### Fixed

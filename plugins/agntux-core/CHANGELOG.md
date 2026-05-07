@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.2.5] — 2026-05-06
+
+### Fixed
+
+- **`tools/call` result `_meta` now emits BOTH the modern nested
+  `_meta.ui.resourceUri` AND the legacy flat `_meta["ui/resourceUri"]`.**
+  The 0437ccb fix added the legacy flat key to the tool *descriptor*
+  (`tools/list`) but not to the tool *result* (`tools/call`). Hosts that
+  read the legacy key off the call result rather than the descriptor were
+  not seeing it, so the iframe was never opened. Mirrors the same dual-key
+  shape the `registerAppTool` helper emits in
+  `@modelcontextprotocol/ext-apps`.
+
 ## [6.2.4] — 2026-05-06
 
 Follow-up to 6.2.3. Iframe still rendered blank in Claude Cowork because the

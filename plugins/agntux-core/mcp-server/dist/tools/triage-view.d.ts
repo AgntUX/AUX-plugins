@@ -45,6 +45,7 @@ interface ViewToolMeta {
     ui: {
         resourceUri: typeof TRIAGE_RESOURCE_URI;
     };
+    "ui/resourceUri": typeof TRIAGE_RESOURCE_URI;
 }
 interface ViewToolSuccess {
     structuredContent: TriageStructuredContent;

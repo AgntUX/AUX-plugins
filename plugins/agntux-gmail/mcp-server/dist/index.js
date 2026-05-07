@@ -30819,7 +30819,7 @@ function structuredError(kind, message) {
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2 } }
+    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI2 }, "ui/resourceUri": COMPOSE_RESOURCE_URI2 }
   };
 }
 function isActionAlreadyHandled(status, snoozedUntil) {
@@ -31010,7 +31010,8 @@ async function handleComposeView(args) {
     _meta: {
       ui: {
         resourceUri: COMPOSE_RESOURCE_URI2
-      }
+      },
+      "ui/resourceUri": COMPOSE_RESOURCE_URI2
     }
   };
 }
