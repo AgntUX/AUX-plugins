@@ -259,16 +259,154 @@ function main() {
   // schema_version match against the plugin's contract — but only for the
   // owning ingest plugin (orchestrator-driven edits inherit the file's existing
   // version, which may legitimately predate a recent contract bump).
+  //
+  // The match is semver-aware:
+  //   - PATCH drift in either direction → pass silently. Patch bumps are
+  //     no-surface changes (typo fixes, README copy) and never break files.
+  //   - MINOR drift, file ahead of contract (e.g. file=1.1.0, contract=1.0.0)
+  //     → reject + emit a runbook the agent can execute to bump the contract.
+  //     This is the case the 2026-05-07 sync run hit: the file corpus carried
+  //     1.1.0 because of additive `## Compose payload` body sections, but the
+  //     contract was still at 1.0.0. The agent silently DOWNGRADED the file
+  //     (the wrong direction — corrupts historical records). The runbook below
+  //     fixes the contract instead.
+  //   - MINOR drift, file behind contract (file=1.0.0, contract=1.1.0)
+  //     → pass silently. Existing files predating an additive contract bump
+  //     are correct as-is; nothing to rewrite.
+  //   - MAJOR drift in either direction → reject + emit a runbook AND require
+  //     the agent to surface the change to the user before retrying. Major
+  //     bumps shouldn't auto-heal — they need acknowledgment.
   if (pluginSlug && pluginSlug !== "agntux-core") {
     const contract = lock.plugin_contracts[pluginSlug];
     if (contract && contract.schema_version && fm.schema_version !== contract.schema_version) {
-      reject(
-        `${basename(filePath)} schema_version \`${fm.schema_version}\` does not match \`${pluginSlug}\` contract version \`${contract.schema_version}\` — re-run \`/ux schema review ${pluginSlug}\` to refresh`
-      );
+      const result = checkSchemaVersionDrift(fm.schema_version, contract.schema_version);
+      if (result.kind !== "ok") {
+        rejectWithRunbook(filePath, fm.schema_version, contract.schema_version, pluginSlug, result);
+      }
     }
   }
 
   pass();
+}
+
+// -----------------------------------------------------------------------------
+// Semver-aware schema_version drift detection + runbook emission.
+//
+// `parseSemver` returns null on unparseable strings; the caller treats that as
+// "exact-match required" (the original `===` behaviour) so a malformed version
+// can't slip through pretending to be a patch difference.
+// -----------------------------------------------------------------------------
+
+function parseSemver(s) {
+  if (typeof s !== "string") return null;
+  const m = s.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return null;
+  return { major: parseInt(m[1], 10), minor: parseInt(m[2], 10), patch: parseInt(m[3], 10) };
+}
+
+function checkSchemaVersionDrift(fileVer, contractVer) {
+  const f = parseSemver(fileVer);
+  const c = parseSemver(contractVer);
+  if (!f || !c) {
+    // Unparseable on either side — fall back to strict mismatch; emit the
+    // legacy reject text so old-style errors remain greppable.
+    return { kind: "unparseable" };
+  }
+  if (f.major !== c.major) {
+    const direction = f.major > c.major ? "file-ahead" : "contract-ahead";
+    return { kind: "major", direction };
+  }
+  if (f.minor !== c.minor) {
+    const direction = f.minor > c.minor ? "file-ahead" : "contract-ahead";
+    // Contract-ahead minor drift is the "existing files predate an additive
+    // bump" case — pass silently.
+    if (direction === "contract-ahead") return { kind: "ok" };
+    return { kind: "minor", direction };
+  }
+  // Patch drift in either direction — silently tolerate.
+  return { kind: "ok" };
+}
+
+function rejectWithRunbook(filePath, fileVer, contractVer, pluginSlug, result) {
+  const fileName = basename(filePath);
+  const contractMdRel = `data/schema/contracts/${pluginSlug}.md`;
+  const lockJsonRel = `data/schema/schema.lock.json`;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  if (result.kind === "unparseable") {
+    reject(
+      `${fileName} schema_version \`${fileVer}\` does not match \`${pluginSlug}\` contract version \`${contractVer}\`. Both versions must be parseable as MAJOR.MINOR.PATCH. Fix the malformed version in the file or the contract markdown / schema.lock.json before retrying.`
+    );
+  }
+
+  const lines = [];
+  lines.push(`schema-validator: schema_version mismatch (file=${fileVer}, contract=${contractVer})`);
+  lines.push("");
+
+  if (result.kind === "minor" && result.direction === "file-ahead") {
+    lines.push(`The contract at ${contractMdRel} is OUT OF DATE relative to the file corpus.`);
+    lines.push(`DO NOT downgrade ${fileName} — that corrupts historical records.`);
+    lines.push("");
+    lines.push("Runbook (execute these Edit operations, then retry your original write):");
+    lines.push("");
+    lines.push(`  1. Edit <agntux project root>/${contractMdRel}`);
+    lines.push(`     old_string: schema_version: "${contractVer}"`);
+    lines.push(`     new_string: schema_version: "${fileVer}"`);
+    lines.push("");
+    lines.push(`  2. Edit <agntux project root>/${contractMdRel}`);
+    lines.push(`     Bump the frontmatter \`updated_at\` field to ${today}.`);
+    lines.push("");
+    lines.push(`  3. Edit <agntux project root>/${contractMdRel}`);
+    lines.push(`     Append (or extend) a \`## Version history\` body section with one line:`);
+    lines.push(`       - ${fileVer} (${today}) — bumped to match action/entity corpus.`);
+    lines.push("");
+    lines.push(`  4. Edit <agntux project root>/${lockJsonRel}`);
+    lines.push(`     In plugin_contracts.${pluginSlug}.schema_version, change "${contractVer}" → "${fileVer}".`);
+    lines.push(`     This is what the validator actually reads on the next retry.`);
+    lines.push("");
+    lines.push("  5. Retry your blocked Edit/Write.");
+    lines.push("");
+    lines.push(`If you suspect the file is wrong (not the contract), stop and surface the mismatch to the user — do not silently downgrade the file.`);
+  } else if (result.kind === "major") {
+    const direction =
+      result.direction === "file-ahead"
+        ? "the file corpus has moved past a major boundary that the contract has not been refreshed for"
+        : "the contract has been bumped past a major boundary that this file has not been migrated for";
+    lines.push(`MAJOR-version drift — ${direction}.`);
+    lines.push("Major bumps are NOT auto-healable. They almost always mean a breaking shape change");
+    lines.push("(removed required field, retired enum value, restructured body sections) and must be");
+    lines.push("acknowledged explicitly before any rewrite.");
+    lines.push("");
+    lines.push("Runbook (DO NOT execute step-by-step without first surfacing this to the user):");
+    lines.push("");
+    lines.push(`  1. STOP and surface to the user, verbatim:`);
+    lines.push(`       \"${pluginSlug} schema_version drift detected: file=${fileVer}, contract=${contractVer}.`);
+    lines.push(`        This is a MAJOR bump and may be a breaking shape change. Should I:`);
+    lines.push(`         (a) bump the contract to match the file (file is canonical), or`);
+    lines.push(`         (b) migrate this file forward to match the contract (contract is canonical), or`);
+    lines.push(`         (c) something else?\"`);
+    lines.push("");
+    lines.push("  2. Wait for the user's answer. Do not execute any Edit until they reply.");
+    lines.push("");
+    lines.push("  3. Once direction is chosen:");
+    lines.push(`     - Path (a): Bump ${contractMdRel} schema_version + updated_at, append a`);
+    lines.push(`       \`## Breaking changes\` body section enumerating what changed at the major`);
+    lines.push(`       boundary, then bump ${lockJsonRel} plugin_contracts.${pluginSlug}.schema_version.`);
+    lines.push(`     - Path (b): rewrite the file's body to match the new contract shape, then`);
+    lines.push(`       bump the file's frontmatter schema_version to ${contractVer}.`);
+    lines.push(`     - Path (c): follow the user's instructions.`);
+    lines.push("");
+    lines.push("  4. Retry your blocked Edit/Write.");
+  } else {
+    // Defensive — minor contract-ahead is filtered out earlier; this branch
+    // shouldn't fire. Leave a tight one-liner just in case.
+    reject(
+      `${fileName} schema_version \`${fileVer}\` does not match \`${pluginSlug}\` contract version \`${contractVer}\`.`
+    );
+  }
+
+  process.stderr.write(lines.join("\n") + "\n");
+  process.exit(2);
 }
 
 main();
