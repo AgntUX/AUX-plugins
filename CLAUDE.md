@@ -127,6 +127,18 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   or `packages/*/dist/` — your edit will be overwritten on the next merge.
   Edit the source under `src/` and run `npm run build` from the plugin root
   (or `/dev-plugin {slug}`) to regenerate.
+- **We do NOT use `@modelcontextprotocol/ext-apps` (the official MCP Apps
+  SDK).** Servers depend only on core `@modelcontextprotocol/sdk` and
+  hand-roll the Apps surface (`_meta.ui.resourceUri` on tools, `ui://...`
+  resources from base64-embedded bundles). UI handlers use a custom
+  `SimpleMcpApp` (~250 lines) that speaks the postMessage protocol
+  directly. Two reasons, both load-bearing: (1) MCPJam Inspector and other
+  strict hosts forbid `unsafe-eval`, and `ext-apps` ships Zod which
+  JIT-compiles via `eval`; (2) the spec explicitly permits direct
+  postMessage implementations ("The App class is a convenience wrapper,
+  not a requirement"). Full rationale lives at
+  `plugins/agntux-slack/ui-handlers/compose/component/src/lib/README.md`.
+  Revisit only if the upstream ships an eval-free build.
 
 ---
 

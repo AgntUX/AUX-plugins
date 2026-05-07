@@ -84,6 +84,39 @@ Check whether `<agntux project root>/user.md` exists.
 
 ---
 
+## What the agntux-core hooks do for you
+
+You do NOT need to:
+
+- Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
+- Update `entities/_sources.json` — `maintain-index.mjs` handles it.
+- Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute to fix them. Includes the "contract markdown exists but `plugin_contracts[<slug>]` is missing from `schema.lock.json`" case (late-installed plugins) — the runbook tells you exactly which keys to add to the lock.
+- Validate cursor-map shape, monotonic `discovery_ts`, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
+
+You DO need to:
+
+- Read `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5).
+- Write entity / action body content with the section-preservation rule (Step 7 / Step 10).
+- Advance the cursor map and release the lock (Step 11), expressing the change as a diff (added / advanced / evicted), and only when every action write this run succeeded — see Step 11's transactional rule.
+- Slice bounded lists to their declared cap before writing — see "Bounded lists in state files" below.
+
+If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
+
+If the source has write tools (Slack `slack_send_message`, Gmail `create_draft`, etc.), the hooks above do NOT gate them. The iframe Save/Send button is the explicit authorisation gate — calling those tools from this skill is a bug regardless of what the host's MCP layer exposes.
+
+---
+
+## Bounded lists in state files
+
+Before writing any of these files, slice the named section/list to the cap shown — evict oldest. Files not listed here are not capped.
+
+- `data/learnings/{{plugin-slug}}/sync.md → errors` — last 10. Newest-first convention; drop the tail when the list grows past 10.
+- `data/instructions/agntux-gmail.md → # Sender denylist` (gmail only) — last 30. Eviction policy: evict the oldest entry whose HTML-comment metadata contains `added:` (auto-added). Entries without `added:` metadata are user-curated and never auto-evicted.
+
+These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraint (Gmail query length, file readability) is recoverable if the cap drifts by a handful of entries. Hooks should protect invariants the agent could meaningfully violate; trim-to-N isn't one.
+
+---
+
 ## Step 0 — Read schema and instructions (P3a — pre-flight gate)
 
 Before reading state, before fetching: load the tenant contract and per-plugin instructions.
@@ -178,7 +211,7 @@ If the source's pagination/throttling behaviour is non-obvious, surface it via `
 
 **Cap at 200 items per run.** If the source returns more than 200 items, process the oldest 200 first (sort ascending by the cursor field), advance the cursor accordingly, and exit. The next scheduled run picks up.
 
-**On fetch failure:** log to `data/learnings/{{plugin-slug}}/sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. (The errors list is auto-trimmed to 10 by an agntux-core PostToolUse hook — append freely; do not narrate a count or trim step.)
+**On fetch failure:** log to `data/learnings/{{plugin-slug}}/sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. The errors list is bounded to the last 10 entries per the "Bounded lists in state files" block above — slice before writing; do not narrate a count or trim step.
 
 **Gap recovery:**
 - Source-specific symptoms and recovery steps are documented in the per-source recipe in `cursor-strategies.md` (Gmail historyId expiry, Slack stale-ts, Jira backlog, GDrive deleted folder, HubSpot 429, etc.). Apply the recipe matching `{{source-slug}}`.
@@ -232,6 +265,8 @@ For each candidate entity:
 ---
 
 ## Step 7 — Update each affected entity
+
+> **Read all affected entity files in a single parallel-tool-call batch before any edits.** A typical run touches 3–6 entities and they have no read-time dependency on each other; sequential read-then-edit per entity burns context and wall-clock for no reason.
 
 For each entity resolved in Step 6, apply the **section-preservation rule** (P3 §3.2.1):
 
@@ -346,9 +381,12 @@ suggested_actions:
 
 After processing all items:
 
-1. **Advance the cursor** in `data/learnings/{{plugin-slug}}/sync.md` per `{{source-cursor-semantics}}`. Atomic write.
-2. **Update run stats**: `last_run`, `last_success`, increment `items_processed`.
-3. **Release the lock**: `- lock: null`. Atomic write.
+1. **Transactional rule.** Only advance `cursor` (and any source-specific low-water-mark such as `discovery_ts`) if **every action write this run succeeded.** If any write failed (validator rejection, IO error, schema violation), persist `last_run`, `errors`, and the lock release, but leave `cursor` and any low-water-marks at their pre-run values and leave `last_success` unchanged. The next run retries the same window. Entity writes are idempotent via the lookup-before-write rule and persist regardless.
+2. **Express cursor advancement as a diff** over the prior cursor map: list the keys you added (with their initial value), the keys you advanced (old → new), and any keys evicted. Then write the new full map atomically. The `validate-cursor.mjs` PreToolUse hook rejects writes that drop a key without an eviction log entry, or that regress a low-water-mark. Atomic write to `data/learnings/{{plugin-slug}}/sync.md` per `{{source-cursor-semantics}}`.
+3. **Update run stats**: `last_run`, `last_success` (only when the transactional rule allows it), increment `items_processed`.
+4. **Release the lock**: `- lock: null`. Atomic write.
+
+**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a path to the file. No narration of intermediate reasoning — that lives in `sync.md → errors` debug entries.
 
 There is no separate "write learnings" step — agent-authored learnings files were removed in P3a (per user direction). If you noticed a structural issue worth raising (a new subtype is needed, a contract minor lag, an unparseable item format), the existing `sync.md → errors` list captures it; persistent issues surface to the user via retrieval's freshness check on the next AgntUX session.
 

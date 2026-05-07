@@ -145,7 +145,6 @@ You do NOT need to:
 
 - Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
 - Update `entities/_sources.json` — `maintain-index.mjs` handles it.
-- Trim `data/learnings/agntux-slack/sync.md → errors` — `trim-sync-errors.mjs` PostToolUse keeps it at the newest 10.
 - Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute to fix them.
 - Validate cursor-map shape, monotonic `discovery_ts`, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
 
@@ -154,15 +153,29 @@ You DO need to:
 - Read `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5).
 - Write entity / action body content with the section-preservation rule (Step 7 / Step 10).
 - Advance the cursor map and release the lock (Step 11), expressing the change as a diff (added / advanced / evicted).
+- Slice bounded lists to their declared cap before writing — see "Bounded lists in state files" below.
 
 If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
 
 ---
 
+## Bounded lists in state files
+
+Before writing any of these files, slice the named section/list to the cap shown — evict oldest. Files not listed here are not capped.
+
+- `data/learnings/agntux-slack/sync.md → errors` — last 10. Newest-first; drop the tail past 10.
+
+These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraint (file readability) is recoverable if the cap drifts by a handful of entries.
+
+---
+
 ## Step 0 — Read schema and instructions (P3a — pre-flight gate)
 
-Before reading state, before fetching: load the tenant contract and
-per-plugin instructions.
+Step 0 must read schema, contract, and per-plugin instructions before
+any state read or fetch. The contract is authoritative for entity
+subtypes, action classes, and cursor semantics — this prompt is not.
+Mismatches are caught by `validate-schema.mjs` / `validate-cursor.mjs`
+at write time, not narrated here.
 
 1. **`<agntux project root>/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-onboard` and the data-architect bootstraps.
 
@@ -179,10 +192,7 @@ per-plugin instructions.
    - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` so the next AgntUX session surfaces the staleness.
    - Same or higher: pass.
 
-4. **Read your contract** end-to-end. Extract:
-   - `# Allowed entity subtypes` — the only subtypes you may write.
-   - `# Allowed action classes` — the only `reason_class` values you may write.
-   - Any aliases or merges noted in `# Notes`.
+4. **Read the contract end-to-end.** It's authoritative for allowed subtypes, allowed action classes, and any aliases or merges. Cache its content for use during entity creation (Step 6) and action writing (Step 10).
 
 5. **`<agntux project root>/data/instructions/agntux-slack.md`** — your per-plugin user instructions. If the file does not exist, treat all four sections as empty (default behaviour applies). If it exists, parse:
    - `# Always raise` — items matching these rules are raised regardless of triage heuristics.
@@ -217,16 +227,13 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
    - If the file does not exist, create it from the standard template with: `cursor: {}`, `discovery_ts: null`, `workspace_subdomain: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
    - The sync-file path is **per-plugin** (`data/learnings/agntux-slack/sync.md`).
-   - The `cursor` field is a JSON object on a single line. **It is a unified map with two key shapes** (no separate `threads:` field):
-     - `<channel_id>` (e.g., `"C01ABC"`, `"D03GHI"`) → channel-level cursor. Value is the newest parent-message `ts` processed in that channel, or `null` for discovered-but-not-bootstrapped channels.
-     - `<channel_id>#<thread_ts>` (e.g., `"C01ABC#1714043640.001200"`) → per-thread cursor. Value is the newest reply `ts` processed in that thread.
-     Parse with `JSON.parse(cursor)`. Serialise with `JSON.stringify(map)`. cursor-strategies.md's Slack section already permits DM channels (`D…`) in the same map; thread-shaped keys add a `#` separator without a schema extension.
+   - The `cursor` field is a unified single-line JSON map with two key shapes (channel-shaped `<channel_id>` and thread-shaped `<channel_id>#<thread_ts>`). Full shape, key conventions, and DM-channel handling are defined in the contract's `cursor_semantics` block — the contract is authoritative, this prompt is not. Parse with `JSON.parse(cursor)`, serialise with `JSON.stringify(map)`.
    - The `discovery_ts` field is the newest message ts surfaced by any of the three discovery search queries — used as the `after:` filter on the next run.
    - The `workspace_subdomain` field is the tenant subdomain used to construct Slack deep links offline (e.g. `"oatfi"` for `oatfi.slack.com`). It is captured **once**, the first time any Slack MCP read tool returns a `Permalink:` field — see Step 5b. Once set, it persists across runs and is treated as immutable for the lifetime of the cursor file. When still `null`, the `Open in Slack` suggested action is omitted from action items written this run; subsequent runs include it once a permalink is observed. **Workspace renames** (rare; an admin changes the URL slug, or an Enterprise Grid migration moves the workspace) are out of band — links written before the rename will 404. The user clears `workspace_subdomain` from this file manually to force re-derivation on the next run; we do not auto-detect drift.
 
 3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
 
-There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, last 10 entries) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
+There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, bounded per the "Bounded lists in state files" block above) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
 
 ---
 
@@ -279,91 +286,76 @@ Call `slack_read_user_profile()` once per run with no arguments. Cache `user_id`
 
 ### Step 5b — Discovery sweep
 
-Three search queries seed/touch the cursor map. Each is paginated until exhausted or a per-run cap of 5 pages × 20 results = 100 hits is reached. Results from `slack_search_public_and_private` are capped at 20 per call; paginate via `cursor`.
+Three search queries seed/touch the cursor map. Paginate each until exhausted or a per-run cap of 5 pages × 20 results = 100 hits. `slack_search_public_and_private` caps at 20 per call; paginate via `cursor`.
 
-1. **User-authored** — `slack_search_public_and_private(query: "from:<@USERID> after:<discovery_ts or last_run>", channel_types: "public_channel,private_channel,im,mpim")`. Catches every channel the user has posted in.
-2. **User-mentioned** — `slack_search_public_and_private(query: "<@USERID> after:<discovery_ts or last_run>", channel_types: "public_channel,private_channel,im,mpim")`. Catches @mentions even in channels the user has not posted in.
-3. **DM activity** — `slack_search_public_and_private(query: "after:<discovery_ts or last_run>", channel_types: "im,mpim")`. Catches DMs and group DMs.
+1. **User-authored** — `slack_search_public_and_private(query: "from:<@USERID> after:<discovery_ts or last_run>", channel_types: "public_channel,private_channel,im,mpim")`.
+2. **User-mentioned** — same shape with `<@USERID>` as the query (catches @mentions in channels the user has not posted in).
+3. **DM activity** — same shape with bare `after:` filter and `channel_types: "im,mpim"`.
 
 For each result:
-- Note the `channel_id`. If a bare `<channel_id>` key is missing from the cursor map, add it with value `null` (bootstrap on next pass).
-- If the result is a thread reply (`thread_ts != ts`) AND `<channel_id>#<thread_ts>` is missing from the map, add it with value `null` (bootstrap on per-thread pass; Step 5d handles the null case by fetching the full thread). No separate threads field — the `#`-separator distinguishes shape.
-- Discovery only **upserts missing keys** — it must NOT overwrite an existing channel-shaped or thread-shaped cursor value. The actual cursor advancement happens in Steps 5c and 5d.
+- If a bare `<channel_id>` key is missing from the cursor map, add it with value `null`.
+- If the result is a thread reply (`thread_ts != ts`) AND `<channel_id>#<thread_ts>` is missing, add it with value `null` (Step 5c-pre / 5d drains the null on the per-thread pass; the `#`-separator distinguishes shape, no separate threads field).
+- Discovery only **upserts missing keys** — it must NOT overwrite an existing channel- or thread-shaped cursor value. Steps 5c / 5d own advancement.
 - Update `discovery_ts` to the newest message `ts` seen across all three queries.
-- **Capture `workspace_subdomain` if not already set.** If `workspace_subdomain` is still `null` from Step 2 AND the result envelope includes a `Permalink:` field (every `slack_search_*` result does), apply the regex `^https?://([^.]+)\.slack\.com/` to the permalink string and store the captured group 1 verbatim into `sync.md → workspace_subdomain`. Persist atomically as part of this run's sync.md write (Step 11). Once set, do **not** re-derive on subsequent results — the value is workspace-stable. If discovery returns no permalinks at all (rare; first-run with empty workspace), leave `workspace_subdomain: null` and Step 10 will omit the `Open in Slack` row this run.
+- **Capture `workspace_subdomain` if not already set.** When still `null` from Step 2 AND the result envelope includes a `Permalink:` field, apply regex `^https?://([^.]+)\.slack\.com/` and store group 1 verbatim into `sync.md → workspace_subdomain` (persisted in Step 11). Once set, never re-derive — workspace-stable. If discovery returns no permalinks at all (rare; first-run empty workspace), Step 10 omits the `Open in Slack` row this run.
 
-**First-run consent failure.** `slack_search_public_and_private` requires user consent. If the host returns a consent-denied error on any of the three queries, log kind `auth` to `sync.md → errors` with the message `"slack search consent denied — grant the connector's search permission and re-run /agntux-slack:sync"` and exit cleanly. Do NOT proceed with per-channel polling — without discovery the coverage is incomplete and we'd false-advertise "no missed activity".
+**First-run consent failure.** `slack_search_public_and_private` requires user consent. On consent-denied error from any of the three queries, log kind `auth` with `"slack search consent denied — grant the connector's search permission and re-run /agntux-slack:sync"` and exit cleanly. Do NOT proceed without discovery — coverage would be incomplete.
 
-**Shared channels (Slack Connect).** Permalinks return whichever workspace authored the message. A permalink hostname that differs from `workspace_subdomain` (e.g. `avalara.slack.com` while the file says `oatfi`) is a normal shared-channel signal — NOT evidence of a thread reply or anomaly. Use the message envelope's `thread_ts` / `parent_ts` to determine thread structure, never the permalink path. When constructing the `Open in Slack` suggested-action URL in Step 10, always use `workspace_subdomain` (not the permalink hostname) so the user lands in their own workspace. Do not burn chain-of-thought debating the hostname mismatch — it is expected.
+**Shared channels (Slack Connect).** Permalinks return whichever workspace authored the message. A hostname differing from `workspace_subdomain` (e.g. `avalara.slack.com` while the file says `oatfi`) is a normal shared-channel signal — NOT evidence of a thread reply or anomaly. Use the envelope's `thread_ts` / `parent_ts` for thread structure, never the permalink path. Step 10's `Open in Slack` URL always uses `workspace_subdomain` so the user lands in their own workspace. Don't burn chain-of-thought debating the hostname mismatch — it is expected.
 
 ### Step 5c-pre — Drain bootstrap-deferred null thread cursors (every run)
 
-Before walking channel cursors, iterate every thread-shaped key in the cursor map (key contains a `#` separator) whose value is `null`. For each:
+Before walking channel cursors, iterate every thread-shaped key (key contains a `#` separator) whose value is `null`. For each:
 
-1. Call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` so the whole thread is returned.
-2. Add `<channel_id>#<thread_ts>` to the working-memory `fanned_out` set so Step 5c's per-channel pass and Step 5d's per-thread pass won't re-fetch.
-3. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply ts processed (or the parent ts if the thread has no replies yet — never leave a thread-shaped key with `null` after a successful read).
-4. On failure (rate limit, permission, deleted parent), log `kind: source` to `sync.md → errors` with `thread_id: <channel_id>#<thread_ts>` and leave the cursor unchanged for the next run.
+1. Call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` (whole thread).
+2. Add `<channel_id>#<thread_ts>` to the working-memory `fanned_out` set so 5c and 5d won't re-fetch.
+3. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply ts processed (or the parent ts if no replies yet — never leave a thread-shaped key with `null` after a successful read).
+4. On failure, log `kind: source` with `thread_id: <channel_id>#<thread_ts>` and leave the cursor unchanged for next run.
 
-This runs on **every run**, not just bootstrap. Bootstrap-deferred `null` thread cursors must NEVER survive a second scheduled run untouched. A user-interrupted bootstrap (per Step 4) or thread-shaped keys upserted in Step 5b can leave `null` entries; this pass guarantees they get drained before any other work — closes the gap where Step 5d (which only runs after the per-channel pass) could leave a `null` indefinitely if the per-channel pass crashed first.
+This runs on **every run**, not just bootstrap. Bootstrap-deferred `null` thread cursors must NEVER survive a second scheduled run untouched. Closes the gap where Step 5d (which only runs after the per-channel pass) could leave a `null` indefinitely if the per-channel pass crashed first.
 
 ### Step 5c — Per-channel polling (bulk of the work)
 
-Walk every **channel-shaped key** in the cursor map (key has no `#` separator) in **cursor-stale order** (oldest cursor first; channels with `null` cursor are processed before the rest of the bootstrap-window batch). For each:
+Walk every **channel-shaped key** (key has no `#` separator) in **cursor-stale order** (oldest cursor first; channels with `null` cursor before the rest of the bootstrap-window batch). For each:
 
-1. If `cursor[<channel_id>] === null` → bootstrap read using `bootstrap_window_days` from `user.md` (default 7). Call `slack_read_channel(channel_id, oldest: <now − window>, limit: 100)`.
-2. If `cursor[<channel_id>] === "<ts>"` → incremental read. Call `slack_read_channel(channel_id, oldest: <ts>, limit: 100)`.
-3. Paginate via the returned `cursor` until no more results or the **200-message-per-channel cap** is hit. If the cap is hit, log a `slack-channel-truncated` warning to `sync.md → errors` and continue — next run will pick up from the advanced cursor.
-4. **Thread fanout — pull every thread, always.** For each message returned by `slack_read_channel`, treat ANY of the following as evidence of thread activity: `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, the message appears as a `thread_ts` parent of any other message fetched in this run, OR the message envelope contains a literal trailing line of the form `Thread: N replies (latest: YYYY-MM-DD HH:MM:SS TZ)` for any `N >= 1` (the Slack MCP `slack_read_channel` detailed format does not return a numeric `reply_count`; thread presence is signaled only by this envelope line). If any of those is true AND `<channel_id>#<parent_ts>` is NOT already in the `fanned_out` set (Step 5c-pre may have already drained it this run), you MUST call `slack_read_thread(channel_id, message_ts: <parent_ts>, limit: 1000)` to pull the full thread. **Do not rely on `reply_count` alone — Slack frequently omits it on `slack_read_channel` payloads, especially in DMs and private channels.** Skipping a thread because a single field was missing is the correctness defect this rule fixes.
+1. `cursor[<channel_id>] === null` → bootstrap read using `bootstrap_window_days` (default 7). `slack_read_channel(channel_id, oldest: <now − window>, limit: 100)`.
+2. `cursor[<channel_id>] === "<ts>"` → incremental read. `slack_read_channel(channel_id, oldest: <ts>, limit: 100)`.
+3. Paginate via the returned `cursor` until exhausted or the **200-message-per-channel cap** is hit. On cap, log `slack-channel-truncated` and continue — next run picks up from the advanced cursor.
+4. **Thread fanout — pull every thread, always.** For each message returned by `slack_read_channel`, treat ANY of these as evidence of thread activity: `reply_count > 0`, `reply_users_count > 0`, `latest_reply` set, `thread_ts` present, the message appears as a `thread_ts` parent of any other message fetched in this run, OR the message envelope contains a literal trailing line of the form `Thread: N replies (latest: YYYY-MM-DD HH:MM:SS TZ)` for any `N >= 1` (the Slack MCP `slack_read_channel` detailed format does not return a numeric `reply_count`; thread presence is signaled only by this envelope line). **Do not rely on `reply_count` alone — Slack frequently omits it on `slack_read_channel` payloads, especially in DMs and private channels.** If any signal is true AND `<channel_id>#<parent_ts>` is NOT already in `fanned_out` (5c-pre may have already drained it), you MUST call `slack_read_thread(channel_id, message_ts: <parent_ts>, limit: 1000)` to pull the full thread.
 
-   The `<parent_ts>` is `thread_ts` when the message is a reply (`thread_ts !== ts`), or the message's own `ts` when it is itself a parent. Track every fetched parent in the working-memory `fanned_out` set keyed by `<channel_id>#<thread_ts>` and add the same key to the cursor map with the newest reply ts as value. Step 5d skips anything in `fanned_out`.
+   `<parent_ts>` is `thread_ts` when the message is a reply (`thread_ts !== ts`), or the message's own `ts` when it is itself a parent. Track every fetched parent in `fanned_out` keyed by `<channel_id>#<thread_ts>` and add the same key to the cursor map with the newest reply ts as value. Step 5d skips anything in `fanned_out`.
 
-   If a `slack_read_thread` call fails (rate limit, permission, deleted parent), log `kind: source` to `sync.md → errors` with `thread_id: <channel_id>#<thread_ts>` AND **do not raise an action item that depends on that thread's content** — better silence than a half-context decision.
-5. Advance the channel-shaped entry `cursor[<channel_id>]` to the **newest channel-level (parent) message ts processed** for that channel. Reply-only ts values do NOT advance the channel-shaped entry — they advance the thread-shaped entry under `cursor[<channel_id>#<thread_ts>]` (already done above for fanned-out threads, or by Step 5d for threads not fanned out here).
+   If `slack_read_thread` fails, log `kind: source` with `thread_id: <channel_id>#<thread_ts>` AND **do not raise an action item that depends on that thread's content** — better silence than a half-context decision.
+5. Advance `cursor[<channel_id>]` to the **newest channel-level (parent) message ts processed**. Reply-only ts values do NOT advance the channel-shaped entry — they advance the thread-shaped entry (already done in 4 for fanned-out threads, or by Step 5d).
 
-If processing exceeds 50 channels in one run, log a `slack-large-backlog` warning to `sync.md → errors` and continue — better to be slow and complete than fast and lossy. **Cap at 200 items per channel per run; sort by ts ASC inside each channel** so cursor advancement is deterministic (mtime ASC equivalent for Slack's `ts`).
+If processing exceeds 50 channels, log `slack-large-backlog` and continue — better slow-and-complete than fast-and-lossy. Cap at 200 items per channel per run; sort by ts ASC inside each channel for deterministic cursor advancement.
 
 ### Step 5d — Per-thread pass (catch new replies on old parents)
 
-After per-channel polling completes, walk every **thread-shaped key** in the cursor map (key contains a `#` separator) **that is NOT in the `fanned_out` set from Step 5c-pre or Step 5c** (those threads were just fetched and re-fetching would be wasted work). For each remaining `<channel_id>#<thread_ts>` entry:
+After per-channel polling, walk every **thread-shaped key** that is NOT in the `fanned_out` set (5c-pre or 5c just fetched it; re-fetching would be wasted work). For each remaining `<channel_id>#<thread_ts>`:
 
-1. **Incremental branch (steady-state path)** — if `cursor[<channel_id>#<thread_ts>]` is a `<ts>` string: call `slack_read_thread(channel_id, message_ts: thread_ts, oldest: <ts>, limit: 1000)`.
-2. **Bootstrap branch (fallback only)** — if `cursor[<channel_id>#<thread_ts>] === null`, this entry should have already been drained by Step 5c-pre. Reaching this branch means 5c-pre was skipped or crashed mid-pass. Treat as fallback: call `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:` and proceed. Do not silently skip null cursors here — leaving them in place is the original defect 5c-pre was added to fix.
+1. **Incremental branch (steady-state)** — if `cursor[<channel_id>#<thread_ts>]` is a `<ts>` string: `slack_read_thread(channel_id, message_ts: thread_ts, oldest: <ts>, limit: 1000)`.
+2. **Bootstrap branch (fallback only)** — if `cursor[<channel_id>#<thread_ts>] === null`, this entry should have already been drained by Step 5c-pre; reaching this branch means 5c-pre was skipped or crashed. Treat as fallback: `slack_read_thread(channel_id, message_ts: thread_ts, limit: 1000)` with no `oldest:`. **Do not silently skip null cursors here** — leaving them in place is the original defect 5c-pre was added to fix.
 3. New replies feed the same dedup pipeline (Step 6 onward).
-4. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `ts` processed (or the parent ts if the thread has no replies yet — never leave a thread-shaped key with `null` after a successful read).
+4. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `ts` processed (or the parent ts if no replies yet — never leave a thread-shaped key with `null` after a successful read).
 
-**Eviction.** Thread-shaped entries with no new activity for **30 days** are evicted from the cursor map (the next reply on an evicted thread is caught by the discovery search if it tags the user, or by re-discovery via `slack_read_channel` if the parent itself is touched). **Channel-shaped entries are never evicted** — once a channel is in the map, it stays.
+**Eviction.** Thread-shaped entries with no activity for 30 days are evicted from the cursor map (the next reply is caught by discovery if it tags the user, or by re-discovery via `slack_read_channel` if the parent itself is touched). Channel-shaped entries are never evicted.
 
 ### Step 5e — Thread coverage check
 
-After per-channel and per-thread fetching complete, walk every parent message processed in this run and verify thread coverage. For each parent:
+Walk every parent message processed in this run. Each must satisfy one of:
 
-1. Either (a) it had no thread evidence at all (none of `reply_count`, `reply_users_count`, `latest_reply`, `thread_ts`, no `Thread: N replies` envelope line, and it never appeared as a parent of another fetched message), OR
-2. (b) `<channel_id>#<parent_ts>` is in the `fanned_out` set OR has a non-null cursor value in the cursor map, OR
-3. (c) the per-thread fetch in Step 5d covered it.
+1. (a) No thread evidence (none of `reply_count`, `reply_users_count`, `latest_reply`, `thread_ts`, no `Thread: N replies` envelope line, and never appeared as a parent of another fetched message), OR
+2. (b) `<channel_id>#<parent_ts>` is in `fanned_out` OR has a non-null cursor value, OR
+3. (c) Step 5d covered it.
 
-Any parent message with thread evidence that fails (a)/(b)/(c) is an orphaned thread → log a `slack-thread-orphaned` entry to `sync.md → errors` with `parent_ref: <channel_id>#<parent_ts>`. The next run picks it up via discovery, but the log line makes the gap observable now.
+Any parent that fails (a)/(b)/(c) is an orphaned thread → log `slack-thread-orphaned` with `parent_ref: <channel_id>#<parent_ts>`. The next run picks it up via discovery; the log line makes the gap observable now.
 
 This is a self-check on Step 5c's broader-trigger rule, not a re-fetch. It does not call any MCP tool.
 
 ### Failure modes
 
-Each is logged to `sync.md → errors` with one of `network | auth | parse | source | internal`:
-
-- Search consent denied → `kind: auth`, exit cleanly (covered above).
-- Channel rate limit (HTTP 429) → `kind: network`, skip channel, continue.
-- Channel deleted/permission revoked → `kind: source`, increment a registry-internal failure counter; on the third consecutive failure, remove from the cursor map (cleared on success).
-- Reply fetch fails on a known thread → `kind: source` with `thread_id`, leave the thread cursor unchanged (re-tried next run), continue.
-- Stale cursor / Slack message retention purged the cursor's referent → fall back to `last_success` per `cursor-strategies.md` Slack gap-recovery; bootstrap fresh if `last_success` is also null.
-
-**Cap at 200 items per channel per run.** If the source returns more than 200, process the oldest 200 first (sort by ts ASC), advance cursor, exit. The next run picks up.
-
-**On fetch failure across the whole sweep:** log to `data/learnings/agntux-slack/sync.md → errors` with one of `network | auth | parse | source | internal`, update `last_run`, release lock, exit. (The errors list is auto-trimmed to 10 by an agntux-core PostToolUse hook — append freely; do not narrate a count or trim step.)
-
-**Gap recovery:**
-- Bootstrap with empty cursor: filter for messages with `ts > (now − bootstrap_window_days days)`.
-- Many channels touched at once (large backlog): sort by cursor staleness ASC, process channels with the oldest cursors first, advance per-channel cursor, exit. mtime ASC equivalent: process oldest ts first within each channel.
-- Cursor-strategies.md Slack section is the canonical reference.
+> Failure-mode taxonomy, 200-item cap, and gap-recovery rules: see [./RUNBOOK.md](./RUNBOOK.md) § Failure modes.
 
 ---
 
@@ -599,17 +591,7 @@ The date component is `created_at` localised to the user's timezone. Slug-suffix
    slack_open_url := https://{workspace_subdomain}.slack.com/archives/{channel_id}/{p_segment}
    ```
 
-   The same template covers every action shape this skill emits — the channel-id prefix does not change the URL family:
-
-   | `source_ref` shape | Example channel id prefix | Notes |
-   |---|---|---|
-   | Thread-rooted action `<channel_id>#<thread_ts>` | `C` (public), `G` (private), `D` (DM), `C…`/`G…` (mpim group DM) | URL lands the user on the thread parent in Slack. |
-   | Top-level channel message `<channel_id>#<ts>` | same | URL lands on the message. |
-   | DM-rooted action `<D…>#<ts>` (1:1 DM) | `D` only | Same template; DM channel ids slot into the same `archives/{id}/p…` form. |
-
-   We do **not** branch on the channel-id prefix — Slack's `https://{ws}.slack.com/archives/{any_channel_id}/p{ts_no_dot}` URL family accepts every channel-id shape Slack issues (public `C`, legacy private `G`, DM `D`, and the `C`/`G`/`D` shapes used for group DMs). The reply-level `?thread_ts=…&cid=…` query form documented in `~/Downloads/slack-deeplink-guide.md` is intentionally out of scope here — landing on the thread parent is the desired UX for "Open in Slack".
-
-   Worked example: `workspace_subdomain: "oatfi"`, `source_ref: "C031V2MJ2KA#1777391863.734439"` → `slack_open_url := "https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439"`.
+   > URL-family coverage table and a worked example: see [./RUNBOOK.md](./RUNBOOK.md) § slack_open_url construction.
 
 **Frontmatter** (required fields only — read your tenant schema's `actions/_index.md` for the canonical list; the validator rejects missing fields):
 
@@ -794,11 +776,7 @@ After processing all items:
 
 **Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a link to the file. No narration of intermediate reasoning — that lives in `sync.md → errors → kind: debug`. Quiet runs (no new items) get a one-line summary, not a paragraph.
 
-| Layer | Key shape in `cursor` map | What advances | When advanced |
-|---|---|---|---|
-| Channel cursor | `<channel_id>` (no `#`) | Newest parent-message ts processed in that channel | After per-channel pass completes |
-| Thread cursor | `<channel_id>#<thread_ts>` (contains `#`) | Newest reply ts processed in that thread | After per-thread pass completes |
-| Discovery low-water-mark | n/a — separate field | Newest message ts seen by any search query | `sync.md → discovery_ts` at end of run; used as `after:` filter next run |
+> Layer-by-layer cursor advance reference (channel / thread / discovery low-water-mark): see [./RUNBOOK.md](./RUNBOOK.md) § Cursor advance layers.
 
 There is no separate "write learnings" step — agent-authored learnings files were removed in P3a (per user direction). If you noticed a structural issue worth raising (a new subtype is needed, a contract minor lag, an unparseable message format), the existing `sync.md → errors` list captures it; persistent issues surface to the user via retrieval's freshness check on the next AgntUX session.
 
@@ -809,7 +787,7 @@ There is no separate "write learnings" step — agent-authored learnings files w
 - If you encounter source data you don't understand, log a `parse` error to `sync.md → errors` rather than guessing.
 - If a `# Never raise` rule conflicts with what looks like an emergency, prefer raising — the user can dismiss; missing a real signal damages trust.
 - Never overwrite `## User notes` on an entity. Section preservation is load-bearing.
-- The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
+- The `sync.md → errors` list is bounded per the "Bounded lists in state files" block at the top of this skill — slice before writing.
 - If a per-plugin instruction is ambiguous ("never raise stuff from `notifications:*`" but the file references `bot_id:B0NOTIF`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
 - **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` only fire after the user clicks Send / Schedule / Save Draft / Create in the compose or canvas iframe; the iframe emits a `Use the Slack Connector to …` envelope and the host dispatches. The host's MCP layer exposes these tools to the inline-running skill; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
 - **Auto-resolution authority (Step 8.5).** This skill MAY transition an existing `status: open` action to `status: done` *without* a user click — but only when (a) `source: slack`, (b) `reason_class: response-needed`, (c) the action's `source_ref` thread or channel was just fetched, and (d) the Step 8a reply-state scan would conclude the user has already replied with no qualifying follow-up. The auto-resolved action MUST carry an `## Auto-resolved` body section so the user (and the `pattern-feedback` subagent) can see this was an automated transition. Outside those conditions, action-status writes flow through the agntux-core MCP server (`set_status`, `dismiss`, `snooze`) — not direct file edits from this skill.

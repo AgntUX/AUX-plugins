@@ -269,7 +269,27 @@ cursor_semantics: {from proposed_schema, if present}
 
 Then:
 1. Update any modified `entities/{subtype}.md` files (e.g., adding the new alias).
-2. Regenerate `schema.lock.json`.
+2. Regenerate `schema.lock.json`. **Every Mode B run sweeps the full
+   `data/schema/contracts/` directory, not just the plugin you were
+   invoked for.** For each `data/schema/contracts/*.md` whose
+   frontmatter has `status: approved`, ensure `schema.lock.json →
+   plugin_contracts[<slug>]` exists with the contract's
+   `schema_version`, the `# Allowed entity subtypes` body section
+   (parsed as `allowed_subtypes`), the `# Allowed action classes` body
+   section (parsed as `allowed_action_classes`), the `approved_at` from
+   frontmatter, and `source_id_format` if present. **Idempotent —
+   already-registered contracts are no-ops** (compare existing entry
+   field-by-field; only rewrite when a value differs).
+
+   This sweep catches **late-installed plugins** whose contract
+   markdown was approved without a Mode B run reaching the lock — the
+   2026-05-07 agntux-gmail incident where the validator rejected every
+   action write because `plugin_contracts["agntux-gmail"]` was missing
+   from the lock despite the contract markdown sitting at
+   `status: approved`. The sweep is what makes Mode B robust against
+   "user installed plugin X after the last Mode B run for plugin Y."
+   Run the sweep regardless of whether the invoking plugin is itself
+   newly registered.
 
 Confirmation (plain language):
 

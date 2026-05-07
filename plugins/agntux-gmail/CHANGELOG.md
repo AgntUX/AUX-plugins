@@ -6,6 +6,83 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-07
+
+### Added
+
+- **Auto-learned `# Sender denylist` in `data/instructions/agntux-gmail.md`.**
+  Step 11 sub-step 5 appends a denylist entry whenever a sender's
+  messages get noise-filtered ≥3 times in one run AND the sender has
+  never had an action raised against them in the last 30 days. Bounded
+  to 30 entries; oldest auto-added evicted; user-curated entries
+  (no `<!-- added: -->` metadata) are never auto-evicted.
+- **Step 5b discovery query now reads the denylist** and appends each
+  entry as `-from:<entry>` to Stage 1's query. `# Always raise` rules
+  override conflicting denylist entries.
+- **`marketplace/templates/instructions-default.md`** — starter
+  instructions file shipped at install with empty `# Always raise` /
+  `# Never raise` / `# Rewrites` / `# Notes` / `# Sender denylist`
+  sections.
+- **"What the agntux-core hooks do for you" preamble** before Step 0.
+  Surfaces the index/sources/validate/cursor hook contract up front
+  so the agent doesn't manually update `_index.md`, `_sources.json`,
+  etc. Also documents the Gmail-specific gate ("never call
+  `create_draft` — the iframe Save click is the gate").
+- **"Bounded lists in state files" block** before Step 0. Replaces
+  scattered "trim to last 10" instructions across the steps with one
+  declarative cap-and-evict rule (errors list = 10, sender denylist =
+  30) that the prompt enforces in-place.
+- **Step 0 sub-step 2.5 — `schema.lock.json` defensive check.**
+  Mirrors the validator's lookup so the skill can fail fast (or
+  self-heal inline on interactive runs) when the lock is missing
+  `plugin_contracts["agntux-gmail"]` — typically because Mode B
+  hasn't been re-run since this plugin was installed.
+- **Tool-result truncation handling** (Step 5b + Step 5c failure
+  modes). When the host's MCP layer redirects an oversized response
+  to a temp file, log `gmail-tool-result-truncated` and skip the
+  affected stage/thread for this run rather than reading the temp
+  file.
+
+### Changed
+
+- **Step 5b discovery sweep consolidated from three queries to two.**
+  Stage 1 folds `(to:me OR cc:me)` and `label:IMPORTANT` /
+  `label:^p1` into one OR'd predicate (one network round-trip
+  instead of two), excludes `category:updates` (catches MongoDB
+  Atlas, SVB, Ramp, Vanta, npm, Justworks, etc. that the previous
+  filter missed), and also excludes the `noreply` family at the
+  query layer. Stage 2 (`from:me older_than:3d`) gains a
+  `newer_than:30d` upper bound and drops `pageSize` from 50 to 20
+  to stay under the host's tool-result budget. Combined with the
+  new "discard JSON envelope after summarising" instruction, a
+  discovery sweep now lands ~5–7× smaller in working-memory
+  context (~6–8k tokens vs. ~42k previously).
+- **Step 11 cursor advancement is now transactional.** Cursor and
+  `discovery_ts` advance only when every action write this run
+  succeeded; on any failure they stay at their pre-run values so the
+  next run retries the same window. Express the advance as a diff
+  (added/advanced/evicted) so `validate-cursor.mjs` has a clean
+  signal. Final summary capped at 200 words.
+- **Step 7 reads all affected entity files in a parallel-tool-call
+  batch** before any edits — typical run touches 3–6 entities and
+  they have no read-time dependency on each other.
+- **Entity body section renamed `## Recent Activity` → `## Recent signals`**
+  in Step 6 entity template + Step 7 append instruction. Matches the
+  contract and the existing entity corpus; the deprecated name was
+  drift-prone (slack already drifted; gmail was about to).
+
+### Notes
+
+- This is MINOR per P15 §5.1's version-bump rubric — additive prompt
+  surface (new sections, new auto-learn behavior), no breaking
+  changes to existing public surface, no manifest-field rename.
+- The size-optimization slim-downs anticipated in the plan
+  (`structured-splashing-whale.md`) are deferred to a follow-up so
+  the SKILL is currently ~1370 lines (up modestly from 1165). The
+  follow-up will move the failure-mode taxonomy and detailed
+  examples to `RUNBOOK.md` and absorb the generic 12-step framework
+  into the canonical SKILL via `STUBS.md` placeholders.
+
 ## [1.1.0] — 2026-05-07
 
 ### Fixed

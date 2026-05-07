@@ -488,6 +488,182 @@ describe("validate-schema hook", () => {
     expect(result.stderr).toMatch(/agntux-notes schema_version drift/);
   });
 
+  // -------------------------------------------------------------------------
+  // Missing-plugin_contract self-healing runbook (the 2026-05-07 agntux-gmail
+  // incident: contract markdown sat at status: approved but Mode B never
+  // registered the plugin in schema.lock.json, so every action write tripped
+  // the generic "no approved contract" message — no path forward).
+  // -------------------------------------------------------------------------
+
+  function writeApprovedContract(homeRoot, slug, opts = {}) {
+    const dir = join(homeRoot, "agntux", "data", "schema", "contracts");
+    mkdirSync(dir, { recursive: true });
+    const fm = [
+      "type: plugin-contract",
+      `plugin_slug: ${slug}`,
+      `schema_version: "${opts.schemaVersion ?? "1.0.0"}"`,
+      "status: approved",
+    ];
+    if (opts.sourceIdFormat) {
+      fm.push(`source_id_format: ${JSON.stringify(opts.sourceIdFormat)}`);
+    }
+    const body = opts.body ?? "# Allowed entity subtypes\n- person\n\n# Allowed action classes\n- response-needed\n";
+    writeFileSync(join(dir, `${slug}.md`), `---\n${fm.join("\n")}\n---\n\n${body}`);
+  }
+
+  it("missing-plugin_contract: emits a runbook when contract is approved but lock entry is absent", () => {
+    // Lock has no entry for agntux-gmail; contract markdown is status: approved.
+    // The validator should reject with the missing-contract runbook (concrete
+    // Edit operations against schema.lock.json), NOT the generic
+    // "no approved contract" message — the latter has no actionable path.
+    writeLock(homeRoot, VALID_LOCK);
+    writeApprovedContract(homeRoot, "agntux-gmail", {
+      schemaVersion: "1.0.0",
+      sourceIdFormat: "<gmail_thread_id>",
+    });
+    const filePath = join(homeRoot, "agntux", "actions", "2026-05-07-x.md");
+    const result = runHook(
+      {
+        tool_name: "Write",
+        tool_input: {
+          file_path: filePath,
+          content: actionFile({
+            id: "2026-05-07-x",
+            source: "gmail",
+            reason_class: "response-needed",
+          }),
+        },
+        plugin: "agntux-gmail",
+      },
+      homeRoot,
+    );
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('plugin_contracts["agntux-gmail"] missing');
+    expect(result.stderr).toContain("Runbook");
+    expect(result.stderr).toContain("data/schema/contracts/agntux-gmail.md");
+    expect(result.stderr).toContain("data/schema/schema.lock.json");
+    expect(result.stderr).toContain('"schema_version": "1.0.0"');
+    expect(result.stderr).toContain("source_id_format");
+    // Must NOT regress to the generic "no approved contract" message that
+    // tells the agent to "run /ux schema review" — that command isn't
+    // available in scheduled-task contexts.
+    expect(result.stderr).not.toMatch(/no approved contract/);
+    expect(result.stderr).not.toMatch(/\/ux schema review/);
+  });
+
+  it("missing-plugin_contract: omits source_id_format from runbook when contract has none", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    writeApprovedContract(homeRoot, "agntux-newsource", { schemaVersion: "1.0.0" });
+    const filePath = join(homeRoot, "agntux", "actions", "2026-05-07-y.md");
+    const result = runHook(
+      {
+        tool_name: "Write",
+        tool_input: {
+          file_path: filePath,
+          content: actionFile({
+            id: "2026-05-07-y",
+            source: "newsource",
+            reason_class: "response-needed",
+          }),
+        },
+        plugin: "agntux-newsource",
+      },
+      homeRoot,
+    );
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('plugin_contracts["agntux-newsource"] missing');
+    // Runbook must not name source_id_format when the contract has none —
+    // the lock entry would be valid JSON either way, but a phantom field
+    // is a red herring.
+    expect(result.stderr).not.toContain("source_id_format");
+  });
+
+  it("missing-plugin_contract: passes through to generic rejection when contract markdown is absent", () => {
+    // Contract file genuinely missing — this is NOT the late-install case;
+    // the architect simply hasn't authored a contract yet. The generic
+    // "no approved contract" path is correct here (the agent can run
+    // /agntux-onboard and Mode B will create the contract from the
+    // plugin's listing.yaml).
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "actions", "2026-05-07-z.md");
+    const result = runHook(
+      {
+        tool_name: "Write",
+        tool_input: {
+          file_path: filePath,
+          content: actionFile({
+            id: "2026-05-07-z",
+            source: "neverapproved",
+            reason_class: "response-needed",
+          }),
+        },
+        plugin: "agntux-neverapproved",
+      },
+      homeRoot,
+    );
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/no approved contract/);
+    // Make sure we didn't accidentally fall into the runbook path.
+    expect(result.stderr).not.toContain("Runbook");
+  });
+
+  it("missing-plugin_contract: passes through to generic rejection when contract is draft (not approved)", () => {
+    // Contract markdown exists but status: draft. We must NOT auto-register
+    // an unreviewed plugin — the generic rejection sends the user back to
+    // /agntux-onboard to finish review.
+    writeLock(homeRoot, VALID_LOCK);
+    const dir = join(homeRoot, "agntux", "data", "schema", "contracts");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "agntux-draftplug.md"),
+      `---\nplugin_slug: agntux-draftplug\nschema_version: "1.0.0"\nstatus: draft\n---\n\n# Allowed entity subtypes\n- person\n`,
+    );
+    const filePath = join(homeRoot, "agntux", "actions", "2026-05-07-w.md");
+    const result = runHook(
+      {
+        tool_name: "Write",
+        tool_input: {
+          file_path: filePath,
+          content: actionFile({
+            id: "2026-05-07-w",
+            source: "draftplug",
+            reason_class: "response-needed",
+          }),
+        },
+        plugin: "agntux-draftplug",
+      },
+      homeRoot,
+    );
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/no approved contract/);
+    expect(result.stderr).not.toContain("Runbook");
+  });
+
+  it("missing-plugin_contract: skips the runbook for agntux-core (orchestrator bypass)", () => {
+    // The orchestrator never carries its own contract in plugin_contracts —
+    // it inherits from the tenant schema directly. The runbook gate must
+    // not fire for agntux-core writes (which are typically Edit operations
+    // mutating action status fields). Use a status edit that would
+    // otherwise pass.
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "actions", "2026-05-07-core.md");
+    const original = actionFile({ id: "2026-05-07-core" });
+    writeFileSync(filePath, original);
+    const result = runHook(
+      {
+        tool_name: "Edit",
+        tool_input: {
+          file_path: filePath,
+          old_string: 'status: "open"',
+          new_string: 'status: "snoozed"',
+        },
+        plugin: "agntux-core",
+      },
+      homeRoot,
+    );
+    expect(result.code).toBe(0);
+  });
+
   it("schema_version: unparseable version rejects with the legacy message", () => {
     writeLock(homeRoot, VALID_LOCK);
     const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
