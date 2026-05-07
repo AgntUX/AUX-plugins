@@ -139,6 +139,26 @@ against and every write is noise.
 
 ---
 
+## What the agntux-core hooks do for you
+
+You do NOT need to:
+
+- Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
+- Update `entities/_sources.json` — `maintain-index.mjs` handles it.
+- Trim `data/learnings/agntux-slack/sync.md → errors` — `trim-sync-errors.mjs` PostToolUse keeps it at the newest 10.
+- Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute to fix them.
+- Validate cursor-map shape, monotonic `discovery_ts`, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
+
+You DO need to:
+
+- Read `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5).
+- Write entity / action body content with the section-preservation rule (Step 7 / Step 10).
+- Advance the cursor map and release the lock (Step 11), expressing the change as a diff (added / advanced / evicted).
+
+If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
+
+---
+
 ## Step 0 — Read schema and instructions (P3a — pre-flight gate)
 
 Before reading state, before fetching: load the tenant contract and
@@ -156,7 +176,7 @@ per-plugin instructions.
 
 3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
    - Lower MAJOR: exit with one stderr line — `agntux-slack pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); awaiting architect refresh on next /agntux-onboard re-entry.` Do not proceed.
-   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` (truncated to last 10) so the next AgntUX session surfaces the staleness.
+   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` so the next AgntUX session surfaces the staleness.
    - Same or higher: pass.
 
 4. **Read your contract** end-to-end. Extract:
@@ -274,6 +294,8 @@ For each result:
 
 **First-run consent failure.** `slack_search_public_and_private` requires user consent. If the host returns a consent-denied error on any of the three queries, log kind `auth` to `sync.md → errors` with the message `"slack search consent denied — grant the connector's search permission and re-run /agntux-slack:sync"` and exit cleanly. Do NOT proceed with per-channel polling — without discovery the coverage is incomplete and we'd false-advertise "no missed activity".
 
+**Shared channels (Slack Connect).** Permalinks return whichever workspace authored the message. A permalink hostname that differs from `workspace_subdomain` (e.g. `avalara.slack.com` while the file says `oatfi`) is a normal shared-channel signal — NOT evidence of a thread reply or anomaly. Use the message envelope's `thread_ts` / `parent_ts` to determine thread structure, never the permalink path. When constructing the `Open in Slack` suggested-action URL in Step 10, always use `workspace_subdomain` (not the permalink hostname) so the user lands in their own workspace. Do not burn chain-of-thought debating the hostname mismatch — it is expected.
+
 ### Step 5c-pre — Drain bootstrap-deferred null thread cursors (every run)
 
 Before walking channel cursors, iterate every thread-shaped key in the cursor map (key contains a `#` separator) whose value is `null`. For each:
@@ -336,7 +358,7 @@ Each is logged to `sync.md → errors` with one of `network | auth | parse | sou
 
 **Cap at 200 items per channel per run.** If the source returns more than 200, process the oldest 200 first (sort by ts ASC), advance cursor, exit. The next run picks up.
 
-**On fetch failure across the whole sweep:** log to `data/learnings/agntux-slack/sync.md → errors` with one of `network | auth | parse | source | internal`, trim to last 10 entries, update `last_run`, release lock, exit.
+**On fetch failure across the whole sweep:** log to `data/learnings/agntux-slack/sync.md → errors` with one of `network | auth | parse | source | internal`, update `last_run`, release lock, exit. (The errors list is auto-trimmed to 10 by an agntux-core PostToolUse hook — append freely; do not narrate a count or trim step.)
 
 **Gap recovery:**
 - Bootstrap with empty cursor: filter for messages with `ts > (now − bootstrap_window_days days)`.
@@ -356,7 +378,7 @@ For each item, extract every distinguishable entity. Candidate **subtypes are NO
 - `project` — Codenames per `user.md → # Glossary`.
 - `topic` — Recurring themes surfaced across multiple Slack threads.
 
-**Channels are NOT entities.** They surface via `source_ref` on action items (`<channel_id>#<thread_ts>`) and via channel-name annotations in `## Recent Activity` bullets. Themes the agent extracts from sustained conversations may become entities of whatever "topic-like" subtype the contract names — but the channel itself is not.
+**Channels are NOT entities.** They surface via `source_ref` on action items (`<channel_id>#<thread_ts>`) and via channel-name annotations in `## Recent signals` bullets. Themes the agent extracts from sustained conversations may become entities of whatever "topic-like" subtype the contract names — but the channel itself is not.
 
 If the contract approves a subtype not listed above (e.g., a Mode B review added `customer` for an SE user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — log a `subtype-out-of-contract` entry to `sync.md → errors` describing the unrecognised kind. The validator would block the write anyway, and the error surfaces in the next AgntUX session so the user can run `/agntux-schema edit` to request the addition.
 
@@ -387,7 +409,7 @@ For each candidate entity:
    ## Key Facts
    {bulleted structured facts, or empty body}
 
-   ## Recent Activity
+   ## Recent signals
 
    ## User notes
    (this section is preserved verbatim across re-ingests; user-authored)
@@ -401,16 +423,18 @@ For each candidate entity:
 
 ## Step 7 — Update each affected entity
 
+> **Read all affected entity files in a single parallel-tool-call batch before any edits.** A typical run touches 3–6 entities and they have no read-time dependency on each other; sequential read-then-edit per entity burns context and wall-clock for no reason.
+
 For each entity resolved in Step 6, apply the **section-preservation rule** (P3 §3.2.1):
 
 1. Read the existing file.
 2. Capture the byte span from `## User notes` (inclusive) to end-of-file, verbatim.
 3. Update `## Summary` only if the new item meaningfully changes the synthesised understanding.
 4. Update `## Key Facts` if the item carries a new structured fact (e.g., role change, new email).
-5. Append to `## Recent Activity`: one bullet `- {YYYY-MM-DD} — slack: thread in #{channel-name}: {one-line summary of latest reply}`. Newest at top. Prune entries older than 30 days from the bottom. **Cite each thread once per ingest run, not once per reply.** If the same thread is touched in a subsequent run with new replies, update the existing matching bullet in-place rather than duplicating it (apply the P3 §3.2 update rule).
+5. Append to `## Recent signals`: one bullet `- {YYYY-MM-DD} — slack: thread in #{channel-name}: {one-line summary of latest reply}`. Newest at top. Prune entries older than 30 days from the bottom. **Cite each thread once per ingest run, not once per reply.** If the same thread is touched in a subsequent run with new replies, update the existing matching bullet in-place rather than duplicating it (apply the P3 §3.2 update rule).
 6. Re-attach `## User notes` verbatim at the end, byte-for-byte.
 7. Update frontmatter `updated_at` and `last_active` to today.
-8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent Activity`, `## User notes`.
+8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent signals`, `## User notes`.
 
 **Archive split:** if the file approaches 2,000 lines, perform the P3 §3.4 archive split before adding the new activity line.
 
@@ -453,7 +477,13 @@ Before raising any candidate `response-needed` item, scan the data already fetch
    - **Skip raising** the action.
    - Log a `slack-user-already-replied` debug entry to `sync.md → errors` for traceability (with `source_ref: <channel_id>#<thread_ts or ts>` and the user reply ts).
 3. **If the user replied but a follow-up did appear after their reply**, raise the action and cite the follow-up in `## Why this matters` so the priority is justified.
-4. If the user has not replied since the trigger, fall through to the heuristics list below — no change.
+4. **Colleague-already-answered downgrade** (only when the user has NOT yet replied). If an `## Always-flag senders` colleague (per `data/instructions/agntux-slack.md`) authored a substantive message in the same scope after the trigger:
+   - Heuristic for "substantive": non-trivial length (≥ ~30 chars), no `?` (it's an answer, not a question back), posted within ~30 min of the trigger, addresses the same topic.
+   - Raise the action at `priority: low` (not `medium`/`high`).
+   - In `## Why this matters`, lead with `Answered in scope by [[colleague-slug]] — pending [user] acknowledgment only.` then summarise. The reader should immediately see the action is just an ack, not a substantive task.
+   - **Do NOT add an emoji-react suggested action.** The Slack MCP has no `reactions.add` tool — relying on it would create a dead button. The standard `Open in Slack` row is sufficient: the user acknowledges manually if they want.
+   - The compose payload still drafts a brief acknowledgment for the case where the user wants to reply in-thread instead of just reacting.
+5. If the user has not replied since the trigger AND no colleague-answered case fires, fall through to the heuristics list below — no change.
 
 This scan runs once per candidate, before the heuristics list. It is a pure read over the in-memory fetch buffer.
 
@@ -664,7 +694,7 @@ The point of this sub-step is to author the `## Compose payload` (and optionally
 
 1. **Re-consult `<agntux project root>/user.md`** — already in working memory from Step 2. Don't re-read from disk unless Step 2's cache was invalidated. Pull `# Identity` (real name, role), `# Preferences` (tone register, length cap, sign-off rules, "always action-worthy" / "usually noise" patterns), `# Glossary` (project codenames), and `# Goals` (what the user is trying to move forward). The draft text should sound like the user, not like the agent.
 2. **Re-consult `<agntux project root>/data/instructions/agntux-slack.md`** — already parsed in Step 0. Pull from `# Notes` (per-plugin tone or formatting rules), `# Rewrites` (transformations, e.g., "always swap 'ASAP' for an explicit time"), and `# Always raise` / `# Never raise` (signal weighting that tells you whether to lean apologetic, terse, or warm). Do NOT inject signature lines, "as discussed" phrases, or padding the user has not asked for.
-3. **For each entity in `related_entities`**, re-read its file under `<agntux project root>/entities/{subtype}/{slug}.md` to surface relationship context and prior interactions beyond what Step 7 just wrote. Use `## Recent Activity` to detect ongoing threads ("John is mid-conversation with Yoni about Phase 2") and `## Key Facts` to honour known constraints ("Sarah is in EMEA — don't propose a 9am PT call").
+3. **For each entity in `related_entities`**, re-read its file under `<agntux project root>/entities/{subtype}/{slug}.md` to surface relationship context and prior interactions beyond what Step 7 just wrote. Use `## Recent signals` to detect ongoing threads ("John is mid-conversation with Yoni about Phase 2") and `## Key Facts` to honour known constraints ("Sarah is in EMEA — don't propose a 9am PT call").
 4. **Grep `<agntux project root>/actions/`** for files whose `related_entities` overlaps the current item's. Read up to **3 most recent** matching files within the last 14 days. Detect active workstreams the draft should reference; detect items the user already responded to (so the new draft acknowledges, rather than duplicates, prior context).
 5. **Treat all of the above as input** to the `drafted_body` and `personalization_signals` fields of `## Compose payload` (and to the equivalent canvas fields when applicable). The body should reflect what the user already knows / is doing, in the user's voice.
 
@@ -751,14 +781,18 @@ The compose / canvas iframes load these payload sections at click time via `mcp_
 
 After processing all items:
 
-1. **Advance the unified cursor map.** Walk all entries:
+1. **Advance the unified cursor map** as a *diff over the prior cursor map*. Hold three lists in working memory while you fetched: keys you ADDED (new channel or thread surfaced this run, with their initial value), keys you ADVANCED (old → new ts), and keys you EVICTED (thread-shaped only, dormant ≥ 30 days). Then walk all entries:
    - Channel-shaped keys (`<channel_id>`, no `#`): set to the newest parent-message ts processed in that channel.
    - Thread-shaped keys (`<channel_id>#<thread_ts>`): set to the newest reply ts processed in that thread. Evict thread-shaped entries with no activity for ≥30 days. **Channel-shaped entries are never evicted.**
    Serialise the whole map as a single-line JSON object. Atomic write to `data/learnings/agntux-slack/sync.md`.
+
+   **Eviction log requirement.** For every key you evict, append a `slack-thread-evicted` entry to `sync.md → errors` naming the dropped key. The agntux-core `validate-cursor.mjs` PreToolUse hook rejects writes that silently drop a prior cursor key without an `evicted`-marked error line. Same hook rejects regressions where `discovery_ts` moves backward, or where a previously-non-null cursor key regresses to `null`.
 2. **Advance `discovery_ts`** to the newest message ts surfaced by any of the three discovery search queries.
 3. **Persist `workspace_subdomain`** if it was captured for the first time during Step 5b. Once non-null, this value is workspace-stable and never overwritten on subsequent runs.
 4. **Update run stats**: `last_run`, `last_success`, increment `items_processed`.
 5. **Release the lock**: `- lock: null`. Atomic write.
+
+**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a link to the file. No narration of intermediate reasoning — that lives in `sync.md → errors → kind: debug`. Quiet runs (no new items) get a one-line summary, not a paragraph.
 
 | Layer | Key shape in `cursor` map | What advances | When advanced |
 |---|---|---|---|

@@ -100,7 +100,7 @@ Before reading state, before fetching: load the tenant contract and per-plugin i
 
 3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
    - Lower MAJOR: exit with one stderr line — `{{plugin-slug}} pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); awaiting architect refresh on next /agntux-onboard re-entry.` Do not proceed.
-   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` (truncated to last 10) so the next AgntUX session surfaces the staleness.
+   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` so the next AgntUX session surfaces the staleness.
    - Same or higher: pass.
 
 4. **Read your contract** end-to-end. Extract:
@@ -178,7 +178,7 @@ If the source's pagination/throttling behaviour is non-obvious, surface it via `
 
 **Cap at 200 items per run.** If the source returns more than 200 items, process the oldest 200 first (sort ascending by the cursor field), advance the cursor accordingly, and exit. The next scheduled run picks up.
 
-**On fetch failure:** log to `data/learnings/{{plugin-slug}}/sync.md → errors` with kind `network | auth | parse | source | internal`, trim to last 10 entries, update `last_run`, release the lock, exit.
+**On fetch failure:** log to `data/learnings/{{plugin-slug}}/sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. (The errors list is auto-trimmed to 10 by an agntux-core PostToolUse hook — append freely; do not narrate a count or trim step.)
 
 **Gap recovery:**
 - Source-specific symptoms and recovery steps are documented in the per-source recipe in `cursor-strategies.md` (Gmail historyId expiry, Slack stale-ts, Jira backlog, GDrive deleted folder, HubSpot 429, etc.). Apply the recipe matching `{{source-slug}}`.
@@ -219,7 +219,7 @@ For each candidate entity:
    ## Key Facts
    {bulleted structured facts, or empty body}
 
-   ## Recent Activity
+   ## Recent signals
 
    ## User notes
    (this section is preserved verbatim across re-ingests; user-authored)
@@ -239,10 +239,10 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 2. Capture the byte span from `## User notes` (inclusive) to end-of-file, verbatim.
 3. Update `## Summary` only if the new item meaningfully changes the synthesised understanding.
 4. Update `## Key Facts` if the item carries a new structured fact.
-5. Append to `## Recent Activity`: one bullet `- {YYYY-MM-DD} — {{source-slug}}: {one-line summary}`. Newest at top. Prune entries older than 30 days from the bottom.
+5. Append to `## Recent signals`: one bullet `- {YYYY-MM-DD} — {{source-slug}}: {one-line summary}`. Newest at top. Prune entries older than 30 days from the bottom.
 6. Re-attach `## User notes` verbatim at the end, byte-for-byte.
 7. Update frontmatter `updated_at` and `last_active` to today.
-8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent Activity`, `## User notes`.
+8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent signals`, `## User notes`.
 
 **Archive split:** if the file approaches 2,000 lines, perform the P3 §3.4 archive split before adding the new activity line.
 

@@ -389,7 +389,7 @@ describe("validate-schema hook", () => {
   // schema_version mismatch
   // -------------------------------------------------------------------------
 
-  it("rejects when entity schema_version mismatches plugin contract", () => {
+  it("rejects when entity schema_version mismatches plugin contract (major drift)", () => {
     writeLock(homeRoot, VALID_LOCK);
     const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
     const fm = entityFrontmatter({ schema_version: "0.9.0" });
@@ -400,6 +400,105 @@ describe("validate-schema hook", () => {
     }, homeRoot);
     expect(result.code).toBe(2);
     expect(result.stderr).toMatch(/schema_version.*0\.9\.0/);
+  });
+
+  // -------------------------------------------------------------------------
+  // Semver-aware schema_version drift (the runbook self-heal — covers the
+  // 2026-05-07 sync-run regression where the agent silently downgraded a
+  // file's schema_version to match a stale contract).
+  // -------------------------------------------------------------------------
+
+  it("schema_version: PATCH drift (file ahead) passes silently", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter({ schema_version: "1.0.1" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("schema_version: PATCH drift (contract ahead) passes silently", () => {
+    const lock = JSON.parse(JSON.stringify(VALID_LOCK));
+    lock.plugin_contracts["agntux-notes"].schema_version = "1.0.5";
+    writeLock(homeRoot, lock);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile() }, // file is 1.0.0
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("schema_version: MINOR drift, file ahead, rejects with concrete runbook (no `/ux schema review`)", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter({ schema_version: "1.1.0" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/schema_version mismatch.*file=1\.1\.0.*contract=1\.0\.0/);
+    expect(result.stderr).toContain("Runbook");
+    expect(result.stderr).toContain("contracts/agntux-notes.md");
+    expect(result.stderr).toContain("schema.lock.json");
+    // Importantly: do NOT regress to telling the agent to run a slash command
+    // that may not be available in scheduled-task contexts.
+    expect(result.stderr).not.toMatch(/\/ux schema review/);
+    // And do NOT instruct the agent to downgrade the file (the regression
+    // that motivated this hook).
+    expect(result.stderr).toContain("DO NOT downgrade");
+  });
+
+  it("schema_version: MINOR drift, contract ahead, passes silently (legacy file shape)", () => {
+    // The contract was bumped to 1.1.0 (additive). Existing files at 1.0.0
+    // are correct as-is — they predate the additive bump and don't need a
+    // rewrite. Rejecting them would force an unnecessary corpus migration.
+    const lock = JSON.parse(JSON.stringify(VALID_LOCK));
+    lock.plugin_contracts["agntux-notes"].schema_version = "1.1.0";
+    writeLock(homeRoot, lock);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile() }, // file is 1.0.0
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("schema_version: MAJOR drift rejects with a runbook that surfaces to the user before any edit", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter({ schema_version: "2.0.0" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/MAJOR-version drift/);
+    // Major bumps must NOT auto-heal — they need acknowledgment.
+    expect(result.stderr).toContain("STOP");
+    expect(result.stderr).toContain("surface");
+    expect(result.stderr).toMatch(/agntux-notes schema_version drift/);
+  });
+
+  it("schema_version: unparseable version rejects with the legacy message", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter({ schema_version: "not-a-semver" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/not-a-semver/);
   });
 
   // -------------------------------------------------------------------------
