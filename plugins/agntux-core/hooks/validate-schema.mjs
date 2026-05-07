@@ -36,6 +36,7 @@ import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
 const AGNTUX_ROOT = resolveAgntuxRoot();
 const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
 const ACTIONS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "actions") : null;
+const CONTRACTS_DIR = AGNTUX_ROOT ? join(AGNTUX_ROOT, "data", "schema", "contracts") : null;
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 const SOURCE_TO_PLUGIN_RE = /^[a-z][a-z0-9-]*$/;
@@ -233,6 +234,23 @@ function main() {
   // Resolve plugin slug.
   const pluginSlug = resolvePluginSlug(ctx, fm);
 
+  // Late-install runbook: contract markdown sits at status: approved but
+  // the lock hasn't yet registered the plugin under plugin_contracts. The
+  // 2026-05-07 agntux-gmail incident hit exactly this — Mode B never ran
+  // for the late-installed plugin, so the validator rejected every action
+  // write with the generic "no approved contract" message. Detect the
+  // condition here and emit a runbook the agent can execute, instead of
+  // the generic rejection.
+  if (pluginSlug && pluginSlug !== "agntux-core") {
+    const registered = lock.plugin_contracts && lock.plugin_contracts[pluginSlug];
+    if (!registered) {
+      const approved = readApprovedContractFrontmatter(pluginSlug);
+      if (approved) {
+        rejectWithMissingContractRunbook(filePath, pluginSlug, approved);
+      }
+    }
+  }
+
   if (scope === "entity") {
     const missing = checkRequiredEntityFrontmatter(fm);
     if (missing) reject(`${basename(filePath)} missing required frontmatter field: ${missing}`);
@@ -404,6 +422,107 @@ function rejectWithRunbook(filePath, fileVer, contractVer, pluginSlug, result) {
       `${fileName} schema_version \`${fileVer}\` does not match \`${pluginSlug}\` contract version \`${contractVer}\`.`
     );
   }
+
+  process.stderr.write(lines.join("\n") + "\n");
+  process.exit(2);
+}
+
+// -----------------------------------------------------------------------------
+// Late-install missing-contract detection.
+//
+// Returns the contract markdown's frontmatter when:
+//   - The contract file exists at <root>/data/schema/contracts/<slug>.md, AND
+//   - The frontmatter has `status: approved`.
+// Returns null otherwise (the existing generic rejection path is correct in
+// that case — the contract genuinely isn't approved yet).
+// -----------------------------------------------------------------------------
+
+function readApprovedContractFrontmatter(pluginSlug) {
+  if (!CONTRACTS_DIR) return null;
+  const contractPath = join(CONTRACTS_DIR, `${pluginSlug}.md`);
+  if (!existsSync(contractPath)) return null;
+  let raw;
+  try {
+    raw = readFileSync(contractPath, "utf8");
+  } catch {
+    return null;
+  }
+  let fm;
+  try {
+    fm = parseFrontmatter(raw).frontmatter;
+  } catch {
+    return null;
+  }
+  if (!fm || fm.status !== "approved") return null;
+  return fm;
+}
+
+function rejectWithMissingContractRunbook(filePath, pluginSlug, approvedFm) {
+  const contractMdRel = `data/schema/contracts/${pluginSlug}.md`;
+  const lockJsonRel = `data/schema/schema.lock.json`;
+  const nowIso = new Date().toISOString();
+  const schemaVersion = approvedFm.schema_version || "1.0.0";
+  const sourceIdFormat = approvedFm.source_id_format || null;
+
+  // The Mode B template authors contracts with "# Allowed entity subtypes" /
+  // "# Allowed action classes" body sections, but historic / hand-authored
+  // contracts (e.g., the agntux-gmail incident that motivated this runbook)
+  // use variants like "## Owned subtypes" / "## Action_class usage". The
+  // runbook leaves section-name discovery to the agent rather than
+  // prescribing one form — every approved contract surfaces the same data
+  // somewhere in the body, regardless of heading convention.
+  const lockEntryLines = [
+    `       "${pluginSlug}": {`,
+    `         "schema_version": "${schemaVersion}",`,
+    `         "allowed_subtypes": [<list from step 1>],`,
+    `         "allowed_action_classes": [<list from step 1>],`,
+  ];
+  if (sourceIdFormat) {
+    lockEntryLines.push(`         "approved_at": "${nowIso}",`);
+    lockEntryLines.push(`         "source_id_format": ${JSON.stringify(sourceIdFormat)}`);
+  } else {
+    lockEntryLines.push(`         "approved_at": "${nowIso}"`);
+  }
+  lockEntryLines.push(`       }`);
+
+  const lines = [
+    `schema-validator: plugin_contracts["${pluginSlug}"] missing from schema.lock.json`,
+    "",
+    `The contract markdown at ${contractMdRel} is status: approved, but the lock`,
+    `file does not yet register the plugin. This usually means ${pluginSlug} was`,
+    `installed after /agntux-onboard last ran data-architect Mode B.`,
+    "",
+    "Runbook (execute these Edit operations, then retry your blocked write):",
+    "",
+    `  1. Read <agntux project root>/${contractMdRel} and extract:`,
+    `       - schema_version (frontmatter): "${schemaVersion}"`,
+    `       - allowed_subtypes — the entity subtypes the contract grants this`,
+    `         plugin. The Mode B template names this section "# Allowed entity`,
+    `         subtypes"; hand-authored contracts may use "## Owned subtypes" or`,
+    `         similar. One bullet per subtype regardless.`,
+    `       - allowed_action_classes — the action_class values the plugin may`,
+    `         write. Look for "# Allowed action classes" or "## Action_class`,
+    `         usage" / "## reason_class enum" in the body.`,
+  ];
+  if (sourceIdFormat) {
+    lines.push(`       - source_id_format (frontmatter): ${JSON.stringify(sourceIdFormat)}`);
+  }
+  lines.push("");
+  lines.push(`  2. Edit <agntux project root>/${lockJsonRel} and add a sibling key`);
+  lines.push(`     under plugin_contracts:`);
+  lines.push("");
+  for (const lockLine of lockEntryLines) {
+    lines.push(lockLine);
+  }
+  lines.push("");
+  lines.push(`  3. Edit <agntux project root>/${lockJsonRel}`);
+  lines.push(`     Bump generated_at to "${nowIso}".`);
+  lines.push("");
+  lines.push("  4. Retry your blocked Edit/Write.");
+  lines.push("");
+  lines.push(`If you suspect the contract markdown should NOT yet be approved (e.g. the user`);
+  lines.push(`hasn't reviewed the schema), stop and surface this to the user instead — do`);
+  lines.push(`not auto-register an unreviewed plugin into the lock.`);
 
   process.stderr.write(lines.join("\n") + "\n");
   process.exit(2);

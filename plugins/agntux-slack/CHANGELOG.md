@@ -6,6 +6,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [5.3.1] — 2026-05-07
+
+Conservative slim-down of `skills/sync/SKILL.md` per Anthropic's [Skill
+authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+(canonical target: ≤500-line SKILL body with overflow in sibling files
+via progressive disclosure). Implements moves 1–3 of the four moves the
+2026-05-07 test-run review enumerated; move 4 (canonical absorption,
+which is needed to actually hit ≤500 lines and pull `agntux-gmail`
+forward) is deferred to a follow-up plan.
+
+### Changed
+
+- **`skills/sync/SKILL.md` shrunk 840 → 808 lines.** No semantic change;
+  every slack-specific correctness nuance from the 5.3.0 review pass
+  (the `What hooks do for you` preamble, Step 5b shared-channels note,
+  Step 8a colleague-answered downgrade, Step 5c parallel-reads, Step 11
+  cursor-as-diff + eviction-log) is preserved verbatim. The structural
+  test in `__tests__/idempotent.test.ts` continues to pass (every
+  grep-asserted invariant string survives).
+  - **Move 1 — Reference content extracted to a sibling file.** The
+    Step 5 failure-mode taxonomy (network/auth/parse/source/internal
+    rules + 200-cap + gap-recovery), the Step 10 `slack_open_url`
+    URL-family table + worked example, and the Step 11 cursor-shape
+    layer table moved to a new `skills/sync/RUNBOOK.md` (~46 lines,
+    leaf — no nested references, per best practices "Pattern 1:
+    high-level guide with references"). SKILL.md retains a one-line
+    pointer for each.
+  - **Move 2 — Contract restatement dropped.** The Step 0 framing
+    paragraph and Step 0 sub-bullet 4 ("Read your contract end-to-end.
+    Extract …") and the Step 2.2 cursor-shape inline list were
+    replaced with one-line pointers to the contract's `cursor_semantics`
+    block, per best practices "Default assumption: Claude is already
+    very smart" / "Concise is key". The contract is authoritative;
+    the SKILL points at it rather than restating it.
+  - **Move 3 — Step 5 hybrid-pass narrative compressed.** Lead
+    paragraphs and trailing rationale on 5b, 5c-pre, 5c, 5d, 5e
+    tightened (same content, fewer words). Every signal name from
+    the broader thread-trigger correction (`reply_count`,
+    `reply_users_count`, `latest_reply`, `thread_ts`, `Thread: N
+    replies` envelope line) and the `do not raise an action item that
+    depends on that thread's content` honesty rule are preserved
+    byte-identical. Move 3's realised line saving was much smaller
+    than projected (~2 lines vs ~40 estimated) because the original
+    paragraphs were long single-line prose, not multi-line — but the
+    word-level density still improves.
+
+### Notes
+
+- 808 still exceeds Anthropic's 500-line target. The remaining ~308
+  lines come out in move 4 (re-derive slack SKILL from
+  `canonical/prompts/ingest/skills/sync/SKILL.md` via placeholder
+  substitution + slack-specific override blocks; absorb the generic
+  12-step framework into canonical; pull `agntux-gmail`'s 1164-line
+  SKILL forward through the same pipeline). Move 4 is its own plan,
+  scheduled after this conservative pass is reviewed.
+- PATCH bump per P15 §5.1: no public-surface change. The prompt body
+  is rewritten for density; no `ux:` prompt, no manifest field, no
+  MCP tool, no schema, no test invariant is renamed or removed.
+
 ## [5.3.0] — 2026-05-07
 
 ### Fixed

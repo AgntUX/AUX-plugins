@@ -125,6 +125,37 @@ Do not attempt to repair user.md — the personalization subagent owns it.
 
 ---
 
+## What the agntux-core hooks do for you
+
+You do NOT need to:
+
+- Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
+- Update `entities/_sources.json` — `maintain-index.mjs` handles it.
+- Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute. Includes the "contract markdown exists but `plugin_contracts[agntux-gmail]` is missing from `schema.lock.json`" case (late-installed plugin) — the runbook tells you exactly which keys to add.
+- Validate cursor-map shape, monotonic `discovery_ts`, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
+
+You DO need to:
+
+- Read `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5).
+- Write entity / action body content with the section-preservation rule (Step 7 / Step 10).
+- Advance the cursor map and release the lock (Step 11), expressing the change as a diff (added / advanced / evicted), and only when every action write this run succeeded — see Step 11's transactional rule.
+- Slice bounded lists to their declared cap before writing — see "Bounded lists in state files" below.
+
+If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
+
+**Gmail-specific caveat.** You do NOT call `create_draft`. The host's MCP layer exposes it to this inline-running skill, but the iframe Save click is the explicit authorisation gate — the iframe emits a `Use the Gmail Connector …` envelope to chat carrying `to`, `cc`, `bcc`, `subject`, `body`, and `replyToMessageId` inline, and the host dispatches directly through the connector. Calling `create_draft` from this skill is a bug regardless of what the host exposes.
+
+## Bounded lists in state files
+
+Before writing any of these files, slice the named section/list to the cap shown — evict oldest. Files not listed here are not capped.
+
+- `data/learnings/agntux-gmail/sync.md → errors` — last 10. Newest-first; drop the tail past 10.
+- `data/instructions/agntux-gmail.md → # Sender denylist` — last 30. Eviction policy: evict the oldest entry whose HTML-comment metadata contains `added:` (auto-added). Entries without `added:` metadata are user-curated and never auto-evicted.
+
+These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraints (Gmail query length, file readability) are recoverable if the cap drifts by a handful of entries.
+
+---
+
 ## Step 0 — Read schema and instructions (P3a — pre-flight gate)
 
 Before reading state, before fetching: load the tenant contract and
@@ -154,6 +185,41 @@ per-plugin instructions.
    scheduled run will pick up from where it left off once the contract is
    in place.
 
+2.5. **`<agntux project root>/data/schema/schema.lock.json`** — read it and
+   verify `plugin_contracts["agntux-gmail"]` is present. The validator
+   hook (`validate-schema.mjs`) trusts `schema.lock.json`, not the
+   markdown contract — the markdown is informational; the lock is what
+   gates writes. Mirroring the validator's lookup here lets you fail
+   fast instead of doing entity work that will be wasted at action-write
+   time.
+
+   If the entry is missing:
+
+   - **Scheduled-task fire (no user present):** exit cleanly. Append a
+     `contract-not-registered` entry to `sync.md → errors`. The
+     validator emits a self-healing runbook on the next interactive
+     invocation that triggers an action write — that's the right
+     moment to update the lock, not now.
+   - **Interactive invocation:** register the plugin inline now (you
+     already have the contract parsed in working memory, so re-emitting
+     the validator's runbook would round-trip for no reason):
+       - Edit `<root>/data/schema/schema.lock.json`. Add a sibling key
+         `agntux-gmail` under `plugin_contracts` populated from the
+         contract markdown:
+           - `schema_version` — frontmatter field of the contract.
+           - `allowed_subtypes` — extracted from the contract body
+             section that enumerates the entity subtypes the plugin
+             may write (the `## Owned subtypes` section in the current
+             gmail contract).
+           - `allowed_action_classes` — extracted from the body
+             section that enumerates action classes (the `## reason_class
+             enum` section in the current gmail contract).
+           - `approved_at` — current RFC 3339 timestamp.
+           - `source_id_format` — copied from contract frontmatter.
+       - Bump `schema.lock.json → generated_at` to the same RFC 3339
+         timestamp.
+     Then continue.
+
 3. **Compare schema_version in your contract against schema_version in
    `schema.md`**. If your contract's version lags `schema.md`'s minor or
    major (read both frontmatter blocks; semver-compare):
@@ -173,7 +239,7 @@ per-plugin instructions.
 
 5. **`<agntux project root>/data/instructions/agntux-gmail.md`** — your
    per-plugin user instructions. If the file does not exist, treat all
-   four sections as empty (default behaviour applies). If it exists,
+   five sections as empty (default behaviour applies). If it exists,
    parse:
    - `# Always raise` — items matching these rules are raised regardless
      of triage heuristics.
@@ -183,10 +249,17 @@ per-plugin instructions.
      items.
    - `# Notes` — soft preferences (terse summaries, signature handling,
      etc.).
+   - `# Sender denylist` — auto-learned + manually-curated `from:` term
+     suffixes appended as `-from:<entry>` exclusions to Step 5b's
+     discovery query. Each line shape:
+     `- <email-or-substring>  <!-- added: YYYY-MM-DD, dropped: N -->`
+     for auto-learned entries, or `- <email-or-substring>` (no comment
+     metadata) for user-curated entries that are never auto-evicted.
 
 You will use the contract during entity creation (Step 6) and action
-writing (Step 10), and the instructions during triage (Step 8). Cache
-them in working memory for this run.
+writing (Step 10), and the instructions (including the denylist) during
+triage (Step 8) and discovery (Step 5b). Cache them in working memory
+for this run.
 
 ---
 
@@ -254,8 +327,11 @@ treat each file as authoritative on each invocation.
 
 There is no per-plugin "learnings" file. Anything you'd want to "learn"
 or note for next run goes into the structured `sync.md → errors` list
-(transient, last 10 entries) or — if it's a structural ask the user must
-approve — escalates via the user-feedback subagent.
+(transient, bounded per the "Bounded lists in state files" block above)
+or, when it's a filter-shape signal, into the auto-learned
+`# Sender denylist` in `data/instructions/agntux-gmail.md` (see Step 11
+sub-step 5). Structural asks the user must approve still escalate via
+the user-feedback subagent.
 
 ---
 
@@ -355,45 +431,116 @@ envelope will be omitted this run. Subsequent runs retry.
 
 ### Step 5b — Discovery sweep
 
-Three search queries seed/touch the cursor map. Each is paginated until
-exhausted or a per-run cap of **5 pages × 50 results = 250 hits** is
-reached.
+Two consolidated search queries seed/touch the cursor map. Each is
+paginated until exhausted or a per-run cap of **5 pages × 30 results =
+150 hits** for Stage 1, **3 pages × 20 results = 60 hits** for Stage 2.
+Page sizes are deliberately smaller than the previous 50/50/50 layout
+because (a) the larger page sizes truncated the host's tool-result
+budget on `from:me older_than:3d` — see "Truncation handling" below —
+and (b) post-filtering compresses the JSON envelope down to one-liners
+in working memory anyway.
 
-1. **Inbox-addressed** —
-   `search_threads(query: "(to:me OR cc:me) -category:promotions -category:social -category:forums after:<discovery_ts_yyyy_mm_dd>", pageSize: 50)`.
-   Catches every email addressed to the user that isn't algorithmic noise.
-2. **Important label** —
-   `search_threads(query: "label:^p1 OR label:IMPORTANT after:<discovery_ts_yyyy_mm_dd>", pageSize: 50)`.
-   Catches Gmail's own importance classifier (the `^p1` system label is
-   Gmail's importance flag). Used as a priority booster, not a sole
-   trigger.
-3. **Sent-awaiting-reply** —
-   `search_threads(query: "from:me older_than:3d -in:trash", pageSize: 50)`.
-   Catches user-sent threads that haven't been touched recently — used by
-   Step 8 to surface "you sent this and they haven't replied" follow-ups.
-   Note: Gmail's `from:me` query understands the user's authenticated
-   account; we don't need `user_email` for this query.
+**Stage 1 — Inbox-addressed + label:IMPORTANT (one call, deduplicated).**
+The previous "important label" branch is folded into Stage 1 as an OR
+predicate so the hourly hot path makes one network round-trip instead
+of two:
+
+```
+(
+  (to:me OR cc:me OR label:IMPORTANT OR label:^p1)
+  -category:promotions -category:social -category:forums -category:updates
+  -from:noreply -from:no-reply -from:notifications -from:donotreply
+  {auto-denylist exclusions}
+  {always-raise additions OR'd in}
+  after:<discovery_ts_yyyy_mm_dd>
+)
+```
+
+`pageSize: 30`. Build the query string by concatenating:
+
+1. The base predicate group `(to:me OR cc:me OR label:IMPORTANT OR label:^p1)`.
+2. The aggressive baseline category exclusions:
+   `-category:promotions -category:social -category:forums -category:updates`.
+   `-category:updates` catches MongoDB Atlas, SVB, Ramp, Vanta, npm,
+   Justworks, Pipedream, Read.ai, NetSuite, DNSimple, Intuit, and other
+   transactional / scheduled-report mailings that Gmail tags `updates`.
+   The tradeoff is explicit: a handful of legitimately useful
+   auto-mailings (e.g., a digest the user actually reads) lands in
+   `category:updates` and gets excluded by default. The user opts them
+   back in via `# Always raise`.
+3. The fixed `noreply` family exclusions:
+   `-from:noreply -from:no-reply -from:notifications -from:donotreply`.
+4. The auto-learned `# Sender denylist` (from Step 0, sub-step 5).
+   For each line in the section, append `-from:<entry>` to the query.
+   Slice to the most-recent **30 entries** before appending — the
+   bounded-lists block above caps the file at 30; this slice is
+   defensive in case the file drifted past the cap. If a denylist
+   entry conflicts with a `# Always raise` rule that names the same
+   `from:` predicate, drop the conflicting `-from:` term — `# Always
+   raise` wins.
+5. The `# Always raise` additions. For any `# Always raise` rule that
+   names a `from:` predicate (`from:digest@vercel.com`,
+   `from:rlai@portageinvest.com`, etc.), prepend
+   `OR (from:<allow>)` so those senders surface even when categories
+   are excluded.
+6. The `after:` filter from `discovery_ts` (formatted as
+   `YYYY/MM/DD` per Gmail's query grammar).
+
+**Stage 2 — Sent-awaiting-reply (only when relevant).**
+
+```
+(from:me older_than:3d newer_than:30d -in:trash)
+```
+
+`pageSize: 20`. The `newer_than:30d` upper bound caps the look-back
+window — without it the user's sent volume can dwarf inbox-addressed
+volume and exhaust the tool-result budget. Skip Stage 2 entirely if
+the user has set `# Notes: skip-sent-awaiting-reply` in
+`data/instructions/agntux-gmail.md`. Note: Gmail's `from:me` understands
+the user's authenticated account; we don't need `user_email`.
+
+The label:IMPORTANT signal is NOT lost by folding it into Stage 1 —
+it's now a thread-property the agent uses in Step 8 priority anchoring
+after thread fetch, the way it always intended to.
+
+**Truncation handling.** If either Stage's response comes back as a
+truncation marker (the host's MCP layer redirects oversized responses
+to a temp file with a "use offset/limit" message), do NOT read the
+temp file. Log a `gmail-search-truncated` entry to `sync.md → errors`
+with the stage name and skip the rest of that stage's pages this run.
+The next run picks up with the cursor unchanged (Step 11's
+transactional rule guarantees this).
+
+**Post-processing compression — discard raw envelopes immediately.**
+After each Stage returns, summarise the result set inline as one line
+per thread: `{date} | {sender} | {subject}`. Discard the full JSON
+envelope from working memory; only re-fetch envelopes for threads that
+pass Step 8 noise-filter screening. The raw JSON is ~14k tokens per
+50-thread page; the one-liner form is ~3-4× smaller.
 
 For each result:
+
 - Note the `thread_id`. If a `<thread_id>` key is missing from the cursor
   map, add it with value `null` (bootstrap on next pass).
 - Update `discovery_ts` to the newest message internal-date seen across
-  all three queries.
+  both stages. Step 11's transactional rule decides whether to actually
+  persist this advance.
 - Discovery only **upserts missing keys** — it must NOT overwrite an
   existing thread-shaped cursor value. The actual cursor advancement
   happens in Step 5c.
-- **Capture `user_email` if not already set.** Walk message envelopes; the
-  first message authored by the user (where Gmail's `from:me` query
-  matched) carries a `From:` header containing the user's primary address.
-  Apply the regex `<([^>]+)>` to extract the bare address; or if the
-  header is bare, use it verbatim. Persist atomically as part of this
-  run's sync.md write (Step 11). Once set, do **not** re-derive on
-  subsequent results.
+- **Capture `user_email` if not already set.** The first Stage 2 result
+  carries a `From:` header on the user's own message. Apply the regex
+  `<([^>]+)>` to extract the bare address; or if the header is bare,
+  use it verbatim. Persist atomically in Step 11. Once set, do **not**
+  re-derive on subsequent results.
 
-**Bot/marketing filters in the query string itself.** The negative
-`-category:*` predicates push noise out of the result set before we even
-see it. We apply a second client-side filter in Step 8 for `noreply@` /
-`notifications@` / `*-bounces@` senders.
+**Filter layers — defense in depth.** The discovery query has the
+aggressive baseline (Stage 1 predicates 2–3) plus the auto-learned
+denylist (predicate 4); Step 8 still applies a second client-side
+filter for any `noreply@` / `notifications@` / `*-bounces@` /
+`mailer-daemon@` senders that slip through. Both layers are needed —
+the query layer is fast and saves context; the client-side layer
+catches sender variants the query doesn't recognise.
 
 ### Step 5c — Per-thread polling (bulk of the work)
 
@@ -434,10 +581,19 @@ Each is logged to `sync.md → errors` with one of
   consecutive failure, remove from the cursor map.
 - Stale cursor / thread purged from Gmail → fall back to `last_success`;
   bootstrap fresh if `last_success` is also null.
+- **Tool-result truncation** on either `search_threads` or `get_thread`
+  (the host's MCP layer redirects oversized responses to a temp file
+  and returns a "use offset/limit" marker) → log
+  `gmail-tool-result-truncated` with `kind: source` and the tool name,
+  skip the affected thread for this run, and do NOT read the temp file.
+  Step 11's transactional rule keeps the thread cursor untouched so
+  the next run retries.
 
 **On fetch failure across the whole sweep:** log to
-`data/learnings/agntux-gmail/sync.md → errors`, trim to last 10 entries,
-update `last_run`, release lock, exit.
+`data/learnings/agntux-gmail/sync.md → errors` (slice to the bounded-list
+cap before writing), update `last_run`, release lock, exit. Step 11's
+transactional rule keeps `cursor` and `discovery_ts` at their pre-run
+values so the next run retries the same window.
 
 **Gap recovery:**
 - Bootstrap with empty cursor: filter for messages where
@@ -476,7 +632,7 @@ Common kinds you'll see in Gmail (only when your contract approves them):
 
 **Threads themselves are NOT entities.** They surface via `source_ref` on
 action items (`<thread_id>`) and via subject-line annotations in
-`## Recent Activity` bullets.
+`## Recent signals` bullets.
 
 If the contract approves a subtype not listed above (e.g., a tenant added
 `partner_platform` per Slack's contract), use it. If a kind would be
@@ -536,7 +692,7 @@ For each candidate entity:
    ## Key Facts
    {bulleted structured facts, or empty body}
 
-   ## Recent Activity
+   ## Recent signals
 
    ## User notes
    (this section is preserved verbatim across re-ingests; user-authored)
@@ -553,6 +709,8 @@ short name to `aliases:` on both files.
 
 ## Step 7 — Update each affected entity
 
+> **Read all affected entity files in a single parallel-tool-call batch before any edits.** A typical run touches 3–6 entities and they have no read-time dependency on each other; sequential read-then-edit per entity burns context and wall-clock for no reason.
+
 For each entity resolved in Step 6, apply the **section-preservation rule**
 (P3 §3.2.1):
 
@@ -562,7 +720,7 @@ For each entity resolved in Step 6, apply the **section-preservation rule**
 3. Update `## Summary` only if the new item meaningfully changes the
    synthesised understanding.
 4. Update `## Key Facts` if the item carries a new structured fact.
-5. Append to `## Recent Activity`: one bullet
+5. Append to `## Recent signals`: one bullet
    `- {YYYY-MM-DD} — gmail: thread "{subject}" — {one-line summary}`.
    Newest at top. Prune entries older than 30 days from the bottom. **Cite
    each thread once per ingest run, not once per message.** If the same
@@ -571,7 +729,7 @@ For each entity resolved in Step 6, apply the **section-preservation rule**
 6. Re-attach `## User notes` verbatim at the end, byte-for-byte.
 7. Update frontmatter `updated_at` and `last_active` to today.
 8. Write atomically (temp + rename). Confirm section order: `## Summary`,
-   `## Key Facts`, `## Recent Activity`, `## User notes`.
+   `## Key Facts`, `## Recent signals`, `## User notes`.
 
 **Archive split:** if the file approaches 2,000 lines, perform the P3
 §3.4 archive split before adding the new activity line.
@@ -621,14 +779,26 @@ Action classes you may use are limited to those in your contract.
   `*-bounces@` / `mailer-daemon@` — skipped unless a `# Always raise`
   rule explicitly opts in (e.g., `from:digest@vercel.com` to allow a
   specific weekly digest).
-- `category:promotions`, `category:social`, `category:forums` — already
-  filtered at the discovery query layer; if one slips through, skip.
+- `category:promotions`, `category:social`, `category:forums`,
+  `category:updates` — already filtered at the discovery query layer;
+  if one slips through, skip.
 - `category:updates` from `calendar-notification@google.com` (Google
   Calendar invitation/cancellation/update notifications) — skip; calendar
   is out of scope for this plugin.
 - Threads with only the user as a participant (drafts that look like
   threads, BCC mailing list patterns where the user is the only visible
   member) — skip.
+
+**Track noise drops for auto-learn.** Whenever you skip a thread on a
+sender-derived rule (`noreply@` family, `*-bounces@`, `mailer-daemon@`,
+or any sender that slipped through the query-layer category exclusion),
+increment a working-memory counter `noise_drop_counts[<sender-email>]`
+keyed by the bare sender address (apply the same `<([^>]+)>` extraction
+as Step 5b). Step 11 sub-step 5 reads this counter to auto-learn new
+denylist entries. Do NOT track drops attributable to `# Never raise`
+rules (those are user-curated and need no learning) or to thread-level
+heuristics (only-user-participant, etc.) — those are not sender-derived
+patterns and don't help denylist tuning.
 
 ### Step 8a — Reply-state scan (skip if user already replied)
 
@@ -1075,29 +1245,91 @@ header — same shape, different namespace.
 
 After processing all items:
 
-1. **Advance the unified cursor map.** Walk all entries:
-   - The literal `inbox` key → set to the newest message internalDate seen
-     by any of Step 5b's discovery queries.
+1. **Transactional rule.** Only advance `cursor` and `discovery_ts` if
+   **every action write this run succeeded.** If any write failed
+   (validator rejection, IO error, schema violation), persist
+   `last_run`, `errors`, the lock release, and `user_email` (if newly
+   captured), but leave `cursor` and `discovery_ts` at their pre-run
+   values and leave `last_success` unchanged. The next run will retry
+   the same window. Entity writes are idempotent via the
+   lookup-before-write rule (Step 6 sub-step 2) and persist regardless.
+
+2. **Express the cursor advance as a diff** over the prior cursor map:
+   - Keys added (with their initial value).
+   - Keys advanced (old → new).
+   - Keys evicted (thread-shaped entries with no activity for ≥30 days).
+
+   Then write the new full map atomically. The `validate-cursor.mjs`
+   PreToolUse hook rejects writes that drop a key without an eviction
+   log entry, or that regress `discovery_ts`. Hook prevents *regression*;
+   the transactional rule above prevents *forward advance on failure*.
+   Both needed; neither subsumes the other.
+
+3. **Walk all cursor map entries** when the transactional rule allows
+   advancement:
+   - The literal `inbox` key → set to the newest message internalDate
+     seen by any of Step 5b's discovery stages.
    - Thread-shaped keys (`<thread_id>`): set to the newest message
-     internalDate processed in that thread. Evict thread-shaped entries
-     with no activity for ≥30 days.
-   Serialise the whole map as a single-line JSON object. Atomic write to
-   `data/learnings/agntux-gmail/sync.md`.
-2. **Advance `discovery_ts`** to the newest message internalDate surfaced
-   by any of the three discovery queries.
-3. **Persist `user_email`** if it was captured for the first time during
-   Step 5a/5b. Once non-null, this value is account-stable and never
-   overwritten.
-4. **Update run stats**: `last_run`, `last_success`, increment
-   `items_processed`.
-5. **Release the lock**: `- lock: null`. Atomic write.
+     internalDate processed in that thread.
+   Serialise the whole map as a single-line JSON object. Atomic write
+   to `data/learnings/agntux-gmail/sync.md`.
+
+4. **Persist `user_email`** if it was captured for the first time
+   during Step 5a/5b. Once non-null, this value is account-stable and
+   never overwritten. Persistence is independent of the transactional
+   rule — `user_email` is observation-derived, not work-derived.
+
+5. **Auto-learn the sender denylist.** Walk the working-memory
+   `noise_drop_counts` map populated by Step 8 (sender email → number
+   of messages skipped this run). For each sender with **≥3 dropped
+   messages this run**, decide whether to denylist them:
+   - **Recently-active gate.** Skip the auto-add if the sender's bare
+     email appears anywhere under `<agntux project root>/actions/`
+     (grep recursively across `actions/*.md`, with the bare email as
+     the literal pattern). Any open or recently-resolved action
+     mentioning the sender is a signal the user cares about them — do
+     NOT denylist.
+   - **Already-denylisted gate.** If the sender's bare email already
+     appears in `# Sender denylist` (with or without `<!-- added: -->`
+     metadata), skip — the entry exists; do not duplicate.
+   - **Always-raise gate.** If the sender matches a `# Always raise`
+     `from:` predicate, skip — `# Always raise` is the user's most
+     explicit instruction and overrides the denylist.
+   - **Append, then slice.** Append the new line (newest at top of the
+     section, NOT bottom — the eviction rule below operates from the
+     bottom up):
+     ```
+     - <sender-email>  <!-- added: YYYY-MM-DD, dropped: N -->
+     ```
+     After appending, slice the section so it carries no more than
+     **30 entries** total. Evict from the bottom (oldest first), but
+     ONLY entries whose comment metadata contains `added:`
+     (auto-added). Entries without `added:` metadata are user-curated
+     and never auto-evicted, even if doing so would push the section
+     above 30. (In the rare case where 30+ entries are user-curated,
+     the cap is breached and the next run should log a
+     `gmail-denylist-cap-breached-by-user-entries` debug entry.)
+   Atomic write. Skip the entire sub-step if
+   `data/instructions/agntux-gmail.md` does not exist (the
+   instructions file is created by `/agntux-onboard`'s per-plugin
+   onboarding; without it the plugin hasn't been onboarded and this
+   skill should not author it).
+
+6. **Update run stats**: `last_run`, `last_success` (only when the
+   transactional rule allows it), increment `items_processed`.
+
+7. **Release the lock**: `- lock: null`. Atomic write.
 
 | Layer | Key shape in `cursor` map | What advances | When advanced |
 |---|---|---|---|
-| Inbox discovery low-water-mark | `inbox` (literal string) | Newest message internalDate seen by discovery queries | After Step 5b completes |
-| Thread cursor | `<thread_id>` | Newest message internalDate processed in that thread | After per-thread pass completes |
+| Inbox discovery low-water-mark | `inbox` (literal string) | Newest message internalDate seen by discovery stages | After Step 5b completes AND every action write succeeded |
+| Thread cursor | `<thread_id>` | Newest message internalDate processed in that thread | After per-thread pass completes AND every action write succeeded |
 
-There is no separate "write learnings" step.
+**Final summary, max 200 words.** Format:
+`N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced, N denylist entries added.`
+One bullet per raised action with a path to the file. No narration of
+intermediate reasoning — that lives in `sync.md → errors` debug
+entries.
 
 ---
 
@@ -1110,7 +1342,7 @@ There is no separate "write learnings" step.
   trust.
 - Never overwrite `## User notes` on an entity. Section preservation is
   load-bearing.
-- The `sync.md → errors` list is bounded (last 10 entries, oldest evicted).
+- The `sync.md → errors` list is bounded per the "Bounded lists in state files" block at the top of this skill — slice before writing.
 - **Never call `create_draft` from this skill.** It only fires after the
   user clicks Save in the compose iframe. The iframe emits a
   `Use the Gmail Connector …` envelope and the host dispatches.
@@ -1123,6 +1355,25 @@ There is no separate "write learnings" step.
   (c) the Step 8a reply-state scan would conclude the user has already
   replied with no qualifying follow-up. The auto-resolved action MUST
   carry an `## Auto-resolved` body section.
+- **Auto-learn authority (Step 11 sub-step 5).** This skill MAY append
+  to `data/instructions/agntux-gmail.md → # Sender denylist` *without*
+  user confirmation — but only when (a) the file already exists (i.e.
+  the per-plugin onboarding interview ran), (b) the sender was dropped
+  ≥3 times this run by Step 8 noise filtering, (c) no recent action
+  references the sender, (d) no `# Always raise` rule names the
+  sender, and (e) the entry carries `<!-- added: YYYY-MM-DD,
+  dropped: N -->` metadata so the bounded-list eviction can
+  distinguish auto-added from user-curated entries. The skill MUST
+  NOT touch any other section of the instructions file (`# Always
+  raise`, `# Never raise`, `# Rewrites`, `# Notes` are user
+  territory) and MUST NOT create the file from scratch.
+- **Step 0 sub-step 2.5 lock-self-heal authority.** On interactive
+  invocation only, this skill MAY add a missing
+  `plugin_contracts["agntux-gmail"]` entry to
+  `data/schema/schema.lock.json` when the contract markdown sits at
+  `status: approved`. The values come from the contract markdown — no
+  invention; the architect's Mode B sweep is the canonical author and
+  this is a fast-path mirror of its work.
 
 ## Concurrent-run note
 
@@ -1141,8 +1392,17 @@ You do NOT:
 - Call `create_draft`. Read-only is non-negotiable for this skill; the
   iframe Save click is the authorisation gate.
 - Write to `_sources.json` directly.
-- Write to `<agntux project root>/data/schema/` or
-  `<agntux project root>/data/instructions/`.
+- Write to `<agntux project root>/data/schema/` — except for the
+  Step 0 sub-step 2.5 lock self-heal narrowly defined above
+  (interactive-only, plugin_contracts entry only, populated from the
+  approved contract markdown).
+- Write to `<agntux project root>/data/instructions/agntux-gmail.md`
+  — except for the Step 11 sub-step 5 `# Sender denylist` auto-learn
+  narrowly defined above (auto-added entries with HTML-comment
+  metadata, capped at 30, never touching the other four sections).
+- Write to any other plugin's instructions file
+  (`data/instructions/agntux-{slack,notes,…}.md`) — those belong to
+  their owning plugin and the user-feedback subagent.
 - Read or write outside `<agntux project root>/`.
 
 If you're reaching for a tool not listed in your declared tool surface,
