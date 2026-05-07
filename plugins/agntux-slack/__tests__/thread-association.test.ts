@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,8 +26,23 @@ const SLACK_EXPORT = join(EXAMPLES_DIR, "slack-export");
 const MANGO_PARENT_TS = "1714300000.000100";
 const MANGO_REPLY_TS = ["1714300100.000200", "1714386500.000300"];
 
+// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
+// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
+// break grep-style assertions. Pass-through for all other paths.
 function readMd(p: string): string {
-  return readFileSync(p, "utf-8");
+  const content = readFileSync(p, "utf-8");
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
+    const resourcesDir = join(dirname(p), "resources");
+    if (existsSync(resourcesDir)) {
+      const parts = [content];
+      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+        parts.push(`\n<!-- ${name} -->\n`);
+        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+      }
+      return parts.join("");
+    }
+  }
+  return content;
 }
 
 function collectMdFiles(dir: string): string[] {

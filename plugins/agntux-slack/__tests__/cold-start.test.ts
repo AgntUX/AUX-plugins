@@ -22,8 +22,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,8 +32,23 @@ const EXPECTED_ENTITIES = join(EXAMPLES_DIR, "expected-entities");
 const EXPECTED_ACTIONS = join(EXAMPLES_DIR, "expected-actions");
 const EXPECTED_STATE = join(EXAMPLES_DIR, "expected-state");
 
+// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
+// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
+// break grep-style assertions. Pass-through for all other paths.
 function readMd(p: string): string {
-  return readFileSync(p, "utf-8");
+  const content = readFileSync(p, "utf-8");
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
+    const resourcesDir = join(dirname(p), "resources");
+    if (existsSync(resourcesDir)) {
+      const parts = [content];
+      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+        parts.push(`\n<!-- ${name} -->\n`);
+        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+      }
+      return parts.join("");
+    }
+  }
+  return content;
 }
 
 function parseFrontmatter(content: string): Record<string, string> {
