@@ -2,10 +2,10 @@
 // triage_view — render tool for the AgntUX action-item triage MCP App.
 //
 // Shape rules:
-//   - inputSchema has ZERO required fields. Two optional caps exist
-//     (`view_handled_days`, `limit`) for advanced callers; the LLM never
-//     needs to fill them in. This keeps the tool-call latency low and the
-//     argument-token cost effectively zero.
+//   - inputSchema has ZERO fields. Server-side caps (DEFAULT_HANDLED_DAYS,
+//     DEFAULT_LIMIT) are constants that the LLM never needs to fill in or
+//     override. This keeps the tool-call latency low and the argument-token
+//     cost effectively zero.
 //   - The handler reads from the local AgntUX project root server-side. This
 //     is a justified deviation from the canonical "view tools must be
 //     stateless / no fs reads" rule because the source data IS local files;
@@ -133,15 +133,6 @@ type ViewToolResult = ViewToolSuccess | ViewToolError;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(Math.max(n, min), max);
-}
-
-function safeNumberArg(v: unknown, fallback: number): number {
-  if (typeof v !== "number" || !Number.isFinite(v)) return fallback;
-  return v;
-}
-
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   // Reserve one char for the ellipsis so the returned string never exceeds `max`.
@@ -219,23 +210,15 @@ export const triageViewTool = {
   description:
     "Render the AgntUX triage UI populated with priority-sorted open " +
     "action items and the most recently-handled items. Reads the local " +
-    "AgntUX knowledge store server-side; no required arguments. Use when " +
-    "the user types /agntux-triage interactively (`show triage`, `what's " +
-    "hot`, `triage me`, etc.). Returns _meta.ui.resourceUri = ui://triage.",
+    "AgntUX knowledge store server-side. Zero arguments — call with `{}`. " +
+    "Use when the user types `/agntux-triage`, or asks any of: 'show " +
+    "triage' / 'what's hot' / 'what should I look at' / 'what's on my " +
+    "plate' / 'triage me' / 'show me my action items' / 'what should I " +
+    "do today' / 'what do I need to handle'. Returns _meta.ui.resourceUri " +
+    "= ui://triage.",
   inputSchema: {
     type: "object" as const,
-    properties: {
-      view_handled_days: {
-        type: "number",
-        description:
-          "Optional. Time window for handled-recent items, in days. Default 7, max 30.",
-      },
-      limit: {
-        type: "number",
-        description:
-          "Optional. Cap on the open-actions list. Default 30, max 50.",
-      },
-    },
+    properties: {},
     required: [],
   },
   // outputSchema is what tells the host "this tool returns structuredContent
@@ -305,18 +288,10 @@ export const triageViewTool = {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 export async function handleTriageView(
-  args: Record<string, unknown>,
+  _args: Record<string, unknown>,
 ): Promise<ViewToolResult> {
-  const handledDays = clamp(
-    safeNumberArg(args.view_handled_days, DEFAULT_HANDLED_DAYS),
-    1,
-    MAX_HANDLED_DAYS,
-  );
-  const limit = clamp(
-    safeNumberArg(args.limit, DEFAULT_LIMIT),
-    1,
-    MAX_LIMIT,
-  );
+  const handledDays = DEFAULT_HANDLED_DAYS;
+  const limit = DEFAULT_LIMIT;
 
   const root = expectedAgntuxRoot();
   const actionsDir = join(root, "actions");

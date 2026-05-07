@@ -159,17 +159,20 @@ function deriveUserEmailFromUrl(gmailThreadUrl: string | null): string | null {
 export const composeViewTool = {
   name: "agntux_gmail_compose_view",
   description:
-    "Render the Gmail reply composer iframe for an action item. " +
-    "TRIGGER PHRASE (map verbatim to args — do not paraphrase): " +
-    "'open the email composer for action {id}' → call with {action_id: id}. " +
-    "For this click-time prompt, pass ONLY action_id. The tool reads the " +
-    "action file's `## Compose payload` body section (or " +
-    "`## Compose payload (gmail)` for cross-source-merged actions) and lifts " +
-    "drafted_body, thread_context, recipients, reply_to_message_id, " +
-    "personalization_signals, email_context, and gmail_thread_url from disk. " +
-    "Action files lacking a compose payload section surface the " +
-    "`compose_payload_missing` structured error envelope. Returns " +
-    "_meta.ui.resourceUri = ui://gmail-compose.",
+    "Open the Gmail reply composer for an action. Use when the user asks " +
+    "to draft an email reply / open the email composer for an action ID, " +
+    "when prompted with phrases like 'open the email composer for action " +
+    "{id}' / 'open the email reply composer for action {id}' / 'draft an " +
+    "email reply for action {id}' / 'reply to email action {id}', or " +
+    "when triage's Draft email button fires this tool via host_prompt. " +
+    "Pass ONLY action_id; the handler reads the action file's `## " +
+    "Compose payload` body section (or `## Compose payload (gmail)` for " +
+    "cross-source-merged actions) and lifts drafted_body, thread_context, " +
+    "recipients, reply_to_message_id, personalization_signals, " +
+    "email_context, and gmail_thread_url from disk. Action files lacking " +
+    "a compose payload section surface the `compose_payload_missing` " +
+    "structured error envelope. Returns _meta.ui.resourceUri = " +
+    "ui://gmail-compose.",
   inputSchema: {
     type: "object" as const,
     properties: {

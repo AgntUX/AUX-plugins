@@ -12,8 +12,10 @@
  *      (current — one Allow click holds across every fire)
  *
  * Asserted shape:
- *   - `agents/` directory absent (or contains only `ui-handlers/`,
- *     which is the metadata-carrier exception per P9 §7).
+ *   - `agents/` directory absent. (Pre-launch the de-fork sweep retired
+ *     the `agents/ui-handlers/` metadata-carrier exception too; the
+ *     view-tool descriptor in `mcp-server/src/tools/{name}-view.ts` is
+ *     now the single source of truth for the UI handler.)
  *   - `skills/sync/SKILL.md` present.
  *   - Frontmatter on `skills/sync/SKILL.md` does NOT declare
  *     `context:`, `agent:`, or `tools:` — the skill runs inline,
@@ -83,16 +85,11 @@ describe("ingest-skill shape — repo-level structural assertion", () => {
       const syncSkill = join(pluginRoot, "skills", "sync", "SKILL.md");
       const draftSkill = join(pluginRoot, "skills", "draft", "SKILL.md");
 
-      it("has no agents/ directory (or only contains ui-handlers/)", () => {
-        if (!existsSync(agentsDir)) return;
-        // Allow agents/ui-handlers/ as the documented metadata-carrier
-        // exception (P9 §7) — it isn't a runtime sub-agent prompt.
-        const entries = readdirSync(agentsDir);
-        const disallowed = entries.filter((e) => e !== "ui-handlers");
+      it("has no agents/ directory", () => {
         expect(
-          disallowed,
-          `${slug}: agents/ should be absent or contain only ui-handlers/; found: ${disallowed.join(", ")}. Convert sub-agents to top-level inline skills under skills/{name}/SKILL.md (no context: fork, no agent: general-purpose, no tools: whitelist).`,
-        ).toEqual([]);
+          existsSync(agentsDir),
+          `${slug}: agents/ must be absent. The de-fork sweep retired the agents/ui-handlers/ metadata-carrier exception; trigger phrases and output shape now live inline in mcp-server/src/tools/{name}-view.ts. Convert any classical sub-agents to top-level inline skills under skills/{name}/SKILL.md (no context: fork, no agent: general-purpose, no tools: whitelist).`,
+        ).toBe(false);
       });
 
       it("has skills/sync/SKILL.md", () => {

@@ -127,8 +127,7 @@ print this message and stop:
 
 > "user.md looks malformed. Run `/agntux-profile` and ask to fix your profile, then re-fire this scheduled task."
 
-Do not attempt to repair user.md — the personalization subagent owns
-it.
+Do not attempt to repair user.md — the `agntux-profile` skill owns it.
 
 **If it exists and parses cleanly:** proceed to Step 0.
 
@@ -213,7 +212,7 @@ The "Always check first" block above already handled project root and
    Step 1), exit cleanly and log a structured error to
    `<agntux project root>/data/learnings/agntux-slack/sync.md` under your section
    with kind `usermd-malformed`. Do not attempt to repair user.md —
-   the personalization subagent owns it.
+   the `agntux-profile` skill owns it.
 
 ---
 
@@ -233,7 +232,7 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
 
-There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, bounded per the "Bounded lists in state files" block above) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
+There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, bounded per the "Bounded lists in state files" block above) or — if it's a structural ask the user must approve — escalates via the `agntux-teach` skill (out of your lane; see "Out of scope").
 
 ---
 
@@ -615,11 +614,9 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: |
-      ux: Use the agntux-slack plugin to open the reply composer for action {id}.
+    host_prompt: "ux: open the reply composer for action {id}"
   - label: "Schedule a reply"
-    host_prompt: |
-      ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}.
+    host_prompt: "ux: open the reply composer in schedule mode for action {id}"
   # Include the next row ONLY IF slack_open_url is non-null. Substitute the
   # literal URL string (not the variable name) into the url: field. If
   # slack_open_url is null, drop these two lines entirely from the emitted
@@ -628,22 +625,11 @@ suggested_actions:
     url: "{slack_open_url}"
 ```
 
-> **Removed in 4.0.0:** the previous `Mark done — already handled in Slack`
-> row was redundant with the built-in **Done** button rendered by the
-> agntux-core triage card and is no longer emitted. Users who want to mark
-> an item done as "completed externally" can do so via the triage Done
-> button, or via Dismiss → "Completed externally" outcome (which was the
-> only path that recorded the `completed-externally` outcome marker the
-> `pattern-feedback` subagent reads). Existing on-disk action files
-> authored by 3.x.x ingest runs may still carry the row; clicking it
-> still routes to `agntux_core_set_status` correctly.
-
 For thread-summary-worthy items (long threads with decisions worth preserving), add a final row:
 
 ```yaml
   - label: "Summarise to canvas"
-    host_prompt: |
-      ux: Use the agntux-slack plugin to open the canvas summariser for action {id}.
+    host_prompt: "ux: open the canvas summariser for action {id}"
 ```
 
 **Priority anchoring** (P3 §4.3):
@@ -652,19 +638,10 @@ For thread-summary-worthy items (long threads with decisions worth preserving), 
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–4 buttons. The default action item ships **three** standard buttons (`Draft a reply`, `Schedule a reply`, `Open in Slack`); add the optional `Summarise to canvas` button as a 4th for canvas-worthy items. When `slack_open_url` is null, `Open in Slack` is dropped and the default count is two. The three standard buttons are emitted on every reason_class — Draft and Schedule are not gated on `response-needed`, even though `response-needed` is the most common case.
-- `Snooze 24h`, `Stop raising items like this`, and `Mark done — already handled in Slack` are **NOT** emitted by this plugin — all three are redundant with built-in agntux-core triage chrome. agntux-core's triage UI ships a Snooze button with a 24h preset, a "Stop raising items like this" affordance in the Details modal (`main-component.tsx`), and a primary **Done** button on every card; the Dismiss flow's "Completed externally" outcome covers the `completed-externally` marker the previous `Mark done — already handled in Slack` row provided. Don't author plugin-side duplicates.
-- A row carries **either** `host_prompt` (LLM-routed) **or** `url` (host openLink — opens directly in browser/native client), never both, never neither. The `Open in Slack` row is the only one that uses `url`; every other standard button uses `host_prompt`. agntux-core's parser drops any row missing both fields — never emit a row with an empty/placeholder url just to keep the count.
-- Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
-- The draft body for every action item that ships a `Draft a reply` button is pre-composed at ingest time and stored in the `## Compose payload` body section. Canvas content for items that ship `Summarise to canvas` is pre-composed in `## Canvas payload`. See the §4 contract divergence note below. The `host_prompt` field itself remains free of pre-composed text — it routes to the view tool by action id only.
-
-### §4 contract divergence — composition at ingest
-
-Per `/plugin-toolkit:author` §4 the load-bearing rule is *"Never pre-fill the draft body in the ingest agent's `host_prompt`. The ingest writes the suggested-action button; the drafting subagent fills the body at click-time with fresh context."*
-
-This skill **literally** complies — the drafted body lives in a `## Compose payload` body section, never in the `host_prompt` — but **inverts the spirit**: composition happens at ingest, not click. This is intentional per user direction. The tradeoff is faster, more reliable rendering at the cost of potentially stale draft content when the user clicks hours after ingest.
-
-Freshness expectation: the bound on draft staleness is the next sync cadence (typically 30 min during work hours per the manifest's `recommended_ingest_cadence`). Stale drafts are acceptable because (a) the compose iframe surfaces the draft as editable text, (b) the user can rewrite it before clicking Send, and (c) the iframe Send button remains the explicit authorisation gate for the actual Slack write — clicking it emits a `Use the Slack Connector to …` envelope addressed at the host's connector tools, with channel_id and thread_ts inline.
+- 2–4 buttons. Default ship is `Draft a reply`, `Schedule a reply`, `Open in Slack` (3 buttons; drops to 2 when `slack_open_url` is null). Add `Summarise to canvas` for canvas-worthy long threads.
+- A row carries **either** `host_prompt` (chat-message envelope; the host matches it against the target view tool's description and invokes the tool) **or** `url` (host openLink — opens directly in the browser/native client), never both, never neither. agntux-core's parser drops any row missing both fields.
+- `host_prompt` strings start with `ux: ` and reference the action by `{id}`; the trigger phrases are owned by the target view tool's `description` field in `mcp-server/src/tools/{name}-view.ts`, not by Step 10.
+- The drafted reply body is pre-composed at ingest into the `## Compose payload` body section (see Step 10.1); canvas content for items shipping `Summarise to canvas` is pre-composed into `## Canvas payload`. The `host_prompt` itself stays free of pre-composed text — it carries the view-tool routing intent only.
 
 **Apply `# Rewrites` from `data/instructions/agntux-slack.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
 
@@ -804,7 +781,7 @@ You do NOT:
 - Draft proposed replies, schedule sends, or summarise threads to canvas — those happen at click time. Suggested-action `ux:` prompts route directly to `compose_view` / `canvas_view` (the description-based MCP tool routing). This skill pre-composes the body inside `## Compose payload` / `## Canvas payload` so the view tool can lift it; the iframe presents it for edit; the user clicks Send and the iframe emits a `Use the Slack Connector to …` envelope. This skill does not handle the click-time path.
 - Call any Slack write tool. Read-only is non-negotiable.
 - Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
-- Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
+- Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the `agntux-schema` and `agntux-teach` skills respectively.
 - Read or write outside `<agntux project root>/` (with the obvious exception of fetching Slack content via the read tools listed below).
 
 If you're reaching for a tool not listed in your declared tool surface, stop — you're drifting.

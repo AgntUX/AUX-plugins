@@ -422,46 +422,14 @@ export const ListingSchema = z
 export type Listing = z.infer<typeof ListingSchema>;
 
 // ---------------------------------------------------------------------------
-// Error code documentation (T23 — Pass 6 / Pass 7)
+// Error code documentation (Pass 7)
 // ---------------------------------------------------------------------------
-
-/**
- * E12 — Operational frontmatter validation errors (Pass 6, T23).
- *
- * Emitted when a UI-handler file at agents/ui-handlers/{name}.md has an
- * `operational:` block that fails the OperationalManifestSchema (P9 §5.1).
- *
- * Sub-codes:
- *   E12-verb-phrases-missing       verb_phrases array absent or empty
- *   E12-view-tool-missing          view_tool field absent or blank
- *   E12-view-tool-malformed        view_tool doesn't match ^[a-z][a-z0-9_]*_view$
- *   E12-resource-uri-missing       resource_uri field absent or blank
- *   E12-resource-uri-malformed     resource_uri doesn't start with "ui://"
- *   E12-structured-content-missing structured_content_schema absent or empty
- *   E12-follow-up-intents-missing  follow_up_intents absent (required as array)
- *   E12-degraded-states-missing    degraded_states absent or empty object
- *   E12-degraded-states-invalid    degraded_states.source_not_found absent or malformed
- *   E12-field-invalid              generic Zod validation failure on a known field
- *
- * W03 — stub handler warning (Pass 6).
- * Emitted when a handler file exists but has no `operational:` block (or no
- * YAML frontmatter at all). Not a hard error — stub handlers are allowed
- * during development, but must be completed before production use.
- */
-export const E12_CODES = [
-  "E12-verb-phrases-missing",
-  "E12-view-tool-missing",
-  "E12-view-tool-malformed",
-  "E12-resource-uri-missing",
-  "E12-resource-uri-malformed",
-  "E12-structured-content-missing",
-  "E12-follow-up-intents-missing",
-  "E12-degraded-states-missing",
-  "E12-degraded-states-invalid",
-  "E12-field-invalid",
-] as const;
-
-export type E12Code = (typeof E12_CODES)[number];
+//
+// E12 / W03 (Pass 6 — UI-handler operational frontmatter) was retired in the
+// de-fork sweep when `agents/ui-handlers/{name}.md` files were removed
+// across all plugins. The view-tool descriptor in
+// `mcp-server/src/tools/{name}-view.ts` is now the single source of truth
+// for trigger phrases, output shape, and resource URI.
 
 /**
  * E13 — Third-party MCP reference in view/tool file (Pass 7, T23).

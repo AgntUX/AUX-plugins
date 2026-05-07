@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.0.0] — 2026-05-07
+
+De-fork sweep (Phase 1 of plugin-architecture cleanup). Companion to
+agntux-core 7.0.0 and agntux-gmail 2.0.0. Trigger phrases for the view
+tools now live inline in the tool `description`; `agents/ui-handlers/`
+metadata is deleted; the legacy inline-override path on
+`agntux_slack_compose_view` and `agntux_slack_canvas_view` is removed
+(the action file's `## Compose payload` / `## Canvas payload` body
+section is the only payload source).
+
+### Removed
+
+- **BREAKING — `plugins/agntux-slack/agents/` deleted entirely.** The
+  metadata files `agents/ui-handlers/compose.md` and
+  `agents/ui-handlers/canvas.md` are gone; trigger phrases (formerly
+  `verb_phrases:`), structured-content shape, and resource URI all live
+  inline in `mcp-server/src/tools/{compose,canvas}-view.ts` now.
+- **BREAKING — legacy inline-override path on view tools removed.**
+  `agntux_slack_compose_view`'s `inputSchema` no longer accepts
+  `initial_verb`, `drafted_body`, `personalization_signals`,
+  `thread_context`, `channel`, `proposed_send_time`, or
+  `slack_permalink`; only `action_id` is accepted (and required).
+  `agntux_slack_canvas_view` similarly drops `drafted_canvas`,
+  `channel`, `thread`, and `proposed_followup_message`. The handler
+  reads the action file's `## Compose payload` / `## Canvas payload`
+  body section from disk; out-of-band working-memory callers that were
+  passing these inline must now write to the action file first.
+- **Tradeoff:** the compose iframe always opens in default Draft mode
+  now. Users click the Schedule tab in the iframe to switch modes (one
+  extra click for the schedule path; in exchange, the inputSchema drops
+  7 fields and the handler drops a ~60-line dual-mode resolution
+  branch).
+
+### Changed
+
+- **`suggested_actions[*].host_prompt` shortened.** The verbose
+  `ux: Use the agntux-slack plugin to open the reply composer for
+  action {id}.` is replaced by `ux: open the reply composer for action
+  {id}` — the trigger phrases that actually steer routing now live in
+  the view tool's `description` field, so the host_prompt only carries
+  the action-id reference. Pre-launch only; no on-disk migration is
+  required because action files are re-emitted on every sync.
+- Step 10 `suggested_actions` rules and the `### §4 contract divergence`
+  framing are trimmed; same composition-at-ingest semantics, fewer
+  authoring surfaces.
+
 ## [5.3.1] — 2026-05-07
 
 Conservative slim-down of `skills/sync/SKILL.md` per Anthropic's [Skill

@@ -119,7 +119,7 @@ stop:
 
 > "user.md looks malformed. Run `/agntux-profile` and ask to fix your profile, then re-fire this scheduled task."
 
-Do not attempt to repair user.md — the personalization subagent owns it.
+Do not attempt to repair user.md — the `agntux-profile` skill owns it.
 
 **If it exists and parses cleanly:** proceed to Step 0.
 
@@ -272,7 +272,7 @@ The "Always check first" block above already handled project root and
    exit cleanly and log a structured error to
    `<agntux project root>/data/learnings/agntux-gmail/sync.md` under your
    section with kind `usermd-malformed`. Do not attempt to repair
-   user.md — the personalization subagent owns it.
+   user.md — the `agntux-profile` skill owns it.
 
 ---
 
@@ -331,7 +331,7 @@ or note for next run goes into the structured `sync.md → errors` list
 or, when it's a filter-shape signal, into the auto-learned
 `# Sender denylist` in `data/instructions/agntux-gmail.md` (see Step 11
 sub-step 5). Structural asks the user must approve still escalate via
-the user-feedback subagent.
+the `agntux-teach` skill.
 
 ---
 
@@ -1017,8 +1017,7 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: |
-      ux: Use the agntux-gmail plugin to open the email composer for action {id}.
+    host_prompt: "ux: open the email composer for action {id}"
   # Include the next row ONLY IF gmail_thread_url is non-null. Substitute
   # the literal URL string into the url: field. If gmail_thread_url is
   # null, drop these two lines entirely.
@@ -1036,42 +1035,10 @@ suggested_actions:
   for status posts).
 
 **`suggested_actions` rules:**
-- 1–3 buttons. The default action item ships **two** standard buttons
-  (`Draft a reply`, `Open in Gmail`). When `gmail_thread_url` is null,
-  the default count is one.
-- `Snooze 24h`, `Stop raising items like this`, and `Mark done` are
-  **NOT** emitted by this plugin — all three are redundant with built-in
-  agntux-core triage chrome.
-- A row carries **either** `host_prompt` (LLM-routed) **or** `url` (host
-  openLink — opens directly in browser/native client), never both, never
-  neither. The `Open in Gmail` row is the only one that uses `url`.
-- Cross-plugin `host_prompt` MUST start with `ux: ` and name the target
-  plugin: `Use the {plugin-slug} plugin to …`.
-- The draft body for every action item is pre-composed at ingest time and
-  stored in the `## Compose payload` body section. The `host_prompt`
-  field itself remains free of pre-composed text — it routes to the view
-  tool by action id only.
-
-### §4 contract divergence — composition at ingest
-
-Per `/plugin-toolkit:author` §4 the load-bearing rule is *"Never pre-fill
-the draft body in the ingest agent's `host_prompt`. The ingest writes the
-suggested-action button; the drafting subagent fills the body at
-click-time with fresh context."*
-
-This skill **literally** complies — the drafted body lives in a
-`## Compose payload` body section, never in the `host_prompt` — but
-**inverts the spirit**: composition happens at ingest, not click.
-This is intentional per user direction. The tradeoff is faster, more
-reliable rendering at the cost of potentially stale draft content when
-the user clicks hours after ingest.
-
-Freshness expectation: the bound on draft staleness is the next sync
-cadence (hourly per the manifest's `recommended_ingest_cadence`). Stale
-drafts are acceptable because (a) the compose iframe surfaces the draft
-as editable text, (b) the user can rewrite it before clicking Save, and
-(c) the iframe Save button only creates a Gmail Draft — the user reviews
-it in Gmail before actually sending.
+- 1–3 buttons. Default ship is `Draft a reply`, `Open in Gmail` (2 buttons; drops to 1 when `gmail_thread_url` is null).
+- A row carries **either** `host_prompt` (chat-message envelope; the host matches it against the target view tool's description and invokes the tool) **or** `url` (host openLink — opens directly in the browser/native client), never both, never neither. agntux-core's parser drops any row missing both fields.
+- `host_prompt` strings start with `ux: ` and reference the action by `{id}`; the trigger phrases are owned by the target view tool's `description` field in `mcp-server/src/tools/{name}-view.ts`, not by Step 10.
+- The drafted reply body is pre-composed at ingest into the `## Compose payload` body section (see Step 10.1). The `host_prompt` itself stays free of pre-composed text — it carries the view-tool routing intent only.
 
 **Apply `# Rewrites` from `data/instructions/agntux-gmail.md`** when
 composing the action body or labels.
@@ -1402,7 +1369,7 @@ You do NOT:
   metadata, capped at 30, never touching the other four sections).
 - Write to any other plugin's instructions file
   (`data/instructions/agntux-{slack,notes,…}.md`) — those belong to
-  their owning plugin and the user-feedback subagent.
+  their owning plugin and the `agntux-teach` skill.
 - Read or write outside `<agntux project root>/`.
 
 If you're reaching for a tool not listed in your declared tool surface,

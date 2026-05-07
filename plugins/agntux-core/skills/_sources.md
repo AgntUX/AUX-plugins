@@ -1,5 +1,5 @@
 ---
-description: Helper reminder for ingest agents — lookup-before-write protocol for entities/_sources.json (P3.AMEND.2/3). Not a routable subagent; imported as inline context by ingest plugin prompts. Filename leading underscore signals system-managed; the host's plugin discovery skips files without a `name:` field.
+description: Helper reference — lookup-before-write protocol for entities/_sources.json (P3.AMEND.2/3). Imported as inline context by ingest plugin sync skills. Filename leading underscore signals system-managed; the host's plugin discovery skips files without a `name:` field.
 ---
 
 # `entities/_sources.json` — lookup-before-write reminder
@@ -32,7 +32,7 @@ the source natively emits an integer.
 
 ## Lookup-before-write (P3 §3.6.4 — normative for ALL ingest plugins)
 
-Before creating a new entity file, an ingest agent MUST:
+Before creating a new entity file, an ingest plugin's sync skill MUST:
 
 1. `Read(<agntux project root>/entities/_sources.json)` — or note its absence (empty tree is fine).
 2. Search `entries` for a row matching `(subtype, source, source_id)`.
@@ -56,7 +56,7 @@ Before creating a new entity file, an ingest agent MUST:
 If `_sources.json` is lost or suspected stale, the user can rebuild it:
 
 ```
-ux: Use the agntux-core plugin to rebuild the entity sources index.
+/agntux-ask rebuild the entity sources index
 ```
 
 The orchestrator walks every `entities/**/*.md` file, reads `sources:` frontmatter,
@@ -65,7 +65,8 @@ this themselves — it is a user-initiated recovery command only.
 
 ## What this file is NOT
 
-- Not a subagent. Not routable. Not dispatched by the orchestrator classifier.
+- Not a routable skill. The leading underscore keeps it out of the slash-command
+  surface; sibling skills reference it directly.
 - Not a source of truth. `_sources.json` is **derived** from the entity files
   themselves; the entity files are the canonical record.
 - Not user-authored. The leading underscore signals system-managed; users do not

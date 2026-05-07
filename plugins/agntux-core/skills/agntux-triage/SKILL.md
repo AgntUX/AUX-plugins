@@ -16,8 +16,8 @@ This skill has **two paths** that share the same data source:
   dismiss / done controls and renders each item's
   `suggested_actions[]` as click-to-act buttons.
 - **Scheduled-background** (Daily 08:00 fire, no user present):
-  dispatch the retrieval subagent for a text digest the user reads
-  later. No UI render — there's no audience for one.
+  route to `/agntux-ask` for a text digest the user reads later. No
+  UI render — there's no audience for one.
 
 Both paths read the same authoritative source: the local AgntUX
 knowledge store. Neither calls source MCPs (Slack, Gmail, Calendar,

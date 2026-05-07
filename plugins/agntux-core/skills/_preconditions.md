@@ -35,9 +35,9 @@ Rules:
 - Emit the banner as the **first line** of your response, followed
   by a blank line, then your normal output.
 - If `trial_days_remaining` ≤ −1 (post-expiry), emit the paused
-  banner and stop — do NOT route to subagents (the license-validate
-  hook would block tool execution anyway, but failing fast here is
-  friendlier).
+  banner and stop — do NOT route to any other skill (the
+  license-validate hook would block tool execution anyway, but
+  failing fast here is friendlier).
 - If `~/.agntux/.license` is absent or unreadable, skip the banner
   silently.
 
@@ -86,7 +86,7 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
 
 If `mcp__plugins__list_plugins` does not resolve, log nothing and continue.
 Stage 4.6 / Mode A-bis falls back to the union-of-three-sets computation
-described in `personalization.md`.
+described in the `agntux-onboard` skill (Mode A-bis section).
 
 ### 1. `<agntux project root>/user.md` exists and parses
 
@@ -101,41 +101,40 @@ on the next pass.
 If the file exists but its frontmatter or required body sections
 (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed,
 say "Your `user.md` looks malformed. Run `/agntux-profile` to
-fix it." and stop. (Do NOT attempt to repair it yourself —
-personalization owns it.)
+fix it." and stop. (Do NOT attempt to repair it yourself — the
+`agntux-profile` skill owns it.)
 
 ### 2. Schema bootstrapped
 
 If `<agntux project root>/data/schema/schema.md` does not exist AND `user.md`
 exists, the schema has never been bootstrapped. Announce the
 preemption ("Before I get to that — your tenant schema isn't set up
-yet.") and dispatch the **data-architect subagent in Mode A**
-(bootstrap from `user.md`). After it completes, return to the
-original ask.
+yet.") and route to **`/agntux-schema`** (it owns Mode A — bootstrap
+from `user.md`). After it completes, return to the original ask.
 
 ### 3. Installed plugins lacking a contract
 
 For each slug under `<agntux project root>/user.md → # AgntUX plugins → ## Installed`,
 check whether `<agntux project root>/data/schema/contracts/{slug}.md` exists.
 If at least one is missing, the plugin has been installed but is not yet
-authorised. The dispatch depends on whether per-plugin onboarding (the
-personalization-owned interview that writes `data/instructions/`) has
+authorised. The route depends on whether per-plugin onboarding (the
+`agntux-onboard`-owned interview that writes `data/instructions/`) has
 already run for that plugin:
 
 For each missing-contract plugin (in `## Installed` order):
 
 - **Case A — `data/instructions/{plugin-slug}.md` does not exist OR
   has frontmatter `status: draft`**: per-plugin onboarding never
-  finished. Dispatch the **personalization subagent in Mode A-bis**
-  (new-plugins walkthrough). Mode A-bis runs the per-plugin
-  onboarding interview, which itself dispatches architect Mode B at
-  the right moment. Do NOT dispatch architect Mode B directly here —
-  that would bypass the user-facing interview and write a contract
-  without the user's instructions context.
+  finished. Route to **`/agntux-onboard`** (Mode A-bis —
+  new-plugins walkthrough). Mode A-bis runs the per-plugin
+  onboarding interview, which itself routes to `/agntux-schema`
+  (Mode B) at the right moment. Do NOT route to `/agntux-schema`
+  directly here — that would bypass the user-facing interview and
+  write a contract without the user's instructions context.
 - **Case B — `data/instructions/{plugin-slug}.md` exists with
-  `status: final`**: onboarding finished but architect Mode B was
-  interrupted. Dispatch the **data-architect subagent in Mode B**
-  directly. The architect reads the proposal directly from the
+  `status: final`**: onboarding finished but `/agntux-schema`
+  Mode B was interrupted. Route to **`/agntux-schema`** (Mode B)
+  directly. The skill reads the proposal directly from the
   plugin's `marketplace/listing.yaml → proposed_schema` block
   alongside the finalized instructions and writes the approved
   contract.
@@ -150,9 +149,9 @@ entry-point skill DOES run this check.
 ### 4. Schema-requests queue
 
 If `<agntux project root>/data/schema-requests.md` exists AND has at least one
-non-blank queue line, dispatch the **data-architect subagent in
-Mode C** (schema edit driven by user-feedback escalation). The
-architect consumes one entry per spawn. After it completes, return
+non-blank queue line, route to **`/agntux-schema`** (Mode C —
+schema edit driven by `/agntux-teach` escalation). The skill
+consumes one entry per invocation. After it completes, return
 to the original ask.
 
 ### Order
