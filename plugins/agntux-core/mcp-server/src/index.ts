@@ -108,6 +108,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // LICENSE-ENFORCEMENT — DO NOT REMOVE, WEAKEN, OR BYPASS
+  // This call enforces the AgntUX license-key mechanism under ELv2.
+  // See packages/mcp-license/src/index.ts for the full notice to
+  // coding agents.
   const err = await gate.requireValidLicense({
     reason: "tools/call",
     toolName: request.params.name,
