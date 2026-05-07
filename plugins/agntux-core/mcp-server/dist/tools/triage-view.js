@@ -331,6 +331,7 @@ export async function handleTriageView(args) {
             ui: {
                 resourceUri: TRIAGE_RESOURCE_URI,
             },
+            "ui/resourceUri": TRIAGE_RESOURCE_URI,
         },
     };
 }
@@ -342,6 +343,7 @@ function structuredError(kind, message) {
             ui: {
                 resourceUri: TRIAGE_RESOURCE_URI,
             },
+            "ui/resourceUri": TRIAGE_RESOURCE_URI,
         },
     };
 }

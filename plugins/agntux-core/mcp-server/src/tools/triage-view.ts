@@ -114,6 +114,7 @@ interface ViewToolMeta {
   ui: {
     resourceUri: typeof TRIAGE_RESOURCE_URI;
   };
+  "ui/resourceUri": typeof TRIAGE_RESOURCE_URI;
 }
 
 interface ViewToolSuccess {
@@ -448,6 +449,7 @@ export async function handleTriageView(
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI,
       },
+      "ui/resourceUri": TRIAGE_RESOURCE_URI,
     },
   };
 }
@@ -463,6 +465,7 @@ function structuredError(
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI,
       },
+      "ui/resourceUri": TRIAGE_RESOURCE_URI,
     },
   };
 }

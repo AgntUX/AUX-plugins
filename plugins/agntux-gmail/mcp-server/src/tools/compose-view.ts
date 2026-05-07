@@ -93,6 +93,7 @@ interface ViewToolMeta {
   ui: {
     resourceUri: typeof COMPOSE_RESOURCE_URI;
   };
+  "ui/resourceUri": typeof COMPOSE_RESOURCE_URI;
 }
 
 interface ViewToolSuccess {
@@ -129,7 +130,7 @@ function structuredError(
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI } },
+    _meta: { ui: { resourceUri: COMPOSE_RESOURCE_URI }, "ui/resourceUri": COMPOSE_RESOURCE_URI },
   };
 }
 
@@ -356,6 +357,7 @@ export async function handleComposeView(
       ui: {
         resourceUri: COMPOSE_RESOURCE_URI,
       },
+      "ui/resourceUri": COMPOSE_RESOURCE_URI,
     },
   };
 }

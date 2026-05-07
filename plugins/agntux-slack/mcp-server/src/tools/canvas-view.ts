@@ -85,6 +85,7 @@ interface ViewToolMeta {
   ui: {
     resourceUri: typeof CANVAS_RESOURCE_URI;
   };
+  "ui/resourceUri": typeof CANVAS_RESOURCE_URI;
 }
 
 interface ViewToolSuccess {
@@ -130,7 +131,7 @@ function structuredError(
   return {
     structuredContent: { error: kind },
     content: [{ type: "text", text: message }],
-    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI } },
+    _meta: { ui: { resourceUri: CANVAS_RESOURCE_URI }, "ui/resourceUri": CANVAS_RESOURCE_URI },
   };
 }
 
@@ -426,6 +427,7 @@ export async function handleCanvasView(
       ui: {
         resourceUri: CANVAS_RESOURCE_URI,
       },
+      "ui/resourceUri": CANVAS_RESOURCE_URI,
     },
   };
 }

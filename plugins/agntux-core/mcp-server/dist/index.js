@@ -25580,7 +25580,8 @@ async function handleTriageView(args) {
     _meta: {
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI2
-      }
+      },
+      "ui/resourceUri": TRIAGE_RESOURCE_URI2
     }
   };
 }
@@ -25591,7 +25592,8 @@ function structuredError(kind, message) {
     _meta: {
       ui: {
         resourceUri: TRIAGE_RESOURCE_URI2
-      }
+      },
+      "ui/resourceUri": TRIAGE_RESOURCE_URI2
     }
   };
 }
