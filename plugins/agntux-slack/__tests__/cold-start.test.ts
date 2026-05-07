@@ -10,8 +10,9 @@
  *      free-form recommended_ingest_cadence string.
  *   2. hooks/hooks.json has the ingest-variant shape (no PostToolUse).
  *   3. skills/sync/SKILL.md has no unsubstituted {{placeholder}} tokens,
- *      references the Slack read MCP tools, is read-only, and uses the
- *      top-level-skill pattern (context: fork + general-purpose).
+ *      references the Slack read MCP tools, is read-only, and runs
+ *      inline (no `context: fork`, no nested `general-purpose` agent —
+ *      forking broke "Allow for all scheduled runs" inheritance).
  *   4. skills/draft/ is removed (5.0.0+ envelopes target the Slack Connector directly), and the sync skill codifies
  *      the "no write without explicit yes" rule.
  *   5. Both skills live under directory-shaped paths (skills/{name}/SKILL.md).
@@ -122,10 +123,10 @@ describe("ingest skill prompt", () => {
     expect(existsSync(join(PLUGIN_ROOT, "agents", "ui-handlers"))).toBe(true);
   });
 
-  it("sync skill uses context: fork + general-purpose (no tools: whitelist)", () => {
+  it("sync skill runs inline — no `context: fork`, no nested agent, no `tools:` whitelist", () => {
     const fm = parseFrontmatter(readMd(syncSkill));
-    expect(fm["context"]).toBe("fork");
-    expect(fm["agent"]).toBe("general-purpose");
+    expect(fm["context"]).toBeUndefined();
+    expect(fm["agent"]).toBeUndefined();
     expect(fm["tools"]).toBeUndefined();
   });
 

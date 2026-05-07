@@ -6,6 +6,52 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-07
+
+### Fixed
+
+- **`skills/sync/SKILL.md` now runs inline** — `context: fork` and
+  `agent: general-purpose` are removed from the frontmatter. The
+  forked sub-context did NOT inherit the host's "Allow for all
+  scheduled runs" working-directory grant, so every scheduled fire
+  re-prompted for `/Users/<you>/agntux/` access, the preflight read
+  of `user.md` / `data/schema/schema.md` /
+  `data/schema/contracts/agntux-gmail.md` /
+  `data/learnings/agntux-gmail/sync.md` failed, and the skill
+  correctly exited clean (per the documented preflight-fail
+  semantics) without advancing the cursor. Mirrors the same fix in
+  agntux-slack 5.3.0 and the canonical
+  `canonical/prompts/ingest/skills/sync/SKILL.md` template, so any
+  plugin scaffolded from the template after this release inherits
+  the inline shape.
+- **Path-canonicalisation prose softened** in the project-root
+  ladder. The earlier copy claimed canonical absolute paths were
+  "what makes one allow click hold across all subsequent scheduled
+  runs"; the actual load-bearing fix is dropping the fork.
+  Canonicalisation is still useful (some hosts key their allowlist
+  on the literal path string) but it's a secondary mitigation.
+
+### Changed
+
+- **`__tests__/cold-start.test.ts`**: the frontmatter assertion now
+  enforces *absence* of `context:`, `agent:`, and `tools:` rather
+  than asserting `context: fork` + `agent: general-purpose`. Pins
+  the inline shape against future regression.
+
+### Notes
+
+- This is a behaviour change observable to a user who runs
+  scheduled syncs (the prompt-and-bail loop stops); no public
+  prompt surface, manifest field, or MCP tool is renamed or
+  removed. MINOR per P15 §5.1's version-bump rubric.
+- If the prompt still fires after this update, the residual cause
+  is upstream Claude Cowork bug
+  [#47180](https://github.com/anthropics/claude-code/issues/47180)
+  ("Allow for all scheduled runs" doesn't persist) — at that point
+  the working-directory grant has to be re-clicked once per
+  scheduled-task lifetime, but the in-plugin sub-context layer is
+  no longer compounding the issue.
+
 ## [1.0.4] — 2026-05-06
 
 ### Fixed

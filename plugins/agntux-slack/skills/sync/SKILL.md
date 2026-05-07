@@ -1,19 +1,28 @@
 ---
 name: sync
 description: Run an agntux-slack pass now (or on schedule). Reads schema and per-plugin contract, fetches Slack messages since the last cursor, synthesises entities and action items, advances the cursor. Use for "sync slack", "ingest slack now", "refresh slack", or when a scheduled task fires `/agntux-slack:sync` (or `/agntux-sync agntux-slack`).
-context: fork
-agent: general-purpose
 ---
 
 # `/agntux-slack:sync` — manual or scheduled Slack ingest
 
-This skill runs in a forked context (per Claude Code's
-`context: fork` + `agent: general-purpose` pattern) so it has fresh
-state on every dispatch and inherits the host's full tool surface —
-including UUID-prefixed Cowork connector tools like
-`mcp__<uuid>__slack_read_channel`. There is no frontmatter `tools:`
-whitelist to maintain; the host's MCP layer exposes whatever the
-user has authorised.
+This skill runs **inline in the dispatch context** — no `context: fork`,
+no nested `general-purpose` agent. The skill body executes in whatever
+context the host hands it (interactive chat or the scheduled-task
+scaffold), inheriting the parent's full tool surface — including
+UUID-prefixed Cowork connector tools like `mcp__<uuid>__slack_read_channel`
+— and, critically, the parent's working-directory grant. There is no
+frontmatter `tools:` whitelist to maintain; the host's MCP layer exposes
+whatever the user has authorised.
+
+The earlier "router skill + sub-agent" and `context: fork + agent:
+general-purpose` shapes are both retired. Each added a context boundary
+that did NOT inherit the host's "Allow for all scheduled runs"
+working-directory grant — so every scheduled fire silently re-prompted
+for `/Users/<you>/agntux/` access, the preflight read of `user.md` /
+the schema / the contract failed, and the skill correctly exited clean
+without advancing any cursor. Running inline avoids that wall: the
+scheduled-task scaffold's one Allow click covers every subsequent fire
+in the same task.
 
 You are the Slack ingest pass for the `agntux-slack` plugin. You run
 on the user's scheduled cadence (the manifest's
@@ -30,9 +39,10 @@ in the compose or canvas iframe — at which point the iframe emits a
 `Use the Slack Connector to …` envelope to chat carrying channel_id,
 thread_ts, body, and mode inline, and the host dispatches directly
 through the connector. **Calling any Slack write tool from this skill
-is a bug.** The general-purpose agent has access to them, but
-discipline at this prompt level is the safety property — the iframe
-Send button is the explicit authorisation gate.
+is a bug.** The host's MCP layer exposes the write tools to the
+inline-running skill, but discipline at this prompt level is the
+safety property — the iframe Send button is the explicit
+authorisation gate.
 
 The vocabulary you may write (entity subtypes, action_classes,
 required frontmatter) is NOT inline in this prompt. It's defined in
@@ -59,11 +69,12 @@ match. Whenever a step matches, **immediately resolve the path to its
 absolute form** (expand `~` to the user's home directory, drop any
 `./` / `..` / duplicate-slash segments) and use that exact string for
 every subsequent `Read` / `Write` / `Edit` / `Glob` / `Grep` call.
-The host's "Allow for scheduled runs" allowlist keys on the literal
-path string, so a literal `~/agntux/...` and an absolute
-`/Users/<you>/agntux/...` are treated as two distinct prompts —
-canonicalising the path on resolution is what makes one allow click
-hold across all subsequent scheduled runs.
+Some hosts key their "Allow for all scheduled runs" allowlist on the
+literal path string, so canonicalising on resolution gives one allow
+click the best chance of holding across runs. (The bigger load-bearing
+fix is that this skill no longer forks into a sub-context — see the
+inline-execution note above; without that, even a perfectly
+canonicalised path would re-prompt every fire.)
 
 1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently
    (already absolute).
@@ -766,7 +777,7 @@ There is no separate "write learnings" step — agent-authored learnings files w
 - Never overwrite `## User notes` on an entity. Section preservation is load-bearing.
 - The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
 - If a per-plugin instruction is ambiguous ("never raise stuff from `notifications:*`" but the file references `bot_id:B0NOTIF`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
-- **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` only fire after the user clicks Send / Schedule / Save Draft / Create in the compose or canvas iframe; the iframe emits a `Use the Slack Connector to …` envelope and the host dispatches. The general-purpose agent has access to these tools; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
+- **Never call a Slack write tool.** `slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas` only fire after the user clicks Send / Schedule / Save Draft / Create in the compose or canvas iframe; the iframe emits a `Use the Slack Connector to …` envelope and the host dispatches. The host's MCP layer exposes these tools to the inline-running skill; this prompt is the discipline boundary. If you find yourself reaching for one, stop — you're drifting.
 - **Auto-resolution authority (Step 8.5).** This skill MAY transition an existing `status: open` action to `status: done` *without* a user click — but only when (a) `source: slack`, (b) `reason_class: response-needed`, (c) the action's `source_ref` thread or channel was just fetched, and (d) the Step 8a reply-state scan would conclude the user has already replied with no qualifying follow-up. The auto-resolved action MUST carry an `## Auto-resolved` body section so the user (and the `pattern-feedback` subagent) can see this was an automated transition. Outside those conditions, action-status writes flow through the agntux-core MCP server (`set_status`, `dismiss`, `snooze`) — not direct file edits from this skill.
 
 ## Concurrent-run note
@@ -788,7 +799,7 @@ If you're reaching for a tool not listed in your declared tool surface, stop —
 
 ## Tool surface
 
-Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
+Inherited from the parent dispatch context (no frontmatter `tools:` whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
 - Slack read MCP tools (Cowork registers them under a per-instance UUID, so the names look like `mcp__<uuid>__slack_read_channel`): `slack_read_channel`, `slack_read_thread`, `slack_read_user_profile`, `slack_search_public_and_private`, `slack_search_channels`, `slack_read_canvas`.

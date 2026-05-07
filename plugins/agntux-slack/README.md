@@ -123,15 +123,19 @@ the iframe. The iframe Send button is the explicit authorisation gate.
 Action files written by 2.x.x sync runs (without `## Compose payload`)
 surface the graceful `compose_payload_missing` error inside the iframe.
 
-Both skills run with `context: fork` and `agent: general-purpose` per
-the [Claude Code skill docs](https://code.claude.com/docs/en/skills).
-This pattern gives each dispatch a fresh context (important for
-scheduled-task firings) without locking the skill to a frontmatter
-`tools:` whitelist — the general-purpose agent inherits the host's
-full tool surface, including the UUID-prefixed Cowork connector tools
-(`mcp__<uuid>__slack_*`). The previous "router skill + sub-agent"
-pattern is retired (it failed when Cowork blocked the dispatch-time
-frontmatter edit).
+The sync skill runs **inline** in whatever context the host hands it
+(interactive chat or the scheduled-task scaffold) — no `context: fork`,
+no nested `general-purpose` agent, no frontmatter `tools:` whitelist.
+The skill inherits the parent's full tool surface (including the
+UUID-prefixed Cowork connector tools `mcp__<uuid>__slack_*`) and,
+critically, the parent's working-directory grant. The previous
+"router skill + sub-agent" and `context: fork + agent: general-purpose`
+shapes are both retired: each added a context boundary that did NOT
+inherit the host's "Allow for all scheduled runs" grant, so every
+scheduled fire silently re-prompted and the skill exited clean
+without advancing the cursor. See the
+[Claude Code skill docs](https://code.claude.com/docs/en/skills) for
+the inline-skill shape.
 
 ## UI handlers
 

@@ -1,8 +1,6 @@
 ---
 name: sync
 description: Run a {{plugin-slug}} pass now (or on schedule). Reads schema and per-plugin contract, fetches {{source-display-name}} items since the last cursor, synthesises entities and action items, advances the cursor. Use for "sync {{source-slug}}", "ingest {{source-slug}} now", "refresh {{source-slug}}", or when a scheduled task fires `/{{plugin-slug}}:sync` (or `/agntux-sync {{plugin-slug}}`).
-context: fork
-agent: general-purpose
 ---
 
 <!--
@@ -16,24 +14,29 @@ Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
   {{recommended-cadence}}      — value from manifest `recommended_ingest_cadence` (free-form descriptive string)
   {{source-cursor-semantics}}  — narrative description from cursor-strategies.md per-source entry
   {{source-mcp-tools}}         — comma list of source MCP tool root names; runtime tool names are host-prefixed
-                                  (Cowork uses a per-instance UUID prefix; the general-purpose agent inherits whatever
+                                  (Cowork uses a per-instance UUID prefix; the inline-running skill inherits whatever
                                   the host exposes, so the bare names below are documentation, not a `tools:` whitelist)
 
 Single-curly tokens like {ref}, {N hours/days}, {imperative} are runtime/host-filled — NOT P6-substituted.
 
-This skill replaces the previous "router skill + sub-agent" pattern. With `context: fork` + `agent: general-purpose`, the
-forked context inherits all host tools (including UUID-prefixed connector tools), so there is no frontmatter `tools:`
-whitelist to maintain at dispatch time. The host's auto-routing matches inbound prompts against this skill's `description`.
-Suggested-action `ux:` prompts (draft / schedule / etc.) belong to a sibling `skills/draft/SKILL.md` skill, not to this one.
+Lineage: this skill started as a router skill + ingest sub-agent pair, then a top-level skill with `context: fork` + `agent: general-purpose`,
+and now runs **inline** in whatever context the host hands it (interactive chat or scheduled-task scaffold). Each iteration removed one
+context boundary; the inline shape is what lets one host-level "Allow for all scheduled runs" working-directory click hold across every
+subsequent fire — forked sub-contexts did NOT inherit that grant, so every scheduled run silently re-prompted and the skill exited clean.
+The inline skill inherits the parent's full tool surface (including UUID-prefixed connector tools), so there is no frontmatter `tools:`
+whitelist to maintain. The host's auto-routing matches inbound prompts against this skill's `description`. Suggested-action `ux:` prompts
+(draft / schedule / etc.) belong to a sibling `skills/draft/SKILL.md` skill, not to this one.
 -->
 
 # `/{{plugin-slug}}:sync` — manual or scheduled {{source-display-name}} ingest
 
-This skill runs in a forked context (per Claude Code's `context: fork` + `agent: general-purpose` pattern) so it has fresh state on every dispatch and inherits the host's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__{{source-slug}}_*`. There is no frontmatter `tools:` whitelist to maintain.
+This skill runs **inline in the dispatch context** — no `context: fork`, no nested `general-purpose` agent. The skill body executes in whatever context the host hands it (interactive chat or the scheduled-task scaffold), inheriting the parent's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__{{source-slug}}_*` — and, critically, the parent's working-directory grant. There is no frontmatter `tools:` whitelist to maintain.
+
+The earlier "router skill + sub-agent" and `context: fork + agent: general-purpose` shapes are both retired. Each added a context boundary that did NOT inherit the host's "Allow for all scheduled runs" working-directory grant — so every scheduled fire silently re-prompted, the preflight read of `user.md` / the schema / the contract failed, and the skill correctly exited clean without advancing any cursor. Running inline avoids that wall: the scheduled-task scaffold's one Allow click covers every subsequent fire in the same task.
 
 You are the {{source-display-name}} ingest pass for the `{{plugin-slug}}` plugin. You run on the user's scheduled cadence (the manifest's `recommended_ingest_cadence` describes the author's intent: `{{recommended-cadence}}`). Your job is **synthesis**, not mirroring — you extract entities and action items from {{source-display-name}}; you do NOT cache raw source data locally.
 
-If the source has write tools, this skill is **read-only** — those tools are reserved for the sibling `skills/draft/SKILL.md` skill, which gates every write call behind an explicit user `yes`. The general-purpose agent has access to the write tools; this prompt's discipline is the safety property.
+If the source has write tools, this skill is **read-only** — those tools are reserved for the sibling `skills/draft/SKILL.md` skill, which gates every write call behind an explicit user `yes`. The host's MCP layer exposes the write tools to the inline-running skill; this prompt's discipline is the safety property.
 
 The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is NOT inline in this prompt. It's defined in the user's tenant schema and your plugin's approved contract — see Step 0. Reading them at run-start is mandatory; the validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks any write that diverges.
 
@@ -169,7 +172,7 @@ The cursor is advanced per the source-specific rule documented in your plugin's 
 
 ## Step 5 — Fetch from {{source-display-name}}
 
-Use `{{source-mcp-tools}}` to fetch items in the time window determined in Step 4. The general-purpose agent inherits whichever names the host exposes (Cowork UUID-prefixes connector tools at the per-instance level; npm-installed source MCPs use stable names) — call them by their host-resolved names.
+Use `{{source-mcp-tools}}` to fetch items in the time window determined in Step 4. The inline-running skill inherits whichever names the host exposes (Cowork UUID-prefixes connector tools at the per-instance level; npm-installed source MCPs use stable names) — call them by their host-resolved names.
 
 If the source's pagination/throttling behaviour is non-obvious, surface it via `sync.md → errors` rather than silently retrying — there's no separate "learnings" log to consult.
 
@@ -377,8 +380,8 @@ If you're reaching for a tool not listed in your declared tool surface, stop —
 
 ## Tool surface
 
-Inherited from the general-purpose agent (no frontmatter `tools:` whitelist):
+Inherited from the parent dispatch context (no frontmatter `tools:` whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
-- `{{source-mcp-tools}}` for fetching from {{source-display-name}}. Cowork registers connector tools under a per-instance UUID prefix (`mcp__<uuid>__{{source-slug}}_*`); npm-installed source MCPs use stable names. The forked context inherits whichever the host exposes.
+- `{{source-mcp-tools}}` for fetching from {{source-display-name}}. Cowork registers connector tools under a per-instance UUID prefix (`mcp__<uuid>__{{source-slug}}_*`); npm-installed source MCPs use stable names. The inline-running skill inherits whichever the host exposes.
 - If the source has write tools, they are present in the inherited tool set but **forbidden by this prompt** — `skills/draft/SKILL.md` is the only authorised caller.

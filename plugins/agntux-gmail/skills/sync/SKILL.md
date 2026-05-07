@@ -1,18 +1,29 @@
 ---
 name: sync
 description: Run an agntux-gmail pass now (or on schedule). Reads schema and per-plugin contract, fetches Gmail threads since the last cursor, synthesises entities and action items with reply-context preambles, advances the cursor. Use for "sync gmail", "ingest gmail now", "refresh gmail", or when a scheduled task fires `/agntux-gmail:sync` (or `/agntux-sync agntux-gmail`).
-context: fork
-agent: general-purpose
 ---
 
 # `/agntux-gmail:sync` — manual or scheduled Gmail ingest
 
-This skill runs in a forked context (per Claude Code's `context: fork` +
-`agent: general-purpose` pattern) so it has fresh state on every dispatch
-and inherits the host's full tool surface — including UUID-prefixed
-connector tools like `mcp__<uuid>__search_threads`, `mcp__<uuid>__get_thread`,
-`mcp__<uuid>__create_draft`. There is no frontmatter `tools:` whitelist
-to maintain; the host's MCP layer exposes whatever the user has authorised.
+This skill runs **inline in the dispatch context** — no `context: fork`,
+no nested `general-purpose` agent. The skill body executes in whatever
+context the host hands it (interactive chat or the scheduled-task
+scaffold), inheriting the parent's full tool surface — including
+UUID-prefixed Gmail connector tools like `mcp__<uuid>__search_threads`,
+`mcp__<uuid>__get_thread`, `mcp__<uuid>__create_draft` — and, critically,
+the parent's working-directory grant. There is no frontmatter `tools:`
+whitelist to maintain; the host's MCP layer exposes whatever the user
+has authorised.
+
+The earlier "router skill + sub-agent" and `context: fork + agent:
+general-purpose` shapes are both retired. Each added a context boundary
+that did NOT inherit the host's "Allow for all scheduled runs"
+working-directory grant — so every scheduled fire silently re-prompted
+for `/Users/<you>/agntux/` access, the preflight read of `user.md` /
+the schema / the contract failed, and the skill correctly exited clean
+without advancing any cursor. Running inline avoids that wall: the
+scheduled-task scaffold's one Allow click covers every subsequent fire
+in the same task.
 
 You are the Gmail ingest pass for the `agntux-gmail` plugin. You run on
 the user's scheduled cadence (the manifest's `recommended_ingest_cadence`
@@ -26,10 +37,10 @@ That single write tool is **only** invoked when the user clicks Save in
 the compose iframe — the iframe emits a connector-targeted envelope to
 chat carrying `to`, `cc`, `bcc`, `subject`, `body`, and
 `replyToMessageId` inline, and the host dispatches directly through the
-connector. **Calling `create_draft` from this skill is a bug.** The
-general-purpose agent has access to it, but discipline at this prompt
-level is the safety property — the iframe Save button is the explicit
-authorisation gate.
+connector. **Calling `create_draft` from this skill is a bug.** The host's MCP
+layer exposes `create_draft` to the inline-running skill, but
+discipline at this prompt level is the safety property — the iframe
+Save button is the explicit authorisation gate.
 
 The vocabulary you may write (entity subtypes, action_classes, required
 frontmatter) is NOT inline in this prompt. It's defined in the user's
@@ -54,11 +65,13 @@ Resolve the AgntUX project root via this ladder. Stop at the first match.
 Whenever a step matches, **immediately resolve the path to its absolute
 form** (expand `~` to the user's home directory, drop any `./` / `..` /
 duplicate-slash segments) and use that exact string for every subsequent
-`Read` / `Write` / `Edit` / `Glob` / `Grep` call. The host's "Allow for
-scheduled runs" allowlist keys on the literal path string, so a literal
-`~/agntux/...` and an absolute `/Users/<you>/agntux/...` are treated as
-two distinct prompts — canonicalising the path on resolution is what
-makes one allow click hold across all subsequent scheduled runs.
+`Read` / `Write` / `Edit` / `Glob` / `Grep` call. Some hosts key their
+"Allow for all scheduled runs" allowlist on the literal path string, so
+canonicalising on resolution gives one allow click the best chance of
+holding across runs. (The bigger load-bearing fix is that this skill no
+longer forks into a sub-context — see the inline-execution note above;
+without that, even a perfectly canonicalised path would re-prompt
+every fire.)
 
 1. **`basename(cwd).toLowerCase() === "agntux"`** → use cwd silently
    (already absolute).
@@ -1137,7 +1150,7 @@ stop — you're drifting.
 
 ## Tool surface
 
-Inherited from the general-purpose agent (no frontmatter `tools:`
+Inherited from the parent dispatch context (no frontmatter `tools:`
 whitelist):
 
 - Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
