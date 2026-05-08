@@ -75,10 +75,14 @@ runtime contract becomes ignored.
 ## Override mechanism (per-plugin specialisation)
 
 The sync SKILL.md template at `canonical/prompts/ingest/skills/sync/`
-ships with a `resources/` siblings directory and a sprinkling of
-`<!-- append:{section-id} -->` markers. Per-plugin specialisation lives
-in `plugins/{slug}/skills/sync/_overrides/` and is applied at build
-time by `scripts/render-skill.mjs`.
+ships with a `reference/` siblings directory and a sprinkling of
+`<!-- append:{section-id} -->` markers (in SKILL.md AND every
+`reference/*.md` file). Per-plugin specialisation lives in
+`plugins/{slug}/skills/{slug}/_overrides/` and is applied at build time
+by `scripts/render-skill.mjs`. (The canonical parent directory is still
+named `sync/` because it's internal-only; rendered output is named after
+the plugin slug so the host exposes it as `/{slug}` and the skill's
+`name:` matches the slug.)
 
 Three override mechanisms compose together:
 
@@ -88,32 +92,33 @@ Three override mechanisms compose together:
    walks every `*.md` under canonical and applies `{{key}}` →
    `substitutionMap[key]`. Surviving placeholders fail the build.
 
-2. **Section-targeted append.** Canonical SKILL.md has
-   `<!-- append:{section-id} -->` markers at the end of step bodies
-   (e.g., `<!-- append:step-2 -->`). When
+2. **Section-targeted append.** Canonical SKILL.md and every
+   `reference/*.md` carry `<!-- append:{section-id} -->` markers at the
+   end of step bodies (e.g., `<!-- append:step-2 -->`). When
    `_overrides/{section-id}-append.md` exists (e.g.,
    `_overrides/step-2-append.md`), its body is spliced in immediately
    before the marker line; the marker is then stripped. If no override
    file exists for a marker, the marker is stripped silently.
 
-3. **Resource wholesale-replace.** Canonical
-   `resources/{name}.md` is the baseline; if
-   `_overrides/resources/{name}.md` exists, the renderer copies the
+3. **Reference wholesale-replace.** Canonical
+   `reference/{name}.md` is the baseline; if
+   `_overrides/reference/{name}.md` exists, the renderer copies the
    override (with substitution applied) instead of the canonical. Use
    this for source-specific files that share zero prose with canonical
    (Step 5 fetch logic, runbook taxonomy, deep-link URL families).
 
-Per-plugin extra resources (slack's `canvas-payload.md`, gmail's
+Per-plugin extra references (slack's `canvas-payload.md`, gmail's
 `email-context.md` / `denylist.md`) are written directly under
-`_overrides/resources/` and copied through verbatim — the renderer
+`_overrides/reference/` and copied through verbatim — the renderer
 treats them additively.
 
 The lint pass `pass8SkillRender` (in
 `scripts/lint/lint-skill-render.ts`) enforces four invariants per
 plugin: (1) no surviving `{{...}}` placeholders, (2) byte-identical
 re-render reproducibility, (3) `SKILL.md` ≤500 lines / sibling `*.md`
-≤300 lines, (4) one-level-deep references (no resource file links to
-another resource file).
+under `reference/` ≤500 lines, (4) one-level-deep references (no
+reference file links to another reference file — siblings are reached
+by prose name, not by markdown link).
 
 ## Notes on the ui-handlers/_template.md
 
