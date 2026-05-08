@@ -1,42 +1,8 @@
----
-name: agntux-profile
-description: Edit the user's AgntUX profile (`<agntux project root>/user.md`) — cross-workflow preferences, glossary terms, identity, responsibilities, sources, generic action-worthy/noise rules, "remember PRD means Product Requirements Document", "my role changed". Also handles graduation review ("any patterns to approve?") and proactive captures from the orchestrator. Use for "edit my profile" / "update my preferences" / "add to my glossary" intents that do NOT mention a specific plugin or source. Source-specific imperatives ("never raise email from X", "ignore #random") go to `/agntux-teach` instead.
----
+# `/agntux profile` — personalization edits
 
-# `/agntux-profile` — personalization edits
-
-Lane: any edit to `<agntux project root>/user.md`. Cross-workflow rules and
-identity live here; per-plugin/per-source rules go through
-`/agntux-teach` instead.
-
-## Voice rules
-
-Speak as a single AgntUX voice throughout. Never reference internal
-architecture: do NOT say "subagent", "dispatch", "Mode B / C / D",
-"orchestrator", or any internal phase label. Stage transitions are
-internal — never narrate them to the user.
-
-## Schema-drift preflight
-
-Before acting, compute the set of installed plugins lacking an approved
-contract (`user.md → # AgntUX plugins → ## Installed` minus slugs that
-have a `<agntux project root>/data/schema/contracts/{slug}.md` file)
-and read `<agntux project root>/data/schema-requests.md` (if present).
-If either has content, emit a one-line nudge at the top of your reply:
-
-- N plugins lacking a contract → "📐 {N} new plugin{s} awaiting schema
-  review. Run `/agntux-schema review` when convenient."
-- N pending schema-change requests → "📐 {N} pending schema change
-  request{s}. Run `/agntux-schema edit` when convenient."
-
-Do NOT block on either. Continue with the user's actual ask.
-
-## Preconditions
-
-Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert,
-follow the redirect and stop. Check 0 walks
-[`_resolve-root.md`](../_resolve-root.md) — declared here so the link
-is one level deep from this SKILL.md.
+Lane: any edit to `<agntux project root>/user.md`. Cross-workflow rules
+and identity live here; per-plugin/per-source rules go through
+`/agntux teach` instead.
 
 ## Detect mode
 
@@ -91,7 +57,7 @@ frontmatter value. Validate range 3–20 before writing.
 
 ## Mode C: Graduation review
 
-The pattern-feedback subagent left `[graduation-candidate: ## Usually noise]`
+The pattern-feedback flow left `[graduation-candidate: ## Usually noise]`
 (or `[graduation-candidate: ## Always action-worthy]`) tags on
 `# Auto-learned` bullets. Surface them to the user one at a time.
 
@@ -152,7 +118,7 @@ user-feedback first; that hop was removed.
 an imperative about a specific source ("never raise email from X",
 "ignore #random"), do NOT capture in `user.md`. That belongs in
 `<agntux project root>/data/instructions/{plugin-slug}.md`, owned by
-user-feedback. Acknowledge in one sentence and end your turn.
+`/agntux teach`. Acknowledge in one sentence and end your turn.
 
 ---
 
@@ -198,10 +164,10 @@ user-feedback. Acknowledge in one sentence and end your turn.
 ## Lane disambiguation
 
 - "Teach `{plugin}`" / source-specific imperatives ("never raise email
-  from X", "ignore #random") → use `/agntux-teach` — those write
+  from X", "ignore #random") → use `/agntux teach` — those write
   per-plugin instructions, not `user.md`.
 - Schema/data-model edits ("add a `health_score` field to `company`",
-  "add an `awaiting-customer` action class") → use `/agntux-schema`.
+  "add an `awaiting-customer` action class") → use `/agntux schema`.
 - Cadence changes for ingest plugins → handled via the host's
   scheduled-task tool (Mode B special case above); cadence is not
   stored in `user.md`.

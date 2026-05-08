@@ -1,28 +1,12 @@
----
-name: agntux-teach
-description: Capture per-plugin instructions ("never raise email from notifications@*", "always raise PRs from @teammate", "ignore #random"). Source-specific imperatives go to `<agntux project root>/data/instructions/{plugin-slug}.md` — not `user.md`. Use when the user wants to teach a plugin a rule, says "teach agntux-slack about X", or runs `/agntux-teach {plugin-slug}` for an on-demand refresh of an already-onboarded plugin's instructions. (First-time install-time onboarding is owned by `/agntux-onboard`'s per-plugin interview, not by this skill.)
-argument-hint: "[plugin-slug]"
----
-
-# `/agntux-teach` — per-plugin instructions
+# `/agntux teach` — per-plugin instructions
 
 Lane: any rule that names a specific plugin or source. Cross-workflow
-preferences belong in `/agntux-profile` (writes `user.md`); rules
-here live in `<agntux project root>/data/instructions/{plugin-slug}.md`.
+preferences belong in `/agntux profile` (writes `user.md`); rules here
+live in `<agntux project root>/data/instructions/{plugin-slug}.md`.
 
-## Schema-drift preflight
-
-Run [`_preflight.md`](../_preflight.md). Informational nudges only —
-don't block on either check.
-
-## Preconditions
-
-Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert,
-follow the redirect and stop. Check 0 walks
-[`_resolve-root.md`](../_resolve-root.md) — declared here so the link
-is one level deep from this SKILL.md. (`teach` cannot run before the
-schema is bootstrapped — the data-architect's plugin contract is the
-authority for which `{plugin-slug}` values are valid.)
+(`teach` cannot run before the schema is bootstrapped — the
+data-architect's plugin contract is the authority for which
+`{plugin-slug}` values are valid.)
 
 ---
 
@@ -31,16 +15,19 @@ authority for which `{plugin-slug}` values are valid.)
 | Trigger | Mode |
 |---|---|
 | User said an imperative in chat (e.g., "never flag email from notifications@*", "always raise PRs from @teammate") | A — capture |
-| `/agntux-teach {plugin-slug}` invoked directly | B — teach interview |
+| `/agntux teach {plugin-slug}` invoked directly | B — teach interview |
 | User said something structural that doesn't fit a triage rule (e.g., "track customer sentiment per company") | C — structural escalation |
 
-If ambiguous (could be triage rule or structural ask), default to Mode A, then surface the structural follow-up at the end so Mode C runs next.
+If ambiguous (could be triage rule or structural ask), default to
+Mode A, then surface the structural follow-up at the end so Mode C
+runs next.
 
 ---
 
 ## Mode A: Capture
 
-Classify the imperative, identify the plugin slug, append to that plugin's instructions file, confirm.
+Classify the imperative, identify the plugin slug, append to that
+plugin's instructions file, confirm.
 
 ### Triage-button fast-path
 
@@ -57,7 +44,8 @@ When the inbound prompt matches `/items like ([\w-]+)\s*\(reason_class:\s*([^,]+
 4. Update frontmatter `updated_at`. Save atomically.
 5. Reply with exactly one line: `Captured: stop raising {reason_class} from {source}.` and stop.
 
-On any failure (write error, unresolvable slug), surface one short error sentence and stop — do not fall back to the interactive flow.
+On any failure (write error, unresolvable slug), surface one short
+error sentence and stop — do not fall back to the interactive flow.
 
 ### Stage 1 — Identify the plugin slug
 
@@ -67,14 +55,16 @@ On any failure (write error, unresolvable slug), surface one short error sentenc
 
 ### Stage 2 — Classify the rule
 
-Slot into the appropriate section of `data/instructions/{plugin-slug}.md`:
+Slot into the appropriate section of
+`data/instructions/{plugin-slug}.md`:
 
 - `# Always raise` — "always flag X", "raise anything from Y", VIP signals.
 - `# Never raise` — "never raise X", "ignore Y", wildcard sender patterns.
 - `# Rewrites` — label / priority transformation requests.
 - `# Notes` — soft preferences ("keep action descriptions terse").
 
-If the imperative spans sections (e.g., "never raise newsletters except from acme.com"), split into two bullets.
+If the imperative spans sections (e.g., "never raise newsletters except
+from acme.com"), split into two bullets.
 
 ### Stage 3 — Append to instructions file
 
@@ -99,7 +89,8 @@ status: final
 # Notes
 ```
 
-If the file exists with `status: draft` (stubbed by onboarding), keep `status: draft` — Mode A appends without promoting status.
+If the file exists with `status: draft` (stubbed by onboarding), keep
+`status: draft` — Mode A appends without promoting status.
 
 Append the bullet in the format:
 ```
@@ -119,7 +110,8 @@ No follow-up questions. One rule captured, one confirmation, done.
 
 ## Mode B: Teach interview
 
-`/agntux-teach {plugin-slug}` was invoked. Run an on-demand re-walk — the first-time install interview is owned by `/agntux-onboard`.
+`/agntux teach {plugin-slug}` was invoked. Run an on-demand re-walk —
+the first-time install interview is owned by `/agntux onboard`.
 
 ### Stage 1 — Read context
 
@@ -130,9 +122,12 @@ No follow-up questions. One rule captured, one confirmation, done.
 
 ### Stage 2 — Run the interview
 
-Open with: "Quick teach for {plugin-slug} — I'll ask 4 to 8 short questions so I know what to surface and what to skip. Skip any question with "skip" and I'll use sensible defaults."
+Open with: "Quick teach for {plugin-slug} — I'll ask 4 to 8 short
+questions so I know what to surface and what to skip. Skip any question
+with "skip" and I'll use sensible defaults."
 
-Ask 4–8 questions in conversational batches of 2–3 per turn. Tailor to the plugin and what `user.md` already tells you. Example probes:
+Ask 4–8 questions in conversational batches of 2–3 per turn. Tailor to
+the plugin and what `user.md` already tells you. Example probes:
 
 - **Always-raise:** goals / key people / projects that should always surface.
 - **Never-raise:** noise senders, auto-generated digests, archived content, reflexively-dismissed keywords.
@@ -143,12 +138,17 @@ Cap at 8 questions. Stop earlier if the user answers tersely.
 
 ### Stage 3 — Synthesise and write
 
-Convert answers to structured bullets in the appropriate sections. Paraphrase into rule form — never paste user free-text verbatim. If the user raised something structural during the interview, slot it to Mode C: append to `data/schema-requests.md` and tell the user the architect will follow up.
+Convert answers to structured bullets in the appropriate sections.
+Paraphrase into rule form — never paste user free-text verbatim. If the
+user raised something structural during the interview, slot it to
+Mode C: append to `data/schema-requests.md` and tell the user the
+architect will follow up.
 
-Write (or extend) `data/instructions/{plugin-slug}.md`. Update `updated_at`, set `status: final`.
+Write (or extend) `data/instructions/{plugin-slug}.md`. Update
+`updated_at`, set `status: final`.
 
 Confirm:
-> {N} rules captured for {plugin-slug}. Refine anytime ("never raise X from {plugin-source}") or run `/agntux-teach {plugin-slug}` again for a full re-walk.
+> {N} rules captured for {plugin-slug}. Refine anytime ("never raise X from {plugin-source}") or run `/agntux teach {plugin-slug}` again for a full re-walk.
 
 ---
 
@@ -156,11 +156,16 @@ Confirm:
 
 The request implies a schema change, not a triage rule.
 
-**Structural** (escalate): new field on an existing subtype, new required frontmatter field, new subtype, new action_class, change to field semantics or enum values.
+**Structural** (escalate): new field on an existing subtype, new
+required frontmatter field, new subtype, new action_class, change to
+field semantics or enum values.
 
-**Not structural** (Mode A): triage filter, priority threshold, stylistic preference.
+**Not structural** (Mode A): triage filter, priority threshold,
+stylistic preference.
 
-If unsure, ask one question: "Are you asking me to track {field} as a piece of data, or to use it as a filter for what's surfaced?" Field-tracking → structural; filter → Mode A.
+If unsure, ask one question: "Are you asking me to track {field} as a
+piece of data, or to use it as a filter for what's surfaced?"
+Field-tracking → structural; filter → Mode A.
 
 ### Action
 
@@ -173,7 +178,8 @@ If unsure, ask one question: "Are you asking me to track {field} as a piece of d
 3. Tell the user:
    > That'll need a schema change ({proposed change in plain English}). I'll have the architect follow up on your next AgntUX session so we can decide together.
 
-Do NOT write anything to `data/schema/` or fake the structural change as a triage rule in `data/instructions/`.
+Do NOT write anything to `data/schema/` or fake the structural change
+as a triage rule in `data/instructions/`.
 
 ---
 

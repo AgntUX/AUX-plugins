@@ -1,4 +1,4 @@
-**Onboarding mode — heads-up, no per-thread cap.** A bootstrap run typically fires synchronously during `/agntux-onboard`. The bootstrap processes every thread surfaced by discovery within the window — there is no per-thread cap. Coverage matters more than wall-clock here.
+**Onboarding mode — heads-up, no per-thread cap.** A bootstrap run typically fires synchronously during `/agntux onboard`. The bootstrap processes every thread surfaced by discovery within the window — there is no per-thread cap. Coverage matters more than wall-clock here.
 
 Before starting per-thread polling on a bootstrap run (`last_success: null AND cursor` has zero thread-shaped entries), print **one** user-facing chat message after Step 5b discovery completes:
 

@@ -51,7 +51,7 @@ at their pre-run values so the next run retries the same window.
 
 ## Worked example — first-run bootstrap
 
-User runs `/agntux-onboard`, which fires `/agntux-gmail:sync` with
+User runs `/agntux onboard`, which fires `/agntux-gmail:sync` with
 `cursor: {}` and `last_success: null`. Skill reads
 `bootstrap_window_days = 14` from `user.md` (default for Gmail).
 Step 5b discovery returns 23 thread_ids; cursor map becomes

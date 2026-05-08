@@ -137,7 +137,7 @@ const ERROR_COPY: Record<string, { title: string; body: string; testId: string }
   },
   agntux_root_missing: {
     title: "AgntUX not set up",
-    body: "Run /agntux-onboard to set up your AgntUX workspace.",
+    body: "Run /agntux onboard to set up your AgntUX workspace.",
     testId: "error-agntux-root-missing",
   },
   compose_payload_missing: {

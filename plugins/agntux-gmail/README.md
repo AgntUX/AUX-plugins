@@ -45,7 +45,7 @@ and click Send in Gmail itself.
    MCP server.
 2. Install **AgntUX Core** if you haven't already.
 3. Install **AgntUX Gmail** from the marketplace.
-4. Run `/agntux-onboard` (or re-run it if your tenant is already
+4. Run `/agntux onboard` (or re-run it if your tenant is already
    onboarded). The flow handles agntux-gmail's schema review automatically:
    personalization dispatches the data-architect's Mode B during the
    per-plugin interview, and the architect reads our schema proposal from
@@ -54,11 +54,11 @@ and click Send in Gmail itself.
    contract at
    `<agntux project root>/data/schema/contracts/agntux-gmail.md`.
    **Zero manual schema-review steps.**
-5. Onboarding's State A wrap-up auto-fires `/agntux-sync agntux-gmail`
+5. Onboarding's State A wrap-up auto-fires `/agntux sync agntux-gmail`
    for the first synchronous bootstrap; the ongoing schedule (every hour)
    takes over after.
 6. To trigger a sync manually any time, run `/agntux-gmail:sync` (or
-   `/agntux-sync agntux-gmail` from the core namespace).
+   `/agntux sync agntux-gmail` from the core namespace).
 
 ## Configuration
 

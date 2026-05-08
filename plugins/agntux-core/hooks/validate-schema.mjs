@@ -490,7 +490,7 @@ function rejectWithMissingContractRunbook(filePath, pluginSlug, approvedFm) {
     "",
     `The contract markdown at ${contractMdRel} is status: approved, but the lock`,
     `file does not yet register the plugin. This usually means ${pluginSlug} was`,
-    `installed after /agntux-onboard last ran data-architect Mode B.`,
+    `installed after /agntux onboard last ran data-architect Mode B.`,
     "",
     "Runbook (execute these Edit operations, then retry your blocked write):",
     "",

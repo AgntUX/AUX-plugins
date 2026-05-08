@@ -318,12 +318,12 @@ TODO: one-paragraph elevator pitch. Replace this with what your plugin does.
 
 ## Install
 
-1. Install **AgntUX Core** first and run `/agntux-onboard`. This plugin requires it.
+1. Install **AgntUX Core** first and run `/agntux onboard`. This plugin requires it.
 2. Install **{Display Name}** from the marketplace.
 3. Authorise the {Display Name} connector in your host's **Customize → Connectors**.
-4. Re-run `/agntux-onboard` (or run it for the first time) — the architect's Mode B reads our schema proposal directly from `marketplace/listing.yaml → proposed_schema`, walks you through it in plain language, and writes the approved contract.
+4. Re-run `/agntux onboard` (or run it for the first time) — the architect's Mode B reads our schema proposal directly from `marketplace/listing.yaml → proposed_schema`, walks you through it in plain language, and writes the approved contract.
 5. Set up a scheduled task in your host with prompt body `/{slug}:sync`. Cadence per your `recommended_ingest_cadence`.
-6. To trigger a sync manually, run `/{slug}:sync` (or `/agntux-sync {slug}` from the core namespace).
+6. To trigger a sync manually, run `/{slug}:sync` (or `/agntux sync {slug}` from the core namespace).
 
 ## Configuration
 

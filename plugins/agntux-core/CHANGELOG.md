@@ -6,6 +6,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.0] — 2026-05-07
+
+Skill consolidation. The eight separate `agntux-*` skills (~1,800
+lines of body across 8 frontmatter blocks in the host's cold-start
+"available skills" surface) collapse into a single `/agntux` entry
+point organised per Anthropic's progressive-disclosure pattern: a slim
+~120-line router at `skills/agntux/SKILL.md` plus
+`skills/agntux/reference/*.md` resources loaded only when a specific
+sub-task engages. The model pays the cold-start cost for one skill
+description; the heavy bodies are loaded on demand.
+
+### Changed
+
+- BREAKING: All `agntux-core` slash commands consolidated into a
+  single `/agntux` entry point. Migration:
+
+      /agntux-onboard           → /agntux onboard
+      /agntux-profile           → /agntux profile
+      /agntux-schema            → /agntux schema
+      /agntux-teach {slug}      → /agntux teach {slug}
+      /agntux-sync {slug}       → /agntux sync {slug}
+      /agntux-ask {…}           → /agntux ask {…}
+      /agntux-feedback-review   → /agntux feedback-review
+      /agntux-triage (digest)   → /agntux triage-digest
+
+  The interactive triage UI is unchanged — it's now invoked directly
+  by the host's tool selector matching the `agntux_core_triage_view`
+  tool description's trigger phrases (`show triage`, `what's hot`,
+  etc.). Users with existing scheduled tasks must update prompt
+  bodies from `/agntux-feedback-review` to `/agntux feedback-review`
+  and `/agntux-triage` to `/agntux triage-digest`.
+
+### Removed
+
+- Eight skill directories (`skills/agntux-{ask,feedback-review,onboard,profile,schema,sync,teach,triage}/`) replaced by `skills/agntux/SKILL.md` + `skills/agntux/reference/*.md`.
+- `disable-model-invocation: true` frontmatter — the equivalent
+  guard now lives inside `reference/feedback-review.md` and
+  `reference/triage-digest.md` as a refuse-and-redirect on
+  interactive context.
+
+### Added
+
+- `skills/agntux/` — single skill directory with progressive-
+  disclosure resource layout per Anthropic's skill spec.
+- `/agntux sync {bare-name}` — resolves bare names like `slack` to
+  `agntux-slack` when exactly one installed plugin matches.
+
 ## [7.0.1] — 2026-05-07
 
 Skill quality pass (Phase 5 of plugin-architecture cleanup). No

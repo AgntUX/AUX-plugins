@@ -1,6 +1,6 @@
 **Slack-ingest default is 7 days** for `bootstrap_window_days` (overrides the P3 §6.1 default of 30 because Slack volume is much higher than email/notes; documented in `# Notes` of your contract). Valid range 1–365 unchanged.
 
-**Onboarding mode — heads-up, no cap.** A bootstrap run typically fires synchronously during `/agntux-onboard` (personalization State A wrap-up auto-fires `/agntux-sync agntux-slack` with the user present). The bootstrap **processes every channel surfaced by discovery** — there is no per-channel cap. Coverage matters more than wall-clock here; the user already knows this is a one-time post-setup run.
+**Onboarding mode — heads-up, no cap.** A bootstrap run typically fires synchronously during `/agntux onboard` (personalization State A wrap-up auto-fires `/agntux sync agntux-slack` with the user present). The bootstrap **processes every channel surfaced by discovery** — there is no per-channel cap. Coverage matters more than wall-clock here; the user already knows this is a one-time post-setup run.
 
 Before starting per-channel polling on a bootstrap run (`last_success: null AND cursor` has zero channel-shaped entries), print **one** user-facing chat message after Step 5b discovery completes, with the real numbers:
 

@@ -1454,7 +1454,7 @@ function ActionsIndexMissing({
         className="rounded-md bg-foreground px-3 py-1.5 text-[0.8125rem] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-testid="run-onboard"
       >
-        Run /agntux-onboard
+        Run /agntux onboard
       </button>
     </div>
   );
@@ -1851,7 +1851,7 @@ export function MainComponent(props: MainComponentProps) {
   );
 
   const handleOnboard = useCallback(() => {
-    void sendFollowUpMessage('/agntux-onboard');
+    void sendFollowUpMessage('/agntux onboard');
   }, [sendFollowUpMessage]);
 
   // ---- Render branches ----

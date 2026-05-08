@@ -209,7 +209,7 @@ export const triageViewTool = {
     "Render the AgntUX triage UI populated with priority-sorted open " +
     "action items and the most recently-handled items. Reads the local " +
     "AgntUX knowledge store server-side. Zero arguments — call with `{}`. " +
-    "Use when the user types `/agntux-triage`, or asks any of: 'show " +
+    "Use when the user types `/agntux triage-digest`, or asks any of: 'show " +
     "triage' / 'what's hot' / 'what should I look at' / 'what's on my " +
     "plate' / 'triage me' / 'show me my action items' / 'what should I " +
     "do today' / 'what do I need to handle'. Returns _meta.ui.resourceUri " +

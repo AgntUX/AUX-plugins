@@ -52,7 +52,7 @@ const server = new Server(
 //     inline mutations. NOT routed through the LLM, so their args are
 //     component-supplied and effectively free.
 //   - agntux_core_triage_view — invoked by the host's agent loop in response
-//     to `/agntux-triage` (or any of the routed verb phrases). Returns the
+//     to `/agntux triage-digest` (or any of the routed verb phrases). Returns the
 //     structuredContent payload for ui://triage.
 const TOOLS = {
   agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
