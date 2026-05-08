@@ -556,6 +556,188 @@ function checkChainDepth(
   }
 }
 
+// ── PR #6 additions: ingest-skill semantic invariants ───────────────────────
+
+// Check #8: every rendered ingest skill carries an "Out of scope" hard
+// write-lane taxonomy. The autonomy-boundary rule is load-bearing — if a
+// plugin author deletes the section in their override, off-lane writes
+// stop being refused at the prompt layer (PR #4's validate-write-lane.mjs
+// is the server-side teeth, but the prompt rule is the documentation
+// surface).
+function checkOutOfScopeSection(
+  pluginSlug: string,
+  pluginDir: string,
+  repoRoot: string,
+  findings: Finding[],
+): void {
+  const syncMd = path.join(pluginDir, "skills", pluginSlug, "reference", "sync.md");
+  if (!fileExists(syncMd)) return;
+  const body = fs.readFileSync(syncMd, "utf8");
+  if (!/^##\s+Out of scope\b/m.test(body)) {
+    emit(findings, {
+      code: "E15",
+      severity: "error",
+      plugin: pluginSlug,
+      file: rel(repoRoot, syncMd),
+      message:
+        `rendered reference/sync.md is missing the "## Out of scope" section. ` +
+        `The autonomy-boundary write-lane taxonomy is canonical and load-bearing — ` +
+        `if you stripped it via an override, restore it.`,
+    });
+    return;
+  }
+  // Verify the taxonomy actually carries the refuse-and-log signal,
+  // not just an inert "Out of scope" header.
+  const requiredMarkers = [
+    "out-of-lane-write-attempted",
+    "Permitted write lanes",
+  ];
+  for (const marker of requiredMarkers) {
+    if (!body.includes(marker)) {
+      emit(findings, {
+        code: "E15",
+        severity: "error",
+        plugin: pluginSlug,
+        file: rel(repoRoot, syncMd),
+        message:
+          `rendered reference/sync.md "Out of scope" section is missing the ` +
+          `\`${marker}\` taxonomy element. The canonical autonomy-boundary rule ` +
+          `expects both the refuse-and-log kind name and a "Permitted write lanes" ` +
+          `enumeration. Re-run the renderer after restoring the canonical wording.`,
+      });
+    }
+  }
+}
+
+// Check #9: when a plugin ships _overrides/reference/contract-lock.md, that
+// file MUST NOT authorise writes to data/schema/ or schema.lock.json — the
+// canonical out-of-scope rule forbids it and the runtime hook refuses it.
+// Catches malformed overrides at lint time so they never reach runtime.
+function checkContractLockExitClean(
+  pluginSlug: string,
+  pluginDir: string,
+  repoRoot: string,
+  findings: Finding[],
+): void {
+  const override = path.join(
+    pluginDir,
+    "skills",
+    pluginSlug,
+    "_overrides",
+    "reference",
+    "contract-lock.md",
+  );
+  if (!fileExists(override)) return;
+  const body = fs.readFileSync(override, "utf8");
+  // Refuse-and-log markers: presence of one of these phrases AND no
+  // "Edit ..." / "Write ..." instruction targeting data/schema/.
+  const writeAuthMarkers = [
+    /Edit\s+.*data\/schema\//i,
+    /Write\s+.*data\/schema\//i,
+    /Edit\s+.*schema\.lock\.json/i,
+    /Write\s+.*schema\.lock\.json/i,
+    /[Aa]dd a sibling key.*plugin_contracts/,
+    /[Bb]ump\s+`?schema\.lock\.json`?/i,
+  ];
+  for (const re of writeAuthMarkers) {
+    if (re.test(body)) {
+      emit(findings, {
+        code: "E15",
+        severity: "error",
+        plugin: pluginSlug,
+        file: rel(repoRoot, override),
+        message:
+          `_overrides/reference/contract-lock.md authorises a write to ` +
+          `data/schema/ or schema.lock.json (matched pattern: ${re.toString()}). ` +
+          `Per the canonical "Out of scope" rule, the ingest skill MUST exit-clean ` +
+          `on contract drift — emit \`kind: contract-version-drift\` (or ` +
+          `\`contract-not-registered\`) and let \`/agntux schema\` Mode B own the ` +
+          `lock fix. Rewrite this file to refuse-and-log; PR #4's ` +
+          `validate-write-lane.mjs hook will refuse the write at runtime regardless.`,
+      });
+      return; // one error per file is enough
+    }
+  }
+}
+
+// Check #10: an _overrides/reference/{name}.md MUST NOT be byte-identical
+// to its canonical sibling (after substitution). A verbatim duplicate adds
+// no value and silently drifts when canonical changes.
+function checkOverrideNotIdenticalToCanonical(
+  pluginSlug: string,
+  pluginDir: string,
+  repoRoot: string,
+  findings: Finding[],
+): void {
+  const overrideRefDir = path.join(
+    pluginDir,
+    "skills",
+    pluginSlug,
+    "_overrides",
+    "reference",
+  );
+  const canonicalRefDir = path.join(canonicalSyncDir(repoRoot), "reference");
+  if (!isDirectory(overrideRefDir) || !isDirectory(canonicalRefDir)) return;
+  const overrideFiles = listMarkdown(overrideRefDir);
+  for (const relPath of overrideFiles) {
+    const overridePath = path.join(overrideRefDir, relPath);
+    const name = path.basename(overridePath);
+    const canonicalPath = path.join(canonicalRefDir, name);
+    if (!fileExists(canonicalPath)) continue; // additive override, no canonical sibling
+    const overrideBody = fs.readFileSync(overridePath, "utf8");
+    const canonicalBody = fs.readFileSync(canonicalPath, "utf8");
+    if (overrideBody === canonicalBody) {
+      emit(findings, {
+        code: "E15",
+        severity: "error",
+        plugin: pluginSlug,
+        file: rel(repoRoot, overridePath),
+        message:
+          `_overrides/reference/${name} is byte-identical to canonical/${name}. ` +
+          `A verbatim duplicate adds no value and silently drifts when canonical ` +
+          `changes. Either delete the override (canonical takes effect) or make ` +
+          `it source-specific (the file should be a wholesale replacement, not a copy).`,
+      });
+    }
+  }
+}
+
+// Check #11: every plugin's _overrides/frontmatter.yaml that uses canonical
+// must declare a permitted-error-kinds: list. The canonical sync.md and
+// runbook.md reference this taxonomy; missing means errors: entries cannot
+// be validated against a known set.
+function checkPermittedErrorKindsDeclared(
+  pluginSlug: string,
+  pluginDir: string,
+  repoRoot: string,
+  findings: Finding[],
+): void {
+  const fm = path.join(
+    pluginDir,
+    "skills",
+    pluginSlug,
+    "_overrides",
+    "frontmatter.yaml",
+  );
+  if (!fileExists(fm)) return; // no canonical-rendered skill; nothing to validate
+  const body = fs.readFileSync(fm, "utf8");
+  if (!/^permitted-error-kinds:/m.test(body)) {
+    emit(findings, {
+      code: "E15",
+      severity: "warning",
+      plugin: pluginSlug,
+      file: rel(repoRoot, fm),
+      message:
+        `_overrides/frontmatter.yaml is missing the permitted-error-kinds: ` +
+        `declaration. Canonical reference/runbook.md treats this as the ` +
+        `single source of truth for the kind: taxonomy used by ` +
+        `validate-write-lane.mjs and \`errors:\` entry validation. Declare ` +
+        `the canonical generic kinds plus your plugin-specific extensions ` +
+        `(see plugins/agntux-slack/_overrides/frontmatter.yaml for the shape).`,
+    });
+  }
+}
+
 // ── orchestrator ─────────────────────────────────────────────────────────────
 
 /**
@@ -564,7 +746,9 @@ function checkChainDepth(
  * The sync-drift checks (#1–#4) fire for any plugin that ships a
  * skills/{plugin-slug}/SKILL.md and require a matching
  * _overrides/frontmatter.yaml. The cross-plugin checks (#5–#7) fire for
- * any plugin that ships a skills/ directory.
+ * any plugin that ships a skills/ directory. The semantic checks (#8–#11,
+ * added by PR #6) enforce the autonomy-boundary taxonomy, contract-lock
+ * exit-clean rule, and override-not-duplicate invariant.
  */
 export function pass8SkillRender(
   pluginSlug: string,
@@ -598,6 +782,11 @@ export function pass8SkillRender(
       checkRenderReproducibility(pluginSlug, pluginDir, repoRoot, findings);
       checkLineBudget(pluginSlug, pluginDir, repoRoot, findings);
       checkOneLevelDeepReferences(pluginSlug, pluginDir, repoRoot, findings);
+      // Semantic invariants (PR #6).
+      checkOutOfScopeSection(pluginSlug, pluginDir, repoRoot, findings);
+      checkContractLockExitClean(pluginSlug, pluginDir, repoRoot, findings);
+      checkOverrideNotIdenticalToCanonical(pluginSlug, pluginDir, repoRoot, findings);
+      checkPermittedErrorKindsDeclared(pluginSlug, pluginDir, repoRoot, findings);
     }
   }
 
