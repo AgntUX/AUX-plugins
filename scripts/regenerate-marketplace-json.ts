@@ -25,25 +25,17 @@ const OUTPUT_PATH = path.join(REPO_ROOT, ".claude-plugin", "marketplace.json");
 
 interface PluginJson {
   name?: string;
-  version?: string;
-  description?: string;
-  author?: { name?: string; url?: string } | string;
 }
 
 interface ListingYaml {
   keywords?: string[];
   categories?: string[];
-  developer?: { name?: string; url?: string };
 }
 
 interface MarketplacePlugin {
   name: string;
   source: string;
-  description: string;
-  version: string;
-  author: { name: string; url?: string };
   homepage: string;
-  license: string;
   keywords: string[];
   category: string;
 }
@@ -61,28 +53,6 @@ function isDirectory(p: string): boolean {
   } catch {
     return false;
   }
-}
-
-function resolveAuthor(
-  pluginJson: PluginJson,
-  listingYaml: ListingYaml,
-): { name: string; url?: string } {
-  if (pluginJson.author) {
-    if (typeof pluginJson.author === "string") {
-      return { name: pluginJson.author };
-    }
-    return {
-      name: pluginJson.author.name ?? "Unknown",
-      url: pluginJson.author.url,
-    };
-  }
-  if (listingYaml.developer) {
-    return {
-      name: listingYaml.developer.name ?? "Unknown",
-      url: listingYaml.developer.url,
-    };
-  }
-  return { name: "Unknown" };
 }
 
 function regenerate(): void {
@@ -128,26 +98,13 @@ function regenerate(): void {
       );
     }
 
-    const author = resolveAuthor(pluginJson, listingYaml);
-
     const entry: MarketplacePlugin = {
       name: pluginJson.name ?? slug,
       source: `./plugins/${slug}`,
-      description: pluginJson.description ?? "",
-      version: pluginJson.version ?? "1.0.0",
-      author,
       homepage: `https://agntux.ai/plugins/${slug}`,
-      license: "Elastic-2.0",
       keywords: listingYaml.keywords ?? [],
       category: listingYaml.categories?.[0] ?? "meta",
     };
-
-    // Strip undefined fields from author
-    if (!entry.author.url) {
-      const { url: _url, ...rest } = entry.author;
-      void _url;
-      entry.author = rest;
-    }
 
     plugins.push(entry);
   }
