@@ -140,7 +140,11 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones (across **all** plugins, not just yours — this is what makes the cross-source merge in Step 9 work). If the file does not exist, proceed.
 
-**Slack-specific sync.md fields:** `discovery_ts` (newest message ts surfaced by any of the three discovery search queries — used as the `after:` filter on the next run) and `workspace_subdomain` (the tenant subdomain used to construct Slack deep links offline, e.g. `"oatfi"` for `oatfi.slack.com`; captured **once**, the first time any Slack MCP read tool returns a `Permalink:` field — see Step 5b. Once set, it persists across runs and is treated as immutable for the lifetime of the cursor file. When still `null`, the `Open in Slack` suggested action is omitted from action items written this run; subsequent runs include it once a permalink is observed. **Workspace renames** are out of band; clear the file manually to force re-derivation).
+**Slack-specific sync.md fields** (all three are source-derived identity / cursor-lifetime state — capture once, reuse forever, persist via Step 11):
+
+- `discovery_ts` — newest message ts surfaced by any of the three discovery search queries (used as the `after:` filter on the next run).
+- `workspace_subdomain` — the tenant subdomain used to construct Slack deep links offline (e.g. `"oatfi"` for `oatfi.slack.com`); captured the first time any Slack MCP read tool returns a `Permalink:` field — see Step 5b. When still `null`, the `Open in Slack` suggested action is omitted from action items written this run. Workspace renames are out of band; clear the file manually to force re-derivation.
+- `user_id` — the resolved Slack user id (e.g. `U030YKZBSDC`); captured by Step 5a's `slack_read_user_profile()` call. Persisting it here means subsequent runs skip the Step 5a call entirely. Workspace-stable; never overwrite once non-null.
 
 **Cursor map shape.** The `cursor` field is a unified single-line JSON map with two key shapes (channel-shaped `<channel_id>` and thread-shaped `<channel_id>#<thread_ts>`). Parse with `JSON.parse(cursor)`, serialise with `JSON.stringify(map)`. Full layer reference and worked example: apply the cursor reference shape (`reference/cursor.md`).
 
@@ -437,6 +441,8 @@ After processing all items:
 **Eviction log requirement.** For every key you evict, append a `slack-thread-evicted` entry to `sync.md → errors` naming the dropped key. The agntux-core `validate-cursor.mjs` PreToolUse hook rejects writes that silently drop a prior cursor key without an `evicted`-marked error line.
 
 **Persist `workspace_subdomain`** if it was captured for the first time during Step 5b. Once non-null, this value is workspace-stable and never overwritten on subsequent runs.
+
+**Persist `user_id`** if it was captured for the first time during Step 5a (cold-start). Once non-null, the value is workspace-stable; subsequent runs skip the `slack_read_user_profile()` call entirely (per Step 5a). Both `user_id` and `workspace_subdomain` are written as part of the single Step 11 sync.md write, not separate edits.
 
 For the per-layer reference table, apply the cursor reference shape (`reference/cursor.md`).
 

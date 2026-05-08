@@ -9,4 +9,6 @@
 
 **Persist `workspace_subdomain`** if it was captured for the first time during Step 5b. Once non-null, this value is workspace-stable and never overwritten on subsequent runs.
 
+**Persist `user_id`** if it was captured for the first time during Step 5a (cold-start). Once non-null, the value is workspace-stable; subsequent runs skip the `slack_read_user_profile()` call entirely (per Step 5a). Both `user_id` and `workspace_subdomain` are written as part of the single Step 11 sync.md write, not separate edits.
+
 For the per-layer reference table, apply the cursor reference shape (`reference/cursor.md`).
