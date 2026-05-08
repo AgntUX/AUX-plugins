@@ -79,7 +79,7 @@ See `LICENSE` for the canonical text.
   installation. Install, configure, and run plugins as a paying or trial user.
 - **Not permitted:**
   1. Provide the software to third parties as a hosted or managed service.
-  2. Move, change, disable, or circumvent the license-check hooks.
+  2. Move, change, disable, or circumvent the `@agntux/mcp-license` gate (the ELv2 license-key mechanism wrapping each MCP server's `tools/call` handler).
   3. Remove or obscure licensing, copyright, or attribution notices.
 
 For questions about specific use cases contact `legal@agntux.ai`. This summary

@@ -24,7 +24,7 @@ ordered preconditions; stop at the first one that diverts.
 
 ## A. Trial-status banner (always emit, before any other output)
 
-After the license-refresh hook runs, the cached license at
+After the `@agntux/mcp-license` gate refreshes, the cached license at
 `~/.agntux/.license` carries `lifecycle.trial_days_remaining`. On
 every entry-point skill invocation, read that value and emit a
 one-line banner **above** the response when it is set (i.e. when
@@ -47,8 +47,8 @@ Rules:
   by a blank line, then your normal output.
 - If `trial_days_remaining` ≤ −1 (post-expiry), emit the paused
   banner and stop — do NOT route to any other skill (the
-  license-validate hook would block tool execution anyway, but
-  failing fast here is friendlier).
+  `@agntux/mcp-license` gate would block any `tools/call`
+  invocation anyway, but failing fast here is friendlier).
 - If `~/.agntux/.license` is absent or unreadable, skip the banner
   silently.
 
