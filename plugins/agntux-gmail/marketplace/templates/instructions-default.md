@@ -4,6 +4,18 @@ generated_at: <RFC 3339 — fill at copy time>
 status: draft
 ---
 
+# Account
+
+# Optional. Pin the Google-account slot the plugin's Gmail links
+# should target — useful when you're signed into multiple Google
+# accounts and Gmail's `?authuser=` form keeps routing you to the
+# wrong inbox. The integer matches the `u/<N>/` segment in
+# Gmail's own URL bar (e.g. `u/2/` → 2). Unset → the plugin falls
+# back to `?authuser=<your-email>` and finally to omitting the
+# Open-in-Gmail row when nothing is known.
+#
+# account_index: 0
+
 # Always raise
 
 # Senders or queries that should always surface, even if filtered by

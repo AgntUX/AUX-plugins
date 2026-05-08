@@ -32,9 +32,12 @@
 //   1. Call create_draft with replyToMessageId: <id>, to: [a@b.com, c@d.com],
 //      cc: [...], bcc: [...], subject: «...», body: «...».
 //   2. After the draft is created, reply in chat with a clickable link of
-//      the form https://mail.google.com/mail/?authuser=<user_email>#drafts/<draft_id>
-//      labeled "Open draft in Gmail to review and send →" so the user can
-//      open it in Gmail, review, and click Send themselves.
+//      the form https://mail.google.com/mail/u/<account_index>/#drafts/<draft_id>
+//      (when account_index is set in instructions) or
+//      https://mail.google.com/mail/?authuser=<user_email>#drafts/<draft_id>
+//      (fallback) or https://mail.google.com/mail/u/0/#drafts/<draft_id>
+//      (cold-start), labeled "Open draft in Gmail to review and send →" so the
+//      user can open it in Gmail, review, and click Send themselves.
 //   (action_id: <id>)
 // =============================================================================
 
@@ -61,10 +64,19 @@ function emailList(addresses: string[]): string {
  * @param recipients          - {to, cc, bcc} arrays of email addresses.
  * @param reply_to_message_id - Gmail message id we're replying to (optional; empty string skips).
  * @param user_email          - The user's primary Gmail address; null if unknown.
- *                              When non-null, the Step 2 link template uses
- *                              `?authuser=<user_email>` so the browser opens
- *                              the right account; when null, falls back to
- *                              `mail/u/0/` which works for the default account.
+ * @param account_index       - Preferred Google-account slot (e.g. `2` for
+ *                              `mail.google.com/mail/u/2/`), parsed by the
+ *                              sync skill from `data/instructions/agntux-
+ *                              gmail.md → # Account / account_index`.
+ *
+ *   Link-template precedence for the Step 2 chat link:
+ *     1. `account_index !== null` → `mail/u/{account_index}/#drafts/<draft_id>`
+ *        (only form that reliably routes a multi-account browser to the
+ *        right slot — matches the user's pinned preference).
+ *     2. `user_email !== null`    → `mail/?authuser=<email>#drafts/<draft_id>`
+ *        (works on most setups; may fall through to `u/0` on some browsers).
+ *     3. otherwise                → `mail/u/0/#drafts/<draft_id>`
+ *        (cold-start; default account).
  */
 export function buildEnvelope(
   action_id: string,
@@ -73,6 +85,7 @@ export function buildEnvelope(
   recipients: ComposeEnvelopeRecipients,
   reply_to_message_id: string,
   user_email: string | null,
+  account_index: number | null,
 ): string {
   const escapedSubject = escapeGuillemets(edited_subject);
   const escapedBody = escapeGuillemets(edited_body);
@@ -92,9 +105,12 @@ export function buildEnvelope(
     `${ccClause}${bccClause}` +
     `subject: «${escapedSubject}», body: «${escapedBody}».`;
 
-  const linkTemplate = user_email
-    ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(user_email)}#drafts/<draft_id>`
-    : `https://mail.google.com/mail/u/0/#drafts/<draft_id>`;
+  const linkTemplate =
+    account_index !== null
+      ? `https://mail.google.com/mail/u/${account_index}/#drafts/<draft_id>`
+      : user_email
+        ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(user_email)}#drafts/<draft_id>`
+        : `https://mail.google.com/mail/u/0/#drafts/<draft_id>`;
 
   const step2 =
     `2. After the draft is created, reply in chat with a clickable link of ` +

@@ -6,6 +6,68 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-05-08
+
+Configurable Gmail account slot for multi-account browsers, plus a
+pre-composed `Draft a reply` button on every reply-worthy action.
+Both gaps surfaced while testing on a session with three Google
+accounts signed in: generated `Open in Gmail` URLs landed on `u/0`
+regardless of the user's actual inbox slot, and reply-worthy actions
+shipped only an `Open in Gmail` row (no `Draft a reply` button) so
+the compose iframe was unreachable from the action's chrome.
+
+### Added
+
+- **Configurable `account_index` in `data/instructions/agntux-gmail.md`.**
+  Append a new `# Account` section with `account_index: <int>` (e.g.
+  `account_index: 2` to pin the inbox at `mail.google.com/mail/u/2/`).
+  The sync skill (Step 0) parses it, Step 10's `Open in Gmail` URL
+  build prefers the `mail/u/{N}/?idr=inbox/{thread_id}` form when set
+  (the only form that reliably routes a multi-account browser to the
+  right slot), and the `## Compose payload` body section persists it
+  so the compose iframe's Save envelope can route the draft-creation
+  link to the same account. Unset → falls back to the previous
+  `?authuser=<email>` form, then to omitting the row entirely
+  (cold-start). Override semantics live in
+  `_overrides/reference/deep-links.md` + `_overrides/step-0-append.md`
+  + `_overrides/step-10-append.md`.
+- **`Draft a reply` suggested-action button.** Every reply-worthy
+  action now ships a pre-composed `Draft a reply` row in
+  `suggested_actions` that fires `agntux_gmail_compose_view` directly
+  from the action's chrome (no "Do something else" workaround). The
+  override at `_overrides/reference/compose-payload.md` declares the
+  two standard buttons (`Draft a reply` always; `Open in Gmail` only
+  when `gmail_thread_url` is non-null), mirroring agntux-slack's
+  shape. The `## Compose payload` body section also gains an
+  `account_index` field so the compose iframe lifts it without re-
+  reading instructions.
+
+### Changed
+
+- **`buildEnvelope` (compose UI handler) accepts `account_index`** as
+  a new parameter and routes the Step 2 chat link through a new three-
+  rung ladder: `mail/u/{N}/#drafts/<id>` (when `account_index !==
+  null`) → `mail/?authuser=<email>#drafts/<id>` (when `user_email !==
+  null`) → `mail/u/0/#drafts/<id>` (cold-start). The threaded
+  parameter flows through `useEmitCommit` and the `ComposeCard`
+  destructure.
+- **`ComposeStructuredContent` and the compose-view tool's
+  `outputSchema`** carry the new `account_index: <int | null>` field.
+  `parse-action.ts` reads it from the action file's `## Compose
+  payload` block (defaulting to `null` for older action files raised
+  before this release).
+
+### Notes
+
+- This is MINOR per P15 §5.1 — additive prompt surface (new
+  `# Account` section, new suggested-action row, new compose-payload
+  field) and additive on-disk shape (the `account_index` field in
+  `## Compose payload` is optional and defaults to `null` when
+  absent). No breaking changes to existing public surface.
+- Existing action files in `~/agntux/actions/` won't retroactively
+  gain the `Draft a reply` button or the `account_index` field —
+  those need a fresh sync run that re-raises them.
+
 ## [3.0.0] — 2026-05-07
 
 Slash-command unification — companion to agntux-core 8.0.0

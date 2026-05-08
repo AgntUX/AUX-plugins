@@ -37,6 +37,7 @@ export function ComposeCard({ payload }: ComposeCardProps) {
     email_context,
     gmail_thread_url,
     user_email,
+    account_index,
   } = payload;
 
   const [recipients, setRecipients] = useState({
@@ -82,6 +83,7 @@ export function ComposeCard({ payload }: ComposeCardProps) {
       recipients,
       reply_to_message_id,
       user_email,
+      account_index,
     );
   }
 

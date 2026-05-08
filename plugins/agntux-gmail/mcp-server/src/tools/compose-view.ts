@@ -78,6 +78,7 @@ interface ComposeStructuredContent {
   email_context: string;
   gmail_thread_url: string | null;
   user_email: string | null;
+  account_index: number | null;
 }
 
 interface ComposeStructuredError {
@@ -234,6 +235,7 @@ export const composeViewTool = {
       email_context: { type: "string" },
       gmail_thread_url: {},
       user_email: {},
+      account_index: {},
       error: { type: "string" },
     },
   },
@@ -346,6 +348,7 @@ export async function handleComposeView(
     email_context: truncate(parsed.email_context, MAX_EMAIL_CONTEXT_CHARS),
     gmail_thread_url: onDisk.gmail_thread_url,
     user_email: userEmail,
+    account_index: onDisk.account_index,
   };
 
   return {
