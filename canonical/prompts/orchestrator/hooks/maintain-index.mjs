@@ -7,6 +7,7 @@
 
 import { readFileSync, writeFileSync, renameSync, existsSync, fsyncSync, openSync, closeSync, readdirSync } from "node:fs";
 import { join, dirname, basename, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseFrontmatter } from "./lib/frontmatter.mjs";
 import { deriveSummary } from "./lib/summary.mjs";
 import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
@@ -232,49 +233,79 @@ function updateSourcesJson(filePath, fm) {
   renameSync(tmp, sourcesPath);
 }
 
-function handleEntity(filePath, fm, raw) {
-  if (!fm) return; // skip malformed; next valid write repairs the index
-  const slug = basename(filePath, ".md");
-  const summary = deriveSummary(raw, "Summary");
-  const indexPath = indexPathFor("entities", filePath);
-  const subtype = basename(dirname(filePath));
+// Full-rescan rebuild of an entity-subtype index (people/, companies/, ...).
+// Reads every file in the subtype directory and rebuilds the index from
+// scratch. Closes the gap where a sibling file's frontmatter changed without
+// that file being re-touched — the incremental update could never repair
+// stale entries on the next write to ANY entity.
+function rebuildEntitySubtypeIndex(subtypeDir) {
+  if (!existsSync(subtypeDir)) return;
+  const indexPath = join(subtypeDir, "_index.md");
+  const subtype = basename(subtypeDir);
   const parent = `entities/${subtype}`;
   const idx = readIndex(indexPath, "entities-subtype", parent);
-  idx.entries.set(slug, { line: emitEntityLine(slug, summary) });
-
+  idx.entries.clear();
+  for (const dirent of readdirSync(subtypeDir, { withFileTypes: true })) {
+    if (!dirent.isFile()) continue;
+    if (!dirent.name.endsWith(".md")) continue;
+    if (dirent.name === "_index.md") continue;
+    const path = join(subtypeDir, dirent.name);
+    const slug = basename(dirent.name, ".md");
+    let entityRaw, entityFm;
+    try {
+      entityRaw = readFileSync(path, "utf8");
+      entityFm = parseFrontmatter(entityRaw).frontmatter;
+    } catch {
+      continue;
+    }
+    if (!entityFm) continue; // skip malformed
+    const summary = deriveSummary(entityRaw, "Summary");
+    idx.entries.set(slug, { line: emitEntityLine(slug, summary) });
+  }
   const sortedLines = [...idx.entries.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, e]) => e.line);
-
   writeIndex(indexPath, idx.frontmatter, sortedLines);
-  bumpRollup(); // keep entities/_index.md in sync (subtype-counts roll-up)
-  updateSourcesJson(filePath, fm); // keep _sources.json in sync per P3.AMEND.2
 }
 
-function handleAction(filePath, fm, raw) {
-  if (!fm || !fm.id || !fm.status) return; // skip malformed; next valid write repairs the index
-  const id = basename(filePath, ".md");
-  const summary = deriveSummary(raw, "Why this matters");
-  const indexPath = indexPathFor("actions", filePath);
+// Full-rescan rebuild of actions/_index.md.
+function rebuildActionsIndex() {
+  if (!ACTIONS_ROOT || !existsSync(ACTIONS_ROOT)) return;
+  const indexPath = join(ACTIONS_ROOT, "_index.md");
   const idx = readIndex(indexPath, "actions", "actions");
-  idx.entries.set(id, { line: emitActionLine(id, fm, summary) });
-
+  idx.entries.clear();
+  for (const dirent of readdirSync(ACTIONS_ROOT, { withFileTypes: true })) {
+    if (!dirent.isFile()) continue;
+    if (!dirent.name.endsWith(".md")) continue;
+    if (dirent.name === "_index.md") continue;
+    const path = join(ACTIONS_ROOT, dirent.name);
+    const id = basename(dirent.name, ".md");
+    let actionRaw, actionFm;
+    try {
+      actionRaw = readFileSync(path, "utf8");
+      actionFm = parseFrontmatter(actionRaw).frontmatter;
+    } catch {
+      continue;
+    }
+    if (!actionFm || !actionFm.id || !actionFm.status) continue;
+    const summary = deriveSummary(actionRaw, "Why this matters");
+    idx.entries.set(id, { line: emitActionLine(id, actionFm, summary) });
+  }
   const sortedLines = sortActions(idx.entries);
   writeIndex(indexPath, idx.frontmatter, sortedLines);
 }
 
-function handleDelete(scope, filePath) {
-  const id = basename(filePath, ".md");
-  const indexPath = indexPathFor(scope, filePath);
-  if (!existsSync(indexPath)) return;
-  const subtype = scope === "entities" ? basename(dirname(filePath)) : null;
-  const parent = scope === "entities" ? `entities/${subtype}` : "actions";
-  const idx = readIndex(indexPath, scope === "entities" ? "entities-subtype" : "actions", parent);
-  if (!idx.entries.delete(id)) return;
-  const lines = scope === "actions"
-    ? sortActions(idx.entries)
-    : [...idx.entries.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, e]) => e.line);
-  writeIndex(indexPath, idx.frontmatter, lines);
+// Re-export so session-end-rebuild.mjs can do the same passes.
+export { rebuildActionsIndex, rebuildEntitySubtypeIndex, bumpRollup, ACTIONS_ROOT, ENTITIES_ROOT };
+
+function handleEntity(filePath, fm, raw) {
+  rebuildEntitySubtypeIndex(dirname(filePath));
+  bumpRollup(); // keep entities/_index.md in sync (subtype-counts roll-up)
+  if (fm) updateSourcesJson(filePath, fm); // keep _sources.json in sync per P3.AMEND.2
+}
+
+function handleAction(_filePath, _fm, _raw) {
+  rebuildActionsIndex();
 }
 
 function main() {
@@ -286,14 +317,20 @@ function main() {
   const scope = inScope(filePath);
   if (!scope) process.exit(0);
 
-  // Read the changed source file.
-  if (!existsSync(filePath)) {
-    // File was deleted (rare — usually tombstoned via deleted_upstream). Remove its line.
-    handleDelete(scope, filePath);
-    process.exit(0);
+  // Whether the just-written file exists or not, the full rescan handles it
+  // correctly: the rescan walks the directory, so a deleted file naturally
+  // disappears from the index. Only the _sources.json upsert needs the
+  // post-write frontmatter, and only for entities.
+  let fm = null;
+  let raw = "";
+  if (existsSync(filePath)) {
+    try {
+      raw = readFileSync(filePath, "utf8");
+      fm = parseFrontmatter(raw).frontmatter;
+    } catch {
+      /* unreadable; rescan still handles index */
+    }
   }
-  const raw = readFileSync(filePath, "utf8");
-  const { frontmatter: fm } = parseFrontmatter(raw);
 
   if (scope === "entities") {
     handleEntity(filePath, fm, raw);
@@ -303,4 +340,9 @@ function main() {
   process.exit(0);
 }
 
-main();
+// Only run main() when invoked as a CLI hook. When imported as a module
+// (e.g., from session-end-rebuild.mjs) skip — readFileSync(0) on stdin
+// would otherwise EOF and process.exit() would kill the importer.
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}

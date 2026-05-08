@@ -213,6 +213,37 @@ function main() {
     }
   }
 
+  // Generic check 5 (C1 backstop): no cursor value is in the future.
+  // Catches the permalink-extraction failure mode — most permalink-derived ts
+  // values are either way-past or way-future relative to the run wall-clock.
+  // The hook can't verify "ts came from a real Message_ts: field" without the
+  // fetch buffer (which lives in a different process), but the future-ts
+  // check costs nothing and catches the common bad-write shape.
+  if (newCursorMap !== null) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    // Slack ts values are seconds.microseconds (e.g. "1778241733.129779").
+    // Gmail historyId-style cursors are integers but typically NOT seconds-
+    // since-epoch — they're opaque. Apply the future-ts check only to values
+    // that look like Slack-style float-seconds.
+    const slackTsLike = /^\d{10}(\.\d+)?$/;
+    const future = [];
+    // 5-minute clock-skew tolerance keeps NTP wobble out of the rejection set.
+    const ceiling = nowSeconds + 5 * 60;
+    for (const [key, value] of Object.entries(newCursorMap)) {
+      if (typeof value !== "string") continue;
+      if (!slackTsLike.test(value)) continue;
+      if (Number(value) > ceiling) future.push({ key, value });
+    }
+    if (future.length > 0) {
+      reject(
+        `${pluginSlug}/sync.md → cursor key${future.length > 1 ? "s" : ""} ${future
+          .slice(0, 3)
+          .map(({ key, value }) => `\`${key}\` = \`${value}\``)
+          .join(", ")}${future.length > 3 ? ` (+${future.length - 3} more)` : ""} carry future timestamps (> now() + 5 min). The most common cause is a permalink-extracted ts being written as a cursor — permalinks contain ts values from messages in OTHER channels and are not valid cursors for the current key. Per the Slack fetch override's "cursor-advance discipline": never advance to a ts not seen in a real \`Message_ts:\` field of a fetched message. Re-derive the cursor from the run's fetch buffer and retry.`
+      );
+    }
+  }
+
   // Generic checks 3 + 4: JSON-map keys preserved + non-null values stay non-null.
   if (newCursorMap !== null) {
     const oldCursorRaw = extractField(prior, "cursor");
