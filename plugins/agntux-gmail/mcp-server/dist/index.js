@@ -3207,11 +3207,11 @@ var require_utils = __commonJS({
       output.address = address.join("");
       return output;
     }
-    function normalizeIPv6(host2) {
-      if (findToken(host2, ":") < 2) {
-        return { host: host2, isIPV6: false };
+    function normalizeIPv6(host) {
+      if (findToken(host, ":") < 2) {
+        return { host, isIPV6: false };
       }
-      const ipv62 = getIPV6(host2);
+      const ipv62 = getIPV6(host);
       if (!ipv62.error) {
         let newHost = ipv62.address;
         let escapedHost = ipv62.address;
@@ -3221,7 +3221,7 @@ var require_utils = __commonJS({
         }
         return { host: newHost, isIPV6: true, escapedHost };
       } else {
-        return { host: host2, isIPV6: false };
+        return { host, isIPV6: false };
       }
     }
     function findToken(str, token) {
@@ -3309,10 +3309,10 @@ var require_utils = __commonJS({
     var HOST_DELIMS = { "@": "%40", "/": "%2F", "?": "%3F", "#": "%23", ":": "%3A" };
     var HOST_DELIM_RE = /[@/?#:]/g;
     var HOST_DELIM_NO_COLON_RE = /[@/?#]/g;
-    function reescapeHostDelimiters(host2, isIP) {
+    function reescapeHostDelimiters(host, isIP) {
       const re = isIP ? HOST_DELIM_NO_COLON_RE : HOST_DELIM_RE;
       re.lastIndex = 0;
-      return host2.replace(re, (ch) => HOST_DELIMS[ch]);
+      return host.replace(re, (ch) => HOST_DELIMS[ch]);
     }
     function normalizePercentEncoding(input, decodeUnreserved = false) {
       if (input.indexOf("%") === -1) {
@@ -3385,16 +3385,16 @@ var require_utils = __commonJS({
         uriTokens.push("@");
       }
       if (component.host !== void 0) {
-        let host2 = unescape(component.host);
-        if (!isIPv4(host2)) {
-          const ipV6res = normalizeIPv6(host2);
+        let host = unescape(component.host);
+        if (!isIPv4(host)) {
+          const ipV6res = normalizeIPv6(host);
           if (ipV6res.isIPV6 === true) {
-            host2 = `[${ipV6res.escapedHost}]`;
+            host = `[${ipV6res.escapedHost}]`;
           } else {
-            host2 = reescapeHostDelimiters(host2, false);
+            host = reescapeHostDelimiters(host, false);
           }
         }
-        uriTokens.push(host2);
+        uriTokens.push(host);
       }
       if (typeof component.port === "number" || typeof component.port === "string") {
         uriTokens.push(":");
@@ -19898,710 +19898,6 @@ var require_dist2 = __commonJS({
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 
-// ../../../packages/mcp-license/dist/index.js
-import { hostname as hostname2 } from "node:os";
-
-// ../../../packages/mcp-license/dist/cache.js
-import { readFileSync, writeFileSync, renameSync, mkdirSync, statSync, chmodSync, unlinkSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { randomBytes } from "node:crypto";
-var OVERRIDE_DIR = null;
-var OVERRIDE_FILE = null;
-function cacheDir() {
-  return OVERRIDE_DIR ?? join(homedir(), ".agntux");
-}
-function cachePath() {
-  return OVERRIDE_FILE ?? join(cacheDir(), ".license");
-}
-function ensureDir() {
-  const dir = cacheDir();
-  try {
-    const st = statSync(dir);
-    if (st.isDirectory()) {
-      const mode = st.mode & 511;
-      if (mode !== 448) {
-        try {
-          chmodSync(dir, 448);
-        } catch {
-        }
-      }
-      return;
-    }
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-  }
-  mkdirSync(dir, { recursive: true, mode: 448 });
-}
-function readLicenseCache() {
-  let raw;
-  try {
-    raw = readFileSync(cachePath(), "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT")
-      return null;
-    return { _corrupt: true, error: e.message };
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { _corrupt: true, error: "not an object" };
-    }
-    if (typeof parsed.token !== "string") {
-      return { _corrupt: true, error: "missing token" };
-    }
-    return parsed;
-  } catch (e) {
-    return { _corrupt: true, error: e.message };
-  }
-}
-function writeLicenseCache(record2) {
-  if (record2 === null || typeof record2 !== "object") {
-    throw new TypeError("writeLicenseCache: record must be an object");
-  }
-  ensureDir();
-  const target = cachePath();
-  const suffix = randomBytes(6).toString("hex");
-  const tmp = `${target}.tmp.${process.pid}.${suffix}`;
-  const json = JSON.stringify(record2, null, 2);
-  writeFileSync(tmp, json, { mode: 384 });
-  try {
-    chmodSync(tmp, 384);
-    renameSync(tmp, target);
-  } catch (e) {
-    try {
-      unlinkSync(tmp);
-    } catch {
-    }
-    throw e;
-  }
-  try {
-    chmodSync(target, 384);
-  } catch {
-  }
-}
-
-// ../../../packages/mcp-license/dist/device.js
-import { readFileSync as readFileSync2, writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, statSync as statSync2, chmodSync as chmodSync2 } from "node:fs";
-import { homedir as homedir2, hostname } from "node:os";
-import { createHash, randomBytes as randomBytes2 } from "node:crypto";
-import { join as join2 } from "node:path";
-var DEVICE_ID_RE = /^dev_[a-f0-9]{16,}$/;
-var OVERRIDE_PATH = null;
-var HOSTNAME_OVERRIDE = null;
-function devicePath() {
-  return OVERRIDE_PATH ?? join2(homedir2(), ".agntux", ".device");
-}
-function host() {
-  return HOSTNAME_OVERRIDE ?? hostname();
-}
-function ensureDir2() {
-  const dir = join2(devicePath(), "..");
-  try {
-    const st = statSync2(dir);
-    if (st.isDirectory()) {
-      const mode = st.mode & 511;
-      if (mode !== 448) {
-        try {
-          chmodSync2(dir, 448);
-        } catch {
-        }
-      }
-      return;
-    }
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-  }
-  mkdirSync2(dir, { recursive: true, mode: 448 });
-}
-function getOrCreateDeviceId() {
-  try {
-    const id2 = readFileSync2(devicePath(), "utf8").trim();
-    if (DEVICE_ID_RE.test(id2))
-      return id2;
-  } catch {
-  }
-  const nonce = randomBytes2(8).toString("hex");
-  const id = "dev_" + createHash("sha256").update(host() + ":" + nonce).digest("hex").slice(0, 16);
-  ensureDir2();
-  writeFileSync2(devicePath(), id, { mode: 384 });
-  try {
-    chmodSync2(devicePath(), 384);
-  } catch {
-  }
-  return id;
-}
-
-// ../../../packages/mcp-license/dist/errors.js
-function envelope(text) {
-  return {
-    isError: true,
-    content: [{ type: "text", text }]
-  };
-}
-function buildErrorEnvelope(kind, ctx) {
-  const billing = `${ctx.apiBase}/billing`;
-  switch (kind) {
-    case "pairing_required": {
-      const url = ctx.verificationUrl ?? ctx.apiBase;
-      return envelope(`${ctx.pluginName} requires pairing before this tool can run.
-
-Pair this device \u2192 ${url}
-
-Steps:
-  1. Open the link above
-  2. Enter your email
-  3. Click the approval link in your inbox
-  4. Run this command again
-
-This pairing link expires in 15 minutes.`);
-    }
-    case "pairing_pending": {
-      const url = ctx.verificationUrl ?? ctx.apiBase;
-      return envelope(`Pairing is in progress.
-
-Check your inbox for the AgntUX approval email and click "Approve". If the email hasn't arrived, return to ${url} and request a new one.
-
-After approving, run this command again.`);
-    }
-    case "pairing_failed":
-      return envelope(`Could not start the pairing flow${ctx.detail ? ` (${ctx.detail})` : ""}.
-
-Check your network connection and try again. If the problem persists, contact support@agntux.ai.`);
-    case "trial_expired":
-      return envelope(`Your AgntUX trial has ended.
-
-Subscribe to keep using ${ctx.pluginName} \u2192 ${ctx.upgradeUrl ?? billing}`);
-    case "subscription_lapsed":
-      return envelope(`Your AgntUX subscription billing failed.
-
-Update your payment method to keep using ${ctx.pluginName} \u2192 ${ctx.upgradeUrl ?? billing}`);
-    case "subscription_canceled":
-      return envelope(`Your AgntUX subscription has ended.
-
-Reactivate to keep using ${ctx.pluginName} \u2192 ${ctx.upgradeUrl ?? billing}`);
-    case "device_limit_exceeded":
-      return envelope(`Device limit reached for your AgntUX account.
-
-Email support@agntux.ai with the name of a previously-paired device to revoke; then run this command again.`);
-    case "invalid_session":
-      return envelope(`Your AgntUX session is no longer valid.
-
-Run this command again to re-pair this device.`);
-    case "network_unavailable":
-      return envelope(`Cannot reach AgntUX (${ctx.detail ?? "network"}).
-
-Connect to the internet and run this command again.`);
-  }
-}
-
-// ../../../packages/mcp-license/dist/jwt-verify.js
-import { createPublicKey, verify } from "node:crypto";
-
-// ../../../packages/mcp-license/dist/keys.js
-var ACTIVE_KEYS = [
-  {
-    kid: "agntux-license-v1",
-    spki: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA8WVzf12gfIrg5TT9DxnTFU/mO/7UKEQMTAc2JX+AUO4=\n-----END PUBLIC KEY-----\n"
-  }
-];
-var TEST_OVERRIDE = null;
-function activeKeys() {
-  return TEST_OVERRIDE ?? ACTIVE_KEYS;
-}
-
-// ../../../packages/mcp-license/dist/jwt-verify.js
-var EXPECTED_ISS = "https://app.agntux.ai";
-var EXPECTED_AUD = "agntux-plugin";
-var KEY_CACHE = /* @__PURE__ */ new Map();
-function getKey(kid) {
-  const cached2 = KEY_CACHE.get(kid);
-  if (cached2)
-    return cached2;
-  const match = activeKeys().find((k) => k.kid === kid);
-  if (!match)
-    return null;
-  const obj = createPublicKey(match.spki);
-  KEY_CACHE.set(kid, obj);
-  return obj;
-}
-function b64urlDecode(s) {
-  if (typeof s !== "string")
-    return Buffer.alloc(0);
-  let normalized = s.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = normalized.length % 4;
-  if (pad === 2)
-    normalized += "==";
-  else if (pad === 3)
-    normalized += "=";
-  else if (pad === 1)
-    return Buffer.alloc(0);
-  return Buffer.from(normalized, "base64");
-}
-function verifyLicense(jwt, opts) {
-  const now = opts && typeof opts.now === "number" ? opts.now : Math.floor(Date.now() / 1e3);
-  if (typeof jwt !== "string" || jwt.length === 0) {
-    return { ok: false, reason: "malformed" };
-  }
-  const parts = jwt.split(".");
-  if (parts.length !== 3)
-    return { ok: false, reason: "malformed" };
-  let header;
-  let payload;
-  try {
-    const headerBuf = b64urlDecode(parts[0]);
-    const payloadBuf = b64urlDecode(parts[1]);
-    if (headerBuf.length === 0 || payloadBuf.length === 0) {
-      return { ok: false, reason: "malformed" };
-    }
-    header = JSON.parse(headerBuf.toString("utf8"));
-    payload = JSON.parse(payloadBuf.toString("utf8"));
-  } catch {
-    return { ok: false, reason: "malformed" };
-  }
-  if (header.alg !== "EdDSA")
-    return { ok: false, reason: "wrong_alg" };
-  if (typeof header.kid !== "string")
-    return { ok: false, reason: "unknown_kid" };
-  const key = getKey(header.kid);
-  if (!key)
-    return { ok: false, reason: "unknown_kid" };
-  const signingInput = Buffer.from(`${parts[0]}.${parts[1]}`, "utf8");
-  const signature = b64urlDecode(parts[2]);
-  if (signature.length !== 64) {
-    return { ok: false, reason: "malformed" };
-  }
-  let signatureValid = false;
-  try {
-    signatureValid = verify(null, signingInput, key, signature);
-  } catch {
-    return { ok: false, reason: "verify_error" };
-  }
-  if (!signatureValid)
-    return { ok: false, reason: "bad_signature" };
-  if (payload.iss !== EXPECTED_ISS)
-    return { ok: false, reason: "wrong_iss" };
-  if (payload.aud !== EXPECTED_AUD)
-    return { ok: false, reason: "wrong_aud" };
-  if (typeof payload.nbf === "number" && now + 30 < payload.nbf) {
-    return { ok: false, reason: "not_yet_valid" };
-  }
-  if (typeof payload.exp !== "number") {
-    return { ok: false, reason: "malformed" };
-  }
-  if (now >= payload.exp) {
-    return { ok: false, reason: "expired", payload };
-  }
-  return { ok: true, payload };
-}
-
-// ../../../packages/mcp-license/dist/pairing.js
-import { readFileSync as readFileSync3, writeFileSync as writeFileSync3, unlinkSync as unlinkSync2, mkdirSync as mkdirSync3, statSync as statSync3, chmodSync as chmodSync3 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join3 } from "node:path";
-import { randomBytes as randomBytes3 } from "node:crypto";
-var OVERRIDE_PATH2 = null;
-var FETCH_OVERRIDE = null;
-function pairingPath() {
-  return OVERRIDE_PATH2 ?? join3(homedir3(), ".agntux", ".pairing");
-}
-function fx() {
-  return FETCH_OVERRIDE ?? fetch;
-}
-function ensureDir3() {
-  const dir = join3(pairingPath(), "..");
-  try {
-    const st = statSync3(dir);
-    if (st.isDirectory()) {
-      const mode = st.mode & 511;
-      if (mode !== 448) {
-        try {
-          chmodSync3(dir, 448);
-        } catch {
-        }
-      }
-      return;
-    }
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-  }
-  mkdirSync3(dir, { recursive: true, mode: 448 });
-}
-function readPairing() {
-  let raw;
-  try {
-    raw = readFileSync3(pairingPath(), "utf8");
-  } catch {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.nonce === "string" && typeof parsed.verification_url === "string" && typeof parsed.expires_at === "number") {
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-function writePairing(state) {
-  ensureDir3();
-  writeFileSync3(pairingPath(), JSON.stringify(state, null, 2), { mode: 384 });
-  try {
-    chmodSync3(pairingPath(), 384);
-  } catch {
-  }
-}
-function clearPairing() {
-  try {
-    unlinkSync2(pairingPath());
-  } catch {
-  }
-}
-function generateNonce() {
-  return randomBytes3(32).toString("base64url");
-}
-async function requestPairing(args) {
-  try {
-    const res = await fx()(`${args.apiBase}/api/auth/magic-link/request`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        device_id: args.deviceId,
-        device_name: args.deviceName,
-        nonce: args.nonce
-      })
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, status: res.status, error: body.error };
-    }
-    return {
-      ok: true,
-      status: res.status,
-      verification_url: body.verification_url,
-      expires_in: body.expires_in
-    };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-}
-async function pollPairing(args) {
-  try {
-    const res = await fx()(`${args.apiBase}/api/auth/magic-link/poll`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nonce: args.nonce })
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, status: res.status, error: body.error };
-    }
-    if (body.status === "pending" || body.status === "approved" || body.status === "denied") {
-      return {
-        ok: true,
-        status: res.status,
-        state: body.status,
-        session_token: body.session_token,
-        user_id: body.user_id
-      };
-    }
-    return { ok: false, status: res.status, error: "bad_response" };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-}
-
-// ../../../packages/mcp-license/dist/refresh.js
-var FETCH_OVERRIDE2 = null;
-function fx2() {
-  return FETCH_OVERRIDE2 ?? fetch;
-}
-async function refreshLicense(args) {
-  let res;
-  try {
-    res = await fx2()(`${args.apiBase}/api/license/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${args.sessionToken}`,
-        "User-Agent": "agntux-mcp-license/1"
-      },
-      body: JSON.stringify({
-        device_id: args.deviceId,
-        plugin_versions: args.pluginVersions,
-        client_ts: Math.floor(Date.now() / 1e3)
-      })
-    });
-  } catch (e) {
-    return { ok: false, reason: "network", message: e.message };
-  }
-  let body = {};
-  try {
-    body = await res.json();
-  } catch {
-    if (res.status === 200)
-      return { ok: false, reason: "bad_response" };
-  }
-  if (res.status === 200) {
-    return { ok: true, status: res.status, body };
-  }
-  return {
-    ok: false,
-    status: res.status,
-    reason: typeof body.error === "string" ? body.error : `http_${res.status}`,
-    message: typeof body.message === "string" ? body.message : void 0,
-    upgrade_url: typeof body.upgrade_url === "string" ? body.upgrade_url : void 0
-  };
-}
-
-// ../../../packages/mcp-license/dist/session.js
-import { readFileSync as readFileSync4, writeFileSync as writeFileSync4, unlinkSync as unlinkSync3, mkdirSync as mkdirSync4, statSync as statSync4, chmodSync as chmodSync4 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { join as join4 } from "node:path";
-var OVERRIDE_PATH3 = null;
-function sessionPath() {
-  return OVERRIDE_PATH3 ?? join4(homedir4(), ".agntux", ".session");
-}
-function ensureDir4() {
-  const dir = join4(sessionPath(), "..");
-  try {
-    const st = statSync4(dir);
-    if (st.isDirectory()) {
-      const mode = st.mode & 511;
-      if (mode !== 448) {
-        try {
-          chmodSync4(dir, 448);
-        } catch {
-        }
-      }
-      return;
-    }
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-  }
-  mkdirSync4(dir, { recursive: true, mode: 448 });
-}
-function readSession() {
-  try {
-    const raw = readFileSync4(sessionPath(), "utf8").trim();
-    return raw.length > 0 ? raw : null;
-  } catch {
-    return null;
-  }
-}
-function writeSession(token) {
-  if (typeof token !== "string" || token.length === 0) {
-    throw new TypeError("writeSession: token must be a non-empty string");
-  }
-  ensureDir4();
-  writeFileSync4(sessionPath(), token, { mode: 384 });
-  try {
-    chmodSync4(sessionPath(), 384);
-  } catch {
-  }
-}
-function clearSession() {
-  try {
-    unlinkSync3(sessionPath());
-  } catch {
-  }
-}
-
-// ../../../packages/mcp-license/dist/index.js
-var DEFAULT_API_BASE = "https://app.agntux.ai";
-var PRE_REFRESH_WINDOW_S = 6 * 60 * 60;
-function createLicenseGate(opts) {
-  const apiBase = (opts.apiBase ?? process.env.AGNTUX_API_BASE ?? DEFAULT_API_BASE).replace(/\/+$/, "");
-  const pluginName = opts.pluginName;
-  const pluginVersion = opts.pluginVersion;
-  const deviceName = opts.deviceName ?? defaultDeviceName(pluginName);
-  function isDevMode() {
-    return process.env.AGNTUX_DEV_MODE === "1";
-  }
-  async function ensureSessionAndLicense(now) {
-    const deviceId = getOrCreateDeviceId();
-    const pendingPairing = readPairing();
-    if (pendingPairing) {
-      if (pendingPairing.expires_at <= now) {
-        clearPairing();
-      } else {
-        const poll = await pollPairing({
-          apiBase,
-          nonce: pendingPairing.nonce
-        });
-        if (!poll.ok) {
-          if (poll.status === 410) {
-            clearPairing();
-          } else {
-            return buildErrorEnvelope("pairing_pending", {
-              pluginName,
-              apiBase,
-              verificationUrl: pendingPairing.verification_url
-            });
-          }
-        } else if (poll.state === "approved" && poll.session_token) {
-          writeSession(poll.session_token);
-          clearPairing();
-        } else if (poll.state === "denied") {
-          clearPairing();
-          return buildErrorEnvelope("pairing_required", {
-            pluginName,
-            apiBase
-          });
-        } else {
-          return buildErrorEnvelope("pairing_pending", {
-            pluginName,
-            apiBase,
-            verificationUrl: pendingPairing.verification_url
-          });
-        }
-      }
-    }
-    const session = readSession();
-    if (!session) {
-      const nonce = generateNonce();
-      const req = await requestPairing({
-        apiBase,
-        deviceId,
-        deviceName,
-        nonce
-      });
-      if (!req.ok || !req.verification_url) {
-        return buildErrorEnvelope("pairing_failed", {
-          pluginName,
-          apiBase,
-          detail: req.error
-        });
-      }
-      const expiresAt = now + (req.expires_in ?? 900);
-      writePairing({
-        nonce,
-        verification_url: req.verification_url,
-        expires_at: expiresAt
-      });
-      return buildErrorEnvelope("pairing_required", {
-        pluginName,
-        apiBase,
-        verificationUrl: req.verification_url
-      });
-    }
-    const refresh = await refreshLicense({
-      apiBase,
-      sessionToken: session,
-      deviceId,
-      pluginVersions: { [pluginName]: pluginVersion }
-    });
-    if (!refresh.ok) {
-      return mapRefreshErrorToEnvelope(refresh.reason, refresh.upgrade_url);
-    }
-    if (!refresh.body || typeof refresh.body.token !== "string") {
-      return buildErrorEnvelope("network_unavailable", {
-        pluginName,
-        apiBase,
-        detail: "bad refresh response"
-      });
-    }
-    writeLicenseCache({
-      ...refresh.body,
-      last_refresh_at: now
-    });
-    return void 0;
-  }
-  function mapRefreshErrorToEnvelope(reason, upgradeUrl) {
-    switch (reason) {
-      case "trial_expired":
-        return buildErrorEnvelope("trial_expired", {
-          pluginName,
-          apiBase,
-          upgradeUrl
-        });
-      case "subscription_lapsed":
-        return buildErrorEnvelope("subscription_lapsed", {
-          pluginName,
-          apiBase,
-          upgradeUrl
-        });
-      case "subscription_canceled":
-        return buildErrorEnvelope("subscription_canceled", {
-          pluginName,
-          apiBase,
-          upgradeUrl
-        });
-      case "device_limit_exceeded":
-        return buildErrorEnvelope("device_limit_exceeded", {
-          pluginName,
-          apiBase,
-          upgradeUrl
-        });
-      case "invalid_session":
-        clearSession();
-        return buildErrorEnvelope("invalid_session", { pluginName, apiBase });
-      case "network":
-      case "timeout":
-      case "bad_response":
-        return buildErrorEnvelope("network_unavailable", {
-          pluginName,
-          apiBase,
-          detail: reason
-        });
-      default:
-        return buildErrorEnvelope("network_unavailable", {
-          pluginName,
-          apiBase,
-          detail: reason ?? "unknown"
-        });
-    }
-  }
-  async function requireValidLicense(_opts) {
-    if (isDevMode())
-      return void 0;
-    const now = Math.floor(Date.now() / 1e3);
-    const cached2 = readLicenseCache();
-    if (cached2 && !("_corrupt" in cached2)) {
-      const v = verifyLicense(cached2.token, { now });
-      if (v.ok) {
-        const remaining = (v.payload.exp ?? 0) - now;
-        if (remaining > PRE_REFRESH_WINDOW_S) {
-          return void 0;
-        }
-        const session = readSession();
-        if (session) {
-          const refresh = await refreshLicense({
-            apiBase,
-            sessionToken: session,
-            deviceId: getOrCreateDeviceId(),
-            pluginVersions: { [pluginName]: pluginVersion }
-          });
-          if (refresh.ok && refresh.body) {
-            writeLicenseCache({
-              ...refresh.body,
-              last_refresh_at: now
-            });
-          }
-        }
-        return void 0;
-      }
-    }
-    return ensureSessionAndLicense(now);
-  }
-  return { requireValidLicense, isDevMode };
-}
-function defaultDeviceName(pluginName) {
-  let host2 = "";
-  try {
-    host2 = hostname2();
-  } catch {
-  }
-  if (host2)
-    return `${host2} (${process.platform})`;
-  return `${pluginName} on ${process.platform}`;
-}
-
 // ../node_modules/zod/v4/core/core.js
 var _a;
 // @__NO_SIDE_EFFECTS__
@@ -29348,8 +28644,8 @@ var newRequest = (incoming, defaultHostname) => {
     }
     return req;
   }
-  const host2 = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
-  if (!host2) {
+  const host = (incoming instanceof Http2ServerRequest ? incoming.authority : incoming.headers.host) || defaultHostname;
+  if (!host) {
     throw new RequestError("Missing host header");
   }
   let scheme;
@@ -29361,8 +28657,8 @@ var newRequest = (incoming, defaultHostname) => {
   } else {
     scheme = incoming.socket && incoming.socket.encrypted ? "https" : "http";
   }
-  const url = new URL(`${scheme}://${host2}${incomingUrl}`);
-  if (url.hostname.length !== host2.length && url.hostname !== host2.replace(/:\d+$/, "")) {
+  const url = new URL(`${scheme}://${host}${incomingUrl}`);
+  if (url.hostname.length !== host.length && url.hostname !== host.replace(/:\d+$/, "")) {
     throw new RequestError("Invalid host header");
   }
   req[urlKey] = url.href;
@@ -30576,17 +29872,17 @@ var UI_RESOURCE_LIST = Object.values(UI_BUNDLES).map((b) => ({
 }));
 
 // src/tools/compose-view.ts
-import { statSync as statSync6 } from "node:fs";
-import { join as join6 } from "node:path";
+import { statSync as statSync2 } from "node:fs";
+import { join as join2 } from "node:path";
 
 // ../../agntux-core/mcp-server/dist/agntux-root.js
-import { homedir as homedir5 } from "node:os";
-import { basename, dirname, join as join5, resolve } from "node:path";
-import { statSync as statSync5 } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { statSync } from "node:fs";
 var AGNTUX_DIR_NAME = "agntux";
 function isDir(p) {
   try {
-    return statSync5(p).isDirectory();
+    return statSync(p).isDirectory();
   } catch {
     return false;
   }
@@ -30612,10 +29908,10 @@ function resolveAgntuxRoot(cwd) {
   return fallback();
 }
 function expectedAgntuxRoot(cwd) {
-  return resolveAgntuxRoot(cwd) ?? join5(homedir5(), AGNTUX_DIR_NAME);
+  return resolveAgntuxRoot(cwd) ?? join(homedir(), AGNTUX_DIR_NAME);
 }
 function fallback() {
-  const f = join5(homedir5(), AGNTUX_DIR_NAME);
+  const f = join(homedir(), AGNTUX_DIR_NAME);
   if (isDir(f))
     return f;
   return null;
@@ -30623,7 +29919,7 @@ function fallback() {
 
 // src/parse-action.ts
 var import_yaml = __toESM(require_dist2(), 1);
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync } from "node:fs";
 var FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
 var FALLBACK_FRONTMATTER = {
   id: "",
@@ -30788,7 +30084,7 @@ function normalizeComposePayload(raw) {
   };
 }
 function parseActionFile(filePath) {
-  const text = readFileSync5(filePath, "utf8");
+  const text = readFileSync(filePath, "utf8");
   const { frontmatter, body } = parseFrontmatter(text);
   const composeRaw = parseBodySection(body, "Compose payload (gmail)") ?? parseBodySection(body, "Compose payload");
   return {
@@ -30933,9 +30229,9 @@ async function handleComposeView(args) {
     );
   }
   const root = expectedAgntuxRoot();
-  const actionPath = join6(root, "actions", `${actionId}.md`);
+  const actionPath = join2(root, "actions", `${actionId}.md`);
   try {
-    statSync6(actionPath);
+    statSync2(actionPath);
   } catch {
     return structuredError(
       "action_not_found",
@@ -31024,11 +30320,7 @@ async function handleComposeView(args) {
 
 // src/index.ts
 var PLUGIN_NAME = "agntux-gmail";
-var PLUGIN_VERSION = "1.0.0";
-var gate = createLicenseGate({
-  pluginName: PLUGIN_NAME,
-  pluginVersion: PLUGIN_VERSION
-});
+var PLUGIN_VERSION = "4.0.0";
 var server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   {
@@ -31069,11 +30361,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   }))
 }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const err = await gate.requireValidLicense({
-    reason: "tools/call",
-    toolName: request.params.name
-  });
-  if (err) return err;
   const tool = TOOLS[request.params.name];
   if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
   return await tool.handler(request.params.arguments ?? {});

@@ -25,4 +25,4 @@ prioritizes action items and manages your workflow.
 
 ## License
 
-Elastic License v2 (ELv2). See LICENSE for details.
+Apache License 2.0. See LICENSE for details.

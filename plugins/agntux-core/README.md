@@ -86,14 +86,10 @@ schema and index validation:
 - `hooks/validate-contract.mjs` — PreToolUse, blocks contract violations.
 - `hooks/maintain-index.mjs` — PostToolUse, keeps the entity index current.
 
-License enforcement is NOT in hooks. It lives in the MCP server via
-`@agntux/mcp-license`, wrapped around the `tools/call` handler.
-`resources/read` for the UI bundle is intentionally ungated — see
-`packages/mcp-license/README.md` §"Why only tools/call".
-
 ## License
 
-Elastic License v2 (ELv2). See LICENSE for details.
+Apache License 2.0. See the `LICENSE` and `NOTICE` files at the repo
+root for full terms.
 
 ## Support
 

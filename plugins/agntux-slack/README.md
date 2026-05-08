@@ -204,25 +204,18 @@ node scripts/build-plugin.mjs agntux-slack --serve
   search (if you're @mentioned) or by re-discovery via the channel
   cursor (if the parent is touched).
 
-## Hooks and license enforcement
+## Hooks and MCP server
 
-AgntUX Slack ships **no `hooks/` directory**. License enforcement lives
-in this plugin's MCP server (`mcp-server/src/index.ts`) via the
-`@agntux/mcp-license` gate, which wraps the `tools/call` handler.
-`resources/read` for the UI bundle is intentionally ungated — see
-`packages/mcp-license/README.md` §"Why only tools/call". The gate
-prompts the user through a host-agnostic pairing flow when no valid
-session exists.
-
-The Slack data connector is host-installed (declared via
-`requires_source_mcp: { source: connector, connector_slug: slack }` in
-`marketplace/listing.yaml`); the MCP server in `mcp-server/` is the
-plugin's own MCP App UI server (compose / canvas view tools), not the
-data connector.
+AgntUX Slack ships **no `hooks/` directory**. The Slack data connector
+is host-installed (declared via `requires_source_mcp: { source:
+connector, connector_slug: slack }` in `marketplace/listing.yaml`);
+the MCP server in `mcp-server/` is the plugin's own MCP App UI server
+(compose / canvas view tools), not the data connector.
 
 ## License
 
-Elastic License v2 (ELv2). See the `LICENSE` file for details.
+Apache License 2.0. See the `LICENSE` and `NOTICE` files at the repo
+root for full terms.
 
 ## Support
 

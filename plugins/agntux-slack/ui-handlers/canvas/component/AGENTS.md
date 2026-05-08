@@ -59,18 +59,6 @@ This template supports the **MCP Apps protocol** via the inlined library in `src
 - Files in `src/lib/` are inlined from @mcp-apps-kit packages - DO NOT MODIFY
 - Exception: `SimpleMcpApp` is our own code and can be modified for protocol updates
 
-**License Gate — DO NOT MODIFY rules (P2a / T09):**
-
-- `src/App.tsx` has ONE approved edit: the `<LicenseGate>` wrapper around `<MainComponent>`.
-  Do **not** remove or weaken that wrapper — removing it breaks the revenue moat.
-- Do **not** edit `src/lib/license.ts` — it contains the Ed25519 public key and
-  gate logic. Changes here bypass or break the signature check.
-- Do **not** edit `src/components/license-gate.tsx` or its sub-components
-  (`TrialBanner`, `TrialExpiredScreen`, `LicenseRequiredScreen`).
-- Do **not** edit the `<LicenseGate>` import line in `App.tsx`.
-- The **only** file you should touch in `App.tsx` is `src/components/main-component.tsx`
-  (the child of `<LicenseGate>`). All custom component logic lives there.
-
 ## Display Modes
 
 The component should support these display modes:

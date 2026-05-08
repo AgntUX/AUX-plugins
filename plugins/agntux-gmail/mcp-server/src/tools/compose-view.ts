@@ -86,7 +86,6 @@ interface ComposeStructuredError {
     | "action_not_found"
     | "action_already_handled"
     | "agntux_root_missing"
-    | "license_paused"
     | "compose_payload_missing";
 }
 

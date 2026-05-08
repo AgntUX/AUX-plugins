@@ -75,8 +75,7 @@ function resolveSignedBase(): string {
     throw new Error(
       `No signed_ui_base_urls["${PLUGIN_SLUG}"] or signed_ui_base_url in ~/.agntux/.license ` +
       "and no AGNTUX_APP_ID env fallback. " +
-      "Invoke a tool so the @agntux/mcp-license gate refreshes the cache, or set " +
-      "AGNTUX_APP_ID + AGNTUX_S3_BASE for development."
+      "Set AGNTUX_APP_ID + AGNTUX_S3_BASE for development."
     );
   }
   return `${S3_BASE_FALLBACK}/${APP_ID_FALLBACK}/`;

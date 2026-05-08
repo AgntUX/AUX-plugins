@@ -80,7 +80,6 @@ interface CanvasStructuredError {
     | "action_not_found"
     | "action_already_handled"
     | "agntux_root_missing"
-    | "license_paused"
     | "canvas_payload_missing";
 }
 

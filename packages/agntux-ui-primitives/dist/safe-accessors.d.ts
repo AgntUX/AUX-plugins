@@ -2,7 +2,7 @@
  * safe-accessors — defensive coercion helpers for streaming/partial payloads.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Every helper returns a fully-defaulted value of its declared type so that
  * `undefined` never propagates into JSX where `.map`, `.length`, or

@@ -5,7 +5,7 @@
  *
  * Coverage:
  *   - render branches: loading skeleton / bootstrap empty / actions_index_missing
- *     / license_paused / populated list
+ *     / populated list
  *   - card content: title, summary, priority pill, reason badge, entity badges,
  *     suggested-action buttons
  *   - inline mutations: Done → callTool('agntux_core_set_status'),

@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.0] — 2026-05-08
+
+Open source. The plugin relicenses from Elastic License v2 (ELv2) to
+Apache License 2.0 and removes the `@agntux/mcp-license` gate from the
+MCP server's `tools/call` handler. Solo use is now unconditionally free
+with no nag, no degradation, and no pairing prompt. License validation
+moves to the upcoming proprietary AgntUX Teams runtime.
+
+### Changed
+- Relicensed from Elastic License v2 (ELv2) to Apache License 2.0. See
+  the root `LICENSE` and `NOTICE` files.
+
+### Removed
+- `@agntux/mcp-license` gate from the MCP server's `tools/call` handler.
+- `license_paused` structuredContent error code from
+  `agntux_slack_compose_view` and `agntux_slack_canvas_view`
+  (no longer reachable).
+
 ## [7.0.0] — 2026-05-07
 
 Slash-command unification — companion to agntux-core 8.0.0

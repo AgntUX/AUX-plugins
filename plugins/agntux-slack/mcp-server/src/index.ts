@@ -1,6 +1,5 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { createLicenseGate } from "@agntux/mcp-license";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -15,12 +14,7 @@ import { composeViewTool, handleComposeView } from "./tools/compose-view.js";
 import { canvasViewTool, handleCanvasView } from "./tools/canvas-view.js";
 
 const PLUGIN_NAME = "agntux-slack";
-const PLUGIN_VERSION = "4.0.0";
-
-const gate = createLicenseGate({
-  pluginName: PLUGIN_NAME,
-  pluginVersion: PLUGIN_VERSION,
-});
+const PLUGIN_VERSION = "8.0.0";
 
 // MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
 // section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
@@ -74,10 +68,6 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: UI_RESOURCE_LIST,
 }));
 
-// resources/read is intentionally NOT gated; license enforcement runs only on
-// tools/call. See agntux-core's index.ts for the rationale (concurrency race
-// on first-pair creation + ReadResourceResult vs CallToolResult envelope
-// shape mismatch).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   return (await handleUIResource(request.params.uri)) as any;
@@ -106,15 +96,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 // doesn't declare. Same cast pattern as the ReadResource handler above.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  // LICENSE-ENFORCEMENT — DO NOT REMOVE, WEAKEN, OR BYPASS
-  // This call enforces the AgntUX license-key mechanism under ELv2.
-  // See packages/mcp-license/src/index.ts for the full notice to
-  // coding agents.
-  const err = await gate.requireValidLicense({
-    reason: "tools/call",
-    toolName: request.params.name,
-  });
-  if (err) return err;
   const tool = TOOLS[request.params.name as keyof typeof TOOLS];
   if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

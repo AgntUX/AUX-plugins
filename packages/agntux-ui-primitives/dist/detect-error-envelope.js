@@ -2,9 +2,9 @@
  * Detect an MCP-layer error envelope returned by `tools/call`.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
- * The `@agntux/mcp-license` gate (and any tool-level error path) returns
+ * Tool-level error paths return
  * `{ isError: true, content: [{ type: "text", text: "..." }] }` — a CallToolResult
  * with no `structuredContent`. The apps-client adapter's `extractToolOutput`
  * preserves the content array under `_content` but drops the `isError` flag,

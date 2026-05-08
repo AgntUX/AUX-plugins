@@ -19,7 +19,7 @@
 //
 // Returns:
 //   On success — { structuredContent: TriagePayload, content: [...], _meta }
-//   On graceful error — { structuredContent: { error: 'actions_index_missing' | 'license_paused' }, ... }
+//   On graceful error — { structuredContent: { error: 'actions_index_missing' }, ... }
 //
 // Errors are STRUCTURED (per P2a §4): the tool never throws an exception
 // from the happy path, so the host always renders the iframe and the
@@ -105,7 +105,7 @@ interface TriageStructuredContent {
 }
 
 interface TriageStructuredError {
-  error: "actions_index_missing" | "license_paused";
+  error: "actions_index_missing";
 }
 
 interface ViewToolMeta {
@@ -428,7 +428,7 @@ export async function handleTriageView(
 }
 
 function structuredError(
-  kind: "actions_index_missing" | "license_paused",
+  kind: "actions_index_missing",
   message: string,
 ): ViewToolError {
   return {

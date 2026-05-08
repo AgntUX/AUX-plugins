@@ -2,7 +2,7 @@
  * AgntuxLogo — inline SVG mark used in component headers.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Two-tone wordmark: "Agnt" picks up `currentColor` (theme-adaptive); "UX"
  * renders in the fixed teal→blue→purple gradient that matches the marketing

@@ -2,7 +2,7 @@
  * Spinner — inline pulsing-dot indicator.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Pure inline SVG so the component bundle has no icon-library dependency.
  * Three dots, animated by Tailwind `animate-pulse` keyframes with staggered

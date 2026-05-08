@@ -2,7 +2,7 @@
  * @agntux/ui-primitives — shared React primitives for AgntUX UI handlers.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Every primitive here is consumed by every UI-handler component bundle in
  * this marketplace. Add a new export only when at least two handlers need

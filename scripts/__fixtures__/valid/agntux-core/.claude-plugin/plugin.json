@@ -3,5 +3,5 @@
   "version": "1.0.0",
   "description": "The AgntUX orchestrator.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
-  "license": "ELv2"
+  "license": "Apache-2.0"
 }

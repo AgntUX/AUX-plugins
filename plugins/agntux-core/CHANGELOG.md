@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.0.0] — 2026-05-08
+
+Open source. The plugin relicenses from Elastic License v2 (ELv2) to
+Apache License 2.0 and removes the `@agntux/mcp-license` gate from the
+MCP server's `tools/call` handler. Solo use is now unconditionally free
+with no nag, no degradation, and no pairing prompt. License validation
+moves to the upcoming proprietary AgntUX Teams runtime.
+
+### Changed
+- Relicensed from Elastic License v2 (ELv2) to Apache License 2.0. See
+  the root `LICENSE` and `NOTICE` files.
+
+### Removed
+- `@agntux/mcp-license` gate from the MCP server's `tools/call` handler.
+  The plugin no longer reads or writes `~/.agntux/.license` /
+  `~/.agntux/.pairing`.
+- `license_paused` structuredContent error code from
+  `agntux_core_triage_view` (no longer reachable).
+- Trial-banner / paused-banner instructions from `_preconditions.md` and
+  the orchestrator router skill.
+
 ## [8.0.0] — 2026-05-07
 
 Skill consolidation. The eight separate `agntux-*` skills (~1,800

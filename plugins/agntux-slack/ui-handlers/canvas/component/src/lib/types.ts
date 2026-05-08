@@ -34,8 +34,7 @@ export interface CanvasError {
   error:
     | "action_not_found"
     | "action_already_handled"
-    | "agntux_root_missing"
-    | "license_paused";
+    | "agntux_root_missing";
 }
 
 export type CanvasData =

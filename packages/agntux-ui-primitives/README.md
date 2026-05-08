@@ -3,7 +3,6 @@
 Shared React primitives for AgntUX UI-handler component bundles.
 
 > **Internal AgntUX workspace package.** Never published to npmjs.org.
-> Mirrors the precedent of `@agntux/mcp-license`.
 
 ## What's in here
 
@@ -13,7 +12,7 @@ Shared React primitives for AgntUX UI-handler component bundles.
 | `AgntuxLogo` | Two-tone wordmark (`Agnt` adapts to `currentColor`; `UX` renders in the brand gradient). |
 | `Spinner` | Inline pulsing-dot indicator with a status role. |
 | `ComponentErrorBoundary` | Class boundary with a "Something went wrong" + Retry surface. Wrap `MainComponent` with this. |
-| `LicenseErrorScreen` | Full-surface renderer for `@agntux/mcp-license` error envelopes (and any tool-level error envelope). Pair with `detectErrorEnvelope`. |
+| `LicenseErrorScreen` | Full-surface renderer for any tool-level error envelope. Pair with `detectErrorEnvelope`. |
 | `detectErrorEnvelope` | Recognises an MCP error-envelope shape from `tools/call`. Returns the user-facing text or `null`. |
 | `safeArray`, `safeString`, `safeNumber`, `safeBoolean`, `safeObject`, `safeEnum`, `safeDate`, `formatTime`, `daysSince` | Defensive coercion helpers for streaming/partial tool payloads. |
 
@@ -71,4 +70,4 @@ free of that dependency. The caller wires the deep-link dispatch.
 
 ## License
 
-[Elastic License 2.0](../../LICENSE).
+[Apache License 2.0](../../LICENSE).

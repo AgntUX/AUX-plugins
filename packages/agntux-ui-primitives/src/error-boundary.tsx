@@ -2,7 +2,7 @@
  * ComponentErrorBoundary — render-error containment with retry.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Wraps the component subtree to catch render-time exceptions (the kind React
  * cannot recover from on its own) and present a degraded "Something went

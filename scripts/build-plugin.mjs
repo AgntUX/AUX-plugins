@@ -31,7 +31,7 @@
  * run `npm install` inside a workspace member directory.
  *
  * Exit codes:
- *   0 — success (every component, mcp-server, packages/mcp-license built; sync ok)
+ *   0 — success (every component and mcp-server built; bundle-sync ok)
  *   1 — any step failed
  */
 
@@ -45,7 +45,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, "..");
 const PLUGINS_DIR = join(REPO_ROOT, "plugins");
-const SHARED_LICENSE_PKG = join(REPO_ROOT, "packages", "mcp-license");
 
 const argv = parseArgs(process.argv.slice(2));
 
@@ -80,11 +79,6 @@ if (argv.serve && argv.port && slugs.length > 1) {
   );
 }
 
-// Always build the shared license package first — every plugin's mcp-server
-// resolves `@agntux/mcp-license` via `file:../../../packages/mcp-license` and
-// imports from its compiled dist/.
-buildSharedLicensePackage(argv.skipInstall);
-
 for (const slug of slugs) {
   const pluginDir = join(PLUGINS_DIR, slug);
   if (!existsSync(pluginDir)) fail(`Plugin not found: plugins/${slug}/`);
@@ -103,15 +97,6 @@ if (argv.serve) {
 }
 
 // ── steps ────────────────────────────────────────────────────────────────────
-
-function buildSharedLicensePackage(skipInstall) {
-  if (!existsSync(SHARED_LICENSE_PKG)) return;
-  log(`[shared] building @agntux/mcp-license`);
-  if (!skipInstall) {
-    runOrFail("npm", ["install", "--no-audit", "--no-fund"], SHARED_LICENSE_PKG);
-  }
-  runOrFail("npm", ["run", "build"], SHARED_LICENSE_PKG);
-}
 
 function buildPlugin(slug, pluginDir, skipInstall) {
   log(`[${slug}] starting build`);
