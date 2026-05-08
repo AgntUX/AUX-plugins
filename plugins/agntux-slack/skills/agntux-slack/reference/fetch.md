@@ -47,7 +47,7 @@ Before walking channel cursors, iterate every thread-shaped key (key contains a 
 
 1. Call `slack_read_thread(channel_id, message_ts: thread_ts, response_format: "detailed", limit: 1000)` with no `oldest:` (whole thread).
 2. Add `<channel_id>#<thread_ts>` to the working-memory `fanned_out` set so 5c and 5d won't re-fetch.
-3. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `Message_ts:` processed (or the parent `Message_ts:` if no replies yet). Per the cursor-advance discipline above: if the response yielded no parseable `Message_ts:` for any reply, leave the value at the parent's `Message_ts:` (still observed in this run) — do NOT use a permalink-extracted ts.
+3. Advance `cursor[<channel_id>#<thread_ts>]` to the newest reply `Message_ts:` processed (or the parent `Message_ts:` if no replies yet — never leave a thread-shaped key with `null` after a successful read). Per the cursor-advance discipline above: if the response yielded no parseable `Message_ts:` for any reply, leave the value at the parent's `Message_ts:` (still observed in this run) — do NOT use a permalink-extracted ts.
 4. On failure, log `kind: source` with `thread_id: <channel_id>#<thread_ts>` and leave the cursor unchanged for next run.
 
 This runs on **every run**, not just bootstrap. Bootstrap-deferred `null` thread cursors must NEVER survive a second scheduled run untouched. Closes the gap where Step 5d (which only runs after the per-channel pass) could leave a `null` indefinitely if the per-channel pass crashed first.

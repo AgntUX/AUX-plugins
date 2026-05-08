@@ -98,7 +98,8 @@ describe("plugin manifest", () => {
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
-    expect(manifest.license).toBe("ELv2");
+    // CLAUDE.md authoring rules: license is SPDX "Elastic-2.0", not "ELv2".
+    expect(manifest.license).toBe("Elastic-2.0");
   });
 
   it("recommended_ingest_cadence is a non-empty descriptive string", () => {
@@ -390,17 +391,27 @@ describe("sync skill 1.1.0 — Step 8a reply-state scan", () => {
 
   it("Step 8a runs over the in-memory fetch buffer (no new MCP calls)", () => {
     expect(src).toMatch(/no new MCP calls/);
-    expect(src).toMatch(/pure read over the in-memory fetch buffer/);
+    // PR #1 (2026-05-08) tightened Step 8a; the canonical wording is now
+    // "Pure read over the in-memory fetch buffer" (capitalised). Match
+    // case-insensitively so future tone tweaks don't break the gate.
+    expect(src).toMatch(/pure read over the in-memory fetch buffer/i);
   });
 
-  it("Step 8a skips raising and logs slack-user-already-replied when user already responded", () => {
-    expect(src).toContain("slack-user-already-replied");
-    expect(src).toMatch(/Skip raising/i);
+  it("Step 8a skips silently when the user already responded (no log entry)", () => {
+    // PR #1 (2026-05-08) killed the kind: debug `slack-user-already-replied`
+    // entry per O4 — `errors:` is no longer a journal of intermediate
+    // reasoning. The new behaviour: skip raising, NO log entry.
+    expect(src).not.toContain("slack-user-already-replied");
+    // Step 8a still names "skip" as the no-match outcome.
+    expect(src).toMatch(/No match → skip/);
   });
 
-  it("Step 8a raises with follow-up citation when a follow-up appears after the user reply", () => {
-    expect(src).toMatch(/follow-up did appear after their reply/);
-    expect(src).toMatch(/cite the follow-up in `## Why this matters`/);
+  it("Step 8a raises with citation when a follow-up appears after the user reply", () => {
+    // PR #1 tightened the prose to a 4-line decision. The follow-up
+    // citation now lives in the rule "Match → raise, citing the trigger
+    // in `## Why this matters`."
+    expect(src).toMatch(/Match → raise/);
+    expect(src).toMatch(/citing the trigger in `## Why this matters`/);
   });
 
   it("Step 8a defines follow-up signals (question / mention / deadline / escalation keyword)", () => {

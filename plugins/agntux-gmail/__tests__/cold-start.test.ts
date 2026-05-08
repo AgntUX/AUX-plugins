@@ -86,7 +86,8 @@ describe("plugin manifest", () => {
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
-    expect(manifest.license).toBe("ELv2");
+    // CLAUDE.md authoring rules: license is SPDX "Elastic-2.0", not "ELv2".
+    expect(manifest.license).toBe("Elastic-2.0");
   });
 
   it("recommended_ingest_cadence describes hourly cadence", () => {
