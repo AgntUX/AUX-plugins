@@ -124,11 +124,12 @@ Follow-up signal definitions for the reply-state scan:
 - An escalation keyword — `urgent | asap | blocker | sev[123]`.
 
 If any of these appear in a message authored after the user's last
-reply, the user-already-replied skip does NOT fire — the action is
-raised and the follow-up is cited in `## Why this matters` so the
-priority is justified.
+reply, the reply-state skip does NOT fire — the action is raised and
+the follow-up is cited in `## Why this matters` so the priority is
+justified.
 
 If the user replied with a message containing none of the above and
-no subsequent follow-up appeared, skip raising and log a
-`gmail-user-already-replied` debug entry to `sync.md → errors` (with
-`source_ref: <thread_id>` and the user reply internalDate).
+no subsequent follow-up appeared, **skip silently — no log entry**.
+The cursor advance + lack of action raise already encodes the outcome;
+per canonical Step 11, `errors:` is not a journal of intermediate
+reasoning.

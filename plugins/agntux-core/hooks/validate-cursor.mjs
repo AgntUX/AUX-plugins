@@ -222,10 +222,11 @@ function main() {
   if (newCursorMap !== null) {
     const nowSeconds = Math.floor(Date.now() / 1000);
     // Slack ts values are seconds.microseconds (e.g. "1778241733.129779").
-    // Gmail historyId-style cursors are integers but typically NOT seconds-
-    // since-epoch — they're opaque. Apply the future-ts check only to values
-    // that look like Slack-style float-seconds.
-    const slackTsLike = /^\d{10}(\.\d+)?$/;
+    // 10 digits today (year 2026, ts ~1.7e9). The regex permits 10–11 digit
+    // integer parts so the check stays load-bearing through year ~2286 without
+    // false-positiving on Gmail-style 13-digit internalDate-ms values, which
+    // are opaque and intentionally NOT subject to the future-ts check.
+    const slackTsLike = /^\d{10,11}(\.\d+)?$/;
     const future = [];
     // 5-minute clock-skew tolerance keeps NTP wobble out of the rejection set.
     const ceiling = nowSeconds + 5 * 60;

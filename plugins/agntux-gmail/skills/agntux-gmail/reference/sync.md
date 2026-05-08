@@ -267,7 +267,7 @@ Pure read over the in-memory fetch buffer; no new MCP calls. For each `response-
 
 The scan is a 4-line decision, not a deliberation. Do not narrate "but what if" cases — the rule exists; let it run.
 
-For Gmail-specific follow-up signal definitions (`?` follow-up question, explicit ask, deadline phrase, escalation keyword) and the user-already-replied skip rule, see `reference/gmail-triage.md` § "Step 8a — Gmail follow-up signals".
+For Gmail-specific follow-up signal definitions (`?` follow-up question, explicit ask, deadline phrase, escalation keyword) and the reply-state skip rule, see `reference/gmail-triage.md` § "Step 8a — Gmail follow-up signals".
 
 Apply heuristics in order:
 
@@ -340,7 +340,7 @@ If you judge overlap:
 - **Edit the existing action file** (do not create a new one). Preserve existing `suggested_actions` rows; append a `Draft a gmail reply` row plus an `Open in Gmail` row (omit the latter if the deep-link tenant identifier is null — apply the deep-link reference rule).
 - Append a `## Cross-source links` body section (newest first): `- gmail thread: {identifier} — added {YYYY-MM-DD HH:MM}`.
 - Append a `## Compose payload (gmail)` body section under a namespaced header so your view tool reads it without colliding with a sibling plugin's payload. Schema: apply the compose-payload reference shape.
-- Update `updated_at` frontmatter. Append a `gmail-merged-into-{existing_id}` debug entry to `sync.md → errors`. Skip creating a new file.
+- Update `updated_at` frontmatter. Append a structured `gmail-merged-into-{existing_id}` entry to `sync.md → errors` (per `./runbook.md`'s `kind:` taxonomy — this is one of the canonical permitted kinds). Skip creating a new file.
 
 If no overlap match: write a fresh action file as normal (Step 10).
 
@@ -455,7 +455,7 @@ You MAY write to (and only to):
 
 - `<agntux project root>/entities/{subtype}/{slug}.md` — Step 6 / Step 7 entity creation and updates (with the section-preservation rule, including the `sources[].last_seen_at` advancement in Step 7 sub-step 8).
 - `<agntux project root>/actions/{YYYY-MM-DD}-{slug}.md` — Step 8 cap-overflow deferrals, Step 8.5 reconcile transitions, Step 8.6 drain re-emissions and supersedes, Step 9 cross-source merges, Step 10 fresh writes.
-- `<agntux project root>/data/learnings/agntux-gmail/sync.md` — your section-of-one (cursor, last_run, last_success, items_processed, errors, lock, source-derived identity fields declared in your `_overrides/frontmatter.yaml`).
+- `<agntux project root>/data/learnings/agntux-gmail/` — your per-plugin learnings tree. The canonical file is `sync.md` (cursor, last_run, last_success, items_processed, errors, lock, source-derived identity fields declared in your `_overrides/frontmatter.yaml`). Plugins MAY create additional helper files in this tree if their override declares them; the validator hook permits the entire directory.
 
 ### Refused — refuse-and-log applies
 

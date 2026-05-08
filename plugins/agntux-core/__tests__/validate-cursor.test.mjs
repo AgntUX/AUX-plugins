@@ -229,4 +229,70 @@ describe("validate-cursor hook", () => {
     }, homeRoot);
     expect(result.code).toBe(0);
   });
+
+  // PR #4 (2026-05-08): C1 backstop — Slack-style ts cursor values must be
+  // ≤ now() + 5min. Catches the permalink-extraction failure mode (cursor
+  // advanced to a ts pulled from a permalink in another channel).
+  it("rejects when a Slack-style ts cursor value is in the future (C1 backstop)", () => {
+    const filePath = syncFile(homeRoot, syncMd({
+      cursor: '{"C01":"1700000000.000001"}',
+      discoveryTs: "1700000000.000001",
+    }));
+    // Year ~2316 — far in the future relative to now().
+    const future = "10000000000.000001";
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: {
+        file_path: filePath,
+        content: syncMd({
+          cursor: `{"C01":"${future}"}`,
+          discoveryTs: "1700000001.000000",
+        }),
+      },
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/future timestamps/);
+    expect(result.stderr).toMatch(/permalink-extracted/);
+  });
+
+  it("permits ts cursor values within 5 minutes of now (clock-skew tolerance)", () => {
+    const filePath = syncFile(homeRoot, syncMd({
+      cursor: '{"C01":"1700000000.000001"}',
+      discoveryTs: "1700000000.000001",
+    }));
+    const justAhead = (Math.floor(Date.now() / 1000) + 60).toFixed(6);
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: {
+        file_path: filePath,
+        content: syncMd({
+          cursor: `{"C01":"${justAhead}"}`,
+          discoveryTs: "1700000001.000000",
+        }),
+      },
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("does not apply future-ts check to non-Slack-style cursor values (e.g. opaque historyId)", () => {
+    // 13-digit value (Gmail internalDate-ms) doesn't match the Slack ts regex
+    // and is exempt from the future-ts check even if Number(value) > now().
+    const filePath = syncFile(homeRoot, syncMd({
+      cursor: '{"thread-1":"1714000000000"}',
+      discoveryTs: "1714000000000",
+    }));
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: {
+        file_path: filePath,
+        content: syncMd({
+          cursor: '{"thread-1":"9999999999999"}',
+          discoveryTs: "9999999999999",
+        }),
+      },
+    }, homeRoot);
+    // The future-ts check skips, but discovery_ts must still be monotonic.
+    // 9999999999999 > 1714000000000 so monotonic check passes too.
+    expect(result.code).toBe(0);
+  });
 });

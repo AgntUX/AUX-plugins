@@ -58,8 +58,9 @@ ONLY entries whose comment metadata contains `added:` (auto-added).
 Entries without `added:` metadata are user-curated and never
 auto-evicted, even if doing so would push the section above 30.
 (In the rare case where 30+ entries are user-curated, the cap is
-breached and the next run should log a
-`gmail-denylist-cap-breached-by-user-entries` debug entry.)
+breached and the next run logs a
+`gmail-denylist-cap-breached-by-user-entries` entry to `sync.md →
+errors` per the kind: taxonomy in `./runbook.md`.)
 
 Atomic write (temp + rename).
 

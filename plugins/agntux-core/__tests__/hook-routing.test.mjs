@@ -2,11 +2,16 @@
  * hook-routing.test.mjs
  *
  * Structural tests for hook routing. After license enforcement moved to the
- * MCP server (gate at tools/call + resources/read), only the schema/index
- * hooks remain in this plugin:
- *   - PreToolUse  → validate-schema.mjs   (matcher: Write|Edit)
- *   - PreToolUse  → validate-contract.mjs (matcher: Write|Edit)
- *   - PostToolUse → maintain-index.mjs    (matcher: Write|Edit)
+ * MCP server (gate at tools/call + resources/read) and the 2026-05-08
+ * autonomy-boundary sweep added validate-write-lane + session-end-rebuild,
+ * the registered lanes are:
+ *   - PreToolUse  → validate-schema.mjs       (matcher: Write|Edit)
+ *   - PreToolUse  → validate-contract.mjs     (matcher: Write|Edit)
+ *   - PreToolUse  → lint-entity-shape.mjs     (matcher: Write|Edit)
+ *   - PreToolUse  → validate-cursor.mjs       (matcher: Write|Edit)
+ *   - PreToolUse  → validate-write-lane.mjs   (matcher: Write|Edit)
+ *   - PostToolUse → maintain-index.mjs        (matcher: Write|Edit)
+ *   - SessionEnd  → session-end-rebuild.mjs   (no matcher)
  */
 
 import { describe, it, expect } from "vitest";
@@ -59,6 +64,28 @@ describe("hooks.json structure", () => {
     expect(entry).toBeDefined();
     expect(entry.matcher).toBe("Write|Edit");
   });
+
+  it("has PreToolUse lane with validate-write-lane and Write|Edit matcher", () => {
+    // PR #4 (2026-05-08) added the autonomy-boundary write-lane hook.
+    const hooks = JSON.parse(readFileSync(join(HOOKS_DIR, "hooks.json"), "utf8"));
+    const preToolUse = hooks.hooks?.PreToolUse;
+    const entry = preToolUse.find((e) =>
+      (e.hooks ?? []).some((h) => (h.command ?? "").includes("validate-write-lane.mjs"))
+    );
+    expect(entry).toBeDefined();
+    expect(entry.matcher).toBe("Write|Edit");
+  });
+
+  it("has SessionEnd lane with session-end-rebuild", () => {
+    // PR #4 (2026-05-08) added the SessionEnd belt-and-suspenders rebuild.
+    const hooks = JSON.parse(readFileSync(join(HOOKS_DIR, "hooks.json"), "utf8"));
+    const sessionEnd = hooks.hooks?.SessionEnd;
+    expect(Array.isArray(sessionEnd)).toBe(true);
+    const entry = sessionEnd.find((e) =>
+      (e.hooks ?? []).some((h) => (h.command ?? "").includes("session-end-rebuild.mjs"))
+    );
+    expect(entry).toBeDefined();
+  });
 });
 
 describe("hook files exist", () => {
@@ -72,6 +99,14 @@ describe("hook files exist", () => {
 
   it("hooks/validate-contract.mjs exists", () => {
     expect(existsSync(join(HOOKS_DIR, "validate-contract.mjs"))).toBe(true);
+  });
+
+  it("hooks/validate-write-lane.mjs exists (PR #4)", () => {
+    expect(existsSync(join(HOOKS_DIR, "validate-write-lane.mjs"))).toBe(true);
+  });
+
+  it("hooks/session-end-rebuild.mjs exists (PR #4)", () => {
+    expect(existsSync(join(HOOKS_DIR, "session-end-rebuild.mjs"))).toBe(true);
   });
 });
 
