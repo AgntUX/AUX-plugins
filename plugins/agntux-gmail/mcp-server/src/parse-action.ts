@@ -75,6 +75,7 @@ export interface ComposePayload {
   recipients: ComposePayloadRecipients;
   reply_to_message_id: string;
   gmail_thread_url: string | null;
+  account_index: number | null;
   generated_at: string | null;
 }
 
@@ -120,6 +121,10 @@ function asStringArray(v: unknown): string[] {
 
 function asNumber(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function asNumberOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 function asSuggestedActions(v: unknown): SuggestedActionRow[] {
@@ -271,6 +276,7 @@ function normalizeComposePayload(
     recipients: normalizeRecipients(raw.recipients),
     reply_to_message_id: asString(raw.reply_to_message_id),
     gmail_thread_url: asStringOrNull(raw.gmail_thread_url),
+    account_index: asNumberOrNull(raw.account_index),
     generated_at: asStringOrNull(raw.generated_at),
   };
 }

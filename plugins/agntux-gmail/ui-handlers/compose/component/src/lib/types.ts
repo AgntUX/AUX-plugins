@@ -39,6 +39,7 @@ export interface ComposePayload {
   email_context: string;
   gmail_thread_url: string | null;
   user_email: string | null;
+  account_index: number | null;
 }
 
 export interface ComposeError {

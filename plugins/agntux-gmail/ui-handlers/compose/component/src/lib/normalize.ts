@@ -114,5 +114,10 @@ export function normalizeComposePayload(
         : null,
     user_email:
       typeof unwrapped.user_email === "string" ? unwrapped.user_email : null,
+    account_index:
+      typeof unwrapped.account_index === "number" &&
+      Number.isFinite(unwrapped.account_index)
+        ? unwrapped.account_index
+        : null,
   } as ComposePayload & { error: null };
 }

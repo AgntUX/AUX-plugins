@@ -1,9 +1,39 @@
 # Gmail compose payload — Step 10 reference
 
-Companion to `../SKILL.md` Step 10. The action item's frontmatter,
-priority anchoring, and `suggested_actions` shape live in the SKILL
-body. The fenced-YAML payload that the gmail compose iframe loads at
-click time lives here so the SKILL body stays under budget.
+Companion to `../SKILL.md` Step 10. The action item's frontmatter
+and priority anchoring live in the SKILL body. The two suggested-
+action rows that emit the `Draft a reply` button + `Open in Gmail`
+deep-link, and the fenced-YAML payload that the gmail compose iframe
+loads at click time, live here so the SKILL body stays under budget.
+
+## suggested_actions — the two standard buttons
+
+Default ship is **2 buttons**: `Draft a reply` and `Open in Gmail` (1
+button when `gmail_thread_url` is null — Gmail has no schedule-send
+tool, so there is no `Schedule a reply` row). Emit them at Step 10
+verbatim:
+
+```yaml
+suggested_actions:
+  - label: "Draft a reply"
+    host_prompt: "ux: Use the agntux-gmail plugin to open the reply composer for action {id}."
+  # Include the next row ONLY IF gmail_thread_url is non-null. Drop both
+  # lines if null.
+  - label: "Open in Gmail"
+    url: "{gmail_thread_url}"
+```
+
+The host's tool selector matches each `host_prompt` against the
+`agntux_gmail_compose_view` tool's `description` (which carries the
+trigger phrases inline). The Draft button also accepts the
+alternative phrasings that the view tool's description lists
+("draft an email reply for action {id}", "open the email composer
+for action {id}", etc.). Emit the row above; do NOT vary the wording
+per action.
+
+The `Open in Gmail` URL itself is constructed by the deep-links
+reference shape (account-index ladder → `authuser=` fallback →
+omit-the-row when nothing is known).
 
 ## Gmail action frontmatter notes
 
@@ -77,6 +107,9 @@ recipients:
   bcc: []
 reply_to_message_id: <gmail_message_id of message we're replying to>
 gmail_thread_url: <url | null>
+account_index: <int | null>   # mirrors data/instructions/agntux-gmail.md → # Account / account_index;
+                              # the compose iframe lifts this so the draft-creation link
+                              # opens in the right Gmail account slot
 generated_at: <RFC 3339 of this run>
 ​```
 ```

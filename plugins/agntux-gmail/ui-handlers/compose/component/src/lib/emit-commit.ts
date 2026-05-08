@@ -22,6 +22,7 @@ export interface UseEmitCommitResult {
     recipients: ComposeEnvelopeRecipients,
     reply_to_message_id: string,
     user_email: string | null,
+    account_index: number | null,
   ) => Promise<void>;
   reset: () => void;
 }
@@ -39,6 +40,7 @@ export function useEmitCommit(): UseEmitCommitResult {
       recipients: ComposeEnvelopeRecipients,
       reply_to_message_id: string,
       user_email: string | null,
+      account_index: number | null,
     ) => {
       if (inFlightRef.current) return;
       inFlightRef.current = true;
@@ -51,6 +53,7 @@ export function useEmitCommit(): UseEmitCommitResult {
           recipients,
           reply_to_message_id,
           user_email,
+          account_index,
         );
         await client.sendFollowUpMessage(prompt);
         setCommitState("sent");
