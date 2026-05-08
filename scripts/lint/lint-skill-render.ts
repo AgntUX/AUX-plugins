@@ -3,26 +3,31 @@
  * render pipeline AND cross-plugin skill-quality invariants.
  *
  * Sync-skill drift checks (mandatory for any plugin shipping
- * skills/sync/SKILL.md — every such plugin MUST ship a matching
- * _overrides/frontmatter.yaml so the rendered output is reproducible):
+ * skills/{plugin-slug}/SKILL.md rendered from canonical — every such
+ * plugin MUST ship a matching _overrides/frontmatter.yaml so the
+ * rendered output is reproducible):
  *
  *   1. No surviving {{...}} placeholders in any rendered *.md under skills/.
  *   2. Render reproducibility — running the renderer with the plugin's
  *      _overrides/ produces output byte-identical to what's currently
- *      committed under skills/sync/. Catches "edited the rendered file by
- *      hand instead of editing the override".
- *   3. Line budget — skills/sync/SKILL.md ≤ 500 lines; every sibling *.md
- *      under skills/sync/resources/ ≤ 300 lines.
- *   4. One-level-deep references — every link from skills/sync/SKILL.md
- *      resolves to a file in the same directory or its resources/ child;
- *      resource files do NOT link to other resource files.
+ *      committed under skills/{plugin-slug}/. Catches "edited the rendered
+ *      file by hand instead of editing the override".
+ *   3. Line budget — skills/{plugin-slug}/SKILL.md ≤ 500 lines (router
+ *      shape — typically ≤ 100); every sibling *.md under
+ *      skills/{plugin-slug}/reference/ ≤ 500 lines (the procedural
+ *      `sync.md` body sits around 490; detail-shape siblings are
+ *      smaller).
+ *   4. One-level-deep references — every link from
+ *      skills/{plugin-slug}/SKILL.md resolves to a file in the same
+ *      directory or its reference/ child; reference files do NOT link to
+ *      other reference files.
  *
  * Cross-plugin skill-quality checks (always-on for any plugin shipping
  * skills/, added in Phase 5 of the de-fork plan):
  *
  *   5. Per-skill line budget — every skills/{name}/SKILL.md ≤ 500 lines.
  *   6. Shared-sibling line budget — every shared skills/_*.md ≤ 200
- *      lines (tighter than per-skill resources/*.md because shared files
+ *      lines (tighter than per-skill reference/*.md because shared files
  *      are loaded by multiple skills).
  *   7. Reference-chain-depth — for every link from a skills/{name}/SKILL.md
  *      that targets a sibling skills/_*.md, that target file must NOT
@@ -48,7 +53,12 @@ export interface Finding {
 }
 
 const SKILL_MAX_LINES = 500;
-const RESOURCE_MAX_LINES = 300;
+// reference/sync.md carries the procedural body that used to live in the old
+// monolithic SKILL.md (which had a 500-line cap). Detail-shape siblings
+// (fetch.md, cursor.md, runbook.md, deep-links.md, compose-payload.md,
+// honesty.md, ask.md) all comfortably fit under the original 300, but
+// sync.md is naturally ~500 — same allowance the procedural body used to get.
+const RESOURCE_MAX_LINES = 500;
 const SHARED_SIBLING_MAX_LINES = 200;
 
 function rel(repoRoot: string, p: string): string {
@@ -133,7 +143,7 @@ function checkNoSurvivingPlaceholders(
   repoRoot: string,
   findings: Finding[],
 ): void {
-  const syncDir = path.join(pluginDir, "skills", "sync");
+  const syncDir = path.join(pluginDir, "skills", pluginSlug);
   if (!isDirectory(syncDir)) return;
   for (const relPath of listMarkdown(syncDir)) {
     if (relPath.startsWith("_overrides/")) continue; // overrides may carry placeholders
@@ -161,7 +171,7 @@ function checkRenderReproducibility(
   repoRoot: string,
   findings: Finding[],
 ): void {
-  const syncDir = path.join(pluginDir, "skills", "sync");
+  const syncDir = path.join(pluginDir, "skills", pluginSlug);
   const overridesDir = path.join(syncDir, "_overrides");
   const tmpOut = tmpRenderDir(repoRoot, pluginSlug);
   rmDirSync(tmpOut);
@@ -189,8 +199,8 @@ function checkRenderReproducibility(
     return;
   }
 
-  // Diff committed sync/ against tmpOut. Note: we compare SKILL.md and
-  // resources/*.md only — _overrides/ is the input, not the output.
+  // Diff committed skills/{slug}/ against tmpOut. Note: we compare SKILL.md
+  // and reference/*.md only — _overrides/ is the input, not the output.
   const committedFiles = listMarkdown(syncDir).filter(
     (r) => !r.startsWith("_overrides/"),
   );
@@ -251,7 +261,7 @@ function checkLineBudget(
   repoRoot: string,
   findings: Finding[],
 ): void {
-  const syncDir = path.join(pluginDir, "skills", "sync");
+  const syncDir = path.join(pluginDir, "skills", pluginSlug);
   const skillPath = path.join(syncDir, "SKILL.md");
   if (fileExists(skillPath)) {
     const lines = fs.readFileSync(skillPath, "utf8").split("\n").length;
@@ -261,15 +271,15 @@ function checkLineBudget(
         severity: "error",
         plugin: pluginSlug,
         file: rel(repoRoot, skillPath),
-        message: `SKILL.md is ${lines} lines (max ${SKILL_MAX_LINES}). Move detail into resources/*.md.`,
+        message: `SKILL.md is ${lines} lines (max ${SKILL_MAX_LINES}). Move detail into reference/*.md.`,
       });
     }
   }
-  const resourcesDir = path.join(syncDir, "resources");
-  if (isDirectory(resourcesDir)) {
-    for (const name of fs.readdirSync(resourcesDir)) {
+  const referenceDir = path.join(syncDir, "reference");
+  if (isDirectory(referenceDir)) {
+    for (const name of fs.readdirSync(referenceDir)) {
       if (!name.endsWith(".md")) continue;
-      const full = path.join(resourcesDir, name);
+      const full = path.join(referenceDir, name);
       const lines = fs.readFileSync(full, "utf8").split("\n").length;
       if (lines > RESOURCE_MAX_LINES) {
         emit(findings, {
@@ -277,7 +287,7 @@ function checkLineBudget(
           severity: "error",
           plugin: pluginSlug,
           file: rel(repoRoot, full),
-          message: `resources/${name} is ${lines} lines (max ${RESOURCE_MAX_LINES}). Split it.`,
+          message: `reference/${name} is ${lines} lines (max ${RESOURCE_MAX_LINES}). Split it.`,
         });
       }
     }
@@ -292,25 +302,25 @@ function checkOneLevelDeepReferences(
 ): void {
   // Markdown link grammar: [text](path). We extract path-with-no-protocol
   // and check it against allowed shapes:
-  //   from SKILL.md   →  ./resources/{name}.md  OR  ./{sibling}.md  (allowed)
-  //                   →  ./resources/{name}.md#anchor                  (allowed)
-  //                   →  ./resources/{a}/{b}.md  (REJECTED — too deep)
-  //   from resources/{name}.md →  ./{sibling-non-resource}.md         (allowed back-ref to SKILL)
-  //                            →  ./other-resource.md  (REJECTED — sibling resource)
+  //   from SKILL.md   →  ./reference/{name}.md  OR  ./{sibling}.md  (allowed)
+  //                   →  ./reference/{name}.md#anchor                  (allowed)
+  //                   →  ./reference/{a}/{b}.md  (REJECTED — too deep)
+  //   from reference/{name}.md →  ./{sibling-non-reference}.md        (allowed back-ref to SKILL)
+  //                            →  ./other-reference.md  (REJECTED — sibling reference)
   // External links (http/https) and intra-file anchors (#section) are ignored.
-  const syncDir = path.join(pluginDir, "skills", "sync");
+  const syncDir = path.join(pluginDir, "skills", pluginSlug);
   const skillPath = path.join(syncDir, "SKILL.md");
   if (fileExists(skillPath)) {
     checkLinksInFile(pluginSlug, skillPath, "skill", repoRoot, findings);
   }
-  const resourcesDir = path.join(syncDir, "resources");
-  if (isDirectory(resourcesDir)) {
-    for (const name of fs.readdirSync(resourcesDir)) {
+  const referenceDir = path.join(syncDir, "reference");
+  if (isDirectory(referenceDir)) {
+    for (const name of fs.readdirSync(referenceDir)) {
       if (!name.endsWith(".md")) continue;
       checkLinksInFile(
         pluginSlug,
-        path.join(resourcesDir, name),
-        "resource",
+        path.join(referenceDir, name),
+        "reference",
         repoRoot,
         findings,
       );
@@ -321,7 +331,7 @@ function checkOneLevelDeepReferences(
 function checkLinksInFile(
   pluginSlug: string,
   filePath: string,
-  fileKind: "skill" | "resource",
+  fileKind: "skill" | "reference",
   repoRoot: string,
   findings: Finding[],
 ): void {
@@ -342,10 +352,10 @@ function checkLinksInFile(
     const segments = normalised.split("/");
 
     if (fileKind === "skill") {
-      // Allowed: <name>.md  OR  resources/<name>.md
+      // Allowed: <name>.md  OR  reference/<name>.md
       const ok =
         (segments.length === 1) ||
-        (segments.length === 2 && segments[0] === "resources");
+        (segments.length === 2 && segments[0] === "reference");
       if (!ok) {
         emit(findings, {
           code: "E15",
@@ -354,15 +364,15 @@ function checkLinksInFile(
           file: rel(repoRoot, filePath),
           message:
             `link target "${target}" is more than one level deep. ` +
-            `Resource files must live directly under skills/sync/resources/.`,
+            `Reference files must live directly under skills/${pluginSlug}/reference/.`,
         });
       }
     } else {
-      // Resource file: must NOT link to another resource (one-level-deep rule).
+      // Reference file: must NOT link to another reference (one-level-deep rule).
       // Allowed: ../<sibling>.md (back-ref to SKILL.md or shared sibling)
-      //          OR same-dir <name>.md ONLY when that's a non-resource file
+      //          OR same-dir <name>.md ONLY when that's a non-reference file
       //          (we don't have any today; reject by default within the
-      //          resources/ directory).
+      //          reference/ directory).
       const goesUp = normalised.startsWith("../");
       if (!goesUp) {
         emit(findings, {
@@ -371,7 +381,7 @@ function checkLinksInFile(
           plugin: pluginSlug,
           file: rel(repoRoot, filePath),
           message:
-            `resource file links to "${target}" — resources must not link to other resources. ` +
+            `reference file links to "${target}" — references must not link to other references. ` +
             `Move shared content into the parent SKILL.md, or duplicate.`,
         });
       } else if (segments.length > 2) {
@@ -381,8 +391,8 @@ function checkLinksInFile(
           plugin: pluginSlug,
           file: rel(repoRoot, filePath),
           message:
-            `resource file link "${target}" goes deeper than one level above. ` +
-            `Resource back-references must point to the parent skills/sync/ only.`,
+            `reference file link "${target}" goes deeper than one level above. ` +
+            `Reference back-references must point to the parent skills/${pluginSlug}/ only.`,
         });
       }
     }
@@ -552,9 +562,9 @@ function checkChainDepth(
  * Pass 8 — sync-skill render drift AND cross-plugin skill-quality invariants.
  *
  * The sync-drift checks (#1–#4) fire for any plugin that ships a
- * skills/sync/SKILL.md and require a matching _overrides/frontmatter.yaml.
- * The cross-plugin checks (#5–#7) fire for any plugin that ships a skills/
- * directory.
+ * skills/{plugin-slug}/SKILL.md and require a matching
+ * _overrides/frontmatter.yaml. The cross-plugin checks (#5–#7) fire for
+ * any plugin that ships a skills/ directory.
  */
 export function pass8SkillRender(
   pluginSlug: string,
@@ -563,13 +573,13 @@ export function pass8SkillRender(
   findings: Finding[],
 ): void {
   const skillsDir = path.join(pluginDir, "skills");
-  const syncDir = path.join(skillsDir, "sync");
+  const syncDir = path.join(skillsDir, pluginSlug);
   const skillFile = path.join(syncDir, "SKILL.md");
   const overridesDir = path.join(syncDir, "_overrides");
 
   // Sync-skill render drift (#1–#4) — mandatory for any plugin shipping
-  // skills/sync/SKILL.md. The _overrides/frontmatter.yaml is required so
-  // the renderer can reproduce the committed tree byte-for-byte.
+  // skills/{plugin-slug}/SKILL.md. The _overrides/frontmatter.yaml is
+  // required so the renderer can reproduce the committed tree byte-for-byte.
   if (fileExists(skillFile) && isDirectory(canonicalSyncDir(repoRoot))) {
     if (!isDirectory(overridesDir)) {
       emit(findings, {
@@ -578,8 +588,8 @@ export function pass8SkillRender(
         plugin: pluginSlug,
         file: rel(repoRoot, syncDir),
         message:
-          `plugin ships skills/sync/SKILL.md but is missing ` +
-          `skills/sync/_overrides/. Every sync skill must be rendered ` +
+          `plugin ships skills/${pluginSlug}/SKILL.md but is missing ` +
+          `skills/${pluginSlug}/_overrides/. Every sync skill must be rendered ` +
           `from canonical/prompts/ingest/skills/sync/ + an ` +
           `_overrides/frontmatter.yaml. See CLAUDE.md "Authoring sync skills".`,
       });

@@ -8,16 +8,19 @@
  * invoked in-process. Instead, the test asserts:
  *   1. plugin.json carries the required fields including a non-empty
  *      free-form recommended_ingest_cadence string.
- *   2. hooks/hooks.json has the ingest-variant shape (no PostToolUse).
- *   3. skills/sync/SKILL.md has no unsubstituted {{placeholder}} tokens,
- *      references the Slack read MCP tools, is read-only, and runs
+ *   2. The plugin ships no hooks/ directory (license gate moved to MCP server).
+ *   3. skills/{slug}/SKILL.md is a slim router (≤100 lines) frontmatter-named
+ *      after the plugin slug, with a `## Sub-commands` table linking
+ *      `reference/sync.md` (procedural body) and `reference/ask.md` (live NL
+ *      query). Steps 0–11 carry no unsubstituted {{placeholder}} tokens,
+ *      reference the Slack read MCP tools, and the sync sub-command runs
  *      inline (no `context: fork`, no nested `general-purpose` agent —
  *      forking broke "Allow for all scheduled runs" inheritance).
- *   4. skills/draft/ is removed (5.0.0+ envelopes target the Slack Connector directly), and the sync skill codifies
- *      the "no write without explicit yes" rule.
- *   5. Both skills live under directory-shaped paths (skills/{name}/SKILL.md).
- *   6. The example entity files conform to the P3 entity schema.
- *   7. The example action item conforms to the P3 action-item schema and uses
+ *   4. skills/draft/ is removed (5.0.0+ envelopes target the Slack Connector
+ *      directly), and the sync sub-command codifies the "no write without
+ *      explicit yes" rule.
+ *   5. The example entity files conform to the P3 entity schema.
+ *   6. The example action item conforms to the P3 action-item schema and uses
  *      the parent thread `(channel_id, thread_ts)` as `source_ref`.
  */
 
@@ -32,18 +35,27 @@ const EXPECTED_ENTITIES = join(EXAMPLES_DIR, "expected-entities");
 const EXPECTED_ACTIONS = join(EXAMPLES_DIR, "expected-actions");
 const EXPECTED_STATE = join(EXAMPLES_DIR, "expected-state");
 
-// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
-// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
-// break grep-style assertions. Pass-through for all other paths.
+// Slug from plugin.json — the skill directory and frontmatter `name:` both
+// match the plugin slug after the 7.0.0 slash-command unification refactor.
+const PLUGIN_SLUG = (
+  JSON.parse(
+    readFileSync(join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf-8"),
+  ) as { name: string }
+).name;
+
+// When reading the slug-named SKILL.md, fold in sibling reference/*.md files
+// (sorted) with `<!-- {filename} -->` boundary markers so grep-style
+// assertions on procedural body content keep working post-router-split.
+// Pass-through for all other paths.
 function readMd(p: string): string {
   const content = readFileSync(p, "utf-8");
-  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
-    const resourcesDir = join(dirname(p), "resources");
-    if (existsSync(resourcesDir)) {
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === PLUGIN_SLUG) {
+    const referenceDir = join(dirname(p), "reference");
+    if (existsSync(referenceDir)) {
       const parts = [content];
-      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+      for (const name of readdirSync(referenceDir).filter((f) => f.endsWith(".md")).sort()) {
         parts.push(`\n<!-- ${name} -->\n`);
-        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+        parts.push(readFileSync(join(referenceDir, name), "utf-8"));
       }
       return parts.join("");
     }
@@ -116,10 +128,51 @@ describe("hooks shape (ingest variant)", () => {
 // ---------------------------------------------------------------------------
 
 describe("ingest skill prompt", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
 
-  it("skills/sync/SKILL.md exists", () => {
+  it("skills/{slug}/SKILL.md exists at the slug-named directory", () => {
     expect(existsSync(syncSkill)).toBe(true);
+  });
+
+  it("frontmatter `name` matches the plugin slug", () => {
+    const content = readFileSync(syncSkill, "utf-8");
+    const fm = parseFrontmatter(content);
+    expect(fm["name"]).toBe(PLUGIN_SLUG);
+  });
+
+  it("SKILL.md is a slim router (≤ 100 lines)", () => {
+    const content = readFileSync(syncSkill, "utf-8");
+    const lines = content.split("\n").length;
+    expect(lines).toBeLessThanOrEqual(100);
+  });
+
+  it("SKILL.md routing-table heading `## Sub-commands` is present", () => {
+    const content = readFileSync(syncSkill, "utf-8");
+    expect(content).toMatch(/^##\s+Sub-commands\s*$/m);
+  });
+
+  it("reference/ask.md exists and is linked from SKILL.md", () => {
+    const askRef = join(dirname(syncSkill), "reference", "ask.md");
+    expect(existsSync(askRef)).toBe(true);
+    const content = readFileSync(syncSkill, "utf-8");
+    expect(content).toMatch(/reference\/ask\.md/);
+  });
+
+  it("reference/sync.md carries a `## Contents` TOC at the top", () => {
+    const syncRef = join(dirname(syncSkill), "reference", "sync.md");
+    expect(existsSync(syncRef)).toBe(true);
+    const content = readFileSync(syncRef, "utf-8");
+    expect(content).toMatch(/^##\s+Contents\s*$/m);
+  });
+
+  it("reference/ask.md is structurally read-only (no cursor advance, no write)", () => {
+    const askRef = join(dirname(syncSkill), "reference", "ask.md");
+    const content = readFileSync(askRef, "utf-8");
+    // Each prohibition is load-bearing — ask-mode is the live-query
+    // branch and MUST NOT touch the knowledge store or advance cursors.
+    expect(content).toMatch(/Do NOT.*call any source write tool/i);
+    expect(content).toMatch(/Do NOT.*advance any cursor/i);
+    expect(content).toMatch(/Do NOT.*edit any file under.*<agntux project root>/i);
   });
 
   it("skills/draft/ is removed in 5.0.0+ (envelopes target the Slack Connector directly — no skill round-trip)", () => {
@@ -213,6 +266,9 @@ describe("ingest skill prompt", () => {
     const flatForm = join(PLUGIN_ROOT, "skills", "orchestrator.md");
     expect(existsSync(flatForm)).toBe(false);
     expect(existsSync(syncSkill)).toBe(true);
+    // Legacy `sync` directory must not exist post-7.0.0 — host treats `:` as
+    // a namespace separator so the old `/agntux-slack:sync` form 404s.
+    expect(existsSync(join(PLUGIN_ROOT, "skills", "sync", "SKILL.md"))).toBe(false);
   });
 });
 
@@ -221,7 +277,7 @@ describe("ingest skill prompt", () => {
 // ---------------------------------------------------------------------------
 
 describe("sync skill 1.1.1 — Step 5c-pre drains null thread cursors every run", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 5c-pre heading exists and is positioned between 5b and 5c", () => {
@@ -249,7 +305,7 @@ describe("sync skill 1.1.1 — Step 5c-pre drains null thread cursors every run"
 });
 
 describe("sync skill 1.1.1 — `Thread: N replies` envelope trigger", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 5c heuristic 4 lists the `Thread: N replies` envelope line as thread evidence", () => {
@@ -263,7 +319,7 @@ describe("sync skill 1.1.1 — `Thread: N replies` envelope trigger", () => {
 });
 
 describe("sync skill 1.1.0 — thread fanout broadened (correctness fix)", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 5c thread fanout triggers on multiple evidence fields, not just reply_count", () => {
@@ -296,7 +352,7 @@ describe("sync skill 1.1.0 — thread fanout broadened (correctness fix)", () =>
 });
 
 describe("sync skill 1.1.0 — merged-thread triage", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 6 carries the merged-thread prefix", () => {
@@ -323,7 +379,7 @@ describe("sync skill 1.1.0 — merged-thread triage", () => {
 });
 
 describe("sync skill 1.1.0 — Step 8a reply-state scan", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 8a — Reply-state scan section exists before the heuristics list", () => {
@@ -356,7 +412,7 @@ describe("sync skill 1.1.0 — Step 8a reply-state scan", () => {
 });
 
 describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("Step 8.5 sits between Step 8 and Step 9", () => {
@@ -405,7 +461,7 @@ describe("sync skill 1.1.0 — Step 8.5 reconcile open response-needed", () => {
 });
 
 describe("sync skill 4.0.0 — suggested_actions carries the three standard buttons", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("default suggested_actions includes the three standard buttons in order", () => {
@@ -448,7 +504,7 @@ describe("sync skill 4.0.0 — suggested_actions carries the three standard butt
 });
 
 describe("sync skill 1.1.0 — Compose / Canvas payload body sections", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("inline schema_version is bumped to 1.1.0", () => {

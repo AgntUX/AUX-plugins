@@ -6,6 +6,53 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-05-07
+
+Slash-command unification — companion to agntux-core 8.0.0
+(cozy-squirrel) and agntux-slack 7.0.0. The plugin's single user-facing
+entry point is now `/agntux-gmail`, accepting either a sync sub-command
+or a natural-language question.
+
+### Changed
+
+- **BREAKING: `/agntux-gmail:sync` → `/agntux-gmail` (or
+  `/agntux-gmail sync`).** Scheduled tasks built against the old form
+  must be recreated; the host's resolver treats `:` as a namespace
+  separator and will 404 once the `sync` skill is renamed.
+  `marketplace/listing.yaml → supported_prompts` is updated to the new
+  form.
+- **`/agntux-gmail` now accepts natural-language queries** (e.g.
+  `/agntux-gmail any unread threads from Acme this week?`). The first
+  whitespace-delimited token of `$ARGUMENTS` selects the sub-command:
+  empty or `sync` runs the ingest pass; anything else is treated as a
+  live question and answered via the Gmail read MCP tools (no cursor
+  advance, no knowledge-store write).
+- **`skills/sync/` renamed to `skills/agntux-gmail/`** so the skill's
+  `name:` matches the plugin slug and the host exposes it as
+  `/agntux-gmail`. Internal `resources/` directory renamed to
+  `reference/` to align with Anthropic Skills Pattern 2 (domain-specific
+  organization).
+- **`SKILL.md` is now a slim router (~80 lines).** The procedural body
+  (steps 0–11 + preflight + orchestrator gate) lives in
+  `reference/sync.md`; honesty rules live in `reference/honesty.md`.
+  Per-file table-of-contents added per Anthropic Skills best-practices
+  guidance.
+
+### Added
+
+- **`reference/ask.md`** — natural-language live-query handler.
+  Read-only: skips the orchestrator gate, never advances a cursor,
+  never writes to the knowledge store. Refuses cleanly if the Gmail
+  connector isn't configured.
+
+### Migration
+
+- Recreate any scheduled task whose prompt body is `/agntux-gmail:sync`.
+  The new body is either `/agntux-gmail` (bare — defaults to sync) or
+  `/agntux-gmail sync` (explicit). Both lead to the same place.
+- No on-disk data migration. Existing action items, entities, cursor
+  state, and per-plugin instructions all keep working unchanged.
+
 ## [2.1.0] — 2026-05-07
 
 Phase 4 of the plugin-architecture sweep — sync skill migrates to the

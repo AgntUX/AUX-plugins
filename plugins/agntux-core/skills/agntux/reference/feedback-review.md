@@ -4,6 +4,23 @@ Lane: read-only pattern detection over the user's done + dismissed
 action items in the last 30 days. **Background-only** — designed for a
 scheduled task whose prompt body is `/agntux feedback-review`.
 
+## Contents
+
+- Background-only guard
+- Schema-drift preflight
+- Always check first
+- Read first
+- Scope: 30-day pattern window
+- Pattern dimensions
+- How to read dismissals
+- Append to `# Auto-learned`
+- Graduation candidates
+- New-entity-type signal
+- Authority discipline
+- Don't double-count
+- Be honest
+- Out of scope
+
 ## Background-only guard
 
 This resource refuses interactive invocations. Auto-firing it from

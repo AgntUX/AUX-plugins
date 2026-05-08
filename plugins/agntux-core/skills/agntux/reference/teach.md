@@ -8,6 +8,15 @@ live in `<agntux project root>/data/instructions/{plugin-slug}.md`.
 data-architect's plugin contract is the authority for which
 `{plugin-slug}` values are valid.)
 
+## Contents
+
+- Detect mode
+- Mode A: Capture
+- Mode B: Teach interview
+- Mode C: Structural escalation
+- Authority surface
+- Honesty rules
+
 ---
 
 ## Detect mode

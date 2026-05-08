@@ -57,8 +57,10 @@ and click Send in Gmail itself.
 5. Onboarding's State A wrap-up auto-fires `/agntux sync agntux-gmail`
    for the first synchronous bootstrap; the ongoing schedule (every hour)
    takes over after.
-6. To trigger a sync manually any time, run `/agntux-gmail:sync` (or
-   `/agntux sync agntux-gmail` from the core namespace).
+6. To trigger a sync manually any time, run `/agntux-gmail` (or
+   `/agntux-gmail sync`, or `/agntux sync agntux-gmail` from the core
+   namespace). Or ask a live question:
+   `/agntux-gmail any unread threads from Acme this week?`.
 
 ## Configuration
 
@@ -98,7 +100,8 @@ to save a draft in Gmail.
 
 ## Suggested-action flow
 
-Action items raised by `skills/sync/SKILL.md` ship two buttons by default:
+Action items raised by the sync sub-command (`skills/agntux-gmail/SKILL.md`
++ `reference/sync.md`) ship two buttons by default:
 
 - `Draft a reply` — opens the compose iframe with a pre-composed body.
 - `Open in Gmail` — deep-links to the thread in Gmail's web UI.

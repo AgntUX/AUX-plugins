@@ -47,9 +47,11 @@ replies on demand — but only ever send them after you confirm.
 5. Onboarding's State A wrap-up auto-fires `/agntux sync agntux-slack`
    for the first synchronous bootstrap; the ongoing schedule
    (every 30 min during weekday work hours) takes over after.
-6. To trigger a sync manually any time, run `/agntux-slack:sync` (or
-   `/agntux sync agntux-slack` from the core namespace). To revisit the
-   architect's contract decisions later, run
+6. To trigger a sync manually any time, run `/agntux-slack` (or
+   `/agntux-slack sync`, or `/agntux sync agntux-slack` from the core
+   namespace). Or ask a live question:
+   `/agntux-slack what's been happening in #implementations`. To revisit
+   the architect's contract decisions later, run
    `/agntux schema review agntux-slack` (only needed if you want to
    change the approved contract — it is NOT a required install step).
 
@@ -70,7 +72,8 @@ cursor map and is polled on every run.
 `slack_search_public_and_private`, which the host requires you to
 approve on first call. If you see a `kind: auth` entry in
 `data/learnings/agntux-slack/sync.md → errors`, grant the connector's
-search permission in your host and re-run `/agntux-slack:sync`.
+search permission in your host and re-run `/agntux-slack` (or
+`/agntux-slack sync`).
 
 **Triage preferences:** edit `<agntux project root>/user.md` →
 `# Preferences` to control which Slack messages generate action items.
@@ -82,10 +85,10 @@ per-plugin instruction in
 
 ## Suggested-action flow
 
-Action items raised by `skills/sync/SKILL.md` ship three buttons by
-default (`Draft a reply`, `Schedule a reply`, `Open in Slack`) plus an
-optional fourth (`Summarise to canvas`) for thread-summary-worthy
-items. Snooze, "Stop raising items like this", and "Mark done —
+Action items raised by the sync sub-command (`skills/agntux-slack/SKILL.md`
++ `reference/sync.md`) ship three buttons by default (`Draft a reply`,
+`Schedule a reply`, `Open in Slack`) plus an optional fourth
+(`Summarise to canvas`) for thread-summary-worthy items. Snooze, "Stop raising items like this", and "Mark done —
 already handled in Slack" are intentionally NOT plugin-authored —
 all three are redundant with built-in agntux-core triage chrome
 (Snooze button with 24h preset; Stop-raising in the Details modal;

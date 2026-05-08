@@ -60,7 +60,7 @@ The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
 | `profile` | [`reference/profile.md`](reference/profile.md) | Edit `user.md`. |
 | `schema` (+ optional `review {slug}` / `edit`) | [`reference/schema.md`](reference/schema.md) | Sub-modes preserved from old skill. |
 | `teach` (+ optional `{plugin-slug}`) | [`reference/teach.md`](reference/teach.md) | Per-plugin instructions. |
-| `sync {plugin-slug}` | [`reference/sync.md`](reference/sync.md) | Accepts `slack`, `agntux-slack`, with-or-without leading `/`. Re-dispatches `/{normalized-slug}:sync`. |
+| `sync {plugin-slug}` | [`reference/sync.md`](reference/sync.md) | Accepts `slack`, `agntux-slack`, with-or-without leading `/`. Re-dispatches `/{normalized-slug} sync`. |
 | `ask {…}` | [`reference/ask.md`](reference/ask.md) | Explicit form; same as the empty-args default. |
 | `feedback-review` | [`reference/feedback-review.md`](reference/feedback-review.md) | **Background-only.** Resource refuses-and-redirects if invoked interactively. |
 | `triage-digest` | [`reference/triage-digest.md`](reference/triage-digest.md) | **Background-only.** Daily 08:00 text digest. Interactive triage UI is owned by the `agntux_core_triage_view` MCP tool — the host's tool selector matches its description's trigger phrases (`show triage`, `what's hot`, …) without a skill in the loop. |

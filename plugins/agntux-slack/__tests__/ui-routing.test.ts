@@ -29,18 +29,25 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
-// with `<!-- {filename} -->` boundary markers so resources/ splits don't
-// break grep-style assertions. Pass-through for all other paths.
+const PLUGIN_SLUG = (
+  JSON.parse(
+    readFileSync(join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf-8"),
+  ) as { name: string }
+).name;
+
+// When reading the slug-named SKILL.md, fold in sibling reference/*.md files
+// (sorted) with `<!-- {filename} -->` boundary markers so grep-style
+// assertions on procedural body content keep working post-router-split.
+// Pass-through for all other paths.
 function readFile(p: string): string {
   const content = readFileSync(p, "utf-8");
-  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
-    const resourcesDir = join(dirname(p), "resources");
-    if (existsSync(resourcesDir)) {
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === PLUGIN_SLUG) {
+    const referenceDir = join(dirname(p), "reference");
+    if (existsSync(referenceDir)) {
       const parts = [content];
-      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+      for (const name of readdirSync(referenceDir).filter((f) => f.endsWith(".md")).sort()) {
         parts.push(`\n<!-- ${name} -->\n`);
-        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+        parts.push(readFileSync(join(referenceDir, name), "utf-8"));
       }
       return parts.join("");
     }
@@ -269,7 +276,7 @@ describe("canvas-view tool descriptor", () => {
 // ---------------------------------------------------------------------------
 
 describe("suggested_actions host_prompt → view-tool description routing", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
 
   it("sync SKILL emits the Draft host_prompt that compose-view's description matches", () => {
     const src = readFile(syncSkill);

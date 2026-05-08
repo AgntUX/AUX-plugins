@@ -1,1 +1,0 @@
-For the Gmail-specific signal layer (default action-worthy signals, default noise patterns, IMPORTANT-label priority bump, sent-awaiting-reply detection, noise-drop counter for the auto-learned denylist), see [`./resources/gmail-triage.md`](./resources/gmail-triage.md) — § "Step 8 — Gmail signal layer".

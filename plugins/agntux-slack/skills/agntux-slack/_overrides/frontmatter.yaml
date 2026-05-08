@@ -1,0 +1,13 @@
+# Substitution map for the canonical sync-skill template.
+# Renderer reads this at build time; surviving {{...}} placeholders fail.
+
+plugin-slug: agntux-slack
+plugin-version: 7.0.0
+source-display-name: Slack
+source-slug: slack
+recommended-cadence: Every 30 min, 7am–10pm weekdays — chat is time-sensitive during work hours, quiet otherwise
+source-cursor-semantics: "Single JSON map under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts). Plus a sibling `discovery_ts` low-water-mark."
+source-mcp-tools: "slack_read_channel, slack_read_thread, slack_read_user_profile, slack_search_public_and_private, slack_search_channels, slack_read_canvas"
+thread-unit-name: thread
+bootstrap-window-default-days: "7"
+example-channel: general

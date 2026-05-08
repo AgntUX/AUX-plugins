@@ -1,0 +1,1 @@
+For Gmail-specific follow-up signal definitions (`?` follow-up question, explicit ask, deadline phrase, escalation keyword) and the user-already-replied skip rule, see `reference/gmail-triage.md` § "Step 8a — Gmail follow-up signals".
