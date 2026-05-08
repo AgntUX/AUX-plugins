@@ -199,14 +199,14 @@ describe("ingest skill prompt", () => {
     }
   });
 
-  it("sync skill pre-flight exits cleanly and points the user at /agntux-onboard for missing contracts", () => {
+  it("sync skill pre-flight exits cleanly and points the user at /agntux onboard for missing contracts", () => {
     const src = readMd(syncSkill);
     // No .proposed file dance — Mode B reads listing.yaml directly. The
-    // exit message routes to /agntux-onboard and documents the wait-and-
+    // exit message routes to /agntux onboard and documents the wait-and-
     // retry behaviour.
-    expect(src).not.toMatch(/run `\/agntux-schema review agntux-slack`/);
+    expect(src).not.toMatch(/run `\/agntux schema review agntux-slack`/);
     expect(src).not.toMatch(/host-dropped `?\.proposed`? file/);
-    expect(src).toMatch(/run `\/agntux-onboard`|will retry on the next scheduled tick/i);
+    expect(src).toMatch(/run `\/agntux onboard`|will retry on the next scheduled tick/i);
   });
 
   it("sync skill registered as a directory-shaped skill (Claude Code spec)", () => {

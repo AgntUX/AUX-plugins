@@ -1,6 +1,6 @@
 ---
 name: sync
-description: Run a agntux-slack pass now (or on schedule). Reads schema and per-plugin contract, fetches Slack items since the last cursor, synthesises entities and action items, advances the cursor. Use for "sync slack", "ingest slack now", "refresh slack", or when a scheduled task fires `/agntux-slack:sync` (or `/agntux-sync agntux-slack`).
+description: Run a agntux-slack pass now (or on schedule). Reads schema and per-plugin contract, fetches Slack items since the last cursor, synthesises entities and action items, advances the cursor. Use for "sync slack", "ingest slack now", "refresh slack", or when a scheduled task fires `/agntux-slack:sync` (or `/agntux sync agntux-slack`).
 ---
 
 <!--
@@ -42,7 +42,7 @@ Resolve the AgntUX project root via this ladder. Stop at the first match:
 
      > "I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)"
 
-     - **yes** → invoke `/agntux-onboard` (it owns the full create-and-pick flow). Exit this skill; onboarding carries the conversation.
+     - **yes** → invoke `/agntux onboard` (it owns the full create-and-pick flow). Exit this skill; onboarding carries the conversation.
      - **no** (or anything else / no response) → reply "Okay — let me know when you're ready." and stop. Do NOT touch source data, do NOT call source MCPs, do NOT advance any cursor.
 
 Throughout the rest of this skill, `<agntux project root>` refers to whichever directory the ladder above resolved to.
@@ -53,11 +53,11 @@ Check whether `<agntux project root>/user.md` exists.
 
 **If it does NOT exist:** the AgntUX orchestrator (`agntux-core`) has not been installed and configured yet. Print this message verbatim and stop:
 
-> "This plugin needs AgntUX Core to be installed and configured first. Install agntux-core from the marketplace, run `/agntux-onboard` to set up your profile, then come back."
+> "This plugin needs AgntUX Core to be installed and configured first. Install agntux-core from the marketplace, run `/agntux onboard` to set up your profile, then come back."
 
 **If it exists but its frontmatter or required body sections (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed:** print this message and stop:
 
-> "user.md looks malformed. Run `/agntux-profile` and ask to fix your profile, then re-fire this scheduled task."
+> "user.md looks malformed. Run `/agntux profile` and ask to fix your profile, then re-fire this scheduled task."
 
 **If it exists and parses cleanly:** proceed to Step 0.
 
@@ -105,10 +105,10 @@ Before reading state, before fetching: load the tenant contract and per-plugin i
 2. **`<agntux project root>/data/schema/contracts/agntux-slack.md`** — your plugin's approved permit. If missing, exit with one stderr line and no user-facing message:
 
    ```
-   agntux-slack pre-flight: contracts/agntux-slack.md missing — run `/agntux-onboard`; will retry on the next scheduled tick.
+   agntux-slack pre-flight: contracts/agntux-slack.md missing — run `/agntux onboard`; will retry on the next scheduled tick.
    ```
 
-   Do NOT proceed without an approved contract. The data-architect's Mode B reads the proposal from `marketplace/listing.yaml → proposed_schema` during `/agntux-onboard` (or Mode A-bis re-entry); the next scheduled run picks up once the contract lands.
+   Do NOT proceed without an approved contract. The data-architect's Mode B reads the proposal from `marketplace/listing.yaml → proposed_schema` during `/agntux onboard` (or Mode A-bis re-entry); the next scheduled run picks up once the contract lands.
 
 3. **Compare schema_version** in your contract against `schema.md`'s. Lower MAJOR → exit with `agntux-slack pre-flight: contract schema_version lags master; awaiting architect refresh.` Same MAJOR, lower MINOR → pass through and append a `contract-minor-out-of-date` entry to `sync.md → errors`. Same or higher → pass.
 
@@ -177,7 +177,7 @@ The cursor is advanced per the source-specific rule documented in your plugin's 
 
 **Slack-ingest default is 7 days** for `bootstrap_window_days` (overrides the P3 §6.1 default of 30 because Slack volume is much higher than email/notes; documented in `# Notes` of your contract). Valid range 1–365 unchanged.
 
-**Onboarding mode — heads-up, no cap.** A bootstrap run typically fires synchronously during `/agntux-onboard` (personalization State A wrap-up auto-fires `/agntux-sync agntux-slack` with the user present). The bootstrap **processes every channel surfaced by discovery** — there is no per-channel cap. Coverage matters more than wall-clock here; the user already knows this is a one-time post-setup run.
+**Onboarding mode — heads-up, no cap.** A bootstrap run typically fires synchronously during `/agntux onboard` (personalization State A wrap-up auto-fires `/agntux sync agntux-slack` with the user present). The bootstrap **processes every channel surfaced by discovery** — there is no per-channel cap. Coverage matters more than wall-clock here; the user already knows this is a one-time post-setup run.
 
 Before starting per-channel polling on a bootstrap run (`last_success: null AND cursor` has zero channel-shaped entries), print **one** user-facing chat message after Step 5b discovery completes, with the real numbers:
 
@@ -208,7 +208,7 @@ The summary contract this skill imposes regardless of source:
 
 For each item, extract every distinguishable entity. **Subtypes are NOT inline in this prompt** — read them from your contract (Step 0). Common kinds (only when your contract approves them): `person`, `company`, `project` (codenames per `user.md → # Glossary`), `topic`.
 
-If a useful kind isn't in your contract, log a `subtype-out-of-contract` entry to `sync.md → errors` instead of writing — the validator would block the write, and the error surfaces in the next AgntUX session so the user can run `/agntux-schema edit`.
+If a useful kind isn't in your contract, log a `subtype-out-of-contract` entry to `sync.md → errors` instead of writing — the validator would block the write, and the error surfaces in the next AgntUX session so the user can run `/agntux schema edit`.
 
 For each candidate entity:
 

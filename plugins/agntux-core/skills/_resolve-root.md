@@ -14,7 +14,7 @@ write is attempted outside `<agntux project root>/`.
 
 The ladder is deliberately mirrored from `personalization.md` Mode A
 Stage 0 steps 1–3, plus an additional step 4 that hands off to
-`/agntux-onboard` instead of duplicating the create-and-pick flow.
+`/agntux onboard` instead of duplicating the create-and-pick flow.
 Onboarding remains the single owner of the interactive `mkdir` and
 host-picker dance.
 
@@ -73,10 +73,10 @@ absolute form makes one allow click hold across all runs.
 
    > I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)
 
-   - **yes** → invoke `/agntux-onboard` (it owns the full Cowork-request /
+   - **yes** → invoke `/agntux onboard` (it owns the full Cowork-request /
      `mkdir` / Glob / picker dance under personalization Mode A
      Stage 0 step 4, plus the migration aid in step 5). Exit Check 0;
-     `/agntux-onboard` carries the conversation from there.
+     `/agntux onboard` carries the conversation from there.
    - **no** → reply once and stop the original command cleanly:
 
      > Okay — let me know when you're ready.
@@ -94,8 +94,8 @@ resolved root.
 
 ## Background-mode carve-out
 
-Scheduled-task fires (e.g., `/agntux-triage` Daily 13:00,
-`/agntux-feedback-review` Daily 16:00, ingest plugins firing on their
+Scheduled-task fires (e.g., `/agntux triage-digest` Daily 13:00,
+`/agntux feedback-review` Daily 16:00, ingest plugins firing on their
 cadence) run with no user present. If steps 1–3 all fail in that
 context, **skip step 4 entirely** — there is no audience for the
 question — and exit cleanly with no user-facing message. Per-skill

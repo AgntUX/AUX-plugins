@@ -1,12 +1,12 @@
 # Schema-drift preflight (shared)
 
-Every entry-point skill except `/agntux-schema` and `/agntux-onboard`
+Every entry-point skill except `/agntux schema` and `/agntux onboard`
 references this block. **This file is not a skill** — leading underscore
 keeps it out of the slash-command surface. Each entry-point skill
 points here from its body so the nudge logic stays in one place.
 
-`/agntux-schema` is excluded because it acts on these states directly
-(running it IS how the user resolves them). `/agntux-onboard` runs its
+`/agntux schema` is excluded because it acts on these states directly
+(running it IS how the user resolves them). `/agntux onboard` runs its
 own walkthrough that handles missing-contract plugins end-to-end (Mode
 B reads each plugin's proposal directly from its `marketplace/listing.yaml`)
 without a separate nudge.
@@ -23,13 +23,13 @@ Before doing anything else (and after the trial-status banner from
    whether `<agntux project root>/data/schema/contracts/{slug}.md` exists.
    If at least one is missing, emit one informational line:
 
-   > 📐 {N} new plugin{s} awaiting schema review. Run `/agntux-schema review` when convenient.
+   > 📐 {N} new plugin{s} awaiting schema review. Run `/agntux schema review` when convenient.
 
 2. **Queued schema-change requests** — read
    `<agntux project root>/data/schema-requests.md` if it exists. If it has any
    non-blank lines, emit one informational line:
 
-   > 📐 {N} pending schema change request{s}. Run `/agntux-schema edit` when convenient.
+   > 📐 {N} pending schema change request{s}. Run `/agntux schema edit` when convenient.
 
 The nudges are **informational**. Do NOT block. Continue with the
 user's actual ask after emitting them.
@@ -41,7 +41,7 @@ contracts first, schema-requests second.
 ## Background-mode carve-out
 
 For scheduled-task fires where no user is present (e.g.,
-`/agntux-triage` Daily 08:00 or `/agntux-feedback-review` Daily 16:00),
+`/agntux triage-digest` Daily 08:00 or `/agntux feedback-review` Daily 16:00),
 **skip the preflight entirely**. There's no audience for the nudge,
 and writing one would clutter scheduled-task logs. The skill detects
 unattended runs the same way it does for `_preconditions.md` checks

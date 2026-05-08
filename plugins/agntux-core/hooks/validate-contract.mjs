@@ -199,7 +199,7 @@ function checkReasonClassEnumMembership(content, lock) {
       `${unique.map((s) => "`" + s + "`").join(", ")}. ` +
       `Allowed: ${lock.action_classes.map((s) => "`" + s + "`").join(", ")}. ` +
       `Either remove the offending value(s) or add them to \`proposed_schema.action_classes\` ` +
-      `and re-run \`/agntux-schema review\` so the architect lands them in the lock.`
+      `and re-run \`/agntux schema review\` so the architect lands them in the lock.`
     );
   }
   return null;

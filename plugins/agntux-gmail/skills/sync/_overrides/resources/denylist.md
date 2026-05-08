@@ -12,7 +12,7 @@ messages skipped this run). For each sender with **≥3 dropped messages
 this run**, decide whether to denylist them per the gates below.
 
 Skip the entire sub-step if `data/instructions/agntux-gmail.md` does not
-exist (the instructions file is created by `/agntux-onboard`'s per-plugin
+exist (the instructions file is created by `/agntux onboard`'s per-plugin
 onboarding; without it, the plugin hasn't been onboarded and this skill
 should not author it).
 

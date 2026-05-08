@@ -35,7 +35,7 @@ replies on demand — but only ever send them after you confirm.
    the host-installed Slack MCP server.
 2. Install **AgntUX Core** if you haven't already.
 3. Install **AgntUX Slack** from the marketplace.
-4. Run `/agntux-onboard` (or re-run it if your tenant is already
+4. Run `/agntux onboard` (or re-run it if your tenant is already
    onboarded). The flow handles agntux-slack's schema review
    automatically: personalization dispatches the data-architect's
    Mode B during the per-plugin interview, and the architect reads
@@ -44,13 +44,13 @@ replies on demand — but only ever send them after you confirm.
    walks you through it in plain language, and writes the approved
    contract at `<agntux project root>/data/schema/contracts/agntux-slack.md`.
    **Zero manual schema-review steps.**
-5. Onboarding's State A wrap-up auto-fires `/agntux-sync agntux-slack`
+5. Onboarding's State A wrap-up auto-fires `/agntux sync agntux-slack`
    for the first synchronous bootstrap; the ongoing schedule
    (every 30 min during weekday work hours) takes over after.
 6. To trigger a sync manually any time, run `/agntux-slack:sync` (or
-   `/agntux-sync agntux-slack` from the core namespace). To revisit the
+   `/agntux sync agntux-slack` from the core namespace). To revisit the
    architect's contract decisions later, run
-   `/agntux-schema review agntux-slack` (only needed if you want to
+   `/agntux schema review agntux-slack` (only needed if you want to
    change the approved contract — it is NOT a required install step).
 
 ## Configuration

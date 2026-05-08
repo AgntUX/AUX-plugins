@@ -66,14 +66,14 @@ Walk the resolution per the `_resolve-root.md` link declared at the
 top of your invoking SKILL.md (cwd basename → ancestor → `~/agntux`
 → offer onboarding). On a successful resolution, continue with the
 next check using the resolved root for every `<agntux project root>`
-reference below. On step 4 routing to `/agntux-onboard`, or on the
+reference below. On step 4 routing to `/agntux onboard`, or on the
 user declining, exit Check 0 (no further checks fire — onboarding
 owns the rest of the flow, or the user opted out).
 
 ### 0.5. Plugin reconciliation (auto-correct, never blocks)
 
 **Skip this check if `user.md` does not exist or fails to parse** — check 1
-below handles that case by routing to `/agntux-onboard`, which has its own
+below handles that case by routing to `/agntux onboard`, which has its own
 reconciliation pass in Mode A-bis. Trying to read `## Installed` from a
 missing or malformed file would log noise without recovering anything.
 
@@ -87,12 +87,12 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
   jointly are. Update frontmatter `updated_at`.
 - **Detect newly-onboarded plugins** — installed plugins that lack a
   `data/instructions/{slug}.md` file (or whose file has `status: draft`).
-- **If running `/agntux-onboard`**: hand the newly-detected set to Mode A-bis
+- **If running `/agntux onboard`**: hand the newly-detected set to Mode A-bis
   via Set 2 (installed-without-instructions). The skill's normal flow walks
   per-plugin onboarding for each.
 - **If running any other `/agntux-*` command** AND there is at least one
   newly-detected plugin: emit one nudge line at the top of the response —
-  `📦 N new AgntUX plugin(s) detected ({slug-list}). Run /agntux-onboard to walk through them.` —
+  `📦 N new AgntUX plugin(s) detected ({slug-list}). Run /agntux onboard to walk through them.` —
   and continue with the user's actual request. Do NOT block.
 
 If `mcp__plugins__list_plugins` does not resolve, log nothing and continue.
@@ -104,14 +104,14 @@ described in the `agntux-onboard` skill (Mode A-bis section).
 If the file does not exist, the user has never onboarded.
 Acknowledge their original ask in one sentence ("I see you asked
 about X — but I need to set up your profile first."), then chain
-into `/agntux-onboard`. After onboarding completes, re-run
+into `/agntux onboard`. After onboarding completes, re-run
 these preconditions before returning to the user's original ask —
 a brand-new `user.md` will trip the schema-bootstrap check below
 on the next pass.
 
 If the file exists but its frontmatter or required body sections
 (`# Identity`, `# Preferences`, `# Glossary`) cannot be parsed,
-say "Your `user.md` looks malformed. Run `/agntux-profile` to
+say "Your `user.md` looks malformed. Run `/agntux profile` to
 fix it." and stop. (Do NOT attempt to repair it yourself — the
 `agntux-profile` skill owns it.)
 
@@ -120,7 +120,7 @@ fix it." and stop. (Do NOT attempt to repair it yourself — the
 If `<agntux project root>/data/schema/schema.md` does not exist AND `user.md`
 exists, the schema has never been bootstrapped. Announce the
 preemption ("Before I get to that — your tenant schema isn't set up
-yet.") and route to **`/agntux-schema`** (it owns Mode A — bootstrap
+yet.") and route to **`/agntux schema`** (it owns Mode A — bootstrap
 from `user.md`). After it completes, return to the original ask.
 
 ### 3. Installed plugins lacking a contract
@@ -136,15 +136,15 @@ For each missing-contract plugin (in `## Installed` order):
 
 - **Case A — `data/instructions/{plugin-slug}.md` does not exist OR
   has frontmatter `status: draft`**: per-plugin onboarding never
-  finished. Route to **`/agntux-onboard`** (Mode A-bis —
+  finished. Route to **`/agntux onboard`** (Mode A-bis —
   new-plugins walkthrough). Mode A-bis runs the per-plugin
-  onboarding interview, which itself routes to `/agntux-schema`
-  (Mode B) at the right moment. Do NOT route to `/agntux-schema`
+  onboarding interview, which itself routes to `/agntux schema`
+  (Mode B) at the right moment. Do NOT route to `/agntux schema`
   directly here — that would bypass the user-facing interview and
   write a contract without the user's instructions context.
 - **Case B — `data/instructions/{plugin-slug}.md` exists with
-  `status: final`**: onboarding finished but `/agntux-schema`
-  Mode B was interrupted. Route to **`/agntux-schema`** (Mode B)
+  `status: final`**: onboarding finished but `/agntux schema`
+  Mode B was interrupted. Route to **`/agntux schema`** (Mode B)
   directly. The skill reads the proposal directly from the
   plugin's `marketplace/listing.yaml → proposed_schema` block
   alongside the finalized instructions and writes the approved
@@ -153,15 +153,15 @@ For each missing-contract plugin (in `## Installed` order):
 After all missing-contract plugins are processed, return to the
 original ask.
 
-This precondition is NOT invoked from `/agntux-onboard` (which
+This precondition is NOT invoked from `/agntux onboard` (which
 explicitly opts out — see that skill's own pre-checks). Every other
 entry-point skill DOES run this check.
 
 ### 4. Schema-requests queue
 
 If `<agntux project root>/data/schema-requests.md` exists AND has at least one
-non-blank queue line, route to **`/agntux-schema`** (Mode C —
-schema edit driven by `/agntux-teach` escalation). The skill
+non-blank queue line, route to **`/agntux schema`** (Mode C —
+schema edit driven by `/agntux teach` escalation). The skill
 consumes one entry per invocation. After it completes, return
 to the original ask.
 

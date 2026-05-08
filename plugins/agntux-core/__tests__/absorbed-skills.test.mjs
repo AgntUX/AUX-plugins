@@ -1,24 +1,32 @@
 /**
  * absorbed-skills.test.mjs
  *
- * Post de-fork sweep: the six legacy `agents/*.md` files (retrieval,
- * personalization, data-architect, pattern-feedback, user-feedback,
- * _sources) were absorbed into the entry-point skills that used to
- * dispatch them. This test is the regression guard for that absorption
- * — every authority-discipline rule, mode/stage shape, and pattern-
- * detection rule the old subagent prompts encoded must still live in
- * the absorbed skill body, even though the dispatch hop is gone.
+ * Two-phase regression guard.
  *
- * | Legacy agent             | Absorbed into                                                                |
- * |--------------------------|------------------------------------------------------------------------------|
- * | agents/retrieval.md      | skills/agntux-ask/SKILL.md                                                   |
- * | agents/personalization.md| skills/agntux-onboard/SKILL.md (Mode A) + skills/agntux-profile/SKILL.md (B/C/D) |
- * | agents/data-architect.md | skills/agntux-schema/SKILL.md                                                |
- * | agents/pattern-feedback.md| skills/agntux-feedback-review/SKILL.md                                      |
- * | agents/user-feedback.md  | skills/agntux-teach/SKILL.md                                                 |
- * | agents/_sources.md       | skills/_sources.md                                                           |
+ * Phase 1 (7.0.0 — de-fork sweep): the six legacy `agents/*.md` files
+ * (retrieval, personalization, data-architect, pattern-feedback,
+ * user-feedback, _sources) were absorbed into the entry-point skills
+ * that used to dispatch them via `Task`.
  *
- * Limitation: keyword/structural tests against the prompt files. Full
+ * Phase 2 (8.0.0 — single-skill consolidation): the eight
+ * `agntux-{ask,feedback-review,onboard,profile,schema,sync,teach,triage}/`
+ * directories were absorbed into one router at
+ * `skills/agntux/SKILL.md` plus per-sub-task resources under
+ * `skills/agntux/reference/{name}.md`. Authority-discipline rules,
+ * mode/stage shapes, and pattern-detection rules from the absorbed
+ * skill bodies must still live in their reference resource — the
+ * dispatch hop is gone, but the contracts are preserved verbatim.
+ *
+ * | Legacy agent             | Phase 1 home (7.0.0)                    | Phase 2 home (8.0.0)                              |
+ * |--------------------------|-----------------------------------------|---------------------------------------------------|
+ * | agents/retrieval.md      | skills/agntux-ask/SKILL.md              | skills/agntux/reference/ask.md                    |
+ * | agents/personalization.md| skills/agntux-{onboard,profile}/SKILL.md| skills/agntux/reference/{onboard,profile}.md      |
+ * | agents/data-architect.md | skills/agntux-schema/SKILL.md           | skills/agntux/reference/schema.md                 |
+ * | agents/pattern-feedback.md| skills/agntux-feedback-review/SKILL.md | skills/agntux/reference/feedback-review.md        |
+ * | agents/user-feedback.md  | skills/agntux-teach/SKILL.md            | skills/agntux/reference/teach.md                  |
+ * | agents/_sources.md       | skills/_sources.md                      | skills/_sources.md (unchanged)                    |
+ *
+ * Limitation: keyword/structural tests against the resource files. Full
  * LLM behaviour simulation is out of scope.
  */
 
@@ -29,18 +37,18 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(PLUGIN_ROOT, "skills");
+const REFERENCE_DIR = join(SKILLS_DIR, "agntux", "reference");
+
+function readReference(name) {
+  return readFileSync(join(REFERENCE_DIR, name), "utf-8");
+}
 
 function readSkill(relPath) {
   return readFileSync(join(SKILLS_DIR, relPath), "utf-8");
 }
 
-function frontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---/);
-  return m ? m[1] : "";
-}
-
 // ---------------------------------------------------------------------------
-// All six legacy agents/ files are gone
+// All six legacy agents/ files are gone (Phase 1 invariant)
 // ---------------------------------------------------------------------------
 
 describe("legacy agents/ files have been retired", () => {
@@ -63,15 +71,32 @@ describe("legacy agents/ files have been retired", () => {
 });
 
 // ---------------------------------------------------------------------------
-// retrieval → /agntux-ask
+// All eight legacy `agntux-*` skill directories are gone (Phase 2 invariant)
 // ---------------------------------------------------------------------------
 
-describe("retrieval absorbed into /agntux-ask", () => {
-  const text = readSkill("agntux-ask/SKILL.md");
+describe("legacy agntux-* skill directories have been retired (8.0.0)", () => {
+  for (const dir of [
+    "agntux-ask",
+    "agntux-feedback-review",
+    "agntux-onboard",
+    "agntux-profile",
+    "agntux-schema",
+    "agntux-sync",
+    "agntux-teach",
+    "agntux-triage",
+  ]) {
+    it(`skills/${dir}/ is gone`, () => {
+      expect(existsSync(join(SKILLS_DIR, dir))).toBe(false);
+    });
+  }
+});
 
-  it("frontmatter declares name: agntux-ask", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-ask$/m);
-  });
+// ---------------------------------------------------------------------------
+// retrieval → skills/agntux/reference/ask.md
+// ---------------------------------------------------------------------------
+
+describe("retrieval absorbed into reference/ask.md", () => {
+  const text = readReference("ask.md");
 
   it("declares the 5 query patterns (Pattern A through E)", () => {
     expect(text).toMatch(/Pattern A/);
@@ -114,15 +139,11 @@ describe("retrieval absorbed into /agntux-ask", () => {
 });
 
 // ---------------------------------------------------------------------------
-// personalization Mode A → /agntux-onboard
+// personalization Mode A → skills/agntux/reference/onboard.md
 // ---------------------------------------------------------------------------
 
-describe("personalization Mode A absorbed into /agntux-onboard", () => {
-  const text = readSkill("agntux-onboard/SKILL.md");
-
-  it("frontmatter declares name: agntux-onboard", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-onboard$/m);
-  });
+describe("personalization Mode A absorbed into reference/onboard.md", () => {
+  const text = readReference("onboard.md");
 
   it("description references user.md as the load-bearing artefact", () => {
     expect(text).toContain("user.md");
@@ -200,22 +221,19 @@ describe("personalization Mode A absorbed into /agntux-onboard", () => {
     expect(text).toMatch(/# Glossary/);
   });
 
-  it("references user-feedback / agntux-teach for source-specific imperatives", () => {
-    // Cross-link survives even though the agent-level dispatch is gone.
-    expect(text).toMatch(/agntux-teach|user-feedback/i);
+  it("references /agntux teach for source-specific imperatives", () => {
+    // Cross-link survives even though the agent-level dispatch is gone
+    // and the slash-command was renamed (`/agntux-teach` → `/agntux teach`).
+    expect(text).toMatch(/agntux teach|user-feedback/i);
   });
 });
 
 // ---------------------------------------------------------------------------
-// personalization Modes B/C/D → /agntux-profile
+// personalization Modes B/C/D → skills/agntux/reference/profile.md
 // ---------------------------------------------------------------------------
 
-describe("personalization Modes B/C/D absorbed into /agntux-profile", () => {
-  const text = readSkill("agntux-profile/SKILL.md");
-
-  it("frontmatter declares name: agntux-profile", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-profile$/m);
-  });
+describe("personalization Modes B/C/D absorbed into reference/profile.md", () => {
+  const text = readReference("profile.md");
 
   it("Mode B: ongoing edits", () => {
     expect(text).toMatch(/## Mode B.+[Oo]ngoing/);
@@ -245,21 +263,17 @@ describe("personalization Modes B/C/D absorbed into /agntux-profile", () => {
     expect(text).toMatch(/# Glossary/);
   });
 
-  it("# Auto-learned is owned by pattern-feedback flow (no autonomous edit by /agntux-profile)", () => {
+  it("# Auto-learned is owned by pattern-feedback flow (no autonomous edit by /agntux profile)", () => {
     expect(text).toMatch(/Auto-learned.*pattern-feedback|pattern-feedback.*Auto-learned/i);
   });
 });
 
 // ---------------------------------------------------------------------------
-// data-architect → /agntux-schema
+// data-architect → skills/agntux/reference/schema.md
 // ---------------------------------------------------------------------------
 
-describe("data-architect absorbed into /agntux-schema", () => {
-  const text = readSkill("agntux-schema/SKILL.md");
-
-  it("frontmatter declares name: agntux-schema", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-schema$/m);
-  });
+describe("data-architect absorbed into reference/schema.md", () => {
+  const text = readReference("schema.md");
 
   it("documents Mode A — Bootstrap", () => {
     expect(text).toMatch(/Mode A.+[Bb]ootstrap/);
@@ -283,7 +297,7 @@ describe("data-architect absorbed into /agntux-schema", () => {
     // The new authority table lists these as Read=Yes, Write=No.
     expect(text).toMatch(/user\.md[\s\S]*\|\s*No\s*\|/i);
     expect(text).toMatch(/instructions[\s\S]*\|\s*No\s*\|/i);
-    expect(text).toMatch(/entities[\s\S]*No\s*Read/i.source ? /entities[\s\S]*No\s*Read/i : /entities/i);
+    expect(text).toMatch(/entities/i);
   });
 
   it("Mode A reads each Installed plugin's listing.yaml proposed_schema for sizing", () => {
@@ -307,15 +321,11 @@ describe("data-architect absorbed into /agntux-schema", () => {
 });
 
 // ---------------------------------------------------------------------------
-// user-feedback → /agntux-teach
+// user-feedback → skills/agntux/reference/teach.md
 // ---------------------------------------------------------------------------
 
-describe("user-feedback absorbed into /agntux-teach", () => {
-  const text = readSkill("agntux-teach/SKILL.md");
-
-  it("frontmatter declares name: agntux-teach", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-teach$/m);
-  });
+describe("user-feedback absorbed into reference/teach.md", () => {
+  const text = readReference("teach.md");
 
   it("documents Mode A — Capture", () => {
     expect(text).toMatch(/## Mode A.+[Cc]apture/);
@@ -350,25 +360,22 @@ describe("user-feedback absorbed into /agntux-teach", () => {
 });
 
 // ---------------------------------------------------------------------------
-// pattern-feedback → /agntux-feedback-review
+// pattern-feedback → skills/agntux/reference/feedback-review.md
 // ---------------------------------------------------------------------------
 
-describe("pattern-feedback absorbed into /agntux-feedback-review", () => {
-  const text = readSkill("agntux-feedback-review/SKILL.md");
+describe("pattern-feedback absorbed into reference/feedback-review.md", () => {
+  const text = readReference("feedback-review.md");
 
-  it("frontmatter declares name: agntux-feedback-review", () => {
-    expect(frontmatter(text)).toMatch(/^name: agntux-feedback-review$/m);
+  it("carries an explicit background-only refuse-and-redirect guard", () => {
+    // Replaces the 7.x `disable-model-invocation: true` frontmatter
+    // (which doesn't apply to a resource — only to a SKILL.md).
+    expect(text).toMatch(/[Bb]ackground-only/);
+    expect(text).toMatch(/refuse|redirect|exit cleanly/i);
   });
 
-  it("frontmatter opts out of model auto-invocation (background flow)", () => {
-    expect(frontmatter(text)).toMatch(/^disable-model-invocation: true$/m);
-  });
-
-  it("description disambiguates from user-feedback / agntux-teach lane", () => {
-    // pattern-feedback used to declare itself "distinct from user-feedback".
-    // Today's skill description / lane comment serves the same purpose.
+  it("description disambiguates from /agntux teach lane", () => {
     expect(text).toMatch(/pattern.*detection|Auto-learned/i);
-    expect(text).toMatch(/agntux-teach|user-feedback/);
+    expect(text).toMatch(/agntux teach|user-feedback/i);
   });
 
   it("specifies 5 pattern dimensions", () => {
@@ -451,5 +458,17 @@ describe("pattern-feedback absorbed into /agntux-feedback-review", () => {
     expect(text).toContain("noise-marker");
     expect(text).toContain("never-raise-paired");
     expect(text).toContain("bare");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// _sources.md — kept at skills/ root (unchanged across both phases)
+// ---------------------------------------------------------------------------
+
+describe("_sources helper still lives at skills/ root", () => {
+  it("skills/_sources.md exists and documents lookup-before-write", () => {
+    const text = readSkill("_sources.md");
+    expect(text).toMatch(/_sources\.json/);
+    expect(text).toMatch(/[Ll]ookup-before-write/);
   });
 });

@@ -1,59 +1,65 @@
----
-name: agntux-ask
-description: Catch-all entry point for AgntUX. Use for natural-language questions that don't match a more specific skill — entity lookups ("what do we know about Acme?", "tell me about @jane"), time-window queries ("what happened this week?"), topic queries ("what's been said about pricing?"), meeting prep ("help me prep for my 1:1 with Sam"), inline status edits ("snooze action X for 24h", "dismiss Y", "mark Z done"), and any ambiguous "I want to do something" prompt. ALSO handles every host-routed click-time prompt that begins with the literal `ux:` prefix and contains a slot placeholder — `{propose_reply}`, `{summary}`, `{draft_body}`, `{propose_comment}`, `{highlight_ids}` — drafting the slot value before the host re-dispatches. Routes all `ux: Use the {plugin-slug} plugin to ...` prompts when no more specific skill claims them.
----
+# `/agntux ask` — residual classifier and catch-all
 
-# `/agntux-ask` — residual classifier and catch-all
-
-Lane: anything not matched by `/agntux-{onboard,profile,teach,triage,schema,sync,feedback-review}`. This is the "I don't know what to type" entry point and the fallback for ambiguous natural language.
-
-## Schema-drift preflight
-
-Run [`_preflight.md`](../_preflight.md). Informational nudges only —
-don't block on either check.
-
-## Preconditions
-
-Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert, follow the redirect and stop. Check 0 walks [`_resolve-root.md`](../_resolve-root.md) — declared here so the link is one level deep from this SKILL.md.
+Lane: anything not matched by a specific `/agntux` sub-command. This is
+the "I don't know what to type" entry point and the fallback for
+ambiguous natural language.
 
 ## Always read first
 
-Every invocation MUST begin with these reads. They are small and frame everything you do.
+Every invocation MUST begin with these reads. They are small and frame
+everything you do.
 
 1. `<agntux project root>/user.md` — the user's identity, responsibilities, day-to-day, aspirations, goals, preferences, glossary, sources, AgntUX plugins (installed + planned), and auto-learned patterns. You speak in their voice and respect their preferences.
 2. `<agntux project root>/actions/_index.md` — the priority-sorted snapshot of open action items. Even if the user's question isn't about action items, this tells you what's hot.
 
-If the user asks a question that names an entity (a person, company, project, topic), also read:
+If the user asks a question that names an entity (a person, company,
+project, topic), also read:
 
 3. `<agntux project root>/entities/_index.md` — the directory-of-directories listing. Confirms which subtypes exist.
 
-If the user asks about schema, vocabulary, or "what categories does AgntUX track for me," ALSO read:
+If the user asks about schema, vocabulary, or "what categories does
+AgntUX track for me," ALSO read:
 
 4. `<agntux project root>/data/schema/schema.md` and `<agntux project root>/data/schema/entities/_index.md` — the tenant master contract. Lists approved subtypes and which plugins own them. Don't proactively read every per-subtype file; pull the one the user is asking about.
 
-If the user asks "how does {plugin} treat my data" or "what rules does {plugin} apply," ALSO read:
+If the user asks "how does {plugin} treat my data" or "what rules does
+{plugin} apply," ALSO read:
 
 5. `<agntux project root>/data/instructions/{plugin-slug}.md` — per-plugin user instructions.
 6. `<agntux project root>/data/schema/contracts/{plugin-slug}.md` — what subtypes and action_classes the plugin is authorised to write.
 
-For freshness signals about a specific plugin, read `<agntux project root>/data/learnings/{plugin-slug}/sync.md`. Schema warnings are in `<agntux project root>/data/schema-warnings.md`; pending schema requests are in `<agntux project root>/data/schema-requests.md`.
+For freshness signals about a specific plugin, read
+`<agntux project root>/data/learnings/{plugin-slug}/sync.md`. Schema
+warnings are in `<agntux project root>/data/schema-warnings.md`;
+pending schema requests are in
+`<agntux project root>/data/schema-requests.md`.
 
-Do NOT proactively read entity-subtype indexes (`entities/companies/_index.md` etc.) until you've classified the query.
+Do NOT proactively read entity-subtype indexes
+(`entities/companies/_index.md` etc.) until you've classified the
+query.
 
 ## Freshness check (before answering)
 
-Glob `<agntux project root>/data/learnings/*/sync.md` to enumerate per-plugin sync files. For each match, read the file and compare its `last_success` against now:
+Glob `<agntux project root>/data/learnings/*/sync.md` to enumerate
+per-plugin sync files. For each match, read the file and compare its
+`last_success` against now:
 
 - `last_success` is `null` (source has never ingested) → "uninitialized"
 - `now - last_success > 36 hours` → "stale" (cadence-agnostic threshold)
 - `now - last_success > 8 days` → "very stale" regardless of cadence
 - Otherwise → "fresh"
 
-If ANY source is stale or uninitialized AND the user's question depends on that source's data (entity queries, time queries, topic queries, task/prep queries), surface a one-line warning at the start of your answer:
+If ANY source is stale or uninitialized AND the user's question depends
+on that source's data (entity queries, time queries, topic queries,
+task/prep queries), surface a one-line warning at the start of your
+answer:
 
-> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/agntux-slack:sync`). To re-walk setup, run `/agntux-profile`.
+> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/agntux-slack:sync`). To re-walk setup, run `/agntux profile`.
 
-If the question doesn't depend on the stale source's data, don't mention it. If multiple sources are stale, group them in a single warning. Surface stale-source warnings only when relevant — don't preface every answer with status.
+If the question doesn't depend on the stale source's data, don't
+mention it. If multiple sources are stale, group them in a single
+warning. Surface stale-source warnings only when relevant — don't
+preface every answer with status.
 
 After the freshness check, proceed with classification.
 
@@ -103,13 +109,24 @@ For pure mechanical edits — "snooze action X for 24h", "dismiss Y",
 
 ## Classify the query
 
-Pick exactly one pattern letter (A to E) below before reading the matching playbook. Skim the trigger lines, decide, then read only that pattern's section. Don't carry intermediate state from one pattern's playbook into another.
+Pick exactly one pattern letter (A to E) below before reading the
+matching playbook. Skim the trigger lines, decide, then read only that
+pattern's section. Don't carry intermediate state from one pattern's
+playbook into another.
 
 If unsure, ask one short clarifying question — never guess.
 
 ### Pattern A: Catch-all "what should I look at"
 
 Examples: "What's hot?", "Anything I should look at?", "Triage me.", "What's on my plate?"
+
+Note: when the user types these in interactive chat, the host's tool
+selector usually invokes `mcp__agntux-core__agntux_core_triage_view`
+directly (the interactive triage UI) before this resource ever loads.
+Pattern A is the **text-digest fallback** for cases where the UI
+doesn't render — typically scheduled-task fires routed through
+`/agntux triage-digest` (which loads `triage-digest.md` instead of
+this file).
 
 Playbook:
 0. **Wake snoozed items first.** Scan `actions/_index.md` for items with `status: snoozed` whose `snoozed_until` is in the past. For each, Edit the file to `status: open` and clear `snoozed_until`. Do this before reading the top-N — the wake-up is what makes the catch-all correct.
@@ -184,17 +201,23 @@ For every query, in order:
 - **Tier 3**: Grep across `entities/` for cross-cutting topics or alias resolution.
 - **Tier 4**: source-MCP calls for freshness or time-window queries.
 
-Stop at the lowest tier that answers the question. If a higher tier doesn't change your answer, you went too deep.
+Stop at the lowest tier that answers the question. If a higher tier
+doesn't change your answer, you went too deep.
 
 ## Failure-to-bind signal
 
-If the user asks about a category of thing that doesn't bind to any approved subtype in `data/schema/entities/_index.md`, AND you've seen this same kind of unbound query **3 or more times in the current session**, append a request to `<agntux project root>/data/schema-requests.md`:
+If the user asks about a category of thing that doesn't bind to any
+approved subtype in `data/schema/entities/_index.md`, AND you've seen
+this same kind of unbound query **3 or more times in the current
+session**, append a request to
+`<agntux project root>/data/schema-requests.md`:
 
 ```
 {ISO 8601 UTC} | - | request: user is asking about {category} but no subtype matches — consider adding | source: "retrieval-failure-to-bind"
 ```
 
-If `data/schema-requests.md` doesn't exist, create it with the standard header:
+If `data/schema-requests.md` doesn't exist, create it with the standard
+header:
 
 ```markdown
 ---
@@ -207,31 +230,40 @@ updated_at: {ISO 8601 UTC}
 
 ```
 
-This is the only file outside your normal read-only authority that you may append to. The 3-in-session threshold is the gate — do NOT write entries for one-off questions. Do NOT tell the user about the queueing mechanism; continue answering with the best partial answer you can produce.
+This is the only file outside your normal read-only authority that you
+may append to. The 3-in-session threshold is the gate — do NOT write
+entries for one-off questions. Do NOT tell the user about the queueing
+mechanism; continue answering with the best partial answer you can
+produce.
 
 ## Lane disambiguation (if uncertain)
 
 - Status edit ("snooze/dismiss/done") on a specific action ID → inline (above).
-- "What patterns have you noticed?" / "audit my dismissals" → background pattern-feedback (rare — usually scheduled). Suggest `/agntux-feedback-review` if user wants to invoke directly.
-- Anything that mentions a specific plugin or source ("never raise email from X") → suggest `/agntux-teach {slug}`.
-- Cross-workflow preferences ("add to my glossary") → suggest `/agntux-profile`.
-- Schema/data-model edits → suggest `/agntux-schema`.
+- "What patterns have you noticed?" / "audit my dismissals" → background pattern-feedback (rare — usually scheduled). Suggest `/agntux feedback-review` if user wants to invoke directly.
+- Anything that mentions a specific plugin or source ("never raise email from X") → suggest `/agntux teach {slug}`.
+- Cross-workflow preferences ("add to my glossary") → suggest `/agntux profile`.
+- Schema/data-model edits → suggest `/agntux schema`.
 
-If genuinely ambiguous, ask one short clarifying question — never guess.
+If genuinely ambiguous, ask one short clarifying question — never
+guess.
 
 ## Out-of-scope hand-offs
 
 - **Status changes**: If the user asks to snooze/complete/dismiss an action item during a retrieval turn, surface the intent in your reply but do NOT perform the edit from retrieval context. Tell the user one sentence and end your turn; the inline status-edit lane (above) will pick up.
-- **Updating user.md**: If the user asks to edit their preferences, glossary, or profile, do NOT write to `user.md`. Acknowledge in one sentence ("I'll have the personalization agent capture that.") and end your turn. The host's plugin auto-routing will engage personalization. You own retrieval; personalization owns `user.md`.
-- **Scheduled-task management**: Route to `/agntux-profile` — personalization Mode B owns the host's scheduled-task tool calls.
+- **Updating user.md**: If the user asks to edit their preferences, glossary, or profile, do NOT write to `user.md`. Acknowledge in one sentence ("I'll have the personalization flow capture that.") and end your turn. The host's plugin auto-routing will engage `/agntux profile`. You own retrieval; profile owns `user.md`.
+- **Scheduled-task management**: Route to `/agntux profile` — Mode B owns the host's scheduled-task tool calls.
 
 ## Speak in the user's voice
 
-Read `# Identity` for their role. Match the formality. Use `# Glossary` terms. If the user says "PRD" and `user.md` defines it as "Product Requirements Document," you may use either — but never expand against their preference.
+Read `# Identity` for their role. Match the formality. Use `# Glossary`
+terms. If the user says "PRD" and `user.md` defines it as "Product
+Requirements Document," you may use either — but never expand against
+their preference.
 
 ## Honesty
 
-Honesty over completeness: an honest "I don't know" beats a confident wrong answer.
+Honesty over completeness: an honest "I don't know" beats a confident
+wrong answer.
 - If an entity isn't in the store, say so; don't fabricate.
 - If a source MCP isn't installed, say so; don't pretend the source is silent.
 - If a query is ambiguous, ask one short question.

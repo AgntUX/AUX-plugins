@@ -13,54 +13,64 @@ between ingest plugins to keep your data fresh and organized.
 Install AgntUX Core first before installing any other AgntUX plugin. It provides the
 shared knowledge store and orchestration layer that other plugins depend on.
 
-After installing, run `/agntux-onboard` once to create your `<agntux project root>/user.md` profile
+After installing, run `/agntux onboard` once to create your `<agntux project root>/user.md` profile
 and bootstrap the tenant schema.
 
 ## Quickstart
 
+agntux-core ships a single entry-point skill — `/agntux`. Sub-commands route
+to the right behaviour by reading the first token of `$ARGUMENTS`; bare
+`/agntux` defaults to ask-mode and infers from the natural-language prompt.
+
 | Command | Purpose |
 |---|---|
-| `/agntux-onboard` | First-run interview + schema bootstrap. Run once. |
-| `/agntux-profile` | Edit preferences, glossary, identity, sources. |
-| `/agntux-teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
-| `/agntux-triage` | Inline triage UI — priority-sorted open actions, snooze/dismiss/done, suggested-action buttons. |
-| `/agntux-schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
-| `/agntux-sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin. |
-| `/agntux-ask "..."` | Catch-all for natural-language queries and inline status edits. |
-| `/agntux-feedback-review` | Background pattern detection over resolved actions (scheduled task target). |
+| `/agntux onboard` | First-run interview + schema bootstrap. Run once. Re-runs walk newly-installed plugins. |
+| `/agntux profile` | Edit preferences, glossary, identity, sources. |
+| `/agntux teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
+| `/agntux schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
+| `/agntux sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin (bare names like `slack` expand). |
+| `/agntux ask "..."` | Catch-all for natural-language queries and inline status edits. |
+| `/agntux feedback-review` | Background pattern detection over resolved actions (scheduled task target). |
+| `/agntux triage-digest` | Daily text-digest fallback when the interactive triage UI doesn't render (scheduled task target). |
 
-You can also speak naturally — Claude auto-dispatches to the right skill from each
-skill's description (e.g. saying "what's hot today" routes to `/agntux-triage`).
+You can also speak naturally — Claude auto-dispatches to `/agntux` from
+its description, and the router infers the right sub-command from the
+prompt (e.g. saying "show triage" or "what's hot" invokes the
+interactive triage UI directly via the `agntux_core_triage_view` MCP
+tool — no skill in the loop).
 
 ## Recommended scheduled tasks
 
 | Task | Prompt body | Cadence |
 |---|---|---|
-| Daily action-item digest | `/agntux-triage` | Daily 08:00 |
-| Daily feedback review | `/agntux-feedback-review` | Daily 16:00 |
+| Daily action-item digest | `/agntux triage-digest` | Daily 08:00 |
+| Daily feedback review | `/agntux feedback-review` | Daily 16:00 |
 
 ## UI
 
-agntux-core renders one MCP App: `ui://triage`. Type `/agntux-triage` (or
-say "what's hot", "show triage", etc.) to render priority-sorted open
-action items with inline mutation controls and per-item suggested-action
-buttons that route into source plugins via `sendFollowUpMessage`. The
-component runs server-side reads against `<agntux project root>/actions/`;
-arguments to the underlying `triage_view` tool are zero-required so the
-LLM spends ~no tokens on tool args.
+agntux-core renders one MCP App: `ui://triage`. Saying "what's hot",
+"show triage", or "what should I look at" triggers the host's tool
+selector to invoke `agntux_core_triage_view` directly — that tool's
+description carries the trigger phrases. The UI shows priority-sorted
+open action items with inline mutation controls and per-item
+suggested-action buttons that route into source plugins via
+`sendFollowUpMessage`. The component runs server-side reads against
+`<agntux project root>/actions/`; arguments to the view tool are
+zero-required so the LLM spends ~no tokens on tool args.
 
-For scheduled-background fires (Daily 08:00 by default), the same
-`/agntux-triage` skill emits a text digest via the retrieval subagent —
-no UI, no audience required.
+For scheduled-background fires (Daily 08:00 by default), the
+`/agntux triage-digest` sub-command emits a text digest via the same
+data source — no UI, no audience required.
 
 The previous `entity-browser` UI handler was retired in 5.0.0. Entity
-navigation now goes through `/agntux-ask` (e.g. "tell me about
+navigation now goes through `/agntux ask` (e.g. "tell me about
 person/avery-rivera").
 
 ## Configuration
 
-Configure your preferences in `<agntux project root>/user.md`. This file controls how the orchestrator
-prioritizes action items and manages your workflow. Run `/agntux-profile` to edit it.
+Configure your preferences in `<agntux project root>/user.md`. This
+file controls how the orchestrator prioritizes action items and manages
+your workflow. Run `/agntux profile` to edit it.
 
 ## Limitations
 
@@ -80,10 +90,6 @@ License enforcement is NOT in hooks. It lives in the MCP server via
 `@agntux/mcp-license`, wrapped around the `tools/call` handler.
 `resources/read` for the UI bundle is intentionally ungated — see
 `packages/mcp-license/README.md` §"Why only tools/call".
-
-The Connector Directory URL embedded in `agents/personalization.md`
-(`https://app.agntux.ai/connectors`) is the MVP value; finalise before
-public launch if the production URL differs.
 
 ## License
 

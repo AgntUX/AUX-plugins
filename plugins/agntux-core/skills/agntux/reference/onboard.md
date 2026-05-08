@@ -1,9 +1,4 @@
----
-name: agntux-onboard
-description: First-run setup AND re-entry for AgntUX. On a fresh `user.md`, walks the discovery interview, bootstraps the schema, then runs per-plugin onboarding for every connected source. On a re-entry (`user.md` already present), scans for installed plugins lacking a contract or instructions file and walks the per-plugin onboarding only — the user interview is NOT redone unless they explicitly say "redo from scratch". Use when the user says "onboard me", "set me up", "get started with AgntUX", "I added a new plugin", "walk me through new sources".
----
-
-# `/agntux-onboard` — first-run interview AND new-plugin walkthrough
+# `/agntux onboard` — first-run interview AND new-plugin walkthrough
 
 **Voice rules.** Speak as a single AgntUX voice. Never say "subagent",
 "dispatch", "Mode A / A-bis", "orchestrator", or any internal phase.
@@ -17,24 +12,25 @@ home directory; cache the absolute string for every subsequent tool call
 (makes one "Allow for scheduled runs" click hold). A missing `user.md`
 is NOT a failure — it triggers first-run.
 
-**Schema-drift preflight.** Does NOT run `_preflight.md` — this skill's
-flow handles missing-contract plugins end-to-end. Does check the queue:
-if `<agntux project root>/data/schema-requests.md` has non-blank lines →
-emit "📐 {N} pending schema change request{s}. Run `/agntux-schema edit`
-when convenient." Do not block.
+**Schema-drift preflight.** Does NOT run `_preflight.md` — this
+sub-task's flow handles missing-contract plugins end-to-end. Does check
+the queue: if `<agntux project root>/data/schema-requests.md` has
+non-blank lines → emit "📐 {N} pending schema change request{s}. Run
+`/agntux schema edit` when convenient." Do not block.
 
 **Pre-checks.**
-1. Emit the trial banner per [`_preconditions.md`](../_preconditions.md) § A.
-   Project-root resolution lives in [`_resolve-root.md`](../_resolve-root.md);
+1. Emit the trial banner per [`../../_preconditions.md`](../../_preconditions.md) § A.
+   Project-root resolution lives in [`../../_resolve-root.md`](../../_resolve-root.md);
    Stage 0 below carries an inlined mirror tailored to the first-run flow.
 2. Do NOT short-circuit on a missing `agntux` folder — Stage 0 owns that.
-3. Do NOT run `_preconditions.md` checks 2, 3, or 4 (this skill handles
-   schema bootstrap, missing-contract plugins, and schema-requests inline).
-   DO run check 0.5 (plugin reconciliation via `mcp__plugins__list_plugins`).
+3. Do NOT run `../../_preconditions.md` checks 2, 3, or 4 (this sub-task
+   handles schema bootstrap, missing-contract plugins, and
+   schema-requests inline). DO run check 0.5 (plugin reconciliation
+   via `mcp__plugins__list_plugins`).
 4. If `user.md` exists → **Re-entry flow** (below). Exception: if the
    user said "redo from scratch" / "start over completely", confirm once
    ("This will rewrite your entire profile — proceed? Or did you mean
-   `/agntux-profile` or `/agntux-schema`?"); wait for explicit yes.
+   `/agntux profile` or `/agntux schema`?"); wait for explicit yes.
 
 ---
 
@@ -214,13 +210,13 @@ continuing.
 ### Stage 5.5: Bootstrap the schema
 
 After `user.md` is finalized and BEFORE plugin suggestions, route to
-`/agntux-schema` (it owns the schema-bootstrap flow). The schema skill
-reads `discovery_summary`, `# Discovery`, and the rest of `user.md`,
-synthesises a custom starter schema using the schema-design rubric,
-walks the user through a plain-language approve/edit, and writes
-`<agntux project root>/data/schema/` files. Mandatory — the per-plugin
-onboarding below requires `entities/` files to exist. If
-`discovery_summary` carries `(needs-clarification)`, the schema skill
+`/agntux schema` (it owns the schema-bootstrap flow). The schema
+sub-task reads `discovery_summary`, `# Discovery`, and the rest of
+`user.md`, synthesises a custom starter schema using the schema-design
+rubric, walks the user through a plain-language approve/edit, and
+writes `<agntux project root>/data/schema/` files. Mandatory — the
+per-plugin onboarding below requires `entities/` files to exist. If
+`discovery_summary` carries `(needs-clarification)`, the schema flow
 designs a minimal baseline. Continue when bootstrap completes.
 
 ### Plugin suggestions (after Stage 5)
@@ -253,7 +249,7 @@ run the **per-plugin onboarding interview** for each plugin.
 
 If no plugins are detected after "ready", ask once whether the user
 installed them in **Customize → Connectors**, or whether they'd rather
-skip and add plugins later via `/agntux-onboard`. Don't block.
+skip and add plugins later via `/agntux onboard`. Don't block.
 
 ### Per-plugin onboarding interview
 
@@ -312,8 +308,8 @@ When the interview wraps, flip `status: draft → final`, refresh
 `updated_at`, and save.
 
 **Schema-contract step.** If no `data/schema/contracts/{plugin-slug}.md`
-exists yet, route to `/agntux-schema` for the per-plugin contract. The
-schema skill reads the proposal from the plugin's
+exists yet, route to `/agntux schema` for the per-plugin contract. The
+schema sub-task reads the proposal from the plugin's
 `marketplace/listing.yaml → proposed_schema` block alongside the
 freshly-written instructions file and writes the contract. Do NOT
 narrate this to the user. Repeat the interview for every detected plugin.
@@ -321,7 +317,9 @@ narrate this to the user. Repeat the interview for every detected plugin.
 ### Per-source scheduled-task walkthrough
 
 Track progress in `<agntux project root>/data/onboarding.md`
-(frontmatter `type: onboarding-progress`, `updated_at`; body `# Onboarding progress > ## Plugins` with lines `- {slug}: scheduled ({date})` or `- {slug}: pending`). On resume, skip plugins already marked `scheduled`.
+(frontmatter `type: onboarding-progress`, `updated_at`; body
+`# Onboarding progress > ## Plugins` with lines `- {slug}: scheduled ({date})` or `- {slug}: pending`). On resume, skip plugins already
+marked `scheduled`.
 
 **For each installed source plugin:**
 
@@ -339,9 +337,9 @@ Track progress in `<agntux project root>/data/onboarding.md`
 
 **After all source plugins, create the orchestrator tasks** (same
 ToolSearch / idempotency / create / copy-paste-fallback pattern):
-`/agntux-triage` `Daily 13:00` "AgntUX daily digest";
-`/agntux-feedback-review` `Daily 16:00` "AgntUX feedback review";
-*(optional)* `/agntux-profile any patterns to approve?`
+`/agntux triage-digest` `Daily 13:00` "AgntUX daily digest";
+`/agntux feedback-review` `Daily 16:00` "AgntUX feedback review";
+*(optional)* `/agntux profile any patterns to approve?`
 `Weekly Friday 16:00` "AgntUX weekly review".
 
 ### Deterministic wrap-up
@@ -361,7 +359,7 @@ without asking:
 > Tip: open a new Cowork thread and keep working — ingests run in the
 > background.
 
-- **`yes`** → fire `/agntux-sync {plugin-slug}` sequentially (one at a
+- **`yes`** → fire `/agntux sync {plugin-slug}` sequentially (one at a
   time — plugins share overlapping write paths).
 - **`no`** → "Skipping initial ingests. Scheduled tasks will pick this
   up at their next tick. Force a sync anytime with `/{plugin-slug}:sync`."
@@ -381,16 +379,16 @@ Track three buckets: **fired-and-succeeded**, **fired-and-failed**,
 
 **State B — some initial ingests failed:** "Setup complete — but {N}
 ingest{s} couldn't run cleanly. Affected: {plugin-slug}: {reason}.
-Re-run `/agntux-sync {plugin-slug}` to retry, or `/agntux-ask` for
+Re-run `/agntux sync {plugin-slug}` to retry, or `/agntux ask` for
 help."
 
 **State C — partial:** "Setup complete with what's connected. {N}
 plugins aren't connected yet: {plugin} → **Customize → Connectors →
-{display-name}** → Connect. Re-run `/agntux-onboard` when done."
+{display-name}** → Connect. Re-run `/agntux onboard` when done."
 
 **State D — no plugins connected:** "Profile and schema are saved, but
 no sources are connected. Open **Customize → Connectors**, connect a
-source, then re-run `/agntux-onboard`."
+source, then re-run `/agntux onboard`."
 
 ### Resume the user's original ask
 
@@ -402,14 +400,14 @@ the original ask. If no original ask, confirm setup and exit.
 
 ## Re-entry flow (`user.md` exists)
 
-The user re-invoked `/agntux-onboard` after first-run is already
+The user re-invoked `/agntux onboard` after first-run is already
 complete. Skip the user interview — they don't need to redo it.
 
 1. **Plugin reconciliation (run first).** Run
    `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
    If it resolves, call it; compare against `## Installed`; auto-add any
    installed-but-missing slugs; update `updated_at`. (Idempotent with
-   check 0.5 in `_preconditions.md` — intentional.)
+   check 0.5 in `../../_preconditions.md` — intentional.)
 
 2. Compute the set of plugins needing onboarding — the **union** of:
    - **Set 1**: on `## Installed` but lacking
@@ -422,7 +420,7 @@ complete. Skip the user interview — they don't need to redo it.
 
 3. If the set is empty: "Welcome back — every plugin you've installed
    already has its instructions. To redo a specific one, run
-   `/agntux-teach {slug}`. To completely rewrite your profile, say
+   `/agntux teach {slug}`. To completely rewrite your profile, say
    'redo onboarding from scratch' explicitly." Exit.
 
 4. If non-empty, walk the **Per-plugin onboarding interview** for each
@@ -441,21 +439,21 @@ full first-run flow.
 
 | Section | Who writes | User must approve? |
 |---|---|---|
-| `timezone` | This skill (Stage 1, auto-detected) | Yes |
-| `bootstrap_window_days` | This skill (default writeback) | No (range 1–365) |
-| `feedback_min_pattern_threshold` | This skill (default writeback) | No (range 3–20) |
-| `discovery_summary` | This skill (Stage 0.5, confirmed before save) | Yes |
-| `web_searches` | This skill (Stage 0.5) | No (transparency log) |
-| `# Identity` | This skill (transcribes user answers) | Yes (user initiates) |
-| `# Discovery` | This skill (user's literal answers) | Yes (user initiates) |
-| `# People` | This skill (transcribes user answers) | Yes (user initiates) |
+| `timezone` | This sub-task (Stage 1, auto-detected) | Yes |
+| `bootstrap_window_days` | This sub-task (default writeback) | No (range 1–365) |
+| `feedback_min_pattern_threshold` | This sub-task (default writeback) | No (range 3–20) |
+| `discovery_summary` | This sub-task (Stage 0.5, confirmed before save) | Yes |
+| `web_searches` | This sub-task (Stage 0.5) | No (transparency log) |
+| `# Identity` | This sub-task (transcribes user answers) | Yes (user initiates) |
+| `# Discovery` | This sub-task (user's literal answers) | Yes (user initiates) |
+| `# People` | This sub-task (transcribes user answers) | Yes (user initiates) |
 | `# Responsibilities` | Proposes only | Yes |
-| `# Day-to-Day`, `# Aspirations`, `# Goals` | This skill (transcribes user answers) | Yes (user initiates) |
+| `# Day-to-Day`, `# Aspirations`, `# Goals` | This sub-task (transcribes user answers) | Yes (user initiates) |
 | `# Preferences > ## Always action-worthy` | Proposes only | Yes |
 | `# Preferences > ## Usually noise` | Proposes only | Yes |
 | `# Glossary` | Proposes only | Yes |
-| `# Sources` | This skill (from discovery; user confirms) | Yes (user initiates manual edits) |
-| `# AgntUX plugins > ## Installed/## Planned` | This skill (writes after confirmation) | Yes (user initiates manual edits) |
+| `# Sources` | This sub-task (from discovery; user confirms) | Yes (user initiates manual edits) |
+| `# AgntUX plugins > ## Installed/## Planned` | This sub-task (writes after confirmation) | Yes (user initiates manual edits) |
 | `# Auto-learned` | Pattern-feedback flow owns writes | No |
 
 Universal rules: never autonomously edit user-authored sections without
@@ -467,11 +465,11 @@ byte-exact section ordering; reject values outside validated ranges
 
 ## Out of scope
 
-Profile edits to an existing `user.md` (`/agntux-profile`), graduation
-review (`/agntux-profile any patterns to approve?`), schema review/edit
-(`/agntux-schema`), retrieval queries (`/agntux-triage` or
-`/agntux-ask`), per-plugin instruction edits after onboarding completes
-(`/agntux-teach {slug}`).
+Profile edits to an existing `user.md` (`/agntux profile`), graduation
+review (`/agntux profile any patterns to approve?`), schema review/edit
+(`/agntux schema`), retrieval queries (interactive triage UI or
+`/agntux ask`), per-plugin instruction edits after onboarding completes
+(`/agntux teach {slug}`).
 
 ## Be honest
 

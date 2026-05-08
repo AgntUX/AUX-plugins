@@ -1,31 +1,30 @@
----
-name: agntux-feedback-review
-description: Daily pattern-detection pass over recently done and dismissed action items. Appends observations to `user.md → # Auto-learned` and tags graduation candidates for the personalization subagent. Background flow — fired by a scheduled task whose prompt body is `/agntux-feedback-review`. Users can also invoke directly to audit dismissals on demand.
-disable-model-invocation: true
----
-
-# `/agntux-feedback-review` — daily pattern detection
+# `/agntux feedback-review` — daily pattern detection
 
 Lane: read-only pattern detection over the user's done + dismissed
-action items in the last 30 days. Background flow — Claude must NOT
-auto-invoke this skill from natural language. The user (or a
-scheduled task) explicitly fires it.
+action items in the last 30 days. **Background-only** — designed for a
+scheduled task whose prompt body is `/agntux feedback-review`.
+
+## Background-only guard
+
+This resource refuses interactive invocations. Auto-firing it from
+natural language would be surprising — the conversational graduation
+review lives in `/agntux profile` (Mode C).
+
+If you can detect interactive context (the user is typing in chat —
+no scheduled-task signature, no Daily 16:00 cadence metadata), exit
+cleanly with one short line and stop:
+
+> "`/agntux feedback-review` is a background task. To approve graduated patterns interactively, run `/agntux profile any patterns to approve?`."
+
+Continue only when the fire signature looks unattended (matches the
+canonical scheduled-task shape, no surrounding conversation, no user
+turn). When in doubt between background and interactive, prefer the
+refuse-and-redirect — the next scheduled fire will pick up the work.
 
 ## Schema-drift preflight
 
-Run [`_preflight.md`](../_preflight.md). For scheduled-task fires
-where no user is present, skip the preflight per `_preflight.md`'s
-background-mode carve-out.
-
-## Preconditions
-
-Run [`_preconditions.md`](../_preconditions.md). Check 0 walks
-[`_resolve-root.md`](../_resolve-root.md) — declared here so the link
-is one level deep from this SKILL.md (the unattended variant is
-inlined under "Always check first" below). For scheduled-task fires
-where the user is not present, exit cleanly with no message if any
-precondition diverts — don't write spurious status; the next
-user-initiated session will surface and fix.
+Skip the preflight per `../../_preflight.md`'s background-mode
+carve-out — there is no audience for the nudge.
 
 ## Always check first
 
@@ -39,14 +38,17 @@ Before reading anything else, do these two checks in order:
    4. None of the above → log one line to stderr, then exit cleanly.
       Do NOT ask interactively — no user is present on a scheduled fire.
 
-   No status banners. This skill runs unattended; there is no user audience for status lines.
+   No status banners. This sub-task runs unattended; there is no user audience for status lines.
 
 2. **`user.md` exists and is parseable**: confirm
    `<agntux project root>/user.md` exists. If it doesn't, exit
-   cleanly with no message — the personalization skill will set it up
-   on the user's next session. If the frontmatter or expected sections
-   are malformed, also exit cleanly — don't append to a malformed
-   file.
+   cleanly with no message — `/agntux onboard` will set it up on the
+   user's next session. If the frontmatter or expected sections are
+   malformed, also exit cleanly — don't append to a malformed file.
+
+For scheduled-task fires where the user is not present, exit cleanly
+with no message if any precondition diverts — don't write spurious
+status; the next user-initiated session will surface and fix.
 
 ## Read first
 
@@ -145,7 +147,7 @@ the existing bullet** (or the new bullet you are writing this run):
 - 5 dismissals (with "## Outcome: noise") on reason_class: knowledge-update from acme-marketing → deprioritize  [graduation-candidate: ## Usually noise]
 ```
 
-The `/agntux-profile` skill reads these tags and surfaces the proposal
+The `/agntux profile` flow reads these tags and surfaces the proposal
 to the user. **You do NOT propose, ask, or edit `# Preferences`** —
 your role ends at tagging.
 
@@ -196,7 +198,7 @@ are correct behaviour; spurious bullets degrade the signal.
 ## Out of scope
 
 - Conversational graduation review ("any patterns to approve?") →
-  use `/agntux-profile`. That skill reads the `[graduation-candidate]`
-  tags this skill has written and surfaces them to the user.
-- Per-plugin instruction capture → `/agntux-teach {slug}`.
-- Cross-workflow preference edits → `/agntux-profile`.
+  use `/agntux profile`. That flow reads the `[graduation-candidate]`
+  tags this resource has written and surfaces them to the user.
+- Per-plugin instruction capture → `/agntux teach {slug}`.
+- Cross-workflow preference edits → `/agntux profile`.

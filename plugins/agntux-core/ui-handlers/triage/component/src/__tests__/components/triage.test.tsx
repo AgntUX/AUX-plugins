@@ -360,14 +360,14 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     expect(prompt).toContain('reason_class: response-needed');
   });
 
-  it('"Run /agntux-onboard" CTA dispatches the onboarding command', async () => {
+  it('"Run /agntux onboard" CTA dispatches the onboarding command', async () => {
     const user = userEvent.setup();
     const { props, sendFollowUpMessageSpy } = createMainComponentProps({
       toolOutput: { error: 'actions_index_missing' },
     });
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('run-onboard'));
-    expect(sendFollowUpMessageSpy).toHaveBeenCalledWith('/agntux-onboard');
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledWith('/agntux onboard');
   });
 });
 

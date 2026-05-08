@@ -1,20 +1,26 @@
 /**
  * skills-structure.test.ts
  *
- * Structural test: verifies that every `agntux-core:*` skill is shaped
- * as a directory containing SKILL.md, per the Claude Code plugin spec.
- * Flat `skills/{name}.md` files are silently dropped by the host's
- * plugin discovery — that bug is what made `/ux` invisible in 2.0.0.
- * This test is the regression guard.
+ * Structural test: verifies the 8.0.0 single-skill consolidation. The
+ * eight legacy `agntux-{ask,feedback-review,onboard,profile,schema,
+ * sync,teach,triage}/` skill directories are gone; their bodies live in
+ * `skills/agntux/reference/{name}.md`, loaded on demand by the slim
+ * `skills/agntux/SKILL.md` router. The host's cold-start "available
+ * skills" surface now carries one frontmatter block instead of eight.
  *
- * Also asserts that:
- *   - The eight named skills the README + listing.yaml advertise all
- *     exist as directories.
- *   - The shared `_preconditions.md` reference exists.
+ * Asserts:
+ *   - The single `/agntux` skill exists and is shaped as
+ *     `skills/agntux/SKILL.md`.
+ *   - All eight reference resources exist under
+ *     `skills/agntux/reference/{name}.md` and are linked from
+ *     `SKILL.md`'s routing table.
+ *   - The router stays slim (≤ 200 lines).
+ *   - The shared helper references (`_preconditions.md`,
+ *     `_resolve-root.md`) exist at `skills/` root.
  *   - The flat `skills/orchestrator.md` (3.0.0 deletion) is gone.
- *   - Every SKILL.md has YAML frontmatter declaring `name:` and
- *     `description:` (the two fields the host needs to register and
- *     auto-dispatch the skill).
+ *   - None of the eight legacy `agntux-*` skill directories survive.
+ *   - Frontmatter declares `name`, `description`, and `argument-hint`
+ *     (the router takes args, so the hint is mandatory).
  */
 
 import { describe, it, expect } from "vitest";
@@ -24,16 +30,29 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(PLUGIN_ROOT, "skills");
+const AGNTUX_SKILL_DIR = join(SKILLS_DIR, "agntux");
+const REFERENCE_DIR = join(AGNTUX_SKILL_DIR, "reference");
 
-const NAMED_SKILLS = [
-  "agntux-onboard",
-  "agntux-profile",
-  "agntux-teach",
-  "agntux-triage",
-  "agntux-schema",
-  "agntux-sync",
+const REQUIRED_RESOURCES = [
+  "onboard.md",
+  "profile.md",
+  "schema.md",
+  "teach.md",
+  "ask.md",
+  "sync.md",
+  "feedback-review.md",
+  "triage-digest.md",
+] as const;
+
+const LEGACY_SKILL_DIRS = [
   "agntux-ask",
   "agntux-feedback-review",
+  "agntux-onboard",
+  "agntux-profile",
+  "agntux-schema",
+  "agntux-sync",
+  "agntux-teach",
+  "agntux-triage",
 ] as const;
 
 // Read a TypeScript view-tool source file and collapse string-concatenation
@@ -67,7 +86,8 @@ describe("agntux-core skills directory structure", () => {
 
   it("the shared _preconditions.md reference exists", () => {
     // Leading underscore keeps it out of the slash-command surface; it
-    // is referenced from every entry-point skill's body.
+    // is referenced from skills/agntux/SKILL.md and from the reference
+    // resources.
     expect(existsSync(join(SKILLS_DIR, "_preconditions.md"))).toBe(true);
   });
 
@@ -79,45 +99,162 @@ describe("agntux-core skills directory structure", () => {
     expect(existsSync(join(SKILLS_DIR, "_resolve-root.md"))).toBe(true);
   });
 
-  for (const name of NAMED_SKILLS) {
-    describe(`/${name}`, () => {
-      const dirPath = join(SKILLS_DIR, name);
-      const skillPath = join(dirPath, "SKILL.md");
-
-      it("is a directory shaped as skills/{name}/SKILL.md", () => {
-        expect(existsSync(dirPath)).toBe(true);
-        expect(existsSync(skillPath)).toBe(true);
-      });
-
-      it("has frontmatter declaring name + description", () => {
-        const fm = readFrontmatter(skillPath);
-        expect(fm.name).toBe(name);
-        expect(fm.description).toBeTruthy();
-        expect(fm.description.length).toBeGreaterThan(20);
-      });
-    });
-  }
-});
-
-describe("agntux-core skills frontmatter conventions", () => {
-  it("/agntux-feedback-review opts out of model auto-invocation", () => {
-    // Per spec: pattern-feedback runs only on schedule or by direct
-    // user slash invocation. Auto-dispatching it from natural-language
-    // chat would be surprising.
-    const skillPath = join(SKILLS_DIR, "agntux-feedback-review", "SKILL.md");
-    const fm = readFrontmatter(skillPath);
-    expect(fm["disable-model-invocation"]).toBe("true");
+  it("none of the eight legacy agntux-* skill directories survive", () => {
+    // 8.0.0 consolidation. Every `/agntux-*` slash command was retired
+    // in favour of `/agntux <sub-command>`. A leftover legacy directory
+    // would re-register a competing skill in the host's cold-start
+    // surface and re-introduce the eight-frontmatter cost the
+    // consolidation was meant to eliminate.
+    for (const legacy of LEGACY_SKILL_DIRS) {
+      expect(
+        existsSync(join(SKILLS_DIR, legacy)),
+        `legacy ${legacy}/ should be removed`,
+      ).toBe(false);
+    }
   });
 
-  it("argument-taking skills declare an argument-hint", () => {
-    // /teach, /schema, /sync take a plugin slug or sub-command.
-    for (const name of ["agntux-teach", "agntux-schema", "agntux-sync"]) {
-      const fm = readFrontmatter(join(SKILLS_DIR, name, "SKILL.md"));
-      expect(
-        fm["argument-hint"],
-        `${name} should declare argument-hint`,
-      ).toBeTruthy();
+  describe("/agntux router skill", () => {
+    const skillPath = join(AGNTUX_SKILL_DIR, "SKILL.md");
+
+    it("is a directory shaped as skills/agntux/SKILL.md", () => {
+      expect(existsSync(AGNTUX_SKILL_DIR)).toBe(true);
+      expect(existsSync(skillPath)).toBe(true);
+    });
+
+    it("frontmatter declares name: agntux", () => {
+      const fm = readFrontmatter(skillPath);
+      expect(fm.name).toBe("agntux");
+    });
+
+    it("frontmatter declares a description", () => {
+      const fm = readFrontmatter(skillPath);
+      expect(fm.description).toBeTruthy();
+      expect(fm.description.length).toBeGreaterThan(20);
+    });
+
+    it("frontmatter declares argument-hint enumerating every sub-command", () => {
+      const fm = readFrontmatter(skillPath);
+      expect(fm["argument-hint"]).toBeTruthy();
+      for (const sub of [
+        "onboard",
+        "profile",
+        "schema",
+        "teach",
+        "sync",
+        "ask",
+        "feedback-review",
+        "triage-digest",
+      ]) {
+        expect(
+          fm["argument-hint"]!.includes(sub),
+          `argument-hint should mention ${sub}`,
+        ).toBe(true);
+      }
+    });
+
+    it("router body is ≤ 200 lines (slim by design — the heavy bodies live in reference/)", () => {
+      const src = readFileSync(skillPath, "utf-8");
+      const lineCount = src.split("\n").length;
+      expect(lineCount).toBeLessThanOrEqual(200);
+    });
+  });
+
+  describe("skills/agntux/reference/ resources", () => {
+    it("the reference/ directory exists", () => {
+      expect(existsSync(REFERENCE_DIR)).toBe(true);
+    });
+
+    for (const resource of REQUIRED_RESOURCES) {
+      it(`reference/${resource} exists`, () => {
+        expect(existsSync(join(REFERENCE_DIR, resource))).toBe(true);
+      });
     }
+
+    it("SKILL.md routing table mentions every reference/ resource by relative path", () => {
+      const src = readFileSync(join(AGNTUX_SKILL_DIR, "SKILL.md"), "utf-8");
+      for (const resource of REQUIRED_RESOURCES) {
+        expect(
+          src.includes(`reference/${resource}`),
+          `SKILL.md should link reference/${resource}`,
+        ).toBe(true);
+      }
+    });
+  });
+
+  describe("router preconditions carve-out for background sub-commands", () => {
+    // Regression guard for the divert-to-onboard bug: if the router runs
+    // _preconditions.md unconditionally for `feedback-review` and
+    // `triage-digest`, a Daily 16:00 / Daily 08:00 fire with no `user.md`
+    // would chain into `/agntux onboard` — wrong behaviour for an
+    // unattended scheduled task. The router must opt those two out of the
+    // check ladder; the resources themselves run unattended-aware
+    // preconditions inline.
+    const skillSrc = readFileSync(join(AGNTUX_SKILL_DIR, "SKILL.md"), "utf-8");
+
+    it("SKILL.md carves feedback-review out of the precondition check ladder", () => {
+      expect(skillSrc).toMatch(/feedback-review[\s\S]*opt out/);
+    });
+
+    it("SKILL.md carves triage-digest out of the precondition check ladder", () => {
+      expect(skillSrc).toMatch(/triage-digest[\s\S]*opt out/);
+    });
+
+    it("SKILL.md notes the inline-preconditions reason (no /agntux onboard divert on unattended fires)", () => {
+      // The carve-out exists because router-level checks would route a
+      // missing user.md to /agntux onboard, which is wrong on an
+      // unattended fire. The reason has to live in the prompt.
+      expect(skillSrc).toMatch(/unattended|no user present|silent/i);
+    });
+  });
+
+  describe("background-only resources document the refuse-and-redirect guard", () => {
+    // The 7.x `disable-model-invocation: true` frontmatter is gone — the
+    // equivalent guard now lives inside each resource as a refuse-and-
+    // redirect on detected interactive context. Without this, the model
+    // could auto-invoke a background-only sub-command from natural
+    // language and write spurious output / contend with the scheduled
+    // fire's run.
+    for (const resource of ["feedback-review.md", "triage-digest.md"] as const) {
+      const src = readFileSync(join(REFERENCE_DIR, resource), "utf-8");
+
+      it(`${resource} declares Background-only`, () => {
+        expect(src).toMatch(/[Bb]ackground-only/);
+      });
+
+      it(`${resource} carries an interactive-context refuse-and-redirect`, () => {
+        expect(src).toMatch(/refuse|redirect|exit cleanly/i);
+        expect(src).toMatch(/interactive/i);
+      });
+    }
+  });
+
+  describe("sync.md resource — bare-name expansion + step ordering", () => {
+    // The 8.0.0 router ships /agntux sync slack as a UX win. Bare-name
+    // expansion has to happen before the "not installed" check but AFTER
+    // the empty-check, otherwise a user typing `/agntux sync` with no
+    // arg would try to expand the empty string against the installed
+    // list. Reordering bug regressions are easy to write — guard them
+    // here.
+    const src = readFileSync(join(REFERENCE_DIR, "sync.md"), "utf-8");
+
+    it("documents bare-name expansion", () => {
+      expect(src).toMatch(/[Bb]are-name expansion/);
+      expect(src).toMatch(/agntux-/);
+      expect(src).toMatch(/installed/i);
+    });
+
+    it("Empty? check runs BEFORE bare-name expansion (step ordering invariant)", () => {
+      const emptyIdx = src.search(/\*\*Empty\?\*\*/);
+      const expandIdx = src.search(/\*\*Bare-name expansion\*\*/);
+      expect(emptyIdx).toBeGreaterThan(-1);
+      expect(expandIdx).toBeGreaterThan(-1);
+      expect(emptyIdx).toBeLessThan(expandIdx);
+    });
+
+    it("re-dispatches /{slug}:sync (does not call source MCPs itself)", () => {
+      expect(src).toMatch(/\/\{slug\}:sync|Re-dispatch/);
+      expect(src).toMatch(/NO ingest work|only re-dispatches/i);
+    });
   });
 });
 
@@ -152,7 +289,11 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
 
   it("triage-view description carries the user-facing trigger phrases inline (the host's tool selector matches against this)", () => {
     const src = readToolSource(triageViewPath);
-    expect(src).toContain("/agntux-triage");
+    // The 8.0.0 consolidation keeps the interactive triage UI on the
+    // tool's description-matched routing — the user types a phrase, the
+    // host invokes the tool directly. No `/agntux-triage` slash command
+    // exists any more (it became `/agntux triage-digest`, which is the
+    // background-only text-digest path).
     for (const phrase of [
       "show triage",
       "what's hot",

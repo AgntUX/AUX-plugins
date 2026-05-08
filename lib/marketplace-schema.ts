@@ -176,7 +176,7 @@ export type RequiresSourceMcp = z.infer<typeof RequiresSourceMcpSchema>;
  *     auto-prefix by plugin slug)
  *   - `/{slug}` bare slash command (4.0.0 — hosts like Cowork don't
  *     auto-prefix, so plugins ship explicit prefixed names like
- *     `/agntux-onboard`).
+ *     `/agntux onboard`).
  *
  * `min(3)` is intentional: `/ux` and `ux:` are both 3 chars, and the
  * shortest valid `/{plugin-slug}:` form would be `/x:`. Bare slash
