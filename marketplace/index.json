@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-06T22:20:32.205Z",
+  "generated_at": "2026-05-08T14:56:46.910Z",
   "plugins": {
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
@@ -21,36 +21,8 @@
       ],
       "supported_prompts": [
         {
-          "prompt": "/agntux-onboard",
-          "purpose": "First-run interview and schema bootstrap. Creates <agntux project root>/user.md and the tenant schema."
-        },
-        {
-          "prompt": "/agntux-profile",
-          "purpose": "Edit your AgntUX profile — preferences, glossary, identity, sources, action-worthy/noise rules."
-        },
-        {
-          "prompt": "/agntux-teach",
-          "purpose": "Capture per-plugin instructions. With a {plugin-slug} runs the install-time / on-demand teach interview."
-        },
-        {
-          "prompt": "/agntux-triage",
-          "purpose": "Daily action-item digest. Recommended scheduled task at Daily 08:00."
-        },
-        {
-          "prompt": "/agntux-schema",
-          "purpose": "Review or edit the tenant schema. Bare form re-walks; `review {slug}` re-reviews a contract; `edit` drives a user-initiated change."
-        },
-        {
-          "prompt": "/agntux-sync",
-          "purpose": "Cross-plugin sync alias. `/agntux-sync {plugin-slug}` re-dispatches to the per-plugin sync command."
-        },
-        {
-          "prompt": "/agntux-ask",
-          "purpose": "Catch-all for natural-language queries — entity lookups, time-window questions, topic queries, meeting prep, status edits."
-        },
-        {
-          "prompt": "/agntux-feedback-review",
-          "purpose": "Daily pattern detection over recently-resolved action items. Recommended scheduled task at Daily 16:00."
+          "prompt": "/agntux",
+          "purpose": "One entry point for AgntUX. Sub-commands: onboard, profile, schema, teach {slug}, sync {slug}, ask {…}, feedback-review, triage-digest. Bare /agntux defaults to ask-mode."
         }
       ],
       "ui_components": [
@@ -105,8 +77,8 @@
       ],
       "supported_prompts": [
         {
-          "prompt": "/agntux-gmail:sync",
-          "purpose": "Run an agntux-gmail pass now or on schedule. Recommended: hourly — email is bursty but doesn't need higher resolution than every 60 min."
+          "prompt": "/agntux-gmail",
+          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: hourly). Any other first token is a live NL question about Gmail — no cursor advance, no knowledge-store write."
         }
       ],
       "ui_components": [
@@ -264,8 +236,8 @@
       ],
       "supported_prompts": [
         {
-          "prompt": "/agntux-slack:sync",
-          "purpose": "Run an agntux-slack pass now or on schedule. Recommended: every 30 min on weekdays 7am–10pm; chat is time-sensitive during work hours but doesn't need overnight or weekend runs."
+          "prompt": "/agntux-slack",
+          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–10pm weekdays). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
         }
       ],
       "ui_components": [
