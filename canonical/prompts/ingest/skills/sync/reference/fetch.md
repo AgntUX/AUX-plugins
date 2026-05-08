@@ -49,21 +49,52 @@ poll" shape, structure your fetch as:
 
 1. **Step 5a — Resolve current user.** One identity call (e.g.
    `{{source-slug}}_read_user_profile`) so triage can match `to:user` /
-   `@user` predicates.
+   `@user` predicates. Persist the resolved identity into the
+   source-identity fields declared in your `_overrides/frontmatter.yaml`
+   (Step 11 sub-step 5 handles the write); subsequent runs skip this
+   call when the field is already non-null.
 2. **Step 5b — Discovery sweep.** Time-windowed search to seed the
    per-{{thread-unit-name}} cursor map. Upsert missing keys only —
-   never overwrite existing cursor values; that's Step 5c's job.
+   never overwrite existing cursor values; that's Step 5c's job. When
+   the discovery sweep fans out across multiple queries (e.g.,
+   `from:`, `to:me`, `mention`), advance any low-water-mark to
+   `max(...)` of every query's newest result, not any single query's
+   max. Otherwise the next run's filter under-counts.
 3. **Step 5c — Per-{{thread-unit-name}} polling.** Walk every key in
-   the cursor map in cursor-stale order (oldest first). For each:
+   the cursor map in **cursor-stale order**: sort `Object.entries(cursor)`
+   ascending by value before iterating, so the oldest cursor is fetched
+   first. (Map insertion order is irrelevant; explicit sort.) For each:
    bootstrap-read using `bootstrap_window_days` if `cursor[key] ===
    null`; incremental-read using `cursor[key]` otherwise. Cap per
-   {{thread-unit-name}} per run.
+   {{thread-unit-name}} per run. The most-stale {{thread-unit-name}}
+   must be reachable within the cap.
 
 Plugins with deeper structure (Slack's per-thread fanout, Gmail's
 two-stage discovery query) ship a fully replacement
 `_overrides/resources/fetch.md`.
 
+## Since-parameter contract (inclusivity OR precision-loss)
+
+Source since-parameters (`oldest:`, `after:`, `updatedAfter`, etc.)
+fall into two ambiguity classes:
+
+1. **Inclusivity-ambiguity** — the boundary record may or may not be
+   returned. Slack's `oldest:` is inclusive, so the cursor-boundary
+   message reappears as result 1 every run.
+2. **Precision-loss** — the cursor stores higher-resolution time than
+   the filter accepts. Gmail's `after:` is day-granular in user-TZ
+   and inclusive at the day boundary, so every run on the same
+   calendar day re-fetches every message after midnight local-time.
+
+Both classes are real; both manifest as boundary records re-appearing
+in the next run's results. **Do not deliberate inclusivity at runtime.**
+Each plugin's `_overrides/reference/fetch.md` documents the source's
+actual behaviour (which class, exact semantics) and treats boundary
+records as already-processed in the dedup step. The cursor itself
+advances to the newest record in the run, not to the filter value.
+
 ## Failure modes (generic taxonomy)
 
 For the per-source failure-mode runbook (rate limits, deletions, stale
-cursors, retention purges), see `./runbook.md`.
+cursors, retention purges) and the permitted `errors:` `kind:`
+taxonomy, see `./runbook.md`.

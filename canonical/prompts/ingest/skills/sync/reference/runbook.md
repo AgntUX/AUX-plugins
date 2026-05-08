@@ -9,17 +9,65 @@ This file is **O** — per-plugin override (wholesale replace via
 generic taxonomy that sources without exotic failure modes can use
 unchanged.
 
+## Permitted `errors:` `kind:` taxonomy
+
+`sync.md → errors` is bounded to the last 10 entries (newest-first)
+and carries **only** structured failure-mode entries that change the
+next run's behaviour. `errors:` is **not** a journal of run-summary
+prose. Every entry MUST declare a `kind:` from this list.
+
+**Generic kinds (every plugin):**
+
+- **Fetch failure** — `auth`, `network`, `parse`, `source`, `internal`.
+- **Lock acquisition** — `lock-acquire-race`, `lock-acquire-failed`.
+- **Schema drift** (Step 0 outcomes) — `contract-version-drift`
+  (master MAJOR > contract MAJOR; exit-clean and await architect),
+  `contract-not-registered` (contract markdown exists but the lock
+  hasn't picked it up), `contract-minor-out-of-date` (contract MINOR
+  lags master; pass through but flag).
+- **Pre-flight** — `bootstrap_window_days-out-of-range` (Step 4),
+  `usermd-malformed` (Step 1).
+- **Contract violation at write time** — `subtype-out-of-contract`
+  (Step 6: candidate entity subtype isn't in the plugin's contract).
+- **Write-lane enforcement** — `out-of-lane-write-attempted: <path>`
+  (skill attempted to write outside the permitted lanes — see "Out
+  of scope" in `./sync.md`. The agntux-core hook
+  `validate-write-lane.mjs` is the defence-in-depth backstop).
+- **Cross-source dedup outcomes** (Step 9) —
+  `{{source-slug}}-merged-into-{existing_id}`,
+  `{{source-slug}}-reconcile-failed`.
+- **Cursor / fetch outcomes** —
+  `{{source-slug}}-cursor-evicted: <key>` (third consecutive deleted /
+  permission-revoked failure on the same key — see "Failure modes"
+  below), `{{source-slug}}-tool-result-truncated` (oversized response
+  redirected to a temp file).
+- **Deferred-bootstrap outcomes** (Step 8.6) —
+  `{{source-slug}}-deferred-orphan: <id>` (the originating
+  {{thread-unit-name}}'s cursor was evicted between the deferred run
+  and this drain pass).
+
+**Source-specific extensions** are declared in the plugin's
+`_overrides/frontmatter.yaml` under `permitted-error-kinds:` and
+listed in this file's per-plugin override. Examples:
+`slack-thread-evicted`, `slack-thread-orphaned`,
+`slack-channel-truncated`, `slack-bootstrap-interrupted`,
+`slack-large-backlog`, `gmail-denylist-section-missing`.
+
+There is no `kind: debug` and no `kind: info`. The final chat
+summary (Step 11) is the run output for the user. Anything that
+doesn't change the next run's behaviour does not belong in
+`errors:`.
+
 ## Failure modes
 
-Each is logged to `sync.md → errors` with one of `network | auth |
-parse | source | internal`:
+Each is logged to `sync.md → errors` with one of the kinds above:
 
 - **Search consent denied** → `kind: auth`, exit cleanly.
 - **Rate limit (HTTP 429)** → `kind: network`, skip the affected item,
   continue.
 - **Item deleted / permission revoked** → `kind: source`. On the third
   consecutive failure for the same key, remove from the cursor map and
-  log a `{{source-slug}}-cursor-evicted` entry naming the key.
+  log a `{{source-slug}}-cursor-evicted: <key>` entry.
 - **Stale cursor / source retention purged the cursor's referent** →
   fall back to `last_success` per `cursor-strategies.md`'s per-source
   gap-recovery recipe; bootstrap fresh if `last_success` is also null.

@@ -3,6 +3,26 @@
 Companion to `../SKILL.md`. Failure-mode taxonomy, gap-recovery recipes,
 and reference details the agent only needs when something goes wrong.
 
+## Permitted `errors:` `kind:` taxonomy
+
+`sync.md → errors` is bounded to the last 10 entries (newest-first) and carries **only** structured failure-mode entries that change the next run's behaviour. `errors:` is **not** a journal of run-summary prose. Every entry MUST declare a `kind:` from this list.
+
+**Generic kinds:**
+
+- **Fetch failure** — `auth`, `network`, `parse`, `source`, `internal`.
+- **Lock acquisition** — `lock-acquire-race`, `lock-acquire-failed`.
+- **Schema drift** (Step 0) — `contract-version-drift`, `contract-not-registered`, `contract-minor-out-of-date`.
+- **Pre-flight** — `bootstrap_window_days-out-of-range`, `usermd-malformed`.
+- **Contract violation at write time** — `subtype-out-of-contract`.
+- **Write-lane enforcement** — `out-of-lane-write-attempted: <path>` (skill attempted to write outside the permitted lanes — see "Out of scope" in `./sync.md`. The agntux-core hook `validate-write-lane.mjs` is the defence-in-depth backstop).
+- **Cross-source dedup outcomes** (Step 9) — `gmail-merged-into-{existing_id}`, `gmail-reconcile-failed`.
+- **Cursor / fetch outcomes** — `gmail-cursor-evicted: <key>` (third consecutive deleted / permission-revoked failure on the same key — equivalent to the legacy `gmail-thread-evicted`), `gmail-tool-result-truncated`.
+- **Deferred-bootstrap outcomes** (Step 8.6) — `gmail-deferred-orphan: <id>`.
+
+**Gmail-specific extensions** (declared in `_overrides/frontmatter.yaml → permitted-error-kinds:`): `gmail-thread-evicted` (legacy alias for `gmail-cursor-evicted`; will harmonise in a follow-up), `gmail-denylist-section-missing`.
+
+There is no `kind: debug` and no `kind: info`. The final chat summary (Step 11) is the run output for the user. Anything that doesn't change the next run's behaviour does not belong in `errors:`.
+
 ## Failure modes
 
 Each is logged to `sync.md → errors` with one of `network | auth |

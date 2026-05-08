@@ -15,6 +15,7 @@
 - Step 7 — Update each affected entity
 - Step 8 — Decide if action-worthy
 - Step 8.5 — Reconcile already-open response-needed items
+- Step 8.6 — Drain deferred bootstrap actions
 - Step 9 — Dedupe against existing action items
 - Step 10 — Write the action item
 - Step 11 — Advance cursor and release lock
@@ -22,13 +23,13 @@
 - Out of scope
 - Tool surface
 
-This skill runs **inline in the dispatch context** — no `context: fork`, no nested `general-purpose` agent. The skill body executes in whatever context the host hands it (interactive chat or the scheduled-task scaffold), inheriting the parent's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__slack_*` — and, critically, the parent's working-directory grant. The earlier forked shapes are both retired: each added a context boundary that did NOT inherit the host's allowlist grant, so every scheduled fire silently re-prompted and exited clean.
+This skill runs **inline in the dispatch context** (no `context: fork`, no nested agent). It inherits the parent's tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__slack_*` — and the parent's working-directory grant.
 
-You are the Slack ingest pass for the `agntux-slack` plugin. You run on the user's scheduled cadence (the manifest's `recommended_ingest_cadence` describes the author's intent: `Every 30 min, 7am–10pm weekdays — chat is time-sensitive during work hours, quiet otherwise`). Your job is **synthesis**, not mirroring — you extract entities and action items from Slack; you do NOT cache raw source data locally.
+You are the Slack ingest pass for the `agntux-slack` plugin. You run on the user's scheduled cadence (`recommended_ingest_cadence` describes the author's intent: `Every 30 min, 7am–10pm weekdays — chat is time-sensitive during work hours, quiet otherwise`). Your job is **synthesis**, not mirroring — extract entities and action items; do NOT cache raw source data locally.
 
-If the source has write tools, this skill is **read-only** — those tools are reserved for click-time iframe envelopes (Save/Send buttons), which gate every write behind an explicit user click. The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is NOT inline in this prompt — it's defined in the user's tenant schema and your plugin's approved contract (Step 0). The validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks any write that diverges.
+If the source has write tools, this skill is **read-only** — those tools are reserved for click-time iframe envelopes (Save/Send buttons), which gate every write behind an explicit user click. The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is defined in the user's tenant schema and your plugin's approved contract (Step 0); `validate-schema.mjs` blocks any write that diverges.
 
-Every run, numbered steps 0–11, must execute in order. Source-specific orchestration (Step 5 fetch shape, compose payload schema, cursor advance layers, failure-mode taxonomy) is handled by sibling reference files described in prose; the routing-level links to those siblings live in `../SKILL.md`.
+Every run, numbered steps 0–11, must execute in order. Source-specific orchestration (fetch shape, compose payload schema, cursor advance layers, failure-mode taxonomy) is handled by sibling reference files; routing-level links live in `../SKILL.md`.
 
 ---
 
@@ -74,23 +75,11 @@ Check whether `<agntux project root>/user.md` exists.
 
 ## What the agntux-core hooks do for you
 
-You do NOT need to:
+**Hooks own** (you don't): `actions/_index.md`, `entities/{subtype}/_index.md`, `entities/_sources.json` (maintained by `maintain-index.mjs` PostToolUse); frontmatter / `schema_version` / `subtype` / `reason_class` validation (rejected by `validate-schema.mjs` PreToolUse with an executable runbook); cursor-map shape, monotonic low-water-marks, silent key drops (rejected by `validate-cursor.mjs` PreToolUse); write-lane enforcement against the "Out of scope" taxonomy (`validate-write-lane.mjs` PreToolUse).
 
-- Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
-- Update `entities/_sources.json` — `maintain-index.mjs` handles it.
-- Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute to fix them. Includes the "contract markdown exists but `plugin_contracts[<slug>]` is missing from `schema.lock.json`" case (late-installed plugins) — the runbook tells you exactly which keys to add to the lock.
-- Validate cursor-map shape, monotonic discovery low-water-marks, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
+**You own**: reading `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5); writing entity / action body content with the section-preservation rule (Step 7 / Step 10); advancing the cursor map and releasing the lock (Step 11), expressing the change as a diff and only when every action write this run succeeded; slicing bounded lists to their cap before writing.
 
-You DO need to:
-
-- Read `actions/_index.md` for dedup (Step 9) and reconciliation (Step 8.5).
-- Write entity / action body content with the section-preservation rule (Step 7 / Step 10).
-- Advance the cursor map and release the lock (Step 11), expressing the change as a diff (added / advanced / evicted), and only when every action write this run succeeded — see Step 11's transactional rule.
-- Slice bounded lists to their declared cap before writing — see "Bounded lists in state files" below.
-
-If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
-
-If the source has write tools, the hooks above do NOT gate them. The iframe Save/Send button is the explicit authorisation gate — calling those tools from this skill is a bug regardless of what the host's MCP layer exposes.
+If a PreToolUse hook rejects with a runbook, execute the runbook verbatim and retry — don't hand-edit around the rejection.
 
 ---
 
@@ -98,10 +87,12 @@ If the source has write tools, the hooks above do NOT gate them. The iframe Save
 
 Before writing any of these files, slice the named section/list to the cap shown — evict oldest. Files not listed here are not capped.
 
-- `data/learnings/agntux-slack/sync.md → errors` — last 10. Newest-first convention; drop the tail when the list grows past 10.
+- `data/learnings/agntux-slack/sync.md → errors` — last 10. Newest-first.
 
+**Order rule:** trim, then append, then write — never the other order. Read the current list, append the new entry, slice to the cap, write atomically. One read-modify-write batch per run, not a write followed by a corrective re-edit.
 
-These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraint (file readability, query length) is recoverable if the cap drifts by a handful of entries. Hooks should protect invariants the agent could meaningfully violate; trim-to-N isn't one.
+**Permitted `errors:` `kind:` taxonomy** lives in `./runbook.md` (single source of truth; the agntux-core hook reads from the same list). Every `errors:` entry MUST declare a `kind:` from that taxonomy or its source-specific extension (declared in your `_overrides/frontmatter.yaml`). There is no `kind: debug` and no journal prose — see Step 11.
+
 
 ---
 
@@ -142,9 +133,9 @@ Read these files on **every** run. Do not cache values between runs; treat each 
 
 1. **`<agntux project root>/user.md`** — the user's identity (`# Identity`), day-to-day (`# Day-to-Day`), aspirations (`# Aspirations`), goals (`# Goals`), triage preferences (`# Preferences` → `## Always action-worthy` and `## Usually noise`), glossary (`# Glossary`), sources (`# Sources`), and auto-learned patterns (`# Auto-learned`). The quality of every entity resolution and action-item triage decision depends on reading this file fresh.
 
-2. **`<agntux project root>/data/learnings/agntux-slack/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, and `lock`.
+2. **`<agntux project root>/data/learnings/agntux-slack/sync.md`** — your section-of-one. Read `cursor`, `last_run`, `last_success`, `items_processed`, `errors`, `lock`, and any **source-derived identity fields** the plugin persists (declared in your `_overrides/frontmatter.yaml` under `source-identity-fields:` — typical examples: `user_id`, `workspace_subdomain`, `account_id`). Identity fields are cursor-lifetime state: capture once on first observation (Step 5a's identity call), reuse forever, never re-derive from re-fetching.
 
-   - If the file does not exist, create it from the standard template with: `cursor: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
+   - If the file does not exist, create it from the standard template with: `cursor: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`, and each source-identity field set to `null`. Write atomically (temp-write, fsync, rename).
    - The sync-file path is **per-plugin** (`data/learnings/agntux-slack/sync.md`). The legacy `.state/sync.md` shared file and the entire `state/` directory are retired — the only writable surface for ingest plugins outside `entities/` and `actions/` is `<agntux project root>/data/learnings/agntux-slack/`.
 
 3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones (across **all** plugins, not just yours — this is what makes the cross-source merge in Step 9 work). If the file does not exist, proceed.
@@ -223,33 +214,13 @@ For each candidate entity:
 
 1. **Derive the slug.** P3 §2.4: lowercase, NFKD strip diacritics, hyphenate, trim, ≤64 chars.
 
-2. **Lookup-before-write (normative — always before creating a new file):**
-   a. `Read(<agntux project root>/entities/_sources.json)`. Treat not-found as empty.
-   b. Look up `(subtype, source: "slack", source_id: "{item-native-id}")` in `entries`. **For thread-rooted artefacts use the parent's identifier** — this prevents N duplicate source-rows when one person is mentioned across N replies.
-   c. If found: open the existing entity and proceed to Step 7.
-   d. If not found: search secondary identifiers (Grep on slug, natural-language variations, source-specific cross-aliases). On match, resolve and add the new variation as an alias.
-   e. Only when no match exists: create a new entity file.
+2. **Lookup-before-write** (normative): (a) read `<agntux project root>/entities/_sources.json` (treat not-found as empty); (b) look up `(subtype, source: "slack", source_id: "{parent-id}")` — **use the parent's identifier for thread-rooted artefacts** to avoid N duplicate source-rows; (c) if found, open the existing entity and proceed to Step 7; (d) if not, search secondary identifiers (Grep on slug, natural-language variations, source-specific aliases) and on match add the new variation to `aliases:`; (e) only when no match exists, create a new file.
 
-3. **Create a new entity file** with the **required frontmatter from your tenant schema's `entities/{subtype}.md`**. The validator rejects any write missing required fields. Body sections (all four required, in order):
-
-   ```markdown
-   ## Summary
-   {one-paragraph synthesis of what is known so far}
-
-   ## Key Facts
-   {bulleted structured facts, or empty body}
-
-   ## Recent signals
-
-   ## User notes
-   (this section is preserved verbatim across re-ingests; user-authored)
-   ```
-
-   If the subtype directory does not yet exist, create it.
+3. **Create a new entity file** with required frontmatter from `entities/{subtype}.md` (validator rejects missing fields). Body sections, all four required, in order: `## Summary` (one-paragraph synthesis), `## Key Facts` (bullets, or empty), `## Recent signals` (empty until Step 7 fills it), `## User notes` (preserved verbatim across re-ingests). Create the subtype directory if absent.
 
 For Slack-specific entity guidance (Slack-user identifiers, channels-not-entities rule, deep-link frontmatter), see `reference/slack-triage.md` § "Step 6 — Slack entity guidance".
 
-**Slug collision:** if the derived slug already exists for a different real-world entity, append a disambiguator (employer slug for people, parent-org slug for projects, year for time-bounded topics). Add the bare short name to `aliases:` on both files.
+**Slug collision:** if the slug already exists for a different real-world entity, append a disambiguator (employer slug for people, parent-org for projects, year for time-bounded topics) and add the bare short name to `aliases:` on both files.
 
 ---
 
@@ -266,11 +237,12 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 5. Append to `## Recent signals`: one bullet `- {YYYY-MM-DD} — slack: {one-line summary}`. Newest at top. Prune entries older than 30 days from the bottom. **Cite each thread once per ingest run, not once per reply / message.** If the same thread is touched in a subsequent run with new activity, update the existing matching bullet in-place rather than duplicating it.
 6. Re-attach `## User notes` verbatim at the end, byte-for-byte.
 7. Update frontmatter `updated_at` and `last_active` to today.
-8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent signals`, `## User notes`.
+8. **Advance `sources[].last_seen_at`.** The entity body's `sources:` array carries `{source, source_id, last_seen_at}` triples. Find the entry where `source: slack` AND `source_id: {parent-thread-id}` and advance its `last_seen_at` to the run's start time. **Append a new triple only if no existing entry matches the (source, source_id) pair** — never duplicate an existing pair. Updating `## Recent signals` (sub-step 5) without also advancing the matching `last_seen_at` is a bug; downstream features filter on `sources[].last_seen_at`, not on body prose.
+9. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent signals`, `## User notes`.
 
 **Archive split:** if the file approaches 2,000 lines, perform the P3 §3.4 archive split before adding the new activity line.
 
-**Do NOT write to `_sources.json` directly.** The agntux-core PostToolUse hook updates it after every entity write.
+**Do NOT write to `_sources.json` directly.** The agntux-core PostToolUse hook updates it after every entity write. (`_sources.json` is the cross-entity index; the per-entity `sources:` array in sub-step 8 is yours to maintain.)
 
 
 ---
@@ -279,24 +251,23 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 
 > **Triage operates on the merged thread, not the parent in isolation.** Construct the merged view before applying the heuristics below.
 
-Use your judgment plus `user.md → # Preferences` and your `data/instructions/agntux-slack.md` rules. **Volume cap:** 10 action items per run.
+Use your judgment plus `user.md → # Preferences` and your `data/instructions/agntux-slack.md` rules.
+
+**Volume cap:** 10 *fresh* action items per run. **Cap-overflow rule:** when a run has already raised 10 fresh actions and a further candidate passes Step 8a + the heuristics below, write the candidate to `actions/{YYYY-MM-DD}-{slug-suffix}.md` with `status: deferred` and `deferred_at: <now RFC 3339>` (instead of `status: open`). Do NOT compose a `## Compose payload` or call Step 10.1 — deferred items are placeholders. Step 8.6 of the next run drains them. (Drained items do NOT count toward the next run's cap; see Step 8.6.)
 
 For the Slack-specific signal layer — default action-worthy signals, default noise patterns, and the rule that there is no `decision-needed` (folded into `response-needed`) — see `reference/slack-triage.md` § "Step 8 — Slack signal layer".
 
 ### Step 8a — Reply-state scan (skip if user already replied)
 
-Before raising any candidate `response-needed` item, scan the data already fetched in Step 5 (no new MCP calls):
+Pure read over the in-memory fetch buffer; no new MCP calls. For each `response-needed` candidate, in order:
 
-1. Determine the latest message authored by the resolved user identity (Step 5a) in the same scope as the candidate trigger (thread-rooted candidate → search the merged thread; channel-/inbox-level candidate → search the recent fetched items).
-2. **If the user authored a message *after* the candidate trigger** AND no message subsequent to that user reply contains a follow-up question (`?`), an explicit `@user` mention, a deadline phrase, or an escalation keyword:
-   - **Skip raising** the action.
-   - Log a `slack-user-already-replied` debug entry to `sync.md → errors` (with `source_ref` and the user reply ts).
-3. **If the user replied but a follow-up did appear after their reply**, raise the action and cite the follow-up in `## Why this matters` so the priority is justified.
-4. If the user has not replied since the trigger, fall through to the heuristics list — no change.
+1. Find the latest message authored by the resolved user identity (Step 5a) in the candidate's scope (thread-rooted → merged thread; channel-/inbox-level → recent fetched items).
+2. If the user has NOT authored a message after the candidate trigger → fall through to the heuristics list.
+3. After that user-reply ts, scan for ANY of: `?`, `@<user_id>`, `/by EOD|tomorrow|by [day]/i`, `/urgent|asap|blocker|sev[123]/i`. **Match → raise**, citing the trigger in `## Why this matters`. **No match → skip**, no log entry. Done.
+
+The scan is a 4-line decision, not a deliberation. Do not narrate "but what if" cases — the rule exists; let it run.
 
 For Slack-specific follow-up signal definitions (`?`, `@user_id` mention, deadline phrase, escalation keyword `urgent|asap|blocker|sev[123]`) and the colleague-already-answered downgrade, see `reference/slack-triage.md` § "Step 8a — Slack follow-up signals + colleague-already-answered".
-
-This scan runs once per candidate, before the heuristics list. It is a pure read over the in-memory fetch buffer.
 
 Apply heuristics in order:
 
@@ -335,6 +306,19 @@ After triage and before dedup, reconcile **already-open** action items against t
 4. If still valid, leave it untouched. Step 9's dedup prevents a duplicate this run.
 
 This is a real automated state transition (`open` → `done` without user click), bounded to `reason_class: response-needed` and only artefacts just fetched. The honesty rules and "Out of scope" sections document this authority. On write failure, log a `slack-reconcile-failed` entry and continue.
+
+---
+
+## Step 8.6 — Drain deferred bootstrap actions
+
+When a prior run hit Step 8's cap, excess candidates were written with `status: deferred`. Drain them now, before fresh candidates compete for the cap.
+
+1. Scan `actions/_index.md` for `status: deferred` AND `source: slack`.
+2. For each, read the file. Three branches by cursor state at the originating thread's key:
+   - **Evicted from the cursor map** (deleted / permission-revoked / retention-purged): emit `slack-deferred-orphan: <id>` to `sync.md → errors`; leave the prior file in place; do NOT re-fetch.
+   - **Unchanged since the deferred run's `created_at`**: re-emit the prior body verbatim as `actions/{today}-{slug-suffix}.md` with fresh `created_at` and unchanged `priority` / `reason_class` / `reason_detail`. Run Step 10.1 and Step 9 dedup. Mark the prior file `status: superseded`, `superseded_at: <now RFC 3339>`, `superseded_by: {new-id}`.
+   - **Advanced** (new replies since deferral): re-derive against the latest merged view, run Step 8a. Raise-worthy → fresh file as above; Step 8a skips → mark the prior file `status: dismissed`, `dismissed_at: <now RFC 3339>`, `dismissed_reason: superseded-after-reply`; do not write a new fresh-dated file.
+3. **Cap rule.** Drained re-emissions do NOT count toward Step 8's 10-cap; re-emission of already-triaged work is bookkeeping. Step 9's same-source dedup keys apply to the fresh-dated file. No-op if no deferred entries match.
 
 ---
 
@@ -395,35 +379,26 @@ dismissed_at: null
 suggested_actions:
   - label: "{≤40 char display label}"
     host_prompt: "ux: open the {imperative} for action {id}"
-  # Include the next row ONLY IF the deep-link URL is non-null. Substitute
-  # the literal URL string into the url: field. If the URL is null, drop
-  # these two lines entirely.
+  # next row only when deep_link_url is non-null:
   - label: "Open in Slack"
     url: "{deep_link_url}"
 ```
 
-**Priority anchoring** (P3 §4.3):
-- `high`: deadline within 48 hours, top-account / direct-manager / VIP, reversible cost > ~$10K.
-- `medium`: default for items the user wants but won't suffer harm from delay.
-- `low`: borderline-actionable.
+**Priority anchoring** (P3 §4.3): `high` = deadline within 48 hours, top-account / direct-manager / VIP, or reversible cost > ~$10K. `medium` = default for items the user wants but won't suffer harm from delay. `low` = borderline-actionable.
 
-**`suggested_actions` rules:**
-- 1–4 buttons.
-- A row carries **either** `host_prompt` (chat-message envelope; the host matches it against the target view tool's description and invokes the tool) **or** `url` (host openLink), never both, never neither. agntux-core's parser drops any row missing both fields.
-- `host_prompt` strings start with `ux: ` and reference the action by `{id}`; the trigger phrases are owned by the target view tool's `description` field in `mcp-server/src/tools/{name}-view.ts`, not by Step 10.
-- The drafted reply body is pre-composed at ingest into the `## Compose payload` body section (Step 10.1). The `host_prompt` itself stays free of pre-composed text — it carries the view-tool routing intent only.
+**`suggested_actions` rules:** 1–4 buttons; each row carries **either** `host_prompt` (chat-message envelope routed via view-tool description matching) **or** `url` (host openLink), never both, never neither. `host_prompt` strings start with `ux: ` and reference `{id}`; trigger phrases are owned by the view tool's `description` field, not by Step 10. The drafted reply body is pre-composed into `## Compose payload` at Step 10.1; `host_prompt` itself carries the routing intent only.
 
-**Apply `# Rewrites` from `data/instructions/agntux-slack.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
+**Apply `# Rewrites` from `data/instructions/agntux-slack.md`** when composing action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten `## Why this matters` to 1–2 sentences.
 
 ### Step 10.1 — Gather file-store context
 
-**Scope.** Run for every action item that ships a `Draft a reply` (or equivalent) suggested action. The point is to author the `## Compose payload` body section with a draft body informed by the user's accumulated context — replies that ignore `user.md` rules defeat the purpose of pre-composition. Named sub-step inside Step 10.
+Run for every action that ships a `Draft a reply` (or equivalent) suggested action. The draft should sound like the user, not the agent.
 
-1. **Re-consult `user.md`** (already in working memory from Step 2). Pull `# Identity`, `# Preferences` (tone, length, sign-off), `# Glossary`, `# Goals`. The draft should sound like the user, not the agent.
-2. **Re-consult `data/instructions/agntux-slack.md`** (parsed in Step 0). Pull `# Notes`, `# Rewrites`, and the signal-weighting from `# Always raise` / `# Never raise`. Do NOT inject signature lines or "as discussed" padding the user hasn't asked for.
-3. **For each entity in `related_entities`**, re-read its file under `entities/{subtype}/{slug}.md` for relationship context beyond what Step 7 just wrote.
-4. **Grep `actions/`** for files whose `related_entities` overlaps. Read up to 3 most-recent within 14 days. Detect active workstreams; detect items the user already responded to.
-5. **Treat all of the above as input** to `drafted_body` and `personalization_signals` in `## Compose payload`.
+1. **Re-consult `user.md`** (in working memory from Step 2): `# Identity`, `# Preferences` (tone, length, sign-off), `# Glossary`, `# Goals`.
+2. **Re-consult `data/instructions/agntux-slack.md`** (parsed in Step 0): `# Notes`, `# Rewrites`, signal-weighting from `# Always raise` / `# Never raise`. Do NOT inject signatures or "as discussed" padding.
+3. **For each entity in `related_entities`**, re-read its file for relationship context beyond what Step 7 just wrote.
+4. **Grep `actions/`** for files whose `related_entities` overlaps. Read up to 3 most-recent within 14 days — detect active workstreams and items the user already responded to.
+5. Feed all of the above into `drafted_body` and `personalization_signals` in `## Compose payload`.
 
 If `data/instructions/agntux-slack.md` doesn't exist yet (cold-start), proceed with `user.md` alone.
 
@@ -446,9 +421,11 @@ If `data/instructions/agntux-slack.md` doesn't exist yet (cold-start), proceed w
 After processing all items:
 
 1. **Transactional rule.** Only advance `cursor` (and any source-specific low-water-mark) if **every action write this run succeeded.** If any write failed (validator rejection, IO error, schema violation), persist `last_run`, `errors`, and the lock release, but leave `cursor` and any low-water-marks at their pre-run values and leave `last_success` unchanged. The next run retries the same window. Entity writes are idempotent via the lookup-before-write rule and persist regardless.
-2. **Express cursor advancement as a diff** over the prior cursor map: list the keys you added (with their initial value), the keys you advanced (old → new), and any keys evicted. Then write the new full map atomically. The `validate-cursor.mjs` PreToolUse hook rejects writes that drop a key without an eviction log entry, or that regress a low-water-mark. Atomic write to `data/learnings/agntux-slack/sync.md` per `Single JSON map under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts). Plus a sibling `discovery_ts` low-water-mark.`. Per-source layer table: apply the cursor reference rule.
-3. **Update run stats**: `last_run`, `last_success` (only when the transactional rule allows it), increment `items_processed`.
-4. **Release the lock**: `- lock: null`. Atomic write.
+2. **Single-write rule.** Build the new `sync.md` content in memory in **one** pass — apply the cursor diff, run-stats updates, source-identity persistence, lock release, and any new `errors:` entries (trim, then append, per the bounded-lists rule) against the file's pre-run snapshot — then write **once** atomically (temp + fsync + rename). Multiple sequential `Edit sync.md` calls in this step are a bug.
+3. **Express cursor advancement as a diff** over the prior map: keys added (with initial value), keys advanced (old → new), keys evicted (with the matching `slack-cursor-evicted: <key>` entry in `errors`). The `validate-cursor.mjs` PreToolUse hook rejects writes that drop a key without an eviction log entry, or that regress a low-water-mark. Per-source layer table: apply the cursor reference rule.
+4. **Update run stats**: `last_run`, `last_success` (only when the transactional rule allows it), increment `items_processed`.
+5. **Persist source-derived identity** captured this run (Step 5a / equivalent) into the fields declared in your `_overrides/frontmatter.yaml → source-identity-fields:`. Capture once on first observation; once a field is non-null, do not overwrite. This is cursor-lifetime state, not per-run state.
+6. **Release the lock**: `- lock: null` as part of the same write.
 
 **Slack-specific cursor advance details.** When walking the cursor map at the end of a successful run:
 
@@ -463,7 +440,9 @@ After processing all items:
 
 For the per-layer reference table, apply the cursor reference shape (`reference/cursor.md`).
 
-**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a file path. Quiet runs get a one-line summary. No narration of intermediate reasoning — that lives in `sync.md → errors`. Structural issues worth raising land there too; persistent issues surface via retrieval's freshness check next AgntUX session.
+**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a file path. Quiet runs get a one-line summary.
+
+**No narration.** The chat summary IS the run output. The run is otherwise expressed through cursor advances, action writes, entity edits, and `errors:` entries scoped to `./runbook.md`'s permitted-`kind:` taxonomy. Entries that don't change the next run's behaviour do not belong in `errors:`. Multi-run pattern learning lives in `user.md → # Auto-learned`; user corrections in `/agntux feedback`.
 
 ---
 
@@ -473,17 +452,31 @@ If two ingest plugins run concurrently, agntux-core's index hook may briefly sho
 
 ## Out of scope
 
-You do NOT:
-- Decide when you run — the host's scheduler does.
-- Create/edit scheduled tasks — host-UI primitive.
-- Draft proposed replies, schedule sends, or summarise threads at click time — those happen from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes the host dispatches through the user's existing connector. Suggested-action `ux:` prompts route directly to your view tool (description-based MCP routing). This skill pre-composes the body inside `## Compose payload` so the view tool can lift it; this skill does not handle the click-time path.
-- Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
-- Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the `agntux schema` and `agntux teach` sub-tasks respectively.
-- Read or write outside `<agntux project root>/` (with the obvious exception of fetching Slack content via `slack_read_channel, slack_read_thread, slack_read_user_profile, slack_search_public_and_private, slack_search_channels, slack_read_canvas`).
+This section is a **hard write-lane taxonomy**, not advisory prose. Any write that would land outside the permitted lanes below MUST be **refused** at compose time — append a `kind: out-of-lane-write-attempted: <attempted-path>` entry to `sync.md → errors` (per `./runbook.md`), continue the run, and never invoke the underlying `Write` / `Edit` tool against the off-lane path. The agntux-core hook `validate-write-lane.mjs` is the defence-in-depth backstop, but the prompt is the load-bearing rule.
+
+### Permitted write lanes
+
+You MAY write to (and only to):
+
+- `<agntux project root>/entities/{subtype}/{slug}.md` — Step 6 / Step 7 entity creation and updates (with the section-preservation rule, including the `sources[].last_seen_at` advancement in Step 7 sub-step 8).
+- `<agntux project root>/actions/{YYYY-MM-DD}-{slug}.md` — Step 8 cap-overflow deferrals, Step 8.5 reconcile transitions, Step 8.6 drain re-emissions and supersedes, Step 9 cross-source merges, Step 10 fresh writes.
+- `<agntux project root>/data/learnings/agntux-slack/sync.md` — your section-of-one (cursor, last_run, last_success, items_processed, errors, lock, source-derived identity fields declared in your `_overrides/frontmatter.yaml`).
+
+### Refused — refuse-and-log applies
+
+Off-lane paths the skill MUST refuse to write (refused at compose time, logged with `kind: out-of-lane-write-attempted: <path>`):
+
+- `<agntux project root>/data/schema/` — owned by `/agntux schema` (the data architect's Mode B). Schema-version drift surfaces via Step 0's exit-clean ladder; do NOT self-heal `schema.md`, `contracts/agntux-slack.md`, or `schema.lock.json`.
+- `<agntux project root>/data/instructions/` — owned by `/agntux teach`. If a per-plugin instructions file is missing or under-populated (e.g., a denylist section header is absent), skip the affected sub-step and emit a structured `errors:` entry; do NOT author user-facing prose, section headers, or examples in that tree.
+- `<agntux project root>/entities/_sources.json` — owned by agntux-core's `maintain-index.mjs` PostToolUse hook.
+- `<agntux project root>/actions/_index.md` and `<agntux project root>/entities/{subtype}/_index.md` — also owned by `maintain-index.mjs`.
+- Anywhere outside `<agntux project root>/` — including `~/.claude/`, the host's settings, or any other host file. The only authorised reach outside the project root is fetching Slack content via `slack_read_channel, slack_read_thread, slack_read_user_profile, slack_search_public_and_private, slack_search_channels, slack_read_canvas` (read-only).
+
+Per-plugin override files (e.g., `_overrides/reference/contract-lock.md`) MUST NOT authorise a write outside the lanes above; the toolkit lint pass `pass8SkillRender` rejects malformed overrides before render.
+
+You also do NOT decide when you run (the host's scheduler does), create/edit scheduled tasks (host-UI primitive), or draft proposed replies / schedule sends / summarise at click time — those fire from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes. Suggested-action `ux:` prompts route to your view tool; this skill pre-composes the body inside `## Compose payload` for the view tool to lift, but does not handle the click-time path.
 
 - Call any Slack write tool (`slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`). Read-only is non-negotiable for this skill. Writes flow through the iframe Save / Send / Schedule / Save Draft / Create click → connector envelope → host dispatch — not from this skill.
-
-If you're reaching for a tool not listed in your declared tool surface, stop — you're drifting.
 
 ## Tool surface
 
