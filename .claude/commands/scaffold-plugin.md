@@ -208,13 +208,15 @@ Skip this step for read-only sources (notes folders, analytics
 dashboards, any source without write tools).
 
 If the source has write tools (Slack send, Gmail send, Linear comment,
-HubSpot note, Jira transition, etc.), copy the `draft-subagent`
+HubSpot note, Jira transition, etc.), copy the drafting-skill
 template from the `plugin-toolkit` author skill (now in the
 `agntux-plugin-dev` marketplace, under
-`plugins/plugin-toolkit/skills/author/templates/draft-subagent.md`) —
-the fenced markdown block — into `plugins/{slug}/skills/draft/SKILL.md`
-and substitute the placeholders (`{plugin-slug}`, `{source-display-name}`,
-source-specific tool names per Step 2 of the skeleton).
+`plugins/plugin-toolkit/skills/author/templates/draft-skill.md`,
+post-0.3.0 rename — the prior filename `draft-subagent.md` was
+retired) — the fenced markdown block — into
+`plugins/{slug}/skills/draft/SKILL.md` and substitute the placeholders
+(`{plugin-slug}`, `{source-display-name}`, source-specific tool names
+per Step 2 of the skeleton).
 
 The drafting skill's frontmatter MUST end up with `context: fork` +
 `agent: general-purpose` + **no `tools:` line** (same shape as the sync
