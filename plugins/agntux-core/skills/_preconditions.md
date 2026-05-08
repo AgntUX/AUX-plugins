@@ -9,6 +9,17 @@ here from its body.
 The flow is: emit the trial banner first (always), then run the
 ordered preconditions; stop at the first one that diverts.
 
+## Contents
+
+- [A. Trial-status banner](#a-trial-status-banner-always-emit-before-any-other-output)
+- [B. Preconditions (run in order)](#b-preconditions-run-in-order-after-the-banner)
+  - [Check 0 — Project root](#0-project-root)
+  - [Check 0.5 — Plugin reconciliation](#05-plugin-reconciliation-auto-correct-never-blocks)
+  - [Check 1 — `user.md` exists and parses](#1-agntux-project-rootusermd-exists-and-parses)
+  - [Check 2 — Schema bootstrapped](#2-schema-bootstrapped)
+  - [Check 3 — Installed plugins lacking a contract](#3-installed-plugins-lacking-a-contract)
+  - [Check 4 — Schema-requests queue](#4-schema-requests-queue)
+
 ---
 
 ## A. Trial-status banner (always emit, before any other output)
@@ -51,13 +62,13 @@ the prerequisite.
 
 ### 0. Project root
 
-Run [`_resolve-root.md`](./_resolve-root.md). Walk the resolution
-ladder (cwd basename → ancestor → `~/agntux` → offer onboarding).
-On a successful resolution, continue with the next check using the
-resolved root for every `<agntux project root>` reference below.
-On step 4 routing to `/agntux-onboard`, or on the user declining,
-exit Check 0 (no further checks fire — onboarding owns the rest of
-the flow, or the user opted out).
+Walk the resolution per the `_resolve-root.md` link declared at the
+top of your invoking SKILL.md (cwd basename → ancestor → `~/agntux`
+→ offer onboarding). On a successful resolution, continue with the
+next check using the resolved root for every `<agntux project root>`
+reference below. On step 4 routing to `/agntux-onboard`, or on the
+user declining, exit Check 0 (no further checks fire — onboarding
+owns the rest of the flow, or the user opted out).
 
 ### 0.5. Plugin reconciliation (auto-correct, never blocks)
 

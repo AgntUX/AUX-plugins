@@ -19,9 +19,12 @@ background-mode carve-out.
 
 ## Preconditions
 
-Run [`_preconditions.md`](../_preconditions.md). For scheduled-task
-fires where the user is not present, exit cleanly with no message if
-any precondition diverts — don't write spurious status; the next
+Run [`_preconditions.md`](../_preconditions.md). Check 0 walks
+[`_resolve-root.md`](../_resolve-root.md) — declared here so the link
+is one level deep from this SKILL.md (the unattended variant is
+inlined under "Always check first" below). For scheduled-task fires
+where the user is not present, exit cleanly with no message if any
+precondition diverts — don't write spurious status; the next
 user-initiated session will surface and fix.
 
 ## Always check first

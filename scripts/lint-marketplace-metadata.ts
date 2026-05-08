@@ -22,6 +22,7 @@ import {
   pass7NoThirdPartyInViews,
   pass7CanonicalHandlers,
 } from "./lint/lint-no-third-party-in-views.js";
+import { pass8SkillRender } from "./lint/lint-skill-render.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -631,6 +632,10 @@ export function lintPlugin(
   pass4ReadmeChangelog(pluginSlug, pluginDir, opts.repoRoot, findings);
   // Pass 7 — no third-party MCP calls in view tools
   pass7NoThirdPartyInViews(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 8 — sync-skill render drift (mandatory for any plugin shipping
+  // skills/sync/SKILL.md) plus always-on cross-plugin skill-quality
+  // invariants (line budgets, chain-depth).
+  pass8SkillRender(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

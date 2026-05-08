@@ -1,0 +1,1 @@
+For Slack-specific entity guidance (Slack-user identifiers, channels-not-entities rule, deep-link frontmatter), see [`./resources/slack-triage.md`](./resources/slack-triage.md) — § "Step 6 — Slack entity guidance".

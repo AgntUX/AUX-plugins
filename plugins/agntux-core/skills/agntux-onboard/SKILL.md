@@ -25,6 +25,8 @@ when convenient." Do not block.
 
 **Pre-checks.**
 1. Emit the trial banner per [`_preconditions.md`](../_preconditions.md) § A.
+   Project-root resolution lives in [`_resolve-root.md`](../_resolve-root.md);
+   Stage 0 below carries an inlined mirror tailored to the first-run flow.
 2. Do NOT short-circuit on a missing `agntux` folder — Stage 0 owns that.
 3. Do NOT run `_preconditions.md` checks 2, 3, or 4 (this skill handles
    schema bootstrap, missing-contract plugins, and schema-requests inline).

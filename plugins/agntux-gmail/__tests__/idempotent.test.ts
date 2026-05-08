@@ -41,7 +41,7 @@ const SKILL_TEXT = readSkill(SKILL_PATH);
 describe("idempotent entity update", () => {
   it("Recent Activity bullets cite each thread once per ingest run", () => {
     expect(SKILL_TEXT).toMatch(
-      /Cite[\s*]+each thread once per ingest run,\s+not once per message/i,
+      /Cite[\s*]+each thread once per ingest run,\s+not once per reply \/ message/i,
     );
   });
 

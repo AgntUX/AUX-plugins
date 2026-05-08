@@ -127,15 +127,13 @@ describe("ingest skill prompt", () => {
     expect(existsSync(join(PLUGIN_ROOT, "skills", "draft"))).toBe(false);
   });
 
-  it("agents/ contains only ui-handlers/ manifests (no legacy orchestrator agents)", () => {
-    // The agents/ directory now houses ui-handler operational manifests (agents/ui-handlers/).
-    // Legacy orchestrator agents (agents/orchestrator.md, agents/ingest.md etc.) must be absent.
-    const legacyOrchestrator = join(PLUGIN_ROOT, "agents", "orchestrator.md");
-    const legacyIngest = join(PLUGIN_ROOT, "agents", "ingest.md");
-    expect(existsSync(legacyOrchestrator)).toBe(false);
-    expect(existsSync(legacyIngest)).toBe(false);
-    // The ui-handlers sub-directory must be present
-    expect(existsSync(join(PLUGIN_ROOT, "agents", "ui-handlers"))).toBe(true);
+  it("agents/ directory is gone (de-fork sweep — ui-handler metadata folded into view-tool descriptors; no orchestrator agents)", () => {
+    // Post de-fork sweep: agentux-slack ships zero subagents. The legacy
+    // orchestrator/ingest agents (deleted in earlier rounds) and the
+    // ui-handler operational manifests (deleted alongside the view-tool
+    // description promotion — see ui-routing.test.ts) all live elsewhere
+    // now. No agents/ directory should remain.
+    expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
   });
 
   it("sync skill runs inline — no `context: fork`, no nested agent, no `tools:` whitelist", () => {

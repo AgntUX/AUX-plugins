@@ -19,10 +19,12 @@ background-mode carve-out.
 ## Preconditions
 
 Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert,
-follow the redirect and stop. (Sync cannot run before the schema is
-bootstrapped and the per-plugin contract is approved — the per-plugin
-sync command will exit cleanly if those conditions are missing, but
-fail-fast here is friendlier.)
+follow the redirect and stop. Check 0 walks
+[`_resolve-root.md`](../_resolve-root.md) — declared here so the link
+is one level deep from this SKILL.md. (Sync cannot run before the
+schema is bootstrapped and the per-plugin contract is approved — the
+per-plugin sync command will exit cleanly if those conditions are
+missing, but fail-fast here is friendlier.)
 
 ## Dispatch
 

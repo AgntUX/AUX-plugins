@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [6.0.1] — 2026-05-07
+
+Mechanical migration to the canonical `resources/` skill shape (Phase 3
+of the plugin-architecture cleanup). The sync skill is now rendered at
+build time from `canonical/prompts/ingest/skills/sync/` plus
+`plugins/agntux-slack/skills/sync/_overrides/` via
+`scripts/render-skill.mjs`. Run `node scripts/render-skill.mjs
+agntux-slack` after editing any `_overrides/*` file; commit the
+regenerated `skills/sync/SKILL.md` and `resources/*.md`.
+
+### Changed
+
+- **`skills/sync/SKILL.md` is now rendered, not hand-edited.** Edit
+  the canonical body at `canonical/prompts/ingest/skills/sync/SKILL.md`
+  or the per-plugin overrides in
+  `plugins/agntux-slack/skills/sync/_overrides/` (`frontmatter.yaml`,
+  `{step-id}-append.md`, `resources/{name}.md`). The build orchestrator
+  (`scripts/build-plugin.mjs`) and pass 8 of the marketplace linter
+  enforce render reproducibility.
+- **`skills/sync/resources/`** now ships the per-plugin sibling files
+  the rendered SKILL.md links to: `fetch.md`, `compose-payload.md`,
+  `canvas-payload.md`, `cursor.md`, `runbook.md`, `deep-links.md`,
+  `slack-triage.md`. Every file is ≤ 300 lines; SKILL.md is ≤ 500.
+
+### Removed
+
+- `skills/sync/RUNBOOK.md` (moved to `skills/sync/resources/runbook.md`
+  and rendered from `_overrides/resources/runbook.md`).
+
 ## [6.0.0] — 2026-05-07
 
 De-fork sweep (Phase 1 of plugin-architecture cleanup). Companion to

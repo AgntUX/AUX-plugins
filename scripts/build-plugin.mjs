@@ -39,6 +39,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderSkill, RenderSkillError } from "./render-skill.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -126,6 +127,12 @@ function buildPlugin(slug, pluginDir, skipInstall) {
     log(`[${slug}] workspace install (plugin root, hoists to all members)`);
     runOrFail("npm", ["install", "--no-audit", "--no-fund"], pluginDir);
   }
+
+  // Render the sync skill from canonical/ + _overrides/ before anything
+  // else needs the rendered SKILL.md. Opt-in: only fires when the plugin
+  // ships skills/sync/_overrides/. Plugins that haven't migrated are
+  // unaffected.
+  renderSyncSkillIfPresent(slug, pluginDir);
 
   const components = discoverComponents(pluginDir);
   log(
@@ -261,6 +268,31 @@ function pipeWithPrefix(src, slug, dst) {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+function renderSyncSkillIfPresent(slug, pluginDir) {
+  const syncDir = join(pluginDir, "skills", "sync");
+  const overridesDir = join(syncDir, "_overrides");
+  if (!existsSync(overridesDir)) return; // plugin hasn't migrated yet
+  const canonicalDir = join(
+    REPO_ROOT,
+    "canonical",
+    "prompts",
+    "ingest",
+    "skills",
+    "sync",
+  );
+  if (!existsSync(canonicalDir)) {
+    log(`[${slug}] canonical sync template missing — skipping render`);
+    return;
+  }
+  log(`[${slug}] rendering skills/sync/ from canonical + _overrides/`);
+  try {
+    renderSkill({ canonicalDir, overridesDir, outputDir: syncDir });
+  } catch (e) {
+    const msg = e instanceof RenderSkillError ? e.message : String(e);
+    fail(`[${slug}] render-skill failed: ${msg}`);
+  }
+}
 
 function isWorkspaceRooted(pluginDir) {
   const pkgPath = join(pluginDir, "package.json");
