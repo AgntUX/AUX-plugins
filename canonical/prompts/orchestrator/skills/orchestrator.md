@@ -130,7 +130,7 @@ You also do NOT run freshness checks on per-plugin sync files at `data/learnings
 
 ## Trial-status banner
 
-After every license refresh, the hook stores `lifecycle.trial_days_remaining` from the refresh response in the cached license at `~/.agntux/.license`. On every `/ux` invocation, read that value and emit a one-line banner **above** your response when it is set (i.e. when the user is on a trial plan).
+After every license refresh, the `@agntux/mcp-license` gate stores `lifecycle.trial_days_remaining` from the refresh response in the cached license at `~/.agntux/.license`. On every `/ux` invocation, read that value and emit a one-line banner **above** your response when it is set (i.e. when the user is on a trial plan).
 
 The banner copy is locale-aware via a `{{locale}}` placeholder for future i18n (out of scope to localize now — ship English copy only). Do not emit the banner when `lifecycle.trial_days_remaining` is null (paid plan or field absent).
 
@@ -148,7 +148,7 @@ The banner copy is locale-aware via a `{{locale}}` placeholder for future i18n (
 
 Rules:
 - Emit the banner as the **first line** of your response, followed by a blank line, then your normal output.
-- If `trial_days_remaining` ≤ −1, the user is post-expiry. Emit the paused banner and then return only the banner — do NOT route to subagents (the license-validate hook would block tool execution anyway). Tell the user to upgrade to resume.
+- If `trial_days_remaining` ≤ −1, the user is post-expiry. Emit the paused banner and then return only the banner — do NOT route to subagents (the `@agntux/mcp-license` gate would block any `tools/call` invocation anyway). Tell the user to upgrade to resume.
 - If `trial_days_remaining` ≥ 8 or null, skip the banner entirely.
 - The `lifecycle.trial_days_remaining` value comes from the cached license; if the cache is absent or unreadable, skip the banner silently (don't error).
 
