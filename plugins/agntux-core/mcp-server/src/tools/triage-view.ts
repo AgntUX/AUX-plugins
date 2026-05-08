@@ -39,9 +39,7 @@ import {
 
 const TRIAGE_RESOURCE_URI = "ui://triage";
 const DEFAULT_LIMIT = 30;
-const MAX_LIMIT = 50;
 const DEFAULT_HANDLED_DAYS = 7;
-const MAX_HANDLED_DAYS = 30;
 const MAX_HANDLED_RECENT = 10;
 const MAX_RELATED_ENTITIES = 6;
 const MAX_SUGGESTED_ACTIONS = 6;

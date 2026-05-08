@@ -25116,23 +25116,6 @@ function truncate(s, max) {
 function asString2(v, fallback2 = "") {
   return typeof v === "string" ? v : fallback2;
 }
-function asStringOrNull2(v) {
-  return typeof v === "string" ? v : null;
-}
-function asNumber2(v, fallback2 = 0) {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback2;
-}
-function asBoolean2(v, fallback2 = false) {
-  return typeof v === "boolean" ? v : fallback2;
-}
-function asStringArray2(v) {
-  if (!Array.isArray(v)) return [];
-  return v.filter((x) => typeof x === "string");
-}
-function asInitialVerb(v) {
-  if (v === "draft" || v === "schedule" || v === "save_draft") return v;
-  return "draft";
-}
 function structuredError(kind, message) {
   return {
     structuredContent: { error: kind },
@@ -25148,40 +25131,6 @@ function isActionAlreadyHandled(status, snoozedUntil) {
   }
   return false;
 }
-function parseChannelArg(raw) {
-  if (!raw || typeof raw !== "object") return { id: "", name: "", is_dm: false };
-  const r = raw;
-  return {
-    id: asString2(r.id),
-    name: asString2(r.name),
-    is_dm: asBoolean2(r.is_dm)
-  };
-}
-function parseThreadContextArg(raw) {
-  if (!raw || typeof raw !== "object") {
-    return {
-      parent_ts: "",
-      parent_author_real_name: "",
-      parent_excerpt: "",
-      last_reply_ts: null,
-      last_reply_author_real_name: null,
-      last_reply_excerpt: null,
-      total_replies: 0,
-      participants: []
-    };
-  }
-  const r = raw;
-  return {
-    parent_ts: asString2(r.parent_ts),
-    parent_author_real_name: asString2(r.parent_author_real_name),
-    parent_excerpt: truncate(asString2(r.parent_excerpt), MAX_EXCERPT_CHARS),
-    last_reply_ts: asStringOrNull2(r.last_reply_ts),
-    last_reply_author_real_name: asStringOrNull2(r.last_reply_author_real_name),
-    last_reply_excerpt: asStringOrNull2(r.last_reply_excerpt) ? truncate(asString2(r.last_reply_excerpt), MAX_EXCERPT_CHARS) : null,
-    total_replies: asNumber2(r.total_replies),
-    participants: asStringArray2(r.participants).slice(0, MAX_PARTICIPANTS)
-  };
-}
 function parseMessagesPreviewArg(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0, MAX_MESSAGES_PREVIEW).map((item) => {
@@ -25196,59 +25145,13 @@ function parseMessagesPreviewArg(raw) {
 }
 var composeViewTool = {
   name: "agntux_slack_compose_view",
-  description: "Render the Slack reply composer iframe for an action item. TRIGGER PHRASES (map verbatim to args \u2014 do not paraphrase): 'open the reply composer for action {id}' \u2192 call with {action_id: id}; 'open the reply composer in schedule mode for action {id}' \u2192 call with {action_id: id, initial_verb: \"schedule\"}. For these click-time prompts, pass ONLY action_id (and initial_verb when the phrase contains 'in schedule mode'). The tool reads the action file's `## Compose payload` body section and lifts drafted_body, thread_context, channel, personalization_signals, and slack_permalink from disk. Do NOT pass drafted_body, thread_context, channel, personalization_signals, or slack_permalink inline \u2014 those args are a legacy back-compat surface for out-of-band working-memory callers, and any inline value (including partial / empty objects) overrides the on-disk payload destructively, producing an empty UI. Action files that lack a `## Compose payload` section (pre-1.1.0) surface the `compose_payload_missing` structured error envelope. Returns _meta.ui.resourceUri = ui://slack-compose.",
+  description: "Open the Slack reply composer for an action. Use when the user asks to draft a reply / schedule a reply / save a Slack draft for an action ID, when prompted with phrases like 'open the reply composer for action {id}' / 'draft a reply for action {id}' / 'reply to action {id}', or when triage's Draft/Schedule buttons fire this tool via host_prompt. Pass ONLY action_id; the handler reads the action file's `## Compose payload` body section from disk. The iframe always opens in Draft mode \u2014 the user clicks the Schedule tab in the iframe to switch. Action files that lack a `## Compose payload` section surface the `compose_payload_missing` structured error envelope. Returns _meta.ui.resourceUri = ui://slack-compose.",
   inputSchema: {
     type: "object",
     properties: {
       action_id: {
         type: "string",
         description: "Slug of the action item (from filename, no .md suffix)."
-      },
-      initial_verb: {
-        type: "string",
-        enum: ["draft", "schedule", "save_draft"],
-        description: "Which mode tab to pre-select. MUST be set to 'schedule' when the trigger phrase contains 'in schedule mode' (e.g., 'open the reply composer in schedule mode for action {id}'). Otherwise omit (defaults to 'draft'). 'save_draft' is reserved for legacy out-of-band callers."
-      },
-      drafted_body: {
-        type: "string",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts the body from the action file's `## Compose payload`. Inline override for out-of-band working-memory callers. \u22644000 chars; truncated if longer."
-      },
-      personalization_signals: {
-        type: "array",
-        items: { type: "string" },
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. Inline override for out-of-band working-memory callers."
-      },
-      thread_context: {
-        type: "object",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts thread context from the action file's `## Compose payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          parent_ts: { type: "string" },
-          parent_author_real_name: { type: "string" },
-          parent_excerpt: { type: "string" },
-          last_reply_ts: { type: "string" },
-          last_reply_author_real_name: { type: "string" },
-          last_reply_excerpt: { type: "string" },
-          total_replies: { type: "number" },
-          participants: { type: "array", items: { type: "string" } },
-          messages_preview: { type: "array" }
-        }
-      },
-      channel: {
-        type: "object",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts channel from the action file's `## Compose payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          is_dm: { type: "boolean" }
-        }
-      },
-      proposed_send_time: {
-        type: "string",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the user picks the send time inside the iframe. Optional RFC 3339 datetime for out-of-band callers that pre-compute a schedule time."
-      },
-      slack_permalink: {
-        type: "string",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. Inline override for out-of-band working-memory callers."
       }
     },
     required: ["action_id"]
@@ -25342,72 +25245,51 @@ async function handleComposeView(args) {
     );
   }
   const onDisk = parsed.compose_payload;
-  const inlineDraftedBody = asString2(args.drafted_body);
-  const hasInlineBody = inlineDraftedBody.length > 0;
-  const inlineThreadCtx = args.thread_context && typeof args.thread_context === "object" ? args.thread_context : null;
-  const inlineChannel = args.channel && typeof args.channel === "object" ? args.channel : null;
-  if (!hasInlineBody && !onDisk) {
+  if (!onDisk) {
     return structuredError(
       "compose_payload_missing",
-      `compose_view: action ${actionId} has no \`## Compose payload\` body section and no inline drafted_body was supplied.`
+      `compose_view: action ${actionId} has no \`## Compose payload\` body section.`
     );
   }
-  const draftedBody = truncate(
-    hasInlineBody ? inlineDraftedBody : onDisk?.drafted_body ?? "",
-    MAX_DRAFTED_BODY_CHARS
-  );
-  const rawSignals = Array.isArray(args.personalization_signals) ? args.personalization_signals : onDisk ? onDisk.personalization_signals : [];
-  const personalizationSignals = rawSignals.slice(0, MAX_PERSONALIZATION_SIGNALS).filter((s) => typeof s === "string").map((s) => truncate(s, MAX_SIGNAL_CHARS));
-  const channel = inlineChannel ? parseChannelArg(inlineChannel) : onDisk ? {
+  const draftedBody = truncate(onDisk.drafted_body, MAX_DRAFTED_BODY_CHARS);
+  const personalizationSignals = onDisk.personalization_signals.slice(0, MAX_PERSONALIZATION_SIGNALS).filter((s) => typeof s === "string").map((s) => truncate(s, MAX_SIGNAL_CHARS));
+  const channel = {
     id: onDisk.channel.id,
     name: onDisk.channel.name,
     is_dm: onDisk.channel.is_dm
-  } : { id: "", name: "", is_dm: false };
-  const threadCtx = inlineThreadCtx ? parseThreadContextArg(inlineThreadCtx) : onDisk ? {
-    parent_ts: onDisk.thread_context.parent_ts,
-    parent_author_real_name: onDisk.thread_context.parent_author_real_name,
-    parent_excerpt: truncate(
-      onDisk.thread_context.parent_excerpt,
-      MAX_EXCERPT_CHARS
-    ),
-    last_reply_ts: onDisk.thread_context.last_reply_ts,
-    last_reply_author_real_name: onDisk.thread_context.last_reply_author_real_name,
-    last_reply_excerpt: onDisk.thread_context.last_reply_excerpt ? truncate(
-      onDisk.thread_context.last_reply_excerpt,
-      MAX_EXCERPT_CHARS
-    ) : null,
-    total_replies: onDisk.thread_context.total_replies,
-    participants: onDisk.thread_context.participants.slice(
-      0,
-      MAX_PARTICIPANTS
-    )
-  } : parseThreadContextArg(void 0);
-  const rawMessages = inlineThreadCtx ? Array.isArray(inlineThreadCtx.messages_preview) ? inlineThreadCtx.messages_preview : [] : onDisk?.thread_context.messages_preview ?? [];
+  };
+  const rawMessages = onDisk.thread_context.messages_preview ?? [];
   const messagesPreview = parseMessagesPreviewArg(rawMessages);
   const messagesTruncated = rawMessages.length > MAX_MESSAGES_PREVIEW;
-  const proposedSendTime = asStringOrNull2(args.proposed_send_time);
-  const slackPermalink = asStringOrNull2(args.slack_permalink) ?? (onDisk ? onDisk.slack_permalink : null);
-  const initialVerb = asInitialVerb(args.initial_verb);
   const payload = {
     action_id: actionId,
-    initial_verb: initialVerb,
+    initial_verb: "draft",
     channel,
     thread: {
-      parent_ts: threadCtx.parent_ts,
-      parent_author_real_name: threadCtx.parent_author_real_name,
-      parent_excerpt: threadCtx.parent_excerpt,
-      last_reply_ts: threadCtx.last_reply_ts,
-      last_reply_author_real_name: threadCtx.last_reply_author_real_name,
-      last_reply_excerpt: threadCtx.last_reply_excerpt,
-      total_replies: threadCtx.total_replies,
-      participants: threadCtx.participants
+      parent_ts: onDisk.thread_context.parent_ts,
+      parent_author_real_name: onDisk.thread_context.parent_author_real_name,
+      parent_excerpt: truncate(
+        onDisk.thread_context.parent_excerpt,
+        MAX_EXCERPT_CHARS
+      ),
+      last_reply_ts: onDisk.thread_context.last_reply_ts,
+      last_reply_author_real_name: onDisk.thread_context.last_reply_author_real_name,
+      last_reply_excerpt: onDisk.thread_context.last_reply_excerpt ? truncate(
+        onDisk.thread_context.last_reply_excerpt,
+        MAX_EXCERPT_CHARS
+      ) : null,
+      total_replies: onDisk.thread_context.total_replies,
+      participants: onDisk.thread_context.participants.slice(
+        0,
+        MAX_PARTICIPANTS
+      )
     },
     messages_preview: messagesPreview,
     messages_truncated: messagesTruncated,
     drafted_body: draftedBody,
     personalization_signals: personalizationSignals,
-    proposed_send_time: proposedSendTime,
-    slack_permalink: slackPermalink
+    proposed_send_time: null,
+    slack_permalink: onDisk.slack_permalink
   };
   const channelLabel = channel.is_dm ? `DM` : `#${channel.name}`;
   return {
@@ -25415,7 +25297,7 @@ async function handleComposeView(args) {
     content: [
       {
         type: "text",
-        text: `compose_view rendered for action ${actionId} (${channelLabel}, mode: ${initialVerb}).`
+        text: `compose_view rendered for action ${actionId} (${channelLabel}, mode: draft).`
       }
     ],
     _meta: {
@@ -25448,13 +25330,6 @@ function truncate2(s, max) {
 function asString3(v, fallback2 = "") {
   return typeof v === "string" ? v : fallback2;
 }
-function asNumber3(v, fallback2 = 0) {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback2;
-}
-function asStringArray3(v) {
-  if (!Array.isArray(v)) return [];
-  return v.filter((x) => typeof x === "string");
-}
 function structuredError2(kind, message) {
   return {
     structuredContent: { error: kind },
@@ -25470,76 +25345,15 @@ function isActionAlreadyHandled2(status, snoozedUntil) {
   }
   return false;
 }
-function parseChannelArg2(raw) {
-  if (!raw || typeof raw !== "object") return { id: "", name: "" };
-  const r = raw;
-  return { id: asString3(r.id), name: asString3(r.name) };
-}
-function parseThreadArg(raw) {
-  if (!raw || typeof raw !== "object") {
-    return { parent_ts: "", total_replies: 0, participants: [] };
-  }
-  const r = raw;
-  return {
-    parent_ts: asString3(r.parent_ts),
-    total_replies: asNumber3(r.total_replies),
-    participants: asStringArray3(r.participants).slice(0, MAX_PARTICIPANTS2)
-  };
-}
-function parseDraftedCanvas(raw) {
-  if (!raw || typeof raw !== "object") {
-    return { title: "", tldr: "", decisions: [], open_questions: [], participants: [] };
-  }
-  const r = raw;
-  return {
-    title: truncate2(asString3(r.title), MAX_TITLE_CHARS),
-    tldr: truncate2(asString3(r.tldr), MAX_TLDR_CHARS),
-    decisions: asStringArray3(r.decisions).slice(0, MAX_DECISIONS).map((d) => truncate2(d, MAX_DECISION_CHARS)),
-    open_questions: asStringArray3(r.open_questions).slice(0, MAX_OPEN_QUESTIONS).map((q) => truncate2(q, MAX_QUESTION_CHARS)),
-    participants: asStringArray3(r.participants).slice(0, MAX_PARTICIPANTS2)
-  };
-}
 var canvasViewTool = {
   name: "agntux_slack_canvas_view",
-  description: "Render the Slack canvas summariser iframe for an action item. TRIGGER PHRASE (map verbatim to args \u2014 do not paraphrase): 'open the canvas summariser for action {id}' \u2192 call with {action_id: id}. For this click-time prompt, pass ONLY action_id. The tool reads the action file's `## Canvas payload` body section and lifts the canvas sections (title, TL;DR, decisions, open questions, participants), channel, thread, and follow-up message from disk. Do NOT pass drafted_canvas, channel, thread, or proposed_followup_message inline \u2014 those args are a legacy back-compat surface for out-of-band working-memory callers, and any inline value (including partial / empty objects) overrides the on-disk payload destructively, producing an empty UI. Action files that lack a `## Canvas payload` section surface the `canvas_payload_missing` structured error envelope. Returns _meta.ui.resourceUri = ui://slack-canvas.",
+  description: "Open the Slack canvas summariser for an action. Use when the user asks to summarise a thread / open the canvas summariser for an action ID, when prompted with phrases like 'summarise the thread for action {id}' / 'open the canvas summariser for action {id}' / 'create a canvas for action {id}', or when triage's Open canvas button fires this tool via host_prompt. Pass ONLY action_id; the handler reads the action file's `## Canvas payload` body section from disk and lifts the canvas sections (title, TL;DR, decisions, open questions, participants), channel, thread, and follow-up message. Action files that lack a `## Canvas payload` section surface the `canvas_payload_missing` structured error envelope. Returns _meta.ui.resourceUri = ui://slack-canvas.",
   inputSchema: {
     type: "object",
     properties: {
       action_id: {
         type: "string",
         description: "Slug of the action item (from filename, no .md suffix)."
-      },
-      drafted_canvas: {
-        type: "object",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts the canvas content from the action file's `## Canvas payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          title: { type: "string" },
-          tldr: { type: "string" },
-          decisions: { type: "array", items: { type: "string" } },
-          open_questions: { type: "array", items: { type: "string" } },
-          participants: { type: "array", items: { type: "string" } }
-        }
-      },
-      channel: {
-        type: "object",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts channel from the action file's `## Canvas payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" }
-        }
-      },
-      thread: {
-        type: "object",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases \u2014 the tool lifts thread from the action file's `## Canvas payload`. Inline override for out-of-band working-memory callers.",
-        properties: {
-          parent_ts: { type: "string" },
-          total_replies: { type: "number" },
-          participants: { type: "array", items: { type: "string" } }
-        }
-      },
-      proposed_followup_message: {
-        type: "string",
-        description: "LEGACY back-compat only. Do NOT pass for click-time trigger phrases. Inline override for out-of-band working-memory callers."
       }
     },
     required: ["action_id"]
@@ -25631,22 +25445,22 @@ async function handleCanvasView(args) {
     );
   }
   const onDisk = parsed.canvas_payload;
-  const inlineDraftedCanvas = args.drafted_canvas && typeof args.drafted_canvas === "object" ? args.drafted_canvas : null;
-  const inlineDraftedTitle = inlineDraftedCanvas ? asString3(inlineDraftedCanvas.title) : "";
-  const hasInlineDrafted = inlineDraftedTitle.length > 0;
-  if (!hasInlineDrafted && !onDisk) {
+  if (!onDisk) {
     return structuredError2(
       "canvas_payload_missing",
-      `canvas_view: action ${actionId} has no \`## Canvas payload\` body section and no inline drafted_canvas was supplied.`
+      `canvas_view: action ${actionId} has no \`## Canvas payload\` body section.`
     );
   }
-  const channel = args.channel ? parseChannelArg2(args.channel) : onDisk ? { id: onDisk.channel.id, name: onDisk.channel.name } : { id: "", name: "" };
-  const thread = args.thread ? parseThreadArg(args.thread) : onDisk ? {
+  const channel = {
+    id: onDisk.channel.id,
+    name: onDisk.channel.name
+  };
+  const thread = {
     parent_ts: onDisk.thread.parent_ts,
     total_replies: onDisk.thread.total_replies,
     participants: onDisk.thread.participants.slice(0, MAX_PARTICIPANTS2)
-  } : { parent_ts: "", total_replies: 0, participants: [] };
-  const draftedCanvas = inlineDraftedCanvas ? parseDraftedCanvas(inlineDraftedCanvas) : onDisk ? {
+  };
+  const draftedCanvas = {
     title: truncate2(onDisk.drafted_canvas.title, MAX_TITLE_CHARS),
     tldr: truncate2(onDisk.drafted_canvas.tldr, MAX_TLDR_CHARS),
     decisions: onDisk.drafted_canvas.decisions.slice(0, MAX_DECISIONS).map((d) => truncate2(d, MAX_DECISION_CHARS)),
@@ -25655,10 +25469,9 @@ async function handleCanvasView(args) {
       0,
       MAX_PARTICIPANTS2
     )
-  } : { title: "", tldr: "", decisions: [], open_questions: [], participants: [] };
-  const inlineFollowup = asString3(args.proposed_followup_message);
+  };
   const proposedFollowupMessage = truncate2(
-    inlineFollowup.length > 0 ? inlineFollowup : onDisk?.proposed_followup_message ?? "",
+    onDisk.proposed_followup_message ?? "",
     MAX_FOLLOWUP_CHARS
   );
   const payload = {

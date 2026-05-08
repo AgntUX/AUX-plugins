@@ -1,0 +1,1 @@
+For Gmail-specific entity guidance (email-as-canonical-cross-source-alias for `person`, `company` resolution from sender domains, optional `gmail_label_ids` frontmatter), see [`./resources/gmail-triage.md`](./resources/gmail-triage.md) — § "Step 6 — Gmail entity guidance".

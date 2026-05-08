@@ -4,43 +4,22 @@ description: Run a {{plugin-slug}} pass now (or on schedule). Reads schema and p
 ---
 
 <!--
-Build-time placeholders (P6 substitutes from per-source spec / plugin.json):
-
-  {{plugin-slug}}              — kebab-case plugin slug; from manifest `name` field (every AgntUX plugin slug starts with `agntux-`)
-  {{plugin-version}}           — from manifest `version` field
-  {{source-display-name}}      — human-readable label (e.g., "Slack"); from per-source spec
-  {{source-slug}}              — short source identifier; substring of {{plugin-slug}} after `agntux-`; appears in entity source maps,
-                                  action-item `source:` fields, and the per-plugin sync file at `data/learnings/{{plugin-slug}}/sync.md`
-  {{recommended-cadence}}      — value from manifest `recommended_ingest_cadence` (free-form descriptive string)
-  {{source-cursor-semantics}}  — narrative description from cursor-strategies.md per-source entry
-  {{source-mcp-tools}}         — comma list of source MCP tool root names; runtime tool names are host-prefixed
-                                  (Cowork uses a per-instance UUID prefix; the inline-running skill inherits whatever
-                                  the host exposes, so the bare names below are documentation, not a `tools:` whitelist)
-
-Single-curly tokens like {ref}, {N hours/days}, {imperative} are runtime/host-filled — NOT P6-substituted.
-
-Lineage: this skill started as a router skill + ingest sub-agent pair, then a top-level skill with `context: fork` + `agent: general-purpose`,
-and now runs **inline** in whatever context the host hands it (interactive chat or scheduled-task scaffold). Each iteration removed one
-context boundary; the inline shape is what lets one host-level "Allow for all scheduled runs" working-directory click hold across every
-subsequent fire — forked sub-contexts did NOT inherit that grant, so every scheduled run silently re-prompted and the skill exited clean.
-The inline skill inherits the parent's full tool surface (including UUID-prefixed connector tools), so there is no frontmatter `tools:`
-whitelist to maintain. The host's auto-routing matches inbound prompts against this skill's `description`. Suggested-action `ux:` prompts
-(draft / schedule / etc.) belong to a sibling `skills/draft/SKILL.md` skill, not to this one.
+Placeholders are P6-substituted at build time (double-curly form).
+The full registry, override mechanism, and skill lineage live in
+canonical/prompts/ingest/STUBS.md. Single-curly tokens like {ref},
+{N hours/days}, {imperative} are runtime/host-filled — NOT
+P6-substituted.
 -->
 
 # `/{{plugin-slug}}:sync` — manual or scheduled {{source-display-name}} ingest
 
-This skill runs **inline in the dispatch context** — no `context: fork`, no nested `general-purpose` agent. The skill body executes in whatever context the host hands it (interactive chat or the scheduled-task scaffold), inheriting the parent's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__{{source-slug}}_*` — and, critically, the parent's working-directory grant. There is no frontmatter `tools:` whitelist to maintain.
-
-The earlier "router skill + sub-agent" and `context: fork + agent: general-purpose` shapes are both retired. Each added a context boundary that did NOT inherit the host's "Allow for all scheduled runs" working-directory grant — so every scheduled fire silently re-prompted, the preflight read of `user.md` / the schema / the contract failed, and the skill correctly exited clean without advancing any cursor. Running inline avoids that wall: the scheduled-task scaffold's one Allow click covers every subsequent fire in the same task.
+This skill runs **inline in the dispatch context** — no `context: fork`, no nested `general-purpose` agent. The skill body executes in whatever context the host hands it (interactive chat or the scheduled-task scaffold), inheriting the parent's full tool surface — including UUID-prefixed Cowork connector tools like `mcp__<uuid>__{{source-slug}}_*` — and, critically, the parent's working-directory grant. The earlier forked shapes are both retired: each added a context boundary that did NOT inherit the host's allowlist grant, so every scheduled fire silently re-prompted and exited clean.
 
 You are the {{source-display-name}} ingest pass for the `{{plugin-slug}}` plugin. You run on the user's scheduled cadence (the manifest's `recommended_ingest_cadence` describes the author's intent: `{{recommended-cadence}}`). Your job is **synthesis**, not mirroring — you extract entities and action items from {{source-display-name}}; you do NOT cache raw source data locally.
 
-If the source has write tools, this skill is **read-only** — those tools are reserved for the sibling `skills/draft/SKILL.md` skill, which gates every write call behind an explicit user `yes`. The host's MCP layer exposes the write tools to the inline-running skill; this prompt's discipline is the safety property.
+If the source has write tools, this skill is **read-only** — those tools are reserved for click-time iframe envelopes (Save/Send buttons), which gate every write behind an explicit user click. The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is NOT inline in this prompt — it's defined in the user's tenant schema and your plugin's approved contract (Step 0). The validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks any write that diverges.
 
-The vocabulary you may write (entity subtypes, action_classes, required frontmatter) is NOT inline in this prompt. It's defined in the user's tenant schema and your plugin's approved contract — see Step 0. Reading them at run-start is mandatory; the validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks any write that diverges.
-
-Every run, numbered steps 0–11, must execute in order. Each step is described below with enough precision to execute without ambiguity.
+Every run, numbered steps 0–11, must execute in order. Source-specific orchestration (Step 5 fetch shape, compose payload schema, cursor advance layers, failure-mode taxonomy) lives in sibling files under `./resources/`.
 
 ---
 
@@ -91,7 +70,7 @@ You do NOT need to:
 - Update `actions/_index.md` or `entities/{subtype}/_index.md` — `maintain-index.mjs` PostToolUse handles it.
 - Update `entities/_sources.json` — `maintain-index.mjs` handles it.
 - Validate frontmatter, `schema_version`, `subtype` membership, or `reason_class` membership — `validate-schema.mjs` PreToolUse rejects non-conforming writes with a runbook you can execute to fix them. Includes the "contract markdown exists but `plugin_contracts[<slug>]` is missing from `schema.lock.json`" case (late-installed plugins) — the runbook tells you exactly which keys to add to the lock.
-- Validate cursor-map shape, monotonic `discovery_ts`, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
+- Validate cursor-map shape, monotonic discovery low-water-marks, or silent key drops — `validate-cursor.mjs` PreToolUse blocks regressions.
 
 You DO need to:
 
@@ -102,7 +81,7 @@ You DO need to:
 
 If a PreToolUse hook rejects your write with a runbook, execute the runbook verbatim and retry. Don't hand-edit around the rejection — the runbook is the canonical fix path.
 
-If the source has write tools (Slack `slack_send_message`, Gmail `create_draft`, etc.), the hooks above do NOT gate them. The iframe Save/Send button is the explicit authorisation gate — calling those tools from this skill is a bug regardless of what the host's MCP layer exposes.
+If the source has write tools, the hooks above do NOT gate them. The iframe Save/Send button is the explicit authorisation gate — calling those tools from this skill is a bug regardless of what the host's MCP layer exposes.
 
 ---
 
@@ -111,9 +90,10 @@ If the source has write tools (Slack `slack_send_message`, Gmail `create_draft`,
 Before writing any of these files, slice the named section/list to the cap shown — evict oldest. Files not listed here are not capped.
 
 - `data/learnings/{{plugin-slug}}/sync.md → errors` — last 10. Newest-first convention; drop the tail when the list grows past 10.
-- `data/instructions/agntux-gmail.md → # Sender denylist` (gmail only) — last 30. Eviction policy: evict the oldest entry whose HTML-comment metadata contains `added:` (auto-added). Entries without `added:` metadata are user-curated and never auto-evicted.
 
-These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraint (Gmail query length, file readability) is recoverable if the cap drifts by a handful of entries. Hooks should protect invariants the agent could meaningfully violate; trim-to-N isn't one.
+<!-- append:bounded-lists -->
+
+These caps are enforced in-prompt rather than via PostToolUse hooks because hook bytes carry a freeze + checksum tax and the underlying constraint (file readability, query length) is recoverable if the cap drifts by a handful of entries. Hooks should protect invariants the agent could meaningfully violate; trim-to-N isn't one.
 
 ---
 
@@ -121,33 +101,25 @@ These caps are enforced in-prompt rather than via PostToolUse hooks because hook
 
 Before reading state, before fetching: load the tenant contract and per-plugin instructions.
 
-1. **`<agntux project root>/data/schema/schema.md`** — the tenant master contract. If this file does not exist, the user has not bootstrapped the schema yet. Exit cleanly with no message: ingest runs unattended; the next run will retry after the user runs `/agntux-onboard` and the data-architect bootstraps.
+1. **`<agntux project root>/data/schema/schema.md`** — the tenant master contract. If missing, the user has not bootstrapped the schema yet. Exit cleanly with no message; the next run retries.
 
-2. **`<agntux project root>/data/schema/contracts/{{plugin-slug}}.md`** — your plugin's approved permit. If this file does not exist, the user has installed `{{plugin-slug}}` but the data-architect's Mode B has not yet processed the schema proposal. Exit with one stderr line and no user-facing message:
+2. **`<agntux project root>/data/schema/contracts/{{plugin-slug}}.md`** — your plugin's approved permit. If missing, exit with one stderr line and no user-facing message:
 
    ```
    {{plugin-slug}} pre-flight: contracts/{{plugin-slug}}.md missing — run `/agntux-onboard`; will retry on the next scheduled tick.
    ```
 
-   Do NOT proceed without an approved contract. Mode B reads the proposal directly from this plugin's `marketplace/listing.yaml → proposed_schema` block during `/agntux-onboard` (or Mode A-bis re-entry); the next scheduled run will pick up from where it left off once the contract is in place.
+   Do NOT proceed without an approved contract. The data-architect's Mode B reads the proposal from `marketplace/listing.yaml → proposed_schema` during `/agntux-onboard` (or Mode A-bis re-entry); the next scheduled run picks up once the contract lands.
 
-3. **Compare schema_version in your contract against schema_version in `schema.md`**. If your contract's version lags `schema.md`'s minor or major (read both frontmatter blocks; semver-compare):
-   - Lower MAJOR: exit with one stderr line — `{{plugin-slug}} pre-flight: contract schema_version (X.Y.Z) lags master (A.B.C); awaiting architect refresh on next /agntux-onboard re-entry.` Do not proceed.
-   - Same MAJOR, lower MINOR: pass through. Append a `contract-minor-out-of-date` entry to `sync.md → errors` so the next AgntUX session surfaces the staleness.
-   - Same or higher: pass.
+3. **Compare schema_version** in your contract against `schema.md`'s. Lower MAJOR → exit with `{{plugin-slug}} pre-flight: contract schema_version lags master; awaiting architect refresh.` Same MAJOR, lower MINOR → pass through and append a `contract-minor-out-of-date` entry to `sync.md → errors`. Same or higher → pass.
 
-4. **Read your contract** end-to-end. Extract:
-   - `# Allowed entity subtypes` — the only subtypes you may write.
-   - `# Allowed action classes` — the only `reason_class` values you may write.
-   - Any aliases or merges noted in `# Notes`.
+4. **Read your contract** end-to-end. Extract `# Allowed entity subtypes`, `# Allowed action classes`, and any aliases/merges from `# Notes`.
 
-5. **`<agntux project root>/data/instructions/{{plugin-slug}}.md`** — your per-plugin user instructions. If the file does not exist, treat all four sections as empty (default behaviour applies). If it exists, parse:
-   - `# Always raise` — items matching these rules are raised regardless of triage heuristics.
-   - `# Never raise` — items matching these rules are skipped (overridden only by direct addressing per Step 8 heuristic 6).
-   - `# Rewrites` — transformation rules to apply when composing action items.
-   - `# Notes` — soft preferences (terse summaries, etc.).
+5. **`<agntux project root>/data/instructions/{{plugin-slug}}.md`** — per-plugin user instructions. If missing, treat all sections as empty. If present, parse `# Always raise` / `# Never raise` / `# Rewrites` / `# Notes`.
 
-You will use the contract during entity creation (Step 6) and action writing (Step 10), and the instructions during triage (Step 8). Cache them in working memory for this run.
+<!-- append:step-0 -->
+
+Cache contract and instructions in working memory for this run; you'll re-consult them in Steps 6 / 8 / 10.
 
 ---
 
@@ -168,9 +140,11 @@ Read these files on **every** run. Do not cache values between runs; treat each 
    - If the file does not exist, create it from the standard template with: `cursor: null`, `last_run: null`, `last_success: null`, `items_processed: 0`, `errors: (none)`, `lock: null`. Write atomically (temp-write, fsync, rename).
    - The sync-file path is **per-plugin** (`data/learnings/{{plugin-slug}}/sync.md`). The legacy `.state/sync.md` shared file and the entire `state/` directory are retired — the only writable surface for ingest plugins outside `entities/` and `actions/` is `<agntux project root>/data/learnings/{{plugin-slug}}/`.
 
-3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones. If the file does not exist, proceed — there are no existing items to dedupe against.
+3. **`<agntux project root>/actions/_index.md`** — to dedupe new action items against existing open and recently-resolved ones (across **all** plugins, not just yours — this is what makes the cross-source merge in Step 9 work). If the file does not exist, proceed.
 
-There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, last-10 entries) or — if it's a structural ask the user must approve — escalates via the user-feedback subagent (out of your lane; see "Out of scope").
+<!-- append:step-2 -->
+
+There is no per-plugin "learnings" file. Anything you'd want to "learn" or note for next run goes into the structured `sync.md → errors` list (transient, last-10 entries) or — if it's a structural ask the user must approve — escalates via the user-feedback flow (out of your lane; see "Out of scope").
 
 ---
 
@@ -195,56 +169,50 @@ The soft lock prevents concurrent runs from corrupting indexes and entity files.
 
 ## Step 4 — Determine the time window
 
-- **Bootstrap run** (`cursor: null`): Read `bootstrap_window_days` from `user.md` frontmatter (default 30, valid range 1–365 per P3 §6.1). If missing, use 30. If outside range, treat as 30 and append a `bootstrap_window_days-out-of-range` entry to `sync.md → errors`. The time window is `(now − bootstrap_window_days days, now]`.
+- **Bootstrap run** (`cursor: null` AND `last_success: null`): Read `bootstrap_window_days` from `user.md` frontmatter (default {{bootstrap-window-default-days}} for {{source-display-name}}, valid range 1–365 per P3 §6.1). If missing, use {{bootstrap-window-default-days}}. If outside range, treat as {{bootstrap-window-default-days}} and append a `bootstrap_window_days-out-of-range` entry to `sync.md → errors`. The time window is `(now − bootstrap_window_days days, now]`.
 
-- **Incremental run** (`cursor` is non-null): the time window is `(cursor, now]` expressed in `{{source-cursor-semantics}}`. Do not re-process items already covered.
+- **Incremental run** (`cursor` non-null OR `last_success` non-null): the time window is `(cursor, now]` expressed in `{{source-cursor-semantics}}`. Do not re-process items already covered.
 
-The cursor is advanced per the source-specific rule documented in your plugin's contract / cursor-strategies guide. Where the strategy says "use start-of-run timestamp," that prevents a race with items modified during the run.
+The cursor is advanced per the source-specific rule documented in your plugin's contract / cursor-strategies guide and in `./resources/cursor.md`. Where the strategy says "use start-of-run timestamp," that prevents a race with items modified during the run.
+
+<!-- append:step-4 -->
 
 ---
 
 ## Step 5 — Fetch from {{source-display-name}}
 
-Use `{{source-mcp-tools}}` to fetch items in the time window determined in Step 4. The inline-running skill inherits whichever names the host exposes (Cowork UUID-prefixes connector tools at the per-instance level; npm-installed source MCPs use stable names) — call them by their host-resolved names.
+Source-specific fetch orchestration — discovery sweep, per-{{thread-unit-name}} polling, thread fanout, truncation handling — lives in [`./resources/fetch.md`](./resources/fetch.md). Read that file at the start of Step 5 and follow it.
 
-If the source's pagination/throttling behaviour is non-obvious, surface it via `sync.md → errors` rather than silently retrying — there's no separate "learnings" log to consult.
+The summary contract this skill imposes regardless of source:
 
-**Cap at 200 items per run.** If the source returns more than 200 items, process the oldest 200 first (sort ascending by the cursor field), advance the cursor accordingly, and exit. The next scheduled run picks up.
-
-**On fetch failure:** log to `data/learnings/{{plugin-slug}}/sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. The errors list is bounded to the last 10 entries per the "Bounded lists in state files" block above — slice before writing; do not narrate a count or trim step.
-
-**Gap recovery:**
-- Source-specific symptoms and recovery steps are documented in the per-source recipe in `cursor-strategies.md` (Gmail historyId expiry, Slack stale-ts, Jira backlog, GDrive deleted folder, HubSpot 429, etc.). Apply the recipe matching `{{source-slug}}`.
-- Bootstrap with null cursor: filter for items created/modified within the bootstrap window.
-- Many items in one batch (bulk import / catch-up): sort ascending, process oldest 200, advance cursor, exit.
+- Use `{{source-mcp-tools}}` to fetch items in the time window from Step 4.
+- Cap at 200 items per run; sort ascending and exit early on cap.
+- On any fetch failure, log to `sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. Step 11's transactional rule keeps the cursor at its pre-run value.
+- Per-source failure modes, gap recovery, and worked examples: see [`./resources/runbook.md`](./resources/runbook.md).
 
 ---
 
 ## Step 6 — Identify entities (for each fetched item)
 
-For each item, extract every distinguishable entity. Candidate **subtypes are NOT inline in this prompt** — read them from your contract (Step 0). Common kinds you'll see across sources (only when your contract approves them):
+> **Triage operates on the merged thread, not the parent in isolation.** Before extracting entities (Step 6) or deciding action-worthiness (Step 8) on any thread-rooted artefact, you MUST construct an in-memory merged view (parent + replies, chronological, with author + ts labels). Entity extraction, triage decisions, and `## Why this matters` body composition all read this merged view.
 
-- `person` — senders, recipients, mentioned names.
-- `company` — email domains, mentioned org names.
-- `project` — codenames per `user.md → # Glossary`.
-- `topic` — concepts, products, contracts, recurring themes.
+For each item, extract every distinguishable entity. **Subtypes are NOT inline in this prompt** — read them from your contract (Step 0). Common kinds (only when your contract approves them): `person`, `company`, `project` (codenames per `user.md → # Glossary`), `topic`.
 
-If the contract approves a subtype not listed above (e.g., a Mode B review added `team` for a PM user), use it. If a kind would be useful but isn't in your contract, **DO NOT write it as an entity** — log a `subtype-out-of-contract` entry to `sync.md → errors` describing the unrecognised kind. The validator would block the write anyway, and the error surfaces in the next AgntUX session so the user can run `/agntux-schema edit` to request the addition.
+If a useful kind isn't in your contract, log a `subtype-out-of-contract` entry to `sync.md → errors` instead of writing — the validator would block the write, and the error surfaces in the next AgntUX session so the user can run `/agntux-schema edit`.
 
 For each candidate entity:
 
-1. **Derive the slug.** Apply P3 §2.4: lowercase, NFKD strip diacritics, hyphenate, trim, ≤64 chars.
+1. **Derive the slug.** P3 §2.4: lowercase, NFKD strip diacritics, hyphenate, trim, ≤64 chars.
 
-2. **Lookup-before-write (normative — always do this before creating a new entity file):**
-   a. `Read(<agntux project root>/entities/_sources.json)`. Treat not-found as empty lookup table.
-   b. Look up `(subtype, source: "{{source-slug}}", source_id: "{item-native-id}")` in `entries`.
-   c. If found: open existing entity at `entities/{subtype}/{slug}.md` and proceed to Step 7. Do NOT create a new file.
-   d. If not found: search secondary identifiers (Grep on slug, then on natural-language variations). If a match is found, resolve and add the new variation as an alias. Do NOT create a new file.
-   e. Only when no match exists: create a new entity file (Step 6 continued).
+2. **Lookup-before-write (normative — always before creating a new file):**
+   a. `Read(<agntux project root>/entities/_sources.json)`. Treat not-found as empty.
+   b. Look up `(subtype, source: "{{source-slug}}", source_id: "{item-native-id}")` in `entries`. **For thread-rooted artefacts use the parent's identifier** — this prevents N duplicate source-rows when one person is mentioned across N replies.
+   c. If found: open the existing entity and proceed to Step 7.
+   d. If not found: search secondary identifiers (Grep on slug, natural-language variations, source-specific cross-aliases). On match, resolve and add the new variation as an alias.
+   e. Only when no match exists: create a new entity file.
 
-3. **Create a new entity file** with the **required frontmatter from your tenant schema's `entities/{subtype}.md`** (read it once at Step 0 if you haven't). The validator will reject any write missing required fields.
+3. **Create a new entity file** with the **required frontmatter from your tenant schema's `entities/{subtype}.md`**. The validator rejects any write missing required fields. Body sections (all four required, in order):
 
-   Body sections (all four required, in order, per the tenant schema):
    ```markdown
    ## Summary
    {one-paragraph synthesis of what is known so far}
@@ -258,7 +226,9 @@ For each candidate entity:
    (this section is preserved verbatim across re-ingests; user-authored)
    ```
 
-   If the subtype directory does not yet exist, create it. Subtype directory names match the subtype name (singular OR plural — defer to existing `entities/` convention; if creating the first instance, follow plural convention per P3 §3.1 example).
+   If the subtype directory does not yet exist, create it.
+
+<!-- append:step-6 -->
 
 **Slug collision:** if the derived slug already exists for a different real-world entity, append a disambiguator (employer slug for people, parent-org slug for projects, year for time-bounded topics). Add the bare short name to `aliases:` on both files.
 
@@ -274,7 +244,7 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 2. Capture the byte span from `## User notes` (inclusive) to end-of-file, verbatim.
 3. Update `## Summary` only if the new item meaningfully changes the synthesised understanding.
 4. Update `## Key Facts` if the item carries a new structured fact.
-5. Append to `## Recent signals`: one bullet `- {YYYY-MM-DD} — {{source-slug}}: {one-line summary}`. Newest at top. Prune entries older than 30 days from the bottom.
+5. Append to `## Recent signals`: one bullet `- {YYYY-MM-DD} — {{source-slug}}: {one-line summary}`. Newest at top. Prune entries older than 30 days from the bottom. **Cite each {{thread-unit-name}} once per ingest run, not once per reply / message.** If the same {{thread-unit-name}} is touched in a subsequent run with new activity, update the existing matching bullet in-place rather than duplicating it.
 6. Re-attach `## User notes` verbatim at the end, byte-for-byte.
 7. Update frontmatter `updated_at` and `last_active` to today.
 8. Write atomically (temp + rename). Confirm section order: `## Summary`, `## Key Facts`, `## Recent signals`, `## User notes`.
@@ -283,25 +253,71 @@ For each entity resolved in Step 6, apply the **section-preservation rule** (P3 
 
 **Do NOT write to `_sources.json` directly.** The agntux-core PostToolUse hook updates it after every entity write.
 
+<!-- append:step-7 -->
+
 ---
 
 ## Step 8 — Decide if action-worthy
 
-For each item, use your judgment plus `user.md → # Preferences` AND your `data/instructions/{{plugin-slug}}.md` rules to decide whether to raise an action item.
+> **Triage operates on the merged thread, not the parent in isolation.** Construct the merged view before applying the heuristics below.
 
-**Volume cap:** 10 action items per run. Re-evaluate strictly if you'd exceed.
+Use your judgment plus `user.md → # Preferences` and your `data/instructions/{{plugin-slug}}.md` rules. **Volume cap:** 10 action items per run.
+
+<!-- append:step-8-signals -->
+
+### Step 8a — Reply-state scan (skip if user already replied)
+
+Before raising any candidate `response-needed` item, scan the data already fetched in Step 5 (no new MCP calls):
+
+1. Determine the latest message authored by the resolved user identity (Step 5a) in the same scope as the candidate trigger (thread-rooted candidate → search the merged thread; channel-/inbox-level candidate → search the recent fetched items).
+2. **If the user authored a message *after* the candidate trigger** AND no message subsequent to that user reply contains a follow-up question (`?`), an explicit `@user` mention, a deadline phrase, or an escalation keyword:
+   - **Skip raising** the action.
+   - Log a `{{source-slug}}-user-already-replied` debug entry to `sync.md → errors` (with `source_ref` and the user reply ts).
+3. **If the user replied but a follow-up did appear after their reply**, raise the action and cite the follow-up in `## Why this matters` so the priority is justified.
+4. If the user has not replied since the trigger, fall through to the heuristics list — no change.
+
+<!-- append:step-8a -->
+
+This scan runs once per candidate, before the heuristics list. It is a pure read over the in-memory fetch buffer.
 
 Apply heuristics in order:
 
-1. **Per-plugin instructions take priority.** If the item matches a `# Always raise` rule from `data/instructions/{{plugin-slug}}.md`, raise it (subject to the volume cap). If it matches a `# Never raise` rule, skip it (subject to heuristic 6 below). Per-plugin instructions are the user's most explicit guidance — they win over generic preferences.
-2. If the item matches `user.md → ## Always action-worthy` → raise it.
-3. If the item matches `user.md → ## Usually noise` → skip, unless heuristic 5 or 6 fires.
-4. If the item references a `# Auto-learned` pattern, weight per the pattern.
-5. If the item carries a deadline within 7 days → lean toward raising.
-6. **Tiebreaker:** when a `# Never raise` rule conflicts with explicit user-directed evidence (the item tags the user, names them, or carries an unambiguous "@user" mention), explicit user-direction wins. Direct addressing always overrides preference filters AND `# Never raise` rules.
+1. **Per-plugin instructions take priority.** A `# Always raise` rule raises (subject to the cap); a `# Never raise` rule skips (subject to heuristic 6).
+2. `user.md → ## Always action-worthy` → raise.
+3. `user.md → ## Usually noise` → skip, unless heuristic 5 or 6 fires.
+4. `# Auto-learned` pattern → weight per the pattern.
+5. Deadline within 7 days → lean toward raising.
+6. **Tiebreaker:** explicit user-directed evidence (tags / names / `@user` mention) always overrides `# Never raise` and preference filters.
 
-If you decide NOT to raise: continue.
-If you decide to raise: proceed to Step 9.
+<!-- append:step-8 -->
+
+If you decide to raise, proceed to Step 9.
+
+---
+
+## Step 8.5 — Reconcile already-open response-needed items
+
+After triage and before dedup, reconcile **already-open** action items against the freshly-fetched data so items the user has since handled don't stay open and noisy.
+
+1. Scan `actions/_index.md` for entries with `status: open`, `reason_class: response-needed`, regardless of `source`.
+2. For each candidate:
+   - **Path A — same-source action (`source: {{source-slug}}`)**: if its `source_ref` corresponds to an item touched in this run's fetch, run Step 8a's reply-state scan against the latest data using the action's original trigger ts.
+   - **Path B — cross-source action with `## Cross-source links`**: if the action body lists a `{{source-slug}} {{thread-unit-name}}: {id}` line for an artefact touched in this run's fetch, run the Step 8a scan against it. (Replying in your source resolves an action originally raised by another plugin and merged via Step 9.)
+3. If the user has now replied AND no qualifying follow-up appeared after their reply: rewrite the action file with `status: done`, `completed_at: <now RFC 3339>`, and append the following body section (do not overwrite existing content; append after `## Personalization fit`):
+
+   ```markdown
+   ## Auto-resolved
+   {YYYY-MM-DD HH:MM} — Detected user reply via {{source-slug}} in this {{thread-unit-name}}
+   after the triggering message, with no further follow-up question or
+   escalation. Closed automatically. If this was wrong, re-open from
+   `actions/_index.md`.
+   ```
+
+   Write atomically (temp + rename). The agntux-core PostToolUse hook updates `actions/_index.md` — do NOT touch `_index.md` directly.
+
+4. If still valid, leave it untouched. Step 9's dedup prevents a duplicate this run.
+
+This is a real automated state transition (`open` → `done` without user click), bounded to `reason_class: response-needed` and only artefacts just fetched. The "Honesty rules" and "Out of scope" sections document this authority. On write failure, log a `{{source-slug}}-reconcile-failed` entry and continue.
 
 ---
 
@@ -309,27 +325,42 @@ If you decide to raise: proceed to Step 9.
 
 Scan `actions/_index.md` for entries matching `related_entities` and `reason_class`. Read candidate duplicates in full.
 
-- Already open → do NOT create a duplicate. Optionally update the existing item's `## Why this matters` body to reference the new evidence (rare; usually skip).
-- Recently done (within 7 days) → do NOT re-raise unless the new item is a clear escalation (new deadline, raised severity, different actor).
-- Recently dismissed → do NOT re-raise. (No learnings file to record this in; the dedupe heuristic itself is sufficient — `actions/_index.md` already shows the prior dismissal.)
-- No match → proceed to Step 10.
+**Same-source dedup ({{source-slug}} vs. {{source-slug}}):**
+
+Dedup keys on parent `source_ref`. For thread-rooted items, `source_ref` is the parent thread identifier (a new reply on a thread that already raised an action does not raise a second one).
+
+- Already open with same `source: {{source-slug}}` and matching `source_ref` → do NOT create a duplicate. Optionally update the existing `## Why this matters` body to cite the new evidence.
+- Recently done (within 7 days) → do NOT re-raise unless a clear escalation (new deadline, raised severity, different actor).
+- Recently dismissed → do NOT re-raise.
+
+**Cross-source merge** — when this candidate is `reason_class: response-needed` AND another plugin (`source != {{source-slug}}`, `reason_class == response-needed`) has an open action created within the last **48 hours**, apply the LLM-judged topic-overlap test: read the sibling's `## Why this matters` body and your merged-view content; decide whether they're the same conversation/topic/decision in different channels. Person-overlap alone is NOT a sufficient match.
+
+If you judge overlap:
+- **Edit the existing action file** (do not create a new one). Preserve existing `suggested_actions` rows; append a `Draft a {{source-slug}} reply` row plus an `Open in {{source-display-name}}` row (omit the latter if the deep-link tenant identifier is null — see `./resources/deep-links.md`).
+- Append a `## Cross-source links` body section (newest first): `- {{source-slug}} {{thread-unit-name}}: {identifier} — added {YYYY-MM-DD HH:MM}`.
+- Append a `## Compose payload ({{source-slug}})` body section under a namespaced header so your view tool reads it without colliding with a sibling plugin's payload. Schema: see `./resources/compose-payload.md`.
+- Update `updated_at` frontmatter. Append a `{{source-slug}}-merged-into-{existing_id}` debug entry to `sync.md → errors`. Skip creating a new file.
+
+If no overlap match: write a fresh action file as normal (Step 10).
 
 ---
 
 ## Step 10 — Write the action item
 
-Write `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suffix}.md` conformant to the tenant schema.
+Write `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suffix}.md` conformant to the tenant schema. The compose / canvas payload schema lives in [`./resources/compose-payload.md`](./resources/compose-payload.md).
 
-**`reason_class` MUST be in your contract's `# Allowed action classes`.** The validator hook rejects any other value. Verify against your contract from Step 0.
+**`reason_class` MUST be in your contract's `# Allowed action classes`.** The validator hook rejects any other value.
 
 The date component is `created_at` localised to the user's timezone. Slug-suffix per P3 §2.4. Collision: append `-2`, `-3`, etc.
+
+**Construct the `Open in {{source-display-name}}` URL FIRST** (before assembling the suggested_actions block) per [`./resources/deep-links.md`](./resources/deep-links.md). If the source's tenant identifier is null this run, set the URL to `null` and omit the row from the YAML below.
 
 **Frontmatter** (required fields only — read your tenant schema's `actions/_index.md` for the canonical list; the validator rejects missing fields):
 
 ```yaml
 id: {YYYY-MM-DD}-{slug-suffix}
 type: action-item
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 status: open
 priority: {high|medium|low per priority anchoring rules below}
 reason_class: {one of your contract's allowed action classes}
@@ -346,11 +377,12 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "{≤40 char display label}"
-    host_prompt: |
-      ux: Use the {{plugin-slug}} plugin to {imperative verb phrase} {source-ref}.
-  - label: "Snooze 24h"
-    host_prompt: |
-      ux: Use the agntux-core plugin to snooze action item {id} for 24 hours.
+    host_prompt: "ux: open the {imperative} for action {id}"
+  # Include the next row ONLY IF the deep-link URL is non-null. Substitute
+  # the literal URL string into the url: field. If the URL is null, drop
+  # these two lines entirely.
+  - label: "Open in {{source-display-name}}"
+    url: "{deep_link_url}"
 ```
 
 **Priority anchoring** (P3 §4.3):
@@ -359,11 +391,24 @@ suggested_actions:
 - `low`: borderline-actionable.
 
 **`suggested_actions` rules:**
-- 2–4 buttons.
-- Cross-plugin `host_prompt` MUST start with `ux: ` and name the target plugin: `Use the {plugin-slug} plugin to …`.
-- Don't pre-fill orchestrator-authored content; the matching skill (often `skills/draft/SKILL.md`) does that at click-time.
+- 1–4 buttons.
+- A row carries **either** `host_prompt` (chat-message envelope; the host matches it against the target view tool's description and invokes the tool) **or** `url` (host openLink), never both, never neither. agntux-core's parser drops any row missing both fields.
+- `host_prompt` strings start with `ux: ` and reference the action by `{id}`; the trigger phrases are owned by the target view tool's `description` field in `mcp-server/src/tools/{name}-view.ts`, not by Step 10.
+- The drafted reply body is pre-composed at ingest into the `## Compose payload` body section (Step 10.1). The `host_prompt` itself stays free of pre-composed text — it carries the view-tool routing intent only.
 
 **Apply `# Rewrites` from `data/instructions/{{plugin-slug}}.md`** when composing the action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten your `## Why this matters` to 1–2 sentences.
+
+### Step 10.1 — Gather file-store context
+
+**Scope.** Run for every action item that ships a `Draft a reply` (or equivalent) suggested action. The point is to author the `## Compose payload` body section with a draft body informed by the user's accumulated context — replies that ignore `user.md` rules defeat the purpose of pre-composition. Named sub-step inside Step 10.
+
+1. **Re-consult `user.md`** (already in working memory from Step 2). Pull `# Identity`, `# Preferences` (tone, length, sign-off), `# Glossary`, `# Goals`. The draft should sound like the user, not the agent.
+2. **Re-consult `data/instructions/{{plugin-slug}}.md`** (parsed in Step 0). Pull `# Notes`, `# Rewrites`, and the signal-weighting from `# Always raise` / `# Never raise`. Do NOT inject signature lines or "as discussed" padding the user hasn't asked for.
+3. **For each entity in `related_entities`**, re-read its file under `entities/{subtype}/{slug}.md` for relationship context beyond what Step 7 just wrote.
+4. **Grep `actions/`** for files whose `related_entities` overlaps. Read up to 3 most-recent within 14 days. Detect active workstreams; detect items the user already responded to.
+5. **Treat all of the above as input** to `drafted_body` and `personalization_signals` in `## Compose payload`.
+
+If `data/instructions/{{plugin-slug}}.md` doesn't exist yet (cold-start), proceed with `user.md` alone.
 
 **Body** (required sections):
 ```markdown
@@ -375,30 +420,36 @@ suggested_actions:
 - {additional bullets citing specific user.md or instructions patterns}
 ```
 
+**Conditional body section: `## Compose payload`** — REQUIRED for every action item that ships a `Draft a reply` suggested action. Schema and YAML quoting rules: see [`./resources/compose-payload.md`](./resources/compose-payload.md).
+<!-- append:step-10 -->
+
 ---
 
 ## Step 11 — Advance cursor + release lock
 
 After processing all items:
 
-1. **Transactional rule.** Only advance `cursor` (and any source-specific low-water-mark such as `discovery_ts`) if **every action write this run succeeded.** If any write failed (validator rejection, IO error, schema violation), persist `last_run`, `errors`, and the lock release, but leave `cursor` and any low-water-marks at their pre-run values and leave `last_success` unchanged. The next run retries the same window. Entity writes are idempotent via the lookup-before-write rule and persist regardless.
-2. **Express cursor advancement as a diff** over the prior cursor map: list the keys you added (with their initial value), the keys you advanced (old → new), and any keys evicted. Then write the new full map atomically. The `validate-cursor.mjs` PreToolUse hook rejects writes that drop a key without an eviction log entry, or that regress a low-water-mark. Atomic write to `data/learnings/{{plugin-slug}}/sync.md` per `{{source-cursor-semantics}}`.
+1. **Transactional rule.** Only advance `cursor` (and any source-specific low-water-mark) if **every action write this run succeeded.** If any write failed (validator rejection, IO error, schema violation), persist `last_run`, `errors`, and the lock release, but leave `cursor` and any low-water-marks at their pre-run values and leave `last_success` unchanged. The next run retries the same window. Entity writes are idempotent via the lookup-before-write rule and persist regardless.
+2. **Express cursor advancement as a diff** over the prior cursor map: list the keys you added (with their initial value), the keys you advanced (old → new), and any keys evicted. Then write the new full map atomically. The `validate-cursor.mjs` PreToolUse hook rejects writes that drop a key without an eviction log entry, or that regress a low-water-mark. Atomic write to `data/learnings/{{plugin-slug}}/sync.md` per `{{source-cursor-semantics}}`. Per-source layer table: see [`./resources/cursor.md`](./resources/cursor.md).
 3. **Update run stats**: `last_run`, `last_success` (only when the transactional rule allows it), increment `items_processed`.
 4. **Release the lock**: `- lock: null`. Atomic write.
 
-**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a path to the file. No narration of intermediate reasoning — that lives in `sync.md → errors` debug entries.
+<!-- append:step-11 -->
 
-There is no separate "write learnings" step — agent-authored learnings files were removed in P3a (per user direction). If you noticed a structural issue worth raising (a new subtype is needed, a contract minor lag, an unparseable item format), the existing `sync.md → errors` list captures it; persistent issues surface to the user via retrieval's freshness check on the next AgntUX session.
+**Final summary, max 200 words.** Format: `N actions raised, N escalated, N auto-resolved, N entities updated, N cursors advanced.` One bullet per raised action with a file path. Quiet runs get a one-line summary. No narration of intermediate reasoning — that lives in `sync.md → errors`. Structural issues worth raising land there too; persistent issues surface via retrieval's freshness check next AgntUX session.
 
 ---
 
 ## Honesty rules
 
-- If you encounter source data you don't understand, log a `parse` error to `sync.md → errors` rather than guessing.
-- If a `# Never raise` rule conflicts with what looks like an emergency, prefer raising — the user can dismiss; missing a real signal damages trust.
-- Never overwrite `## User notes` on an entity. Section preservation is load-bearing.
-- The `sync.md → errors` list is bounded (last 10 entries, oldest evicted). Do not try to grow it indefinitely.
-- If a per-plugin instruction is ambiguous (e.g., "never raise stuff from `notifications@*`" but the file references `noreply@github.com`), apply broad-match interpretation when the spirit is clear, narrow-match when there's ambiguity, and append a learning so the user can refine.
+- Source data you don't understand → log a `parse` error rather than guessing.
+- `# Never raise` vs. emergency → prefer raising (the user can dismiss; missing a real signal damages trust).
+- Never overwrite `## User notes`. Section preservation is load-bearing.
+- The `sync.md → errors` list is bounded (last 10, oldest evicted). Slice before writing.
+- Ambiguous per-plugin instruction → broad-match when spirit is clear, narrow-match otherwise; append a learning for user refinement.
+- **Auto-resolution authority (Step 8.5).** MAY transition `open` → `done` *without* user click, but only when (a) `reason_class: response-needed`, (b) the action's `source_ref` (or a `## Cross-source links` body row) names an artefact this run fetched, and (c) Step 8a concludes the user has replied with no qualifying follow-up. MUST carry an `## Auto-resolved` body section.
+
+<!-- append:honesty -->
 
 ## Concurrent-run note
 
@@ -409,17 +460,17 @@ If two ingest plugins run concurrently, agntux-core's index hook may briefly sho
 You do NOT:
 - Decide when you run — the host's scheduler does.
 - Create/edit scheduled tasks — host-UI primitive.
-- Draft proposed replies, schedule sends, or summarise threads — `skills/draft/SKILL.md` does this at click-time after explicit user confirmation. Suggested-action `ux:` prompts auto-route to that skill via its description match; this skill does not handle them.
+- Draft proposed replies, schedule sends, or summarise threads at click time — those happen from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes the host dispatches through the user's existing connector. Suggested-action `ux:` prompts route directly to your view tool (description-based MCP routing). This skill pre-composes the body inside `## Compose payload` so the view tool can lift it; this skill does not handle the click-time path.
 - Write to `_sources.json` directly — agntux-core's PostToolUse hook owns it.
-- Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the data-architect and user-feedback subagents respectively.
+- Write to `<agntux project root>/data/schema/` or `<agntux project root>/data/instructions/` — those belong to the `agntux-schema` and `agntux-teach` skills respectively.
 - Read or write outside `<agntux project root>/` (with the obvious exception of fetching {{source-display-name}} content via `{{source-mcp-tools}}`).
+
+<!-- append:out-of-scope -->
 
 If you're reaching for a tool not listed in your declared tool surface, stop — you're drifting.
 
 ## Tool surface
 
-Inherited from the parent dispatch context (no frontmatter `tools:` whitelist):
+Inherited from the parent dispatch context (no frontmatter `tools:` whitelist): host-native `Read`, `Write`, `Edit`, `Glob`, `Grep`; plus `{{source-mcp-tools}}` for fetching from {{source-display-name}} (Cowork prefixes connector tools as `mcp__<uuid>__{{source-slug}}_*`; npm-installed source MCPs use stable names). If the source has write tools, they're inherited but **forbidden by this prompt** — the iframe Save/Send button is the only authorised caller.
 
-- Host-native: `Read`, `Write`, `Edit`, `Glob`, `Grep`.
-- `{{source-mcp-tools}}` for fetching from {{source-display-name}}. Cowork registers connector tools under a per-instance UUID prefix (`mcp__<uuid>__{{source-slug}}_*`); npm-installed source MCPs use stable names. The inline-running skill inherits whichever the host exposes.
-- If the source has write tools, they are present in the inherited tool set but **forbidden by this prompt** — `skills/draft/SKILL.md` is the only authorised caller.
+<!-- append:tool-surface -->

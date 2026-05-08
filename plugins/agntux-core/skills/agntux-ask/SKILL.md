@@ -14,7 +14,7 @@ don't block on either check.
 
 ## Preconditions
 
-Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert, follow the redirect and stop.
+Run [`_preconditions.md`](../_preconditions.md). If checks 0–4 divert, follow the redirect and stop. Check 0 walks [`_resolve-root.md`](../_resolve-root.md) — declared here so the link is one level deep from this SKILL.md.
 
 ## Always read first
 

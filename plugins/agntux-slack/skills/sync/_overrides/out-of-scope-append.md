@@ -1,0 +1,1 @@
+- Call any Slack write tool (`slack_send_message`, `slack_send_message_draft`, `slack_schedule_message`, `slack_create_canvas`, `slack_update_canvas`). Read-only is non-negotiable for this skill. Writes flow through the iframe Save / Send / Schedule / Save Draft / Create click → connector envelope → host dispatch — not from this skill.

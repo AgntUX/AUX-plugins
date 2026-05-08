@@ -1,0 +1,1 @@
+**Gmail-specific defensive lock check (sub-step 2.5).** Mirror the validator's `schema.lock.json` lookup so the skill can fail fast (scheduled runs) or self-heal inline (interactive runs) when `plugin_contracts["agntux-gmail"]` is missing. Procedure: see [`./resources/contract-lock.md`](./resources/contract-lock.md).

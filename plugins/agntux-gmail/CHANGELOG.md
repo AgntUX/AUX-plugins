@@ -6,6 +6,60 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-05-07
+
+Phase 4 of the plugin-architecture sweep — sync skill migrates to the
+canonical render pipeline (`scripts/render-skill.mjs`). Companion to
+agntux-slack 6.0.1 (Phase 3) and the canonical absorption shipped in
+Phase 2.
+
+### Added
+
+- **`skills/sync/_overrides/`** — per-plugin overrides directory.
+  `frontmatter.yaml` carries the substitution map; per-section
+  `*-append.md` files splice content into canonical's `<!-- append:* -->`
+  markers; `resources/*.md` wholesale-replace canonical resources or add
+  gmail-only siblings.
+- **New gmail-only sibling resources** under `skills/sync/resources/`:
+  - `email-context.md` — Step 10.2 procedure (≤500-char preamble from
+    prior conversations with the recipient, gated to `response-needed`,
+    token-guarded with N=3 prior threads / 1 deep MINIMAL `get_thread`
+    call per action / per-person 7-day cache).
+  - `denylist.md` — Step 11 sub-step 5 auto-learn procedure for
+    `# Sender denylist` (gates: recently-active, already-denylisted,
+    always-raise; append-then-slice eviction with `<!-- added: -->`
+    metadata).
+  - `gmail-triage.md` — Step 6 entity guidance + Step 8 signal layer +
+    Step 8a follow-up signals.
+  - `contract-lock.md` — Step 0 sub-step 2.5 `schema.lock.json` defensive
+    check + interactive self-heal.
+- **Canonical-replaced resources**: `fetch.md` (gmail 2-stage discovery
+  + per-thread polling), `cursor.md` (inbox + thread layers + worked
+  diff), `runbook.md` (gmail-specific failure modes), `deep-links.md`
+  (`gmail_thread_url` construction), `compose-payload.md` (gmail-specific
+  schema with `recipients` and `reply_to_message_id`).
+
+### Changed
+
+- **`skills/sync/SKILL.md`** is now a build artifact rendered from
+  `canonical/prompts/ingest/skills/sync/` + `_overrides/`. Hand-edits to
+  the rendered file are caught by lint pass8 (`pass8SkillRender`).
+  Rendered length ~492 lines (within the ≤500 budget).
+- **Bootstrap heads-up message** moved from inline Step 4 prose to
+  `step-4-append.md` — same UX, sourced from the override.
+- **Step 11 sub-step 5 (denylist auto-learn)** moved out of SKILL.md
+  body into `resources/denylist.md`; `step-11-append.md` carries the
+  one-paragraph trigger summary.
+- **Step 10.2 (email-context)** moved out of SKILL.md body into
+  `resources/email-context.md`; `step-10-append.md` carries the
+  one-paragraph trigger summary that points there.
+
+### Notes
+
+- This is MINOR per P15 §5.1 — additive prompt surface (new resources/
+  siblings), no breaking change to public surface, no manifest field
+  rename. Phase 6 will flip pass8SkillRender from opt-in to mandatory.
+
 ## [2.0.0] — 2026-05-07
 
 De-fork sweep (Phase 1 of plugin-architecture cleanup). Companion to

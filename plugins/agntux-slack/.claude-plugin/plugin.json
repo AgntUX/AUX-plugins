@@ -1,6 +1,6 @@
 {
   "name": "agntux-slack",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Slack integration for AgntUX. Ingests DMs, mentions, and threads from your Slack workspace into your knowledge store and drafts replies on demand.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "ELv2",

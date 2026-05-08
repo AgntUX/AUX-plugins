@@ -29,6 +29,8 @@ runtime/host-filled — NOT P6-substituted.
 | `{{source-cursor-semantics}}` | `Gmail historyId (opaque integer string)` | `message timestamp (Unix float, e.g. 1714043640.001200)` | per-source spec |
 | `{{source-mcp-tools}}` | `gmail_list_messages, gmail_get_message` | `slack_read_channel, slack_read_thread, slack_search_public_and_private` (Cowork: prefixed with a per-instance UUID at runtime; the inline-running skill inherits whatever the host exposes — no `tools:` whitelist needed) | per-source spec; comma list of tool root names |
 | `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components)` | `- "display the slack thread UI for {ref}" → call mcp__agntux-slack-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string. Used by UI-handler metadata files (P9 §7), not by the sync skill. |
+| `{{thread-unit-name}}` | `thread` | `thread` | per-source spec; the per-source name for the cursor-keyed unit ("thread", "channel", "issue", "row"). Singular form; appears in prose ("once per {{thread-unit-name}}, not once per reply"). |
+| `{{bootstrap-window-default-days}}` | `14` | `7` | per-source spec; default value for `bootstrap_window_days` when `user.md` doesn't override. Slack=7 (high volume), Gmail=14 (moderate), generic=30. |
 
 ### UI-handler subagent template only (`agents/ui-handlers/_template.md`)
 
@@ -68,6 +70,49 @@ vocabulary. The validator hook (`agntux-core/hooks/validate-schema.mjs`) blocks
 any write that diverges. **Never inline subtype or action_class lists into
 canonical prompt templates** — doing so creates two sources of truth and the
 runtime contract becomes ignored.
+
+## Override mechanism (per-plugin specialisation)
+
+The sync SKILL.md template at `canonical/prompts/ingest/skills/sync/`
+ships with a `resources/` siblings directory and a sprinkling of
+`<!-- append:{section-id} -->` markers. Per-plugin specialisation lives
+in `plugins/{slug}/skills/sync/_overrides/` and is applied at build
+time by `scripts/render-skill.mjs`.
+
+Three override mechanisms compose together:
+
+1. **Placeholder substitution.** `_overrides/frontmatter.yaml` carries
+   the per-plugin substitution map (one key per `{{...}}` placeholder
+   used by canonical, plus any plugin-specific extras). The renderer
+   walks every `*.md` under canonical and applies `{{key}}` →
+   `substitutionMap[key]`. Surviving placeholders fail the build.
+
+2. **Section-targeted append.** Canonical SKILL.md has
+   `<!-- append:{section-id} -->` markers at the end of step bodies
+   (e.g., `<!-- append:step-2 -->`). When
+   `_overrides/{section-id}-append.md` exists (e.g.,
+   `_overrides/step-2-append.md`), its body is spliced in immediately
+   before the marker line; the marker is then stripped. If no override
+   file exists for a marker, the marker is stripped silently.
+
+3. **Resource wholesale-replace.** Canonical
+   `resources/{name}.md` is the baseline; if
+   `_overrides/resources/{name}.md` exists, the renderer copies the
+   override (with substitution applied) instead of the canonical. Use
+   this for source-specific files that share zero prose with canonical
+   (Step 5 fetch logic, runbook taxonomy, deep-link URL families).
+
+Per-plugin extra resources (slack's `canvas-payload.md`, gmail's
+`email-context.md` / `denylist.md`) are written directly under
+`_overrides/resources/` and copied through verbatim — the renderer
+treats them additively.
+
+The lint pass `pass8SkillRender` (in
+`scripts/lint/lint-skill-render.ts`) enforces four invariants per
+plugin: (1) no surviving `{{...}}` placeholders, (2) byte-identical
+re-render reproducibility, (3) `SKILL.md` ≤500 lines / sibling `*.md`
+≤300 lines, (4) one-level-deep references (no resource file links to
+another resource file).
 
 ## Notes on the ui-handlers/_template.md
 

@@ -24,7 +24,6 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(PLUGIN_ROOT, "skills");
-const UI_HANDLERS_DIR = join(PLUGIN_ROOT, "agents", "ui-handlers");
 
 const NAMED_SKILLS = [
   "agntux-onboard",
@@ -36,6 +35,15 @@ const NAMED_SKILLS = [
   "agntux-ask",
   "agntux-feedback-review",
 ] as const;
+
+// Read a TypeScript view-tool source file and collapse string-concatenation
+// continuations (`" +\n  "`) so substring assertions can match prose that
+// the formatter wrapped across multiple lines. Mirrors what TypeScript would
+// emit at runtime — the description string the host actually sees.
+function readToolSource(p: string): string {
+  const raw = readFileSync(p, "utf-8");
+  return raw.replace(/"\s*\+\s*\n\s*"/g, "");
+}
 
 function readFrontmatter(skillPath: string): Record<string, string> {
   const src = readFileSync(skillPath, "utf-8");
@@ -113,27 +121,70 @@ describe("agntux-core skills frontmatter conventions", () => {
   });
 });
 
-describe("UI handler manifests", () => {
-  it("triage handler exists at agents/ui-handlers/triage.md", () => {
-    expect(existsSync(join(UI_HANDLERS_DIR, "triage.md"))).toBe(true);
+describe("UI handler routing surface (post de-fork — descriptors own it)", () => {
+  // The legacy `agents/ui-handlers/{triage,entity-browser}.md` operational
+  // manifests are gone — every field they carried (verb_phrases, view_tool,
+  // resource_uri, structured_content_schema, follow_up_intents,
+  // degraded_states) now lives on the view tool's descriptor in
+  // `mcp-server/src/tools/triage-view.ts`. The tests below assert the
+  // surface alignment lives there now.
+  const triageViewPath = join(PLUGIN_ROOT, "mcp-server", "src", "tools", "triage-view.ts");
+
+  it("the entire agents/ directory is gone (no other agents survive in agntux-core)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
   });
 
-  it("entity-browser handler is gone (retired in 5.0.0)", () => {
-    expect(existsSync(join(UI_HANDLERS_DIR, "entity-browser.md"))).toBe(false);
+  it("triage-view tool source exists at mcp-server/src/tools/triage-view.ts", () => {
+    expect(existsSync(triageViewPath)).toBe(true);
   });
 
-  it("triage handler frontmatter declares the canonical operational keys", () => {
-    const fm = readFrontmatter(join(UI_HANDLERS_DIR, "triage.md"));
-    expect(fm.name).toBe("triage");
-    // operational is a YAML block — the parser only reads top-level scalars,
-    // so we assert the presence of the operational marker via raw text.
-    const raw = readFileSync(join(UI_HANDLERS_DIR, "triage.md"), "utf-8");
-    // v6.0.0+ tool names are prefixed with `agntux_core_` so they don't
-    // collide with other servers' tool names at the host's MCP routing layer.
-    expect(raw).toContain("view_tool: agntux_core_triage_view");
-    expect(raw).toContain('resource_uri: "ui://triage"');
-    expect(raw).toContain("agntux-feedback-stop-raising");
-    expect(raw).toContain("actions_index_missing");
+  it("triage-view declares the v6.0.0+ namespaced tool name agntux_core_triage_view", () => {
+    const src = readFileSync(triageViewPath, "utf-8");
+    expect(src).toContain('name: "agntux_core_triage_view"');
+  });
+
+  it("triage-view advertises ui://triage as the resource URI in both _meta.ui and _meta['ui/resourceUri']", () => {
+    const src = readFileSync(triageViewPath, "utf-8");
+    expect(src).toContain('TRIAGE_RESOURCE_URI = "ui://triage"');
+    expect(src).toMatch(/ui:\s*\{\s*resourceUri:\s*TRIAGE_RESOURCE_URI/);
+    expect(src).toMatch(/"ui\/resourceUri":\s*TRIAGE_RESOURCE_URI/);
+  });
+
+  it("triage-view description carries the user-facing trigger phrases inline (the host's tool selector matches against this)", () => {
+    const src = readToolSource(triageViewPath);
+    expect(src).toContain("/agntux-triage");
+    for (const phrase of [
+      "show triage",
+      "what's hot",
+      "what should I look at",
+      "what's on my plate",
+      "triage me",
+      "show me my action items",
+      "what should I do today",
+    ]) {
+      expect(src).toContain(phrase);
+    }
+  });
+
+  it("triage-view inputSchema is empty (zero-arg call site — host invokes with `{}`)", () => {
+    const src = readFileSync(triageViewPath, "utf-8");
+    const inputSchemaMatch = src.match(/inputSchema:\s*\{[\s\S]*?required:\s*\[[^\]]*\],?\s*\}/);
+    expect(inputSchemaMatch).toBeTruthy();
+    const block = inputSchemaMatch![0];
+    expect(block).toContain("properties: {}");
+    expect(block).toContain("required: []");
+    // Legacy back-compat fields (view_handled_days, limit) must be absent
+    // from the input surface — they remain server-side as DEFAULT_*
+    // constants.
+    expect(block).not.toContain("view_handled_days");
+    expect(block).not.toContain("limit");
+  });
+
+  it("triage-view structured-error envelope declares the canonical degraded-state codes", () => {
+    const src = readFileSync(triageViewPath, "utf-8");
+    for (const code of ["actions_index_missing", "license_paused"]) {
+      expect(src).toContain(`"${code}"`);
+    }
   });
 });
 

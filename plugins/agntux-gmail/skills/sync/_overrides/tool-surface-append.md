@@ -1,0 +1,2 @@
+- Gmail read MCP tools (the host's connector registers them under a per-instance UUID, so the names look like `mcp__<uuid>__search_threads`): `search_threads`, `get_thread`, `list_drafts`, `list_labels`, `create_label`.
+- The Gmail write tool `create_draft` is present in the inherited tool set but **forbidden by this prompt** — the only authorised caller is the host, acting on a `Use the Gmail Connector …` envelope emitted by the compose iframe after an explicit Save click.

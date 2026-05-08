@@ -1,15 +1,25 @@
 /**
  * ui-routing.test.ts
  *
- * Static shape assertions for the compose and canvas UI handler manifests,
- * their backing MCP server tools and ui-resource files, and the surface
- * alignment between the ingest skill's suggested_actions host_prompts and
- * the view tools those prompts route into.
+ * Static shape assertions for the compose and canvas UI routing chain
+ * after the de-fork sweep:
+ *   - The deleted `agents/ui-handlers/{compose,canvas}.md` metadata
+ *     files are gone — every field they carried (verb_phrases,
+ *     view_tool, resource_uri, structured_content_schema,
+ *     follow_up_intents, degraded_states) now lives in either the
+ *     view tool's `description` / `inputSchema` / `outputSchema`
+ *     blocks (`mcp-server/src/tools/{compose,canvas}-view.ts`), the
+ *     iframe component's commit-envelope code, or the action item's
+ *     `suggested_actions[]` rows.
+ *   - The sync skill emits `host_prompt` strings against the view
+ *     tools' descriptions; the host's tool selector matches them
+ *     against the description and invokes the tool with `action_id`
+ *     only.
  *
- * LIMITATION (per T18 pattern): this test does NOT render the iframe or
- * invoke the view tools at runtime. It asserts that the operational
- * manifests, file existence, and prompt templates that wire the routing
- * chain together are all structurally correct.
+ * LIMITATION: this test does NOT render the iframe or invoke the view
+ * tools at runtime. It asserts that the tool descriptors, file
+ * existence, and prompt templates that wire the routing chain are
+ * structurally correct.
  */
 
 import { describe, it, expect } from "vitest";
@@ -20,7 +30,7 @@ import { fileURLToPath } from "node:url";
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
-// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
+// with `<!-- {filename} -->` boundary markers so resources/ splits don't
 // break grep-style assertions. Pass-through for all other paths.
 function readFile(p: string): string {
   const content = readFileSync(p, "utf-8");
@@ -38,148 +48,210 @@ function readFile(p: string): string {
   return content;
 }
 
-/**
- * Parse the YAML frontmatter block (between the first two --- lines).
- * Returns the raw frontmatter string — callers can grep it directly.
- */
-function extractFrontmatter(content: string): string {
-  const m = content.match(/^---\n([\s\S]*?)\n---/);
-  return m ? m[1] : "";
+// Read a TypeScript view-tool source file and collapse string-concatenation
+// continuations (`" +\n  "`) so substring assertions can match prose that
+// the formatter wrapped across multiple lines. Mirrors what TypeScript would
+// emit at runtime — the description string the host actually sees.
+function readToolSource(p: string): string {
+  const raw = readFileSync(p, "utf-8");
+  // Match `"...end-of-string" + \n  "...start-of-next-string"` and collapse
+  // to a single contiguous string. The lookahead form keeps the surrounding
+  // quotes intact so non-concatenated strings stay untouched.
+  return raw.replace(/"\s*\+\s*\n\s*"/g, "");
 }
 
 // ---------------------------------------------------------------------------
-// Compose UI routing
+// agents/ui-handlers/ metadata files have been retired
 // ---------------------------------------------------------------------------
 
-describe("compose UI routing", () => {
-  const composeMdPath = join(PLUGIN_ROOT, "agents", "ui-handlers", "compose.md");
-
-  it("agents/ui-handlers/compose.md exists", () => {
-    expect(existsSync(composeMdPath)).toBe(true);
+describe("ui-handler metadata files are retired", () => {
+  it("agents/ui-handlers/compose.md is gone (description+inputSchema own the routing surface)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "agents", "ui-handlers", "compose.md"))).toBe(false);
   });
 
-  it("frontmatter has view_tool: agntux_slack_compose_view (v4.0.0+ prefixed name)", () => {
-    const fm = extractFrontmatter(readFile(composeMdPath));
-    expect(fm).toContain("view_tool: agntux_slack_compose_view");
+  it("agents/ui-handlers/canvas.md is gone", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "agents", "ui-handlers", "canvas.md"))).toBe(false);
   });
 
-  it('frontmatter has resource_uri: "ui://slack-compose"', () => {
-    const fm = extractFrontmatter(readFile(composeMdPath));
-    expect(fm).toContain('resource_uri: "ui://slack-compose"');
+  it("the entire agents/ directory is gone (no other agents survive in agntux-slack)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
   });
+});
 
-  it("verb_phrases contains the new 1.1.0+ direct-route phrases (action_id-only invocation)", () => {
-    const src = readFile(composeMdPath);
-    expect(src).toContain("open the reply composer for action");
-    expect(src).toContain("open the reply composer in schedule mode for action");
-  });
+// ---------------------------------------------------------------------------
+// Compose view tool — description carries the trigger phrases inline
+// ---------------------------------------------------------------------------
 
-  it("verb_phrases retains the legacy 2.x.x phrases for backward compat with already-emitted action files", () => {
-    const src = readFile(composeMdPath);
-    expect(src).toContain("draft a reply for action");
-    expect(src).toContain("draft a reply and schedule it for action");
-  });
-
-  it("verb_phrases does NOT contain user-direct trigger phrases (compose_view is suggested-action-driven, not chat-driven)", () => {
-    // The view tool needs `action_id` to resolve the action file's
-    // ## Compose payload. A user typing "compose slack reply" can't supply
-    // it, and the harness LLM can't hallucinate it. Removing the
-    // user-direct phrases avoids misleading the host into a dead-end
-    // routing path. See compose.md frontmatter comment.
-    const src = readFile(composeMdPath);
-    expect(src).not.toContain('"compose slack reply"');
-    expect(src).not.toContain('"slack draft view"');
-  });
-
-  it("follow_up_intents lists the 3.0.0 Slack-Connector-targeted commit keys plus local discard", () => {
-    const src = readFile(composeMdPath);
-    expect(src).toContain("slack-connector-send");
-    expect(src).toContain("slack-connector-schedule");
-    expect(src).toContain("slack-connector-save-draft");
-    expect(src).toContain("compose-discard-local");
-  });
-
-  it("degraded_states block has the canonical source_not_found key (lint rule E12)", () => {
-    const src = readFile(composeMdPath);
-    expect(src).toContain("source_not_found");
-  });
+describe("compose-view tool descriptor", () => {
+  const composeViewPath = join(PLUGIN_ROOT, "mcp-server", "src", "tools", "compose-view.ts");
 
   it("mcp-server/src/tools/compose-view.ts exists", () => {
-    expect(existsSync(join(PLUGIN_ROOT, "mcp-server", "src", "tools", "compose-view.ts"))).toBe(true);
+    expect(existsSync(composeViewPath)).toBe(true);
+  });
+
+  it("tool name is the v4.0.0+ namespaced agntux_slack_compose_view", () => {
+    const src = readFile(composeViewPath);
+    expect(src).toContain('name: "agntux_slack_compose_view"');
+  });
+
+  it("description carries the suggested-action-driven trigger phrases inline (the host's tool selector matches against this)", () => {
+    const src = readToolSource(composeViewPath);
+    expect(src).toContain("open the reply composer for action {id}");
+    expect(src).toContain("draft a reply for action {id}");
+  });
+
+  it("description names host_prompt as the routing channel from triage's Draft/Schedule buttons", () => {
+    const src = readToolSource(composeViewPath);
+    expect(src).toMatch(/triage's Draft\/Schedule buttons fire this tool[\s\S]*via host_prompt/);
+  });
+
+  it("description tells the host to pass ONLY action_id (no inline payload override)", () => {
+    const src = readToolSource(composeViewPath);
+    expect(src).toContain("Pass ONLY action_id");
+  });
+
+  it("inputSchema requires action_id and only action_id (legacy back-compat fields removed)", () => {
+    const src = readFile(composeViewPath);
+    // Match the inputSchema block. The only `properties:` field must be `action_id`.
+    const inputSchemaMatch = src.match(/inputSchema:\s*\{[\s\S]*?required:\s*\[[^\]]*\],?\s*\}/);
+    expect(inputSchemaMatch).toBeTruthy();
+    const block = inputSchemaMatch![0];
+    expect(block).toContain("action_id");
+    expect(block).toContain('required: ["action_id"]');
+    // Legacy back-compat fields must NOT live on the input surface
+    expect(block).not.toContain("initial_verb");
+    expect(block).not.toContain("drafted_body");
+    expect(block).not.toContain("personalization_signals");
+    expect(block).not.toContain("thread_context");
+    expect(block).not.toContain("channel:");
+    expect(block).not.toContain("proposed_send_time");
+    expect(block).not.toContain("slack_permalink");
+  });
+
+  it("declares ui://slack-compose as the resource URI in both _meta.ui and _meta['ui/resourceUri']", () => {
+    const src = readFile(composeViewPath);
+    expect(src).toContain('COMPOSE_RESOURCE_URI = "ui://slack-compose"');
+    expect(src).toMatch(/ui:\s*\{\s*resourceUri:\s*COMPOSE_RESOURCE_URI/);
+    expect(src).toMatch(/"ui\/resourceUri":\s*COMPOSE_RESOURCE_URI/);
+  });
+
+  it("structuredContent declares the canonical compose-iframe payload fields (replacing structured_content_schema metadata)", () => {
+    const src = readFile(composeViewPath);
+    expect(src).toContain("ComposeStructuredContent");
+    for (const field of [
+      "action_id",
+      "initial_verb",
+      "channel",
+      "thread",
+      "drafted_body",
+      "personalization_signals",
+    ]) {
+      expect(src).toContain(field);
+    }
+  });
+
+  it("structured-error envelope declares the canonical degraded-state codes (replacing degraded_states metadata)", () => {
+    const src = readFile(composeViewPath);
+    // The canonical degraded-state union — these are surfaced as
+    // structuredContent.error envelopes the iframe renders.
+    for (const code of [
+      "action_not_found",
+      "action_already_handled",
+      "compose_payload_missing",
+    ]) {
+      expect(src).toContain(`"${code}"`);
+    }
+  });
+
+  it("ui-handlers/compose/component/package.json exists", () => {
+    expect(
+      existsSync(join(PLUGIN_ROOT, "ui-handlers", "compose", "component", "package.json")),
+    ).toBe(true);
   });
 
   it("mcp-server/src/ui-resources/compose.ts exists and contains an __EMBED__*__INDEX_HTML__ placeholder", () => {
     const uiResourcePath = join(PLUGIN_ROOT, "mcp-server", "src", "ui-resources", "compose.ts");
     expect(existsSync(uiResourcePath)).toBe(true);
     const src = readFile(uiResourcePath);
-    // The placeholder token shape is __EMBED__<name>__INDEX_HTML__
     expect(src).toMatch(/__EMBED__\w+__INDEX_HTML__/);
-    // Specifically the compose placeholder
     expect(src).toContain("__EMBED__compose__INDEX_HTML__");
-  });
-
-  it("ui-handlers/compose/component/package.json exists", () => {
-    expect(
-      existsSync(join(PLUGIN_ROOT, "ui-handlers", "compose", "component", "package.json"))
-    ).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Canvas UI routing
+// Canvas view tool — description carries the trigger phrases inline
 // ---------------------------------------------------------------------------
 
-describe("canvas UI routing", () => {
-  const canvasMdPath = join(PLUGIN_ROOT, "agents", "ui-handlers", "canvas.md");
-
-  it("agents/ui-handlers/canvas.md exists", () => {
-    expect(existsSync(canvasMdPath)).toBe(true);
-  });
-
-  it("frontmatter has view_tool: agntux_slack_canvas_view (v4.0.0+ prefixed name)", () => {
-    const fm = extractFrontmatter(readFile(canvasMdPath));
-    expect(fm).toContain("view_tool: agntux_slack_canvas_view");
-  });
-
-  it('frontmatter has resource_uri: "ui://slack-canvas"', () => {
-    const fm = extractFrontmatter(readFile(canvasMdPath));
-    expect(fm).toContain('resource_uri: "ui://slack-canvas"');
-  });
-
-  it("verb_phrases contains the new 1.1.0+ direct-route phrase (action_id-only invocation)", () => {
-    const src = readFile(canvasMdPath);
-    expect(src).toContain("open the canvas summariser for action");
-  });
-
-  it("verb_phrases retains the legacy 2.x.x 'summarise the thread for action' phrase", () => {
-    const src = readFile(canvasMdPath);
-    expect(src).toContain("summarise the thread for action");
-  });
-
-  it("verb_phrases does NOT contain user-direct trigger phrases (canvas_view is suggested-action-driven, not chat-driven)", () => {
-    // The view tool needs `action_id` to resolve the action file's
-    // ## Canvas payload. A user typing "summarise to canvas" can't supply
-    // it, and the harness LLM can't hallucinate it. Removing the
-    // user-direct phrases avoids misleading the host into a dead-end
-    // routing path. See canvas.md frontmatter comment.
-    const src = readFile(canvasMdPath);
-    expect(src).not.toContain('"summarise to canvas"');
-    expect(src).not.toContain('"slack canvas view"');
-  });
-
-  it("follow_up_intents lists the 3.0.0 Slack-Connector-targeted canvas key plus local discard", () => {
-    const src = readFile(canvasMdPath);
-    expect(src).toContain("slack-connector-create-canvas-and-post");
-    expect(src).toContain("canvas-discard-local");
-  });
-
-  it("degraded_states block has the canonical source_not_found key (lint rule E12)", () => {
-    const src = readFile(canvasMdPath);
-    expect(src).toContain("source_not_found");
-  });
+describe("canvas-view tool descriptor", () => {
+  const canvasViewPath = join(PLUGIN_ROOT, "mcp-server", "src", "tools", "canvas-view.ts");
 
   it("mcp-server/src/tools/canvas-view.ts exists", () => {
-    expect(existsSync(join(PLUGIN_ROOT, "mcp-server", "src", "tools", "canvas-view.ts"))).toBe(true);
+    expect(existsSync(canvasViewPath)).toBe(true);
+  });
+
+  it("tool name is the v4.0.0+ namespaced agntux_slack_canvas_view", () => {
+    const src = readFile(canvasViewPath);
+    expect(src).toContain('name: "agntux_slack_canvas_view"');
+  });
+
+  it("description carries the suggested-action-driven trigger phrases inline", () => {
+    const src = readToolSource(canvasViewPath);
+    expect(src).toContain("summarise the thread for action {id}");
+    expect(src).toContain("open the canvas summariser for action {id}");
+  });
+
+  it("description names host_prompt as the routing channel from triage's Open canvas button", () => {
+    const src = readToolSource(canvasViewPath);
+    expect(src).toMatch(/triage's Open canvas[\s\S]*via host_prompt/);
+  });
+
+  it("inputSchema requires action_id and only action_id (legacy back-compat fields removed)", () => {
+    const src = readFile(canvasViewPath);
+    const inputSchemaMatch = src.match(/inputSchema:\s*\{[\s\S]*?required:\s*\[[^\]]*\],?\s*\}/);
+    expect(inputSchemaMatch).toBeTruthy();
+    const block = inputSchemaMatch![0];
+    expect(block).toContain("action_id");
+    expect(block).toContain('required: ["action_id"]');
+    expect(block).not.toContain("drafted_canvas");
+    expect(block).not.toContain("proposed_followup_message");
+  });
+
+  it("declares ui://slack-canvas as the resource URI in both _meta.ui and _meta['ui/resourceUri']", () => {
+    const src = readFile(canvasViewPath);
+    expect(src).toContain('CANVAS_RESOURCE_URI = "ui://slack-canvas"');
+    expect(src).toMatch(/ui:\s*\{\s*resourceUri:\s*CANVAS_RESOURCE_URI/);
+    expect(src).toMatch(/"ui\/resourceUri":\s*CANVAS_RESOURCE_URI/);
+  });
+
+  it("structuredContent declares the canonical canvas-iframe payload fields", () => {
+    const src = readFile(canvasViewPath);
+    expect(src).toContain("CanvasStructuredContent");
+    for (const field of [
+      "action_id",
+      "channel",
+      "thread",
+      "drafted_canvas",
+      "proposed_followup_message",
+    ]) {
+      expect(src).toContain(field);
+    }
+  });
+
+  it("structured-error envelope declares the canonical degraded-state codes", () => {
+    const src = readFile(canvasViewPath);
+    for (const code of [
+      "action_not_found",
+      "action_already_handled",
+      "canvas_payload_missing",
+    ]) {
+      expect(src).toContain(`"${code}"`);
+    }
+  });
+
+  it("ui-handlers/canvas/component/package.json exists", () => {
+    expect(
+      existsSync(join(PLUGIN_ROOT, "ui-handlers", "canvas", "component", "package.json")),
+    ).toBe(true);
   });
 
   it("mcp-server/src/ui-resources/canvas.ts exists and contains an __EMBED__*__INDEX_HTML__ placeholder", () => {
@@ -189,43 +261,34 @@ describe("canvas UI routing", () => {
     expect(src).toMatch(/__EMBED__\w+__INDEX_HTML__/);
     expect(src).toContain("__EMBED__canvas__INDEX_HTML__");
   });
-
-  it("ui-handlers/canvas/component/package.json exists", () => {
-    expect(
-      existsSync(join(PLUGIN_ROOT, "ui-handlers", "canvas", "component", "package.json"))
-    ).toBe(true);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// suggested_actions surface alignment
+// suggested_actions surface alignment — sync skill host_prompts route
+// directly into the view tools' descriptions
 // ---------------------------------------------------------------------------
 
-describe("suggested_actions surface alignment (1.1.0+)", () => {
+describe("suggested_actions host_prompt → view-tool description routing", () => {
   const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
 
-  it("sync SKILL.md contains the Draft host_prompt that routes directly into compose_view", () => {
+  it("sync SKILL emits the Draft host_prompt that compose-view's description matches", () => {
     const src = readFile(syncSkill);
-    // 1.1.0+ shape — prompt matches compose_view's tool description directly
-    // (no draft-skill round-trip). The view tool lifts drafted_body and
-    // thread_context from the action file's `## Compose payload` body
-    // section.
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to open the reply composer for action {id}."
+      "ux: Use the agntux-slack plugin to open the reply composer for action {id}.",
     );
   });
 
-  it("sync SKILL.md contains the Schedule host_prompt that routes directly into compose_view (schedule mode)", () => {
+  it("sync SKILL emits the Schedule host_prompt that compose-view's description matches", () => {
     const src = readFile(syncSkill);
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}."
+      "ux: Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}.",
     );
   });
 
-  it("sync SKILL.md contains the Summarise host_prompt that routes directly into canvas_view", () => {
+  it("sync SKILL emits the Summarise host_prompt that canvas-view's description matches", () => {
     const src = readFile(syncSkill);
     expect(src).toContain(
-      "ux: Use the agntux-slack plugin to open the canvas summariser for action {id}."
+      "ux: Use the agntux-slack plugin to open the canvas summariser for action {id}.",
     );
   });
 });

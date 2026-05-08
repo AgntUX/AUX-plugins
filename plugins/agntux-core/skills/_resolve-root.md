@@ -18,6 +18,13 @@ Stage 0 steps 1–3, plus an additional step 4 that hands off to
 Onboarding remains the single owner of the interactive `mkdir` and
 host-picker dance.
 
+## Contents
+
+- [Resolution ladder (steps 1–4)](#resolution-ladder)
+- [Path canonicalisation rule](#resolution-ladder)
+- [Background-mode carve-out](#background-mode-carve-out)
+- [Permission-allowlist note](#permission-allowlist-note-host-level-for-reference)
+
 ---
 
 ## Resolution ladder

@@ -142,6 +142,57 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
 
 ---
 
+## Authoring sync skills
+
+Every ingest plugin (`agntux-slack`, `agntux-gmail`, and any future source)
+ships a `skills/sync/SKILL.md` that the host loads at sync time. **These
+files are rendered, not hand-edited.** The single source of truth is
+`canonical/prompts/ingest/skills/sync/`:
+
+```
+canonical/prompts/ingest/skills/sync/
+├── SKILL.md                           # canonical body with {{placeholders}}
+│                                      # and <!-- append:{section-id} --> markers
+├── STUBS.md                           # documents every placeholder
+└── resources/
+    ├── fetch.md                       # generic fetch skeleton (overridable)
+    ├── compose-payload.md             # generic schema (overridable)
+    ├── cursor.md                      # generic cursor reference
+    ├── runbook.md                     # generic failure-mode taxonomy
+    ├── deep-links.md                  # stub (overridable)
+    └── honesty.md                     # 5 generic rules + append marker
+```
+
+Per-plugin overrides live at `plugins/{slug}/skills/sync/_overrides/`:
+
+- `frontmatter.yaml` — required. Substitution values for canonical
+  `{{placeholders}}`.
+- `{step-id}-append.md` — zero or more. Spliced verbatim at canonical
+  `<!-- append:{step-id} -->` markers, then the marker is stripped.
+- `resources/{name}.md` — zero or more. Replaces the canonical
+  `resources/{name}.md` wholesale (substitution still applies).
+
+`scripts/render-skill.mjs {slug}` reads canonical + `_overrides/` and writes
+`plugins/{slug}/skills/sync/{SKILL.md, resources/*.md}`. The renderer is
+also invoked automatically by `scripts/build-plugin.mjs` between the UI
+component build and the mcp-server build, so a routine
+`node scripts/build-plugin.mjs {slug}` always re-renders the tree before
+embedding it.
+
+**Lint pass 8 is mandatory.** Every plugin with `skills/sync/SKILL.md`
+MUST ship `_overrides/frontmatter.yaml`, the rendered tree must be
+byte-identical to what the renderer produces, no `{{placeholders}}` may
+survive in committed output, `SKILL.md` must be ≤ 500 lines, every sibling
+under `resources/` must be ≤ 300 lines, and links must stay one level deep.
+Edits to the rendered `SKILL.md` are detected by the drift check and fail
+CI — edit the override or the canonical instead.
+
+A new ingest plugin's day-one authoring work is a `frontmatter.yaml` plus a
+source-specific `_overrides/resources/fetch.md`. Everything else can stay
+canonical.
+
+---
+
 ## How to Validate Locally
 
 ```bash

@@ -1,0 +1,1 @@
+For Slack-specific follow-up signal definitions (`?`, `@user_id` mention, deadline phrase, escalation keyword `urgent|asap|blocker|sev[123]`) and the colleague-already-answered downgrade, see [`./resources/slack-triage.md`](./resources/slack-triage.md) — § "Step 8a — Slack follow-up signals + colleague-already-answered".

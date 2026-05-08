@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [7.0.1] — 2026-05-07
+
+Skill quality pass (Phase 5 of plugin-architecture cleanup). No
+behavioural change — every edit is structural cleanup that future
+authoring guards against drift.
+
+### Changed
+
+- **Reference-chain flattened.** `_preconditions.md` § B Check 0 no
+  longer links to `_resolve-root.md` (was a 2-level chain
+  `SKILL.md → _preconditions.md → _resolve-root.md` that violated
+  Anthropic's one-level-deep rule). Each of the 8 entry-point
+  `agntux-*` skills now links `_resolve-root.md` directly from its
+  preconditions block, so the chain is one level deep from any
+  SKILL.md.
+- **TOCs added** to the two long shared sibling files
+  (`_preconditions.md`, `_resolve-root.md`) so partial reads see the
+  structure. Anthropic's best-practices guide flags this for any
+  reference file >100 lines.
+
+### Internal
+
+- **Pass8 skill-render lint extended.** Three new always-on
+  invariants now fire for every plugin shipping `skills/`:
+  per-skill `SKILL.md` ≤ 500 lines, shared `_*.md` ≤ 200 lines,
+  and a reference-chain-depth check that errors if any link from a
+  `SKILL.md` resolves to a shared sibling that itself links to
+  another shared sibling. Catches the 2-level chain regression
+  going forward.
+
 ## [7.0.0] — 2026-05-07
 
 De-fork sweep (Phase 1 of plugin-architecture cleanup): the six classical

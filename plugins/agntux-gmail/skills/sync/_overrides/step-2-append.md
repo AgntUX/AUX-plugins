@@ -1,0 +1,3 @@
+**Gmail-specific sync.md fields:** `discovery_ts` (newest message internalDate seen by Step 5b discovery — drives the next run's `after:` filter) and `user_email` (the user's primary Gmail address, captured once from a `From:me` message; persisted across runs as immutable). When `user_email` is still `null`, the `Open in Gmail` suggested-action row is omitted from action items written this run.
+
+**Cursor map shape.** The `cursor` field is a unified single-line JSON map with two key shapes: the literal string `inbox` (discovery low-water-mark) and `<thread_id>` (per-thread cursor). Parse with `JSON.parse(cursor)`, serialise with `JSON.stringify(map)`. Full layer reference and worked example: see [`./resources/cursor.md`](./resources/cursor.md).
