@@ -1,8 +1,8 @@
 {
   "name": "agntux-gmail",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "description": "Gmail integration for AgntUX. Ingests inbox threads into your knowledge store, drafts replies on demand, and saves them to Gmail Drafts for one-click review-and-send.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
-  "license": "Elastic-2.0",
+  "license": "Apache-2.0",
   "recommended_ingest_cadence": "Hourly — email is bursty during the workday but doesn't need higher resolution than every 60 min"
 }

@@ -15,8 +15,8 @@
  *      runs inline (no `context: fork`, no nested `general-purpose`
  *      agent — forking broke "Allow for all scheduled runs" inheritance).
  *   4. The compose UI handler exists at ui-handlers/compose/component/.
- *   5. mcp-server/src/index.ts wires the @agntux/mcp-license gate around
- *      tools/call (NOT resources/read).
+ *   5. mcp-server/src/index.ts registers the agntux_gmail_compose_view
+ *      tool on CallToolRequestSchema.
  *   6. The compose-view tool reads the gmail-namespaced compose payload.
  */
 
@@ -86,8 +86,7 @@ describe("plugin manifest", () => {
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
-    // CLAUDE.md authoring rules: license is SPDX "Elastic-2.0", not "ELv2".
-    expect(manifest.license).toBe("Elastic-2.0");
+    expect(manifest.license).toBe("Apache-2.0");
   });
 
   it("recommended_ingest_cadence describes hourly cadence", () => {
@@ -259,24 +258,17 @@ describe("mcp-server", () => {
   const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
   const indexText = existsSync(indexPath) ? readFile(indexPath) : "";
 
-  it("index.ts exists and wires the license gate around tools/call", () => {
+  it("index.ts exists and registers tools on CallToolRequestSchema", () => {
     expect(existsSync(indexPath)).toBe(true);
-    expect(indexText).toContain("@agntux/mcp-license");
-    expect(indexText).toContain("createLicenseGate");
-    expect(indexText).toContain("requireValidLicense");
     expect(indexText).toContain("CallToolRequestSchema");
   });
 
-  it("does NOT gate resources/read", () => {
-    // The license gate must not wrap the ReadResource handler — see
-    // packages/mcp-license/README.md "Why only tools/call".
-    const readHandlerBlock = indexText.match(
-      /setRequestHandler\(ReadResourceRequestSchema[\s\S]*?\}\)/,
-    );
-    expect(readHandlerBlock).toBeTruthy();
-    if (readHandlerBlock) {
-      expect(readHandlerBlock[0]).not.toContain("requireValidLicense");
-    }
+  it("does NOT import the removed @agntux/mcp-license gate", () => {
+    // The plugin is now Apache-2.0 and unconditionally free; the gate
+    // moved to the proprietary AgntUX Teams runtime.
+    expect(indexText).not.toContain("@agntux/mcp-license");
+    expect(indexText).not.toContain("createLicenseGate");
+    expect(indexText).not.toContain("requireValidLicense");
   });
 
   it("registers a single namespaced tool: agntux_gmail_compose_view", () => {

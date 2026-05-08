@@ -6,6 +6,23 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-05-08
+
+Open source. The plugin relicenses from Elastic License v2 (ELv2) to
+Apache License 2.0 and removes the `@agntux/mcp-license` gate from the
+MCP server's `tools/call` handler. Solo use is now unconditionally free
+with no nag, no degradation, and no pairing prompt. License validation
+moves to the upcoming proprietary AgntUX Teams runtime.
+
+### Changed
+- Relicensed from Elastic License v2 (ELv2) to Apache License 2.0. See
+  the root `LICENSE` and `NOTICE` files.
+
+### Removed
+- `@agntux/mcp-license` gate from the MCP server's `tools/call` handler.
+- `license_paused` structuredContent error code from
+  `agntux_gmail_compose_view` (no longer reachable).
+
 ## [3.1.0] — 2026-05-08
 
 Configurable Gmail account slot for multi-account browsers, plus a

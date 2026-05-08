@@ -19,7 +19,7 @@ on:
       - main
     paths:
       - "plugins/**"
-      - "packages/mcp-license/**"
+      - "packages/agntux-ui-primitives/**"
       - "scripts/build-plugin.mjs"
       - ".github/workflows/build-plugins.yml"
 

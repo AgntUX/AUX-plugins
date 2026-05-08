@@ -16,4 +16,4 @@ is Daily 09:00.
 
 ## License
 
-Elastic License v2 (ELv2).
+Apache License 2.0.

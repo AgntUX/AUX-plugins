@@ -80,9 +80,8 @@ The skill directory is named after the plugin slug — the host exposes the
 skill as `/{slug}` (post-7.0.0 unification). The skill `name:` frontmatter
 field matches the slug.
 
-Note: ingest plugins do NOT ship a `hooks/` directory. License enforcement
-lives in the MCP server via `@agntux/mcp-license` (see Phase 2 of the
-plan). Schema/index hooks are exclusive to `agntux-core`.
+Note: ingest plugins do NOT ship a `hooks/` directory. Schema/index
+hooks are exclusive to `agntux-core`.
 
 If the source has write tools (you'll add `skills/draft/SKILL.md` in
 Step 7), also `mkdir -p plugins/{slug}/skills/draft`.
@@ -97,7 +96,7 @@ Write `plugins/{slug}/.claude-plugin/plugin.json`:
   "version": "0.1.0",
   "description": "{Display Name} integration for AgntUX. Ingests data from {Display Name} into your knowledge store.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
-  "license": "ELv2",
+  "license": "Apache-2.0",
   "recommended_ingest_cadence": "Daily 04:00"
 }
 ```
@@ -115,8 +114,8 @@ the `manifest-author` specialist in `plugin-toolkit` (now in the
 ### Step 3 — `LICENSE`
 
 Copy `plugins/agntux-slack/LICENSE` byte-for-byte to
-`plugins/{slug}/LICENSE`. **Do NOT modify.** This is the per-plugin ELv2
-stub pointing to the root LICENSE.
+`plugins/{slug}/LICENSE`. This is the per-plugin Apache-2.0 LICENSE
+text matching the root LICENSE.
 
 ```
 cp plugins/agntux-slack/LICENSE plugins/{slug}/LICENSE
@@ -135,16 +134,14 @@ Then Edit `plugins/{slug}/package.json` to swap the `name` field from
 `@agntux/agntux-slack-plugin` to `@agntux/{slug}-plugin`. Leave version,
 type, scripts, devDependencies untouched.
 
-### Step 5 — License gate (MCP server)
+### Step 5 — MCP server scaffold
 
-Skip — ingest plugins have no `hooks/` directory. License enforcement is
-wired into the plugin's MCP server through `@agntux/mcp-license`. When
-you scaffold an MCP server for the new plugin, follow `agntux-slack/mcp-server/src/index.ts`
-as the reference: import `createLicenseGate`, call `gate.requireValidLicense(...)`
-inside the `tools/call` handler ONLY (do NOT gate `resources/read` —
-see `packages/mcp-license/README.md` §"Why only tools/call"), and declare
-`"@agntux/mcp-license": "file:../../../packages/mcp-license"` in
-`mcp-server/package.json`.
+When you scaffold an MCP server for the new plugin, follow
+`agntux-slack/mcp-server/src/index.ts` as the reference for tool
+registration and the SimpleMcpApp UI bridge. Plugins are Apache-2.0 and
+unconditionally free — do NOT add any `@agntux/mcp-license` dependency
+or license-gate wrapper around `tools/call`. License gating lives only
+in the proprietary AgntUX Teams runtime.
 
 ### Step 6 — `skills/{slug}/_overrides/frontmatter.yaml` (rendered from canonical)
 
@@ -372,7 +369,7 @@ say so and remove this section.
 
 ## License
 
-Elastic License v2 (ELv2). See the `LICENSE` file for details.
+Apache License 2.0. See the `LICENSE` and `NOTICE` files at the repo root.
 
 ## Support
 

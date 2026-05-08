@@ -90,8 +90,7 @@ export function App() {
   // is true (see main-component.tsx for the fieldset-disabled pattern).
   const isStreaming = !toolOutput && !!partialInput;
 
-  // Short-circuit when the tool result is an MCP-layer error envelope
-  // (e.g. license gate returned `pairing_required` / `trial_expired`).
+  // Short-circuit when the tool result is an MCP-layer error envelope.
   // The adapter strips `isError`, but the user-facing text survives in
   // `_content[0].text` and the lack of any payload-shaped keys is the
   // signature of an envelope without `structuredContent`.

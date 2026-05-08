@@ -8,7 +8,7 @@
  * invoked in-process. Instead, the test asserts:
  *   1. plugin.json carries the required fields including a non-empty
  *      free-form recommended_ingest_cadence string.
- *   2. The plugin ships no hooks/ directory (license gate moved to MCP server).
+ *   2. The plugin ships no hooks/ directory.
  *   3. skills/{slug}/SKILL.md is a slim router (≤100 lines) frontmatter-named
  *      after the plugin slug, with a `## Sub-commands` table linking
  *      `reference/sync.md` (procedural body) and `reference/ask.md` (live NL
@@ -98,8 +98,7 @@ describe("plugin manifest", () => {
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(typeof manifest.description).toBe("string");
-    // CLAUDE.md authoring rules: license is SPDX "Elastic-2.0", not "ELv2".
-    expect(manifest.license).toBe("Elastic-2.0");
+    expect(manifest.license).toBe("Apache-2.0");
   });
 
   it("recommended_ingest_cadence is a non-empty descriptive string", () => {
@@ -113,14 +112,38 @@ describe("plugin manifest", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pass 2: hooks shape — agntux-slack ships no hooks. License enforcement now
-// lives in the MCP server via @agntux/mcp-license, wrapped around tools/call
-// and resources/read. The plugin therefore has no hooks/ directory.
+// Pass 2: hooks shape — agntux-slack ships no hooks. The Slack data connector
+// is host-installed; the plugin's MCP App UI server lives in mcp-server/.
 // ---------------------------------------------------------------------------
 
 describe("hooks shape (ingest variant)", () => {
-  it("does NOT ship a hooks/ directory (license gate moved to MCP server)", () => {
+  it("does NOT ship a hooks/ directory", () => {
     expect(existsSync(join(PLUGIN_ROOT, "hooks"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pass 2b: license-gate absence (Apache-2.0 regression guard)
+// ---------------------------------------------------------------------------
+
+describe("license-gate absence", () => {
+  const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
+  const indexText = existsSync(indexPath) ? readFileSync(indexPath, "utf-8") : "";
+  const pkgPath = join(PLUGIN_ROOT, "mcp-server", "package.json");
+  const pkgJson = existsSync(pkgPath)
+    ? (JSON.parse(readFileSync(pkgPath, "utf-8")) as {
+        dependencies?: Record<string, string>;
+      })
+    : { dependencies: {} };
+
+  it("mcp-server source does not import the @agntux/mcp-license gate", () => {
+    expect(indexText).not.toContain("@agntux/mcp-license");
+    expect(indexText).not.toContain("createLicenseGate");
+    expect(indexText).not.toContain("requireValidLicense");
+  });
+
+  it("mcp-server package.json does not depend on @agntux/mcp-license", () => {
+    expect(pkgJson.dependencies?.["@agntux/mcp-license"]).toBeUndefined();
   });
 });
 

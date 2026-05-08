@@ -323,9 +323,22 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
 
   it("triage-view structured-error envelope declares the canonical degraded-state codes", () => {
     const src = readFileSync(triageViewPath, "utf-8");
-    for (const code of ["actions_index_missing", "license_paused"]) {
+    for (const code of ["actions_index_missing"]) {
       expect(src).toContain(`"${code}"`);
     }
+  });
+
+  it("triage-view does not declare a license_paused error code (Apache-2.0)", () => {
+    const src = readFileSync(triageViewPath, "utf-8");
+    expect(src).not.toContain("license_paused");
+  });
+
+  it("agntux-core mcp-server source does not import the @agntux/mcp-license gate", () => {
+    const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
+    const text = readFileSync(indexPath, "utf-8");
+    expect(text).not.toContain("@agntux/mcp-license");
+    expect(text).not.toContain("createLicenseGate");
+    expect(text).not.toContain("requireValidLicense");
   });
 });
 

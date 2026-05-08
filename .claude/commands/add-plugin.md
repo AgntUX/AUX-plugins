@@ -23,7 +23,7 @@ Steps:
    - `plugins/$ARGUMENTS/README.md`
    - `plugins/$ARGUMENTS/CHANGELOG.md` (seed `## 0.1.0` entry)
    - `plugins/$ARGUMENTS/hooks/` (copy from `canonical/hooks/` byte-for-byte)
-   - `plugins/$ARGUMENTS/LICENSE` (ELv2 stub — DO NOT replace)
+   - `plugins/$ARGUMENTS/LICENSE` (Apache-2.0)
 
 3. Run `npm run lint:marketplace -- --plugin $ARGUMENTS` and surface any errors. Stop and ask the user before fixing anything that touches `plugins/$ARGUMENTS/`.
 

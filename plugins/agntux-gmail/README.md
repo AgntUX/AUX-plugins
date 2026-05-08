@@ -184,25 +184,18 @@ node scripts/build-plugin.mjs agntux-gmail --serve
   days are dropped from the cursor map. Re-activity is caught via
   discovery if the user is `to:` or `cc:` on the new message.
 
-## Hooks and license enforcement
+## Hooks and MCP server
 
-AgntUX Gmail ships **no `hooks/` directory**. License enforcement lives
-in this plugin's MCP server (`mcp-server/src/index.ts`) via the
-`@agntux/mcp-license` gate, which wraps the `tools/call` handler.
-`resources/read` for the UI bundle is intentionally ungated — see
-`packages/mcp-license/README.md` §"Why only tools/call". The gate
-prompts the user through a host-agnostic pairing flow when no valid
-session exists.
-
-The Gmail data connector is host-installed (declared via
-`requires_source_mcp: { source: connector, connector_slug: gmail }` in
-`marketplace/listing.yaml`); the MCP server in `mcp-server/` is the
-plugin's own MCP App UI server (compose view tool), not the data
-connector.
+AgntUX Gmail ships **no `hooks/` directory**. The Gmail data connector
+is host-installed (declared via `requires_source_mcp: { source:
+connector, connector_slug: gmail }` in `marketplace/listing.yaml`);
+the MCP server in `mcp-server/` is the plugin's own MCP App UI server
+(compose view tool), not the data connector.
 
 ## License
 
-Elastic License v2 (ELv2). See the `LICENSE` file for details.
+Apache License 2.0. See the `LICENSE` and `NOTICE` files at the repo
+root for full terms.
 
 ## Support
 

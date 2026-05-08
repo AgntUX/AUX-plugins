@@ -2,7 +2,7 @@
  * ScrollablePanel — primitive layout: sticky header + scrollable body + sticky footer.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
  * Use this for any inline-iframe screen that needs to keep its title visible
  * at the top, scroll its body, and keep its primary action visible at the

@@ -2,12 +2,11 @@
  * LicenseErrorScreen — full-surface error envelope renderer.
  *
  * Author: AgntUX
- * License: ELv2
+ * License: Apache-2.0
  *
- * Used at the top of `App.tsx` to short-circuit rendering when an
- * `@agntux/mcp-license` envelope (or any tool-level error envelope) reaches
- * the iframe. Renders the entire `text` field with `whitespace-pre-wrap` so
- * multi-paragraph messages survive intact.
+ * Used at the top of `App.tsx` to short-circuit rendering when a tool-level
+ * error envelope reaches the iframe. Renders the entire `text` field with
+ * `whitespace-pre-wrap` so multi-paragraph messages survive intact.
  *
  * Pair with `detectErrorEnvelope(toolOutput)` to decide when to render this.
  */

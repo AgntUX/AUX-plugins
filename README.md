@@ -67,23 +67,16 @@ See `CLAUDE.md` and `CONTRIBUTING.md` for authoring conventions, and the
 
 ---
 
-## License — Elastic License 2.0 (with limitations)
+## License — Apache License 2.0
 
-All plugins in this repository are licensed under the
-[Elastic License 2.0](https://www.elastic.co/licensing/elastic-license) (ELv2).
-See `LICENSE` for the canonical text.
+All plugins and shared packages in this repository are licensed under the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). See
+`LICENSE` for the canonical text and `NOTICE` for attributions.
 
-**Plain-language summary:**
-
-- **Permitted:** Use, modify, and redistribute locally inside your own host
-  installation. Install, configure, and run plugins as a paying or trial user.
-- **Not permitted:**
-  1. Provide the software to third parties as a hosted or managed service.
-  2. Move, change, disable, or circumvent the `@agntux/mcp-license` gate (the ELv2 license-key mechanism wrapping each MCP server's `tools/call` handler).
-  3. Remove or obscure licensing, copyright, or attribution notices.
-
-For questions about specific use cases contact `legal@agntux.ai`. This summary
-is not legal advice; the `LICENSE` file governs.
+Solo use is unconditionally free — no license key, no pairing prompt, no
+nag, no degradation. Sync, cross-team rollup, and the private team
+marketplace are part of the proprietary AgntUX Teams product, distributed
+separately.
 
 ---
 

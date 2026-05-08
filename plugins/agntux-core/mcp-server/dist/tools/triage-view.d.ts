@@ -39,7 +39,7 @@ interface TriageStructuredContent {
     bootstrap_mode: boolean;
 }
 interface TriageStructuredError {
-    error: "actions_index_missing" | "license_paused";
+    error: "actions_index_missing";
 }
 interface ViewToolMeta {
     ui: {

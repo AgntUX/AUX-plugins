@@ -1,14 +1,34 @@
 # Contributing to AgntUX/AUX-plugins
 
-## External Contributions
-
-External contributions are **not yet accepted**. AgntUX engineers contribute
-via the langgraph generator (P6), which opens internal PRs from `gen/{slug}`
-branches. External contributor onboarding is tracked in P14 and will be
-enabled in a future milestone.
+External contributions are **welcome**. Knowledge workers who use AgntUX
+daily are best placed to tune prompts and schemas for the systems they
+know — that's the contributor flywheel this project runs on.
 
 If you have a plugin proposal, open an issue using the
 [Plugin Proposal template](https://github.com/AgntUX/AUX-plugins/issues/new?template=plugin_proposal.yml).
+For an end-to-end walkthrough of authoring a new plugin, install the
+`plugin-toolkit` from the
+[`agntux-plugin-dev` marketplace](https://github.com/AgntUX/agntux-plugin-dev).
+
+---
+
+## Developer Certificate of Origin (DCO)
+
+This project uses the
+[Developer Certificate of Origin](https://developercertificate.org/) — a
+lightweight alternative to a CLA. By signing off your commits you certify
+that you wrote the code or otherwise have the right to contribute it
+under the project's Apache 2.0 license.
+
+Sign off every commit with `git commit -s`. The trailer looks like:
+
+```
+Signed-off-by: Your Name <you@example.com>
+```
+
+Use your real name (no pseudonyms) and a working email address. The DCO
+check enforces this on every PR; commits without sign-off will be
+rejected.
 
 ---
 
@@ -48,7 +68,7 @@ gh repo edit AgntUX/AUX-plugins \
 # 2) Branch protection rule
 gh api repos/AgntUX/AUX-plugins/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["lint","version-check"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["lint","version-check","DCO"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null
@@ -56,10 +76,13 @@ gh api repos/AgntUX/AUX-plugins/branches/main/protection \
 
 **Rules to enforce:**
 - Require pull request before merging (1 approving review, dismiss stale reviews)
-- Require status checks to pass: `lint`, `version-check`
+- Require status checks to pass: `lint`, `version-check`, `DCO`
 - Require branches to be up to date before merging
 - Include administrators
 - No direct pushes to `main`
+
+The `DCO` check is provided by [Probot DCO](https://github.com/dcoapp/app),
+installed at the GitHub org level (separate operational step).
 
 ---
 
@@ -69,11 +92,12 @@ Use `/review-pr` or apply manually:
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] MCP server wires `@agntux/mcp-license` gate around the `tools/call` handler. `resources/read` must NOT call `gate.requireValidLicense(...)` (concurrency race + envelope-shape mismatch — see `packages/mcp-license/README.md`).
+- [ ] No `@agntux/mcp-license` gate or other paywall machinery introduced into any plugin
 - [ ] Screenshots are present, ≥1, dimensions correct (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` is ≤ 500 lines and renders cleanly
 - [ ] No custom fields added to `plugin.json` beyond the host spec
   (one permitted exception: `recommended_ingest_cadence`)
-- [ ] ELv2 `LICENSE` stub present; not replaced or modified
-- [ ] Version bump follows the semver rubric (MAJOR/MINOR/PATCH per CONTRIBUTING)
+- [ ] `LICENSE` is the Apache-2.0 standard text and unmodified
+- [ ] Version bump follows the semver rubric (MAJOR/MINOR/PATCH per CLAUDE.md)
+- [ ] All commits are signed-off (`git commit -s`)
