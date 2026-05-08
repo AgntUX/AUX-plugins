@@ -27,23 +27,46 @@ import { fileURLToPath } from "node:url";
 
 const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
-// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
-// break grep-style assertions. Pass-through for all other paths.
+// Slug from plugin.json — the skill directory and frontmatter `name:` both
+// match the plugin slug after the 3.0.0 slash-command unification refactor.
+const PLUGIN_SLUG = (
+  JSON.parse(
+    readFileSync(join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf-8"),
+  ) as { name: string }
+).name;
+
+// When reading the slug-named SKILL.md, fold in sibling reference/*.md files
+// (sorted) with `<!-- {filename} -->` boundary markers so grep-style
+// assertions on procedural body content keep working post-router-split.
+// Pass-through for all other paths.
 function readFile(p: string): string {
   const content = readFileSync(p, "utf-8");
-  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
-    const resourcesDir = join(dirname(p), "resources");
-    if (existsSync(resourcesDir)) {
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === PLUGIN_SLUG) {
+    const referenceDir = join(dirname(p), "reference");
+    if (existsSync(referenceDir)) {
       const parts = [content];
-      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+      for (const name of readdirSync(referenceDir).filter((f) => f.endsWith(".md")).sort()) {
         parts.push(`\n<!-- ${name} -->\n`);
-        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+        parts.push(readFileSync(join(referenceDir, name), "utf-8"));
       }
       return parts.join("");
     }
   }
   return content;
+}
+
+function parseFrontmatter(content: string): Record<string, string> {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return {};
+  const fm: Record<string, string> = {};
+  for (const line of match[1].split("\n")) {
+    const colon = line.indexOf(":");
+    if (colon === -1) continue;
+    const key = line.slice(0, colon).trim();
+    const value = line.slice(colon + 1).trim();
+    fm[key] = value;
+  }
+  return fm;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,9 +142,10 @@ describe("marketplace listing.yaml", () => {
     expect(text).toMatch(/name:\s*"?compose"?/);
   });
 
-  it("supported_prompts mentions /agntux-gmail:sync", () => {
+  it("supported_prompts uses the unified `/agntux-gmail` form (no trailing :sync)", () => {
     const text = readFile(listingPath);
-    expect(text).toContain("/agntux-gmail:sync");
+    expect(text).toMatch(/prompt:\s*"\/agntux-gmail"/);
+    expect(text).not.toMatch(/prompt:\s*"\/agntux-gmail:sync"/);
   });
 });
 
@@ -129,12 +153,54 @@ describe("marketplace listing.yaml", () => {
 // Sync skill
 // ---------------------------------------------------------------------------
 
-describe("skills/sync/SKILL.md", () => {
-  const skillPath = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+describe(`skills/${PLUGIN_SLUG}/SKILL.md`, () => {
+  const skillPath = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const skillText = existsSync(skillPath) ? readFile(skillPath) : "";
 
-  it("exists at the canonical path", () => {
+  it("exists at the slug-named path", () => {
     expect(existsSync(skillPath)).toBe(true);
+  });
+
+  it("frontmatter `name` matches the plugin slug", () => {
+    const raw = readFileSync(skillPath, "utf-8");
+    const fm = parseFrontmatter(raw);
+    expect(fm["name"]).toBe(PLUGIN_SLUG);
+  });
+
+  it("SKILL.md is a slim router (≤ 100 lines)", () => {
+    const raw = readFileSync(skillPath, "utf-8");
+    expect(raw.split("\n").length).toBeLessThanOrEqual(100);
+  });
+
+  it("SKILL.md routing-table heading `## Sub-commands` is present", () => {
+    const raw = readFileSync(skillPath, "utf-8");
+    expect(raw).toMatch(/^##\s+Sub-commands\s*$/m);
+  });
+
+  it("reference/ask.md exists and is linked from SKILL.md", () => {
+    const askRef = join(dirname(skillPath), "reference", "ask.md");
+    expect(existsSync(askRef)).toBe(true);
+    const raw = readFileSync(skillPath, "utf-8");
+    expect(raw).toMatch(/reference\/ask\.md/);
+  });
+
+  it("reference/sync.md carries a `## Contents` TOC at the top", () => {
+    const syncRef = join(dirname(skillPath), "reference", "sync.md");
+    expect(existsSync(syncRef)).toBe(true);
+    const content = readFileSync(syncRef, "utf-8");
+    expect(content).toMatch(/^##\s+Contents\s*$/m);
+  });
+
+  it("reference/ask.md is structurally read-only (no cursor advance, no write)", () => {
+    const askRef = join(dirname(skillPath), "reference", "ask.md");
+    const content = readFileSync(askRef, "utf-8");
+    expect(content).toMatch(/Do NOT.*call any source write tool/i);
+    expect(content).toMatch(/Do NOT.*advance any cursor/i);
+    expect(content).toMatch(/Do NOT.*edit any file under.*<agntux project root>/i);
+  });
+
+  it("legacy skills/sync/ directory does not exist (host's `:` is a namespace separator)", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "skills", "sync", "SKILL.md"))).toBe(false);
   });
 
   it("runs inline — no `context: fork`, no nested agent, no `tools:` whitelist", () => {

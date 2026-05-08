@@ -1,5 +1,21 @@
 # `/agntux onboard` — first-run interview AND new-plugin walkthrough
 
+## Contents
+
+- Preconditions, voice rules, project root, schema-drift preflight
+- First-run flow (`user.md` missing)
+  - Stages 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 / 4 / 4.5 / 4.6 / 5 / 5.5
+  - Plugin suggestions
+  - Connect your sources (gate)
+  - Per-plugin onboarding interview
+  - Per-source scheduled-task walkthrough
+  - Deterministic wrap-up (States A–D)
+  - Resume the user's original ask
+- Re-entry flow (`user.md` exists)
+- Authority discipline (user.md writes)
+- Out of scope
+- Be honest
+
 **Voice rules.** Speak as a single AgntUX voice. Never say "subagent",
 "dispatch", "Mode A / A-bis", "orchestrator", or any internal phase.
 Stage transitions are silent.
@@ -324,7 +340,7 @@ marked `scheduled`.
 **For each installed source plugin:**
 
 1. **Body/cadence/name.** Body = bare slash command (e.g.
-   `/agntux-slack:sync`). Cadence = `recommended_ingest_cadence` from
+   `/agntux-slack`). Cadence = `recommended_ingest_cadence` from
    the plugin's `.claude-plugin/plugin.json` (default `Daily 04:00` if
    absent). Name = `'AgntUX {plugin-name} ingest'`.
 2. **Pre-flight.** Connector branch (if `connector_directory_id` set or
@@ -362,7 +378,7 @@ without asking:
 - **`yes`** → fire `/agntux sync {plugin-slug}` sequentially (one at a
   time — plugins share overlapping write paths).
 - **`no`** → "Skipping initial ingests. Scheduled tasks will pick this
-  up at their next tick. Force a sync anytime with `/{plugin-slug}:sync`."
+  up at their next tick. Force a sync anytime with `/{plugin-slug}`."
 - **`one at a time`** → repeat consent per plugin.
 
 Track three buckets: **fired-and-succeeded**, **fired-and-failed**,
@@ -372,9 +388,9 @@ Track three buckets: **fired-and-succeeded**, **fired-and-failed**,
   at 13:00, feedback review at 16:00 (user-local). **Open the AgntUX
   Triage UI** to see your action items."
 - All fired succeeded + some declined → same, plus "Run a one-off ingest
-  anytime: `/{plugin-slug}:sync`."
+  anytime: `/{plugin-slug}`."
 - Top-level `no` → "You're set up — scheduled tasks in place. Run a
-  one-off ingest anytime: `/{plugin-slug}:sync`."
+  one-off ingest anytime: `/{plugin-slug}`."
 - Any failed → fall through to State B.
 
 **State B — some initial ingests failed:** "Setup complete — but {N}

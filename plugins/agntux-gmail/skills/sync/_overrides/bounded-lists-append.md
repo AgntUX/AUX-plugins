@@ -1,1 +1,0 @@
-- `data/instructions/agntux-gmail.md → # Sender denylist` — last 30. Eviction: drop oldest entry whose HTML-comment metadata contains `added:` (auto-added). User-curated entries (no `added:` metadata) are never auto-evicted. Full auto-learn rules: see [`./resources/denylist.md`](./resources/denylist.md).

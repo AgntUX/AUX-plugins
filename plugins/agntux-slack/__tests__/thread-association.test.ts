@@ -22,22 +22,29 @@ const EXPECTED_ENTITIES = join(EXAMPLES_DIR, "expected-entities");
 const EXPECTED_ACTIONS = join(EXAMPLES_DIR, "expected-actions");
 const SLACK_EXPORT = join(EXAMPLES_DIR, "slack-export");
 
+const PLUGIN_SLUG = (
+  JSON.parse(
+    readFileSync(join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf-8"),
+  ) as { name: string }
+).name;
+
 // Parent ts for the Mango thread; replies must NOT key any source row.
 const MANGO_PARENT_TS = "1714300000.000100";
 const MANGO_REPLY_TS = ["1714300100.000200", "1714386500.000300"];
 
-// When reading a sync SKILL.md, fold in sibling resources/*.md files (sorted)
-// with `<!-- {filename} -->` boundary markers so future Phase-3/4 splits don't
-// break grep-style assertions. Pass-through for all other paths.
+// When reading the slug-named SKILL.md, fold in sibling reference/*.md files
+// (sorted) with `<!-- {filename} -->` boundary markers so grep-style
+// assertions on procedural body content keep working post-router-split.
+// Pass-through for all other paths.
 function readMd(p: string): string {
   const content = readFileSync(p, "utf-8");
-  if (basename(p) === "SKILL.md" && basename(dirname(p)) === "sync") {
-    const resourcesDir = join(dirname(p), "resources");
-    if (existsSync(resourcesDir)) {
+  if (basename(p) === "SKILL.md" && basename(dirname(p)) === PLUGIN_SLUG) {
+    const referenceDir = join(dirname(p), "reference");
+    if (existsSync(referenceDir)) {
       const parts = [content];
-      for (const name of readdirSync(resourcesDir).filter((f) => f.endsWith(".md")).sort()) {
+      for (const name of readdirSync(referenceDir).filter((f) => f.endsWith(".md")).sort()) {
         parts.push(`\n<!-- ${name} -->\n`);
-        parts.push(readFileSync(join(resourcesDir, name), "utf-8"));
+        parts.push(readFileSync(join(referenceDir, name), "utf-8"));
       }
       return parts.join("");
     }
@@ -64,7 +71,7 @@ function collectMdFiles(dir: string): string[] {
 // ---------------------------------------------------------------------------
 
 describe("sync SKILL.md thread-association rule", () => {
-  const syncSkill = join(PLUGIN_ROOT, "skills", "sync", "SKILL.md");
+  const syncSkill = join(PLUGIN_ROOT, "skills", PLUGIN_SLUG, "SKILL.md");
   const src = readMd(syncSkill);
 
   it("documents source_id format keyed on parent thread", () => {

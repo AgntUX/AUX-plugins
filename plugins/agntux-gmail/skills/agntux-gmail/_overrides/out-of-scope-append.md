@@ -1,0 +1,3 @@
+- Call `create_draft`. Read-only is non-negotiable for this skill; the iframe Save click is the authorisation gate.
+- Write to `<agntux project root>/data/schema/` — except the narrowly-defined Step 0 sub-step 2.5 lock self-heal (interactive-only, `plugin_contracts` entry only, populated from approved contract markdown). See `reference/contract-lock.md`.
+- Write to `<agntux project root>/data/instructions/agntux-gmail.md` — except the narrowly-defined Step 11 sub-step 5 `# Sender denylist` auto-learn (auto-added entries with HTML-comment metadata, capped at 30, never touching the other four sections).

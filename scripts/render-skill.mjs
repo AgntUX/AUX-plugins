@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 /**
- * render-skill.mjs — render a per-plugin skills/sync/ tree from
- * canonical/prompts/ingest/skills/sync/ + plugins/{slug}/skills/sync/_overrides/.
+ * render-skill.mjs — render a per-plugin skills/{slug}/ tree from
+ * canonical/prompts/ingest/skills/sync/ + plugins/{slug}/skills/{slug}/_overrides/.
+ *
+ * (The canonical parent directory is still named `sync/` because it's
+ * internal-only; the rendered output is named after the plugin slug so the
+ * host exposes it as `/{slug}` and the skill's `name:` matches the slug.)
  *
  * Three composable override mechanisms:
  *   1. Placeholder substitution: _overrides/frontmatter.yaml carries the
  *      {{key}} → value map. Surviving placeholders fail the build.
  *   2. Section-targeted append: <!-- append:{section-id} --> markers in
- *      canonical SKILL.md splice in _overrides/{section-id}-append.md before
- *      the marker line. Marker is stripped after splicing (or if no override
- *      exists for it).
- *   3. Resource wholesale-replace: canonical resources/{name}.md is the
- *      baseline; _overrides/resources/{name}.md replaces it (with
- *      substitution applied). Per-plugin extra resources under
- *      _overrides/resources/ pass through verbatim.
+ *      canonical SKILL.md AND every canonical reference/*.md file splice in
+ *      _overrides/{section-id}-append.md before the marker line. Marker is
+ *      stripped after splicing (or if no override exists for it).
+ *   3. Reference wholesale-replace: canonical reference/{name}.md is the
+ *      baseline; _overrides/reference/{name}.md replaces it (with
+ *      substitution applied). Per-plugin extra references under
+ *      _overrides/reference/ pass through verbatim.
  *
  * CLI:
- *   node scripts/render-skill.mjs <slug>            # render plugins/<slug>/skills/sync/
+ *   node scripts/render-skill.mjs <slug>            # render plugins/<slug>/skills/<slug>/
  *   node scripts/render-skill.mjs --to-stdout <slug># write rendered SKILL.md to stdout
  *   node scripts/render-skill.mjs --self-test       # render canonical with no overrides
  *                                                    (placeholder check relaxed; smoke-tests machinery)
@@ -59,9 +63,9 @@ const CANONICAL_SYNC_DIR = join(
  *
  * @param {object} opts
  * @param {string} opts.canonicalDir   absolute path to canonical/.../sync/
- * @param {string} opts.overridesDir   absolute path to plugins/<slug>/skills/sync/_overrides/
+ * @param {string} opts.overridesDir   absolute path to plugins/<slug>/skills/<slug>/_overrides/
  *                                      (may not exist — treated as empty)
- * @param {string} opts.outputDir      absolute path to write SKILL.md + resources/
+ * @param {string} opts.outputDir      absolute path to write SKILL.md + reference/
  * @param {object} [opts.flags]
  * @param {boolean} [opts.flags.allowPlaceholders=false]
  *                                      when true, surviving {{...}} tokens are tolerated
@@ -89,55 +93,60 @@ export function renderSkill({ canonicalDir, overridesDir, outputDir, flags = {} 
 
   const written = [];
   ensureDir(outputDir);
-  // Wipe prior resources/ to avoid leaving stale files when an override is removed.
-  const outResources = join(outputDir, "resources");
-  if (existsSync(outResources)) rmSync(outResources, { recursive: true, force: true });
+  // Wipe prior reference/ to avoid leaving stale files when an override is removed.
+  const outRef = join(outputDir, "reference");
+  if (existsSync(outRef)) rmSync(outRef, { recursive: true, force: true });
 
   const outSkill = join(outputDir, "SKILL.md");
   writeFileSync(outSkill, body);
   written.push(outSkill);
 
-  // ── render resources/ ─────────────────────────────────────────────────────
-  // Canonical resources first — overridden wholesale if a sibling exists in
-  // _overrides/resources/. Per-plugin extras (no canonical counterpart) are
-  // copied through afterwards.
-  const canonicalResources = join(canonicalDir, "resources");
-  const overrideResources = join(overridesDir, "resources");
+  // ── render reference/ ─────────────────────────────────────────────────────
+  // Canonical reference files first — overridden wholesale if a sibling exists
+  // in _overrides/reference/. Per-plugin extras (no canonical counterpart) are
+  // copied through afterwards. Append markers are processed in every reference
+  // file too, because the procedural body that used to live in canonical
+  // SKILL.md now lives in canonical reference/sync.md and still carries
+  // <!-- append:step-* --> markers.
+  const canonicalRef = join(canonicalDir, "reference");
+  const overrideRef = join(overridesDir, "reference");
 
-  const canonicalResNames = existsSync(canonicalResources)
-    ? readdirSync(canonicalResources).filter((n) => n.endsWith(".md")).sort()
+  const canonicalRefNames = existsSync(canonicalRef)
+    ? readdirSync(canonicalRef).filter((n) => n.endsWith(".md")).sort()
     : [];
-  const overrideResNames = existsSync(overrideResources)
-    ? readdirSync(overrideResources).filter((n) => n.endsWith(".md")).sort()
+  const overrideRefNames = existsSync(overrideRef)
+    ? readdirSync(overrideRef).filter((n) => n.endsWith(".md")).sort()
     : [];
 
-  if (canonicalResNames.length || overrideResNames.length) ensureDir(outResources);
+  if (canonicalRefNames.length || overrideRefNames.length) ensureDir(outRef);
 
   const seen = new Set();
-  for (const name of canonicalResNames) {
+  for (const name of canonicalRefNames) {
     seen.add(name);
     let src = readFileSync(
-      existsSync(join(overrideResources, name))
-        ? join(overrideResources, name)
-        : join(canonicalResources, name),
+      existsSync(join(overrideRef, name))
+        ? join(overrideRef, name)
+        : join(canonicalRef, name),
       "utf8",
     );
+    src = applyAppendMarkers(src, overridesDir, subs);
     src = applySubstitutions(src, subs);
     if (!flags.allowPlaceholders) {
-      assertNoPlaceholders(src, `resources/${name}`);
+      assertNoPlaceholders(src, `reference/${name}`);
     }
-    const out = join(outResources, name);
+    const out = join(outRef, name);
     writeFileSync(out, src);
     written.push(out);
   }
-  for (const name of overrideResNames) {
+  for (const name of overrideRefNames) {
     if (seen.has(name)) continue; // canonical-overridden already written above
-    let src = readFileSync(join(overrideResources, name), "utf8");
+    let src = readFileSync(join(overrideRef, name), "utf8");
+    src = applyAppendMarkers(src, overridesDir, subs);
     src = applySubstitutions(src, subs);
     if (!flags.allowPlaceholders) {
-      assertNoPlaceholders(src, `resources/${name}`);
+      assertNoPlaceholders(src, `reference/${name}`);
     }
-    const out = join(outResources, name);
+    const out = join(outRef, name);
     writeFileSync(out, src);
     written.push(out);
   }
@@ -285,7 +294,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage:",
-    "  node scripts/render-skill.mjs <slug>             render plugins/<slug>/skills/sync/",
+    "  node scripts/render-skill.mjs <slug>             render plugins/<slug>/skills/<slug>/",
     "  node scripts/render-skill.mjs --to-stdout <slug> write SKILL.md to stdout",
     "  node scripts/render-skill.mjs --self-test        smoke-test (canonical, no overrides)",
     "  node scripts/render-skill.mjs --canonical PATH --overrides PATH --output PATH",
@@ -374,11 +383,11 @@ function runCli(rawArgs) {
     process.exit(1);
   }
   const slug = args._[0];
-  const pluginSyncDir = join(REPO_ROOT, "plugins", slug, "skills", "sync");
-  const overridesDir = join(pluginSyncDir, "_overrides");
+  const pluginSkillDir = join(REPO_ROOT, "plugins", slug, "skills", slug);
+  const overridesDir = join(pluginSkillDir, "_overrides");
   if (!existsSync(overridesDir)) {
     fail(
-      `plugins/${slug}/skills/sync/_overrides/ not found — ` +
+      `plugins/${slug}/skills/${slug}/_overrides/ not found — ` +
         `nothing to render (does the plugin opt into the canonical render pipeline yet?)`,
     );
   }
@@ -404,7 +413,7 @@ function runCli(rawArgs) {
   const r = renderSkill({
     canonicalDir: CANONICAL_SYNC_DIR,
     overridesDir,
-    outputDir: pluginSyncDir,
+    outputDir: pluginSkillDir,
   });
   console.log(
     `render-skill: ${slug} — wrote ${r.written.length} files (` +

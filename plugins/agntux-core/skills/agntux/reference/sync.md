@@ -2,7 +2,8 @@
 
 Lane: thin alias so users can manually trigger an ingest pass without
 remembering each plugin's namespace. The actual work happens in the
-per-plugin sync command (e.g., `/agntux-slack:sync`).
+per-plugin command (e.g., `/agntux-slack` — the bare form defaults to
+sync; `/agntux-slack sync` is the explicit form).
 
 (Sync cannot run before the schema is bootstrapped and the per-plugin
 contract is approved — the per-plugin sync command will exit cleanly
@@ -16,8 +17,10 @@ expected to be a single plugin slug (e.g., `agntux-slack`, or a bare
 short name like `slack`).
 
 1. **Normalise** — trim whitespace and strip a leading slash, a
-   trailing colon, and a trailing `:sync` if the user typed
-   `/agntux-slack:sync` or `agntux-slack:sync` by mistake.
+   trailing colon, and a trailing `:sync` if the user typed the legacy
+   `/agntux-slack:sync` or `agntux-slack:sync` form (this handles
+   stale scheduled-task bodies and muscle-memory typos — the host's
+   resolver will 404 on `:sync`, so we strip it before re-dispatch).
 2. **Empty?** If the normalised value is empty, look up installed
    plugins — read the `# AgntUX plugins > ## Installed` section of
    `<agntux project root>/user.md`. If that section is missing or
@@ -34,9 +37,11 @@ short name like `slack`).
 4. **Not installed?** If the slug does not match a line in
    `## Installed`, say "I don't see `{slug}` in your installed
    plugins — install it from the marketplace first." and stop.
-5. **Re-dispatch** — invoke `/{slug}:sync` directly. The host
-   carries the conversation to the per-plugin sync command, which
-   engages the plugin's ingest skill.
+5. **Re-dispatch** — invoke `/{resolved-slug} sync`. The host parses
+   the first `$ARGUMENTS` token as the sub-command. The bare form
+   `/{resolved-slug}` is equivalent (defaults to sync), but the
+   explicit `sync` token documents intent and supports future
+   sub-tasks.
 
 This resource does NO ingest work itself. It only re-dispatches.
 

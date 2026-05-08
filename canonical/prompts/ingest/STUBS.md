@@ -31,6 +31,7 @@ runtime/host-filled — NOT P6-substituted.
 | `{{ui-handler-trigger-list}}` | `(this plugin ships no UI components)` | `- "display the slack thread UI for {ref}" → call mcp__agntux-slack-ui__thread_view` | per-source spec; one bullet per view tool, or the literal no-UI string. Used by UI-handler metadata files (P9 §7), not by the sync skill. |
 | `{{thread-unit-name}}` | `thread` | `thread` | per-source spec; the per-source name for the cursor-keyed unit ("thread", "channel", "issue", "row"). Singular form; appears in prose ("once per {{thread-unit-name}}, not once per reply"). |
 | `{{bootstrap-window-default-days}}` | `14` | `7` | per-source spec; default value for `bootstrap_window_days` when `user.md` doesn't override. Slack=7 (high volume), Gmail=14 (moderate), generic=30. |
+| `{{example-channel}}` | `Inbox` | `general` | per-source spec; one plausible source-native scope name used in the SKILL `description`'s trigger-phrase examples (e.g. "what's happening in #{{example-channel}}"). Slack uses a real channel name (`general`); sources without channel-shaped scopes (Gmail, Drive) use a benign label like `Inbox`. Cold-start matching surface only — the value never reaches user-facing prose. |
 
 ### UI-handler subagent template only (`agents/ui-handlers/_template.md`)
 

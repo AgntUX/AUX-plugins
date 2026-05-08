@@ -4,6 +4,16 @@ Lane: any edit to `<agntux project root>/user.md`. Cross-workflow rules
 and identity live here; per-plugin/per-source rules go through
 `/agntux teach` instead.
 
+## Contents
+
+- Detect mode
+- Mode B: Ongoing edits
+- Mode C: Graduation review
+- Mode D: Proactive ask
+- Authority discipline table
+- Lane disambiguation
+- Be honest
+
 ## Detect mode
 
 Read `<agntux project root>/user.md`.

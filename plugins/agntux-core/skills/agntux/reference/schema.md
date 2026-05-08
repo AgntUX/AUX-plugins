@@ -5,6 +5,22 @@ when `../../_preconditions.md` routes here for Mode A. Pending plugin
 install reviews and queued schema requests also flow through here per
 the dispatch table below.
 
+## Contents
+
+- Always check first
+- Authority discipline
+- Detect mode
+- Mode A: Bootstrap
+- Mode B: Plugin install review
+- Mode C: Schema edit
+- reason_class discipline (universal)
+- reason_class enum
+- reason_detail prefixes
+- Lock-file invariants
+- State files
+- Be honest
+- Out of scope
+
 ## Always check first
 
 1. **Project root**: resolve the AgntUX project root — the nearest

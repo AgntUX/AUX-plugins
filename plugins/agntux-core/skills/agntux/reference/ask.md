@@ -4,6 +4,20 @@ Lane: anything not matched by a specific `/agntux` sub-command. This is
 the "I don't know what to type" entry point and the fallback for
 ambiguous natural language.
 
+## Contents
+
+- Always read first
+- Freshness check (before answering)
+- Click-time drafting (host-routed `ux:` prompts)
+- Inline status edits
+- Classify the query (Patterns A–E)
+- Tier discipline (universal)
+- Failure-to-bind signal
+- Lane disambiguation (if uncertain)
+- Out-of-scope hand-offs
+- Speak in the user's voice
+- Honesty
+
 ## Always read first
 
 Every invocation MUST begin with these reads. They are small and frame
@@ -54,7 +68,7 @@ on that source's data (entity queries, time queries, topic queries,
 task/prep queries), surface a one-line warning at the start of your
 answer:
 
-> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/agntux-slack:sync`). To re-walk setup, run `/agntux profile`.
+> Note: I'm answering with potentially stale data. Slack ingest last ran successfully 5 days ago. Check that the Slack ingest scheduled task is enabled in your host's scheduled-task UI (prompt body `/agntux-slack`). To re-walk setup, run `/agntux profile`.
 
 If the question doesn't depend on the stale source's data, don't
 mention it. If multiple sources are stale, group them in a single

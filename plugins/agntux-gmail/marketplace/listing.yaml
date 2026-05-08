@@ -28,8 +28,8 @@ data_ingested:
   - "Threads carrying the IMPORTANT Gmail label"
   - "Subject and snippet metadata from related threads (for reply-context)"
 supported_prompts:
-  - prompt: "/agntux-gmail:sync"
-    purpose: "Run an agntux-gmail pass now or on schedule. Recommended: hourly — email is bursty but doesn't need higher resolution than every 60 min."
+  - prompt: "/agntux-gmail"
+    purpose: "Bare or `sync` runs an ingest pass (recommended cadence: hourly). Any other first token is a live NL question about Gmail — no cursor advance, no knowledge-store write."
 ui_components:
   - name: "compose"
     title: "Gmail reply composer"

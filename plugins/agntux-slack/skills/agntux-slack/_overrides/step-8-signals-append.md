@@ -1,0 +1,1 @@
+For the Slack-specific signal layer — default action-worthy signals, default noise patterns, and the rule that there is no `decision-needed` (folded into `response-needed`) — see `reference/slack-triage.md` § "Step 8 — Slack signal layer".

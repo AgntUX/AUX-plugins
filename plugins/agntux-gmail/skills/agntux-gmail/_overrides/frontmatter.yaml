@@ -1,0 +1,13 @@
+# Substitution map for the canonical sync-skill template.
+# Renderer reads this at build time; surviving {{...}} placeholders fail.
+
+plugin-slug: agntux-gmail
+plugin-version: 3.0.0
+source-display-name: Gmail
+source-slug: gmail
+recommended-cadence: Hourly — email is bursty during the workday but doesn't need higher resolution than every 60 min
+source-cursor-semantics: "Single JSON map under `cursor`. Two key shapes: the literal string `inbox` for the discovery low-water-mark, and `<thread_id>` for per-thread cursors. Plus sibling fields `discovery_ts` and `user_email` on `sync.md`."
+source-mcp-tools: "search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt"
+thread-unit-name: thread
+bootstrap-window-default-days: "14"
+example-channel: Inbox
