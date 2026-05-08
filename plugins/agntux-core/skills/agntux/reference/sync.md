@@ -16,11 +16,8 @@ Read the sub-args (everything after the `sync` token) and normalise —
 expected to be a single plugin slug (e.g., `agntux-slack`, or a bare
 short name like `slack`).
 
-1. **Normalise** — trim whitespace and strip a leading slash, a
-   trailing colon, and a trailing `:sync` if the user typed the legacy
-   `/agntux-slack:sync` or `agntux-slack:sync` form (this handles
-   stale scheduled-task bodies and muscle-memory typos — the host's
-   resolver will 404 on `:sync`, so we strip it before re-dispatch).
+1. **Normalise** — trim whitespace and strip a leading slash if the
+   user typed `/agntux-slack` or `slack` directly.
 2. **Empty?** If the normalised value is empty, look up installed
    plugins — read the `# AgntUX plugins > ## Installed` section of
    `<agntux project root>/user.md`. If that section is missing or

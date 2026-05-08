@@ -10,23 +10,17 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 Slash-command unification — companion to agntux-core 8.0.0
 (cozy-squirrel) and agntux-slack 7.0.0. The plugin's single user-facing
-entry point is now `/agntux-gmail`, accepting either a sync sub-command
-or a natural-language question.
+entry point is `/agntux-gmail`, accepting either a sync sub-command or
+a natural-language question.
 
 ### Changed
 
-- **BREAKING: `/agntux-gmail:sync` → `/agntux-gmail` (or
-  `/agntux-gmail sync`).** Scheduled tasks built against the old form
-  must be recreated; the host's resolver treats `:` as a namespace
-  separator and will 404 once the `sync` skill is renamed.
-  `marketplace/listing.yaml → supported_prompts` is updated to the new
-  form.
-- **`/agntux-gmail` now accepts natural-language queries** (e.g.
-  `/agntux-gmail any unread threads from Acme this week?`). The first
-  whitespace-delimited token of `$ARGUMENTS` selects the sub-command:
-  empty or `sync` runs the ingest pass; anything else is treated as a
-  live question and answered via the Gmail read MCP tools (no cursor
+- **`/agntux-gmail` is the user-facing surface** (bare or
+  `/agntux-gmail sync` runs the ingest pass; any other first token is
+  a live NL question answered via the Gmail read MCP tools — no cursor
   advance, no knowledge-store write).
+  `marketplace/listing.yaml → supported_prompts` advertises the bare
+  form.
 - **`skills/sync/` renamed to `skills/agntux-gmail/`** so the skill's
   `name:` matches the plugin slug and the host exposes it as
   `/agntux-gmail`. Internal `resources/` directory renamed to
@@ -44,14 +38,6 @@ or a natural-language question.
   Read-only: skips the orchestrator gate, never advances a cursor,
   never writes to the knowledge store. Refuses cleanly if the Gmail
   connector isn't configured.
-
-### Migration
-
-- Recreate any scheduled task whose prompt body is `/agntux-gmail:sync`.
-  The new body is either `/agntux-gmail` (bare — defaults to sync) or
-  `/agntux-gmail sync` (explicit). Both lead to the same place.
-- No on-disk data migration. Existing action items, entities, cursor
-  state, and per-plugin instructions all keep working unchanged.
 
 ## [2.1.0] — 2026-05-07
 

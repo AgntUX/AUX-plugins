@@ -266,8 +266,7 @@ describe("ingest skill prompt", () => {
     const flatForm = join(PLUGIN_ROOT, "skills", "orchestrator.md");
     expect(existsSync(flatForm)).toBe(false);
     expect(existsSync(syncSkill)).toBe(true);
-    // Legacy `sync` directory must not exist post-7.0.0 — host treats `:` as
-    // a namespace separator so the old `/agntux-slack:sync` form 404s.
+    // Single skill directory at skills/{slug}/. No stray skills/sync/.
     expect(existsSync(join(PLUGIN_ROOT, "skills", "sync", "SKILL.md"))).toBe(false);
   });
 });

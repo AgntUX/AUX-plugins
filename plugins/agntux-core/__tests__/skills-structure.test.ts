@@ -252,11 +252,7 @@ describe("agntux-core skills directory structure", () => {
     });
 
     it("re-dispatches /{slug} sync (does not call source MCPs itself)", () => {
-      // Post-7.0.0 the host's resolver treats `:` as a namespace separator,
-      // so the re-dispatch target is `/{slug} sync` (or the bare `/{slug}`),
-      // not the legacy `/{slug}:sync`.
       expect(src).toMatch(/\/\{resolved-slug\} sync|\/\{slug\} sync|Re-dispatch/);
-      expect(src).not.toMatch(/Re-dispatch.*\/\{slug\}:sync/);
       expect(src).toMatch(/NO ingest work|only re-dispatches/i);
     });
   });
