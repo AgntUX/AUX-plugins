@@ -11,3 +11,37 @@ source-mcp-tools: "slack_read_channel, slack_read_thread, slack_read_user_profil
 thread-unit-name: thread
 bootstrap-window-default-days: "7"
 example-channel: general
+
+# Documentation-only declarations (referenced by canonical sync.md / runbook.md
+# in prose; toolkit lint pass 6 will enforce these in a follow-up).
+source-identity-fields:
+  - user_id
+  - workspace_subdomain
+permitted-error-kinds:
+  # Generic kinds (canonical):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  - out-of-lane-write-attempted
+  # Source-prefixed canonical extensions:
+  - slack-merged-into
+  - slack-reconcile-failed
+  - slack-cursor-evicted
+  - slack-tool-result-truncated
+  - slack-deferred-orphan
+  # Slack-specific extensions:
+  - slack-thread-evicted
+  - slack-thread-orphaned
+  - slack-channel-truncated
+  - slack-bootstrap-interrupted
+  - slack-large-backlog
