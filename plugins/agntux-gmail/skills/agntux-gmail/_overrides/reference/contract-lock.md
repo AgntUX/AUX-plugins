@@ -1,63 +1,73 @@
-# Gmail schema.lock self-heal — Step 0 sub-step 2.5
+# Gmail schema-lock check — Step 0 routing
 
 Companion to `../SKILL.md` Step 0. Gmail-specific defensive lock check
 that mirrors the validator's `schema.lock.json` lookup so the skill
-can fail fast (or self-heal inline) when `plugin_contracts["agntux-gmail"]`
-is missing — typically because Mode B hasn't been re-run since this
-plugin was installed.
+can fail fast — without writing — when `plugin_contracts["agntux-gmail"]`
+is missing or version-drifted.
+
+## Authority boundary (load-bearing)
+
+This file is **exit-clean**. It MUST NOT write to
+`<agntux project root>/data/schema/` under any circumstance —
+including the previously-permitted "interactive self-heal" path.
+Schema-lock authoring is owned by the data architect's `/agntux
+schema` flow (Mode B). The autonomy-boundary rule in
+`./sync.md → "Out of scope"` is the load-bearing source; the
+agntux-core hook `validate-write-lane.mjs` enforces it server-side
+even if this prose drifts.
 
 ## Read order
 
-`<agntux project root>/data/schema/schema.lock.json` — read it after
-the contract markdown (sub-steps 1–2) and verify
-`plugin_contracts["agntux-gmail"]` is present. The validator hook
-(`validate-schema.mjs`) trusts `schema.lock.json`, not the markdown
-contract — the markdown is informational; the lock is what gates
-writes. Mirroring the validator's lookup here lets you fail fast
-instead of doing entity work that will be wasted at action-write time.
+After the canonical Step 0 sub-steps 1–4 have parsed the contract
+markdown, read `<agntux project root>/data/schema/schema.lock.json`
+and look up `plugin_contracts["agntux-gmail"]`. Three outcomes:
 
-## When the entry is missing
+1. **Present and version-aligned** with the contract markdown
+   (`schema_version` matches; `allowed_subtypes` and
+   `allowed_action_classes` cover the contract's vocabulary) → pass.
+   Continue to sub-step 5.
 
-### Scheduled-task fire (no user present)
+2. **Missing entirely** (contract markdown exists at
+   `data/schema/contracts/agntux-gmail.md` but no
+   `plugin_contracts["agntux-gmail"]` key in the lock):
+   - Append a `kind: contract-not-registered` entry to
+     `sync.md → errors` — payload `"agntux-gmail contract markdown
+     present but schema.lock.json is missing the
+     plugin_contracts key — run /agntux schema to register"`.
+   - Exit cleanly with no user-facing message (scheduled fire) or
+     the one-line `agntux-gmail pre-flight: contract not yet
+     registered in schema.lock; run /agntux schema and re-fire.`
+     (interactive). Step 11's transactional rule applies: cursor
+     and run-stats stay at their pre-run values.
 
-Exit cleanly. Append a `contract-not-registered` entry to
-`sync.md → errors`. The validator emits a self-healing runbook on the
-next interactive invocation that triggers an action write — that's the
-right moment to update the lock, not now.
+3. **Present but version-drifted** (lock entry's `schema_version`
+   lags the contract markdown's, OR `allowed_subtypes` /
+   `allowed_action_classes` diverge):
+   - Append a `kind: contract-version-drift` entry to
+     `sync.md → errors` — payload should name the drifted field
+     (e.g., `"schema_version: contract=1.1.0, lock=1.0.0"`).
+   - Exit cleanly with the same shape as outcome 2.
 
-### Interactive invocation
+In neither case does this skill touch `schema.lock.json`. The
+data architect's Mode B sweep (`/agntux schema`) reads the
+`contract-version-drift` / `contract-not-registered` entries on the
+next interactive AgntUX session and updates the lock. The next
+scheduled run picks up clean.
 
-Register the plugin inline now (you already have the contract parsed
-in working memory, so re-emitting the validator's runbook would
-round-trip for no reason):
+## Why no inline self-heal
 
-1. Edit `<root>/data/schema/schema.lock.json`. Add a sibling key
-   `agntux-gmail` under `plugin_contracts` populated from the contract
-   markdown:
-   - `schema_version` — frontmatter field of the contract.
-   - `allowed_subtypes` — extracted from the contract body section
-     that enumerates the entity subtypes the plugin may write (the
-     `## Owned subtypes` section in the current gmail contract).
-   - `allowed_action_classes` — extracted from the body section that
-     enumerates action classes (the `## reason_class enum` section in
-     the current gmail contract).
-   - `approved_at` — current RFC 3339 timestamp.
-   - `source_id_format` — copied from contract frontmatter.
-2. Bump `schema.lock.json → generated_at` to the same RFC 3339
-   timestamp.
+Two reasons, both load-bearing:
 
-Then continue.
+1. **Authority.** `data/schema/` is architect territory. The
+   ingest skill's permitted write lanes are `entities/`, `actions/`,
+   and `data/learnings/{plugin-slug}/`. Writing to `data/schema/`
+   from this skill violates the canonical "Out of scope" rule and
+   is refused at the hook layer.
+2. **Atomicity.** A self-heal that runs concurrently with another
+   plugin's sync (or with `/agntux schema` itself) would race on
+   `schema.lock.json` with no lock around it. The architect flow
+   has the soft lock and the user's eyes; the ingest skill has
+   neither.
 
-## Authority boundaries
-
-This skill MAY add a missing `plugin_contracts["agntux-gmail"]` entry
-to `data/schema/schema.lock.json` only when:
-
-- The invocation is interactive (a user is present to see the inline
-  self-heal narration).
-- The contract markdown sits at `status: approved`.
-- All values come from the contract markdown — no invention.
-
-This is a fast-path mirror of the architect's Mode B sweep. The skill
-MUST NOT touch any other section of `schema.lock.json` or any other
-file under `data/schema/`.
+Mode B fast-path mirroring is documented as a future opt-in if it
+proves load-bearing — it is not the current design.
