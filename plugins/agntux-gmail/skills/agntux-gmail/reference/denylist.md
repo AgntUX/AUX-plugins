@@ -11,10 +11,22 @@ After cursor advance + lock release in Step 11, walk the working-memory
 messages skipped this run). For each sender with **≥3 dropped messages
 this run**, decide whether to denylist them per the gates below.
 
-Skip the entire sub-step if `data/instructions/agntux-gmail.md` does not
-exist (the instructions file is created by `/agntux onboard`'s per-plugin
-onboarding; without it, the plugin hasn't been onboarded and this skill
-should not author it).
+**Two precondition checks** (skip auto-learn entirely on either):
+
+1. **File missing.** If `data/instructions/agntux-gmail.md` does not
+   exist, skip the entire sub-step. The instructions file is created
+   by `/agntux onboard`'s per-plugin onboarding; without it the plugin
+   hasn't been onboarded and this skill MUST NOT author it.
+2. **Section missing.** If the file exists but lacks a `# Sender denylist`
+   section header, skip auto-learn for this run and append a
+   `kind: gmail-denylist-section-missing` entry to `sync.md → errors`.
+   Do **NOT** author the section header — the autonomy-boundary rule
+   in `./sync.md → "Out of scope"` puts `data/instructions/` under
+   `/agntux teach` ownership exclusively. The user invokes
+   `/agntux teach` to add the section; auto-learn activates on the
+   next run after the section is present. PR #4's
+   `validate-write-lane.mjs` enforces refusal at the hook layer if
+   this prose drifts.
 
 ## Gates (all must pass before auto-add)
 
@@ -55,10 +67,14 @@ Atomic write (temp + rename).
 
 The skill MUST NOT touch any other section of the instructions file
 (`# Always raise`, `# Never raise`, `# Rewrites`, `# Notes` are user
-territory) and MUST NOT create the file from scratch. Only the
-`# Sender denylist` section is auto-author territory, and only with the
-`<!-- added: -->` metadata that distinguishes auto-added from
-user-curated entries.
+territory). The skill MUST NOT create the instructions file from
+scratch and MUST NOT create the `# Sender denylist` section header —
+the precondition checks above gate both.
+
+Auto-author scope is **entry rows within an existing
+`# Sender denylist` section**, distinguished from user-curated rows by
+the `<!-- added: YYYY-MM-DD, dropped: N -->` metadata trailer. Rows
+without the metadata trailer are user-curated and never auto-evicted.
 
 ## How Step 8 populates the counter
 

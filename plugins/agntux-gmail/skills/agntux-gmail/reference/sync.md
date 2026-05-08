@@ -195,7 +195,7 @@ Source-specific fetch orchestration — discovery sweep, per-thread polling, thr
 
 The summary contract this skill imposes regardless of source:
 
-- Use `search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt` to fetch items in the time window from Step 4.
+- Use `search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path` to fetch items in the time window from Step 4.
 - Cap at 200 items per run; sort ascending and exit early on cap.
 - On any fetch failure, log to `sync.md → errors` with kind `network | auth | parse | source | internal`, update `last_run`, release the lock, exit. Step 11's transactional rule keeps the cursor at its pre-run value.
 - Per-source failure modes, gap recovery, and worked examples: apply the runbook taxonomy.
@@ -465,7 +465,7 @@ Off-lane paths the skill MUST refuse to write (refused at compose time, logged w
 - `<agntux project root>/data/instructions/` — owned by `/agntux teach`. If a per-plugin instructions file is missing or under-populated (e.g., a denylist section header is absent), skip the affected sub-step and emit a structured `errors:` entry; do NOT author user-facing prose, section headers, or examples in that tree.
 - `<agntux project root>/entities/_sources.json` — owned by agntux-core's `maintain-index.mjs` PostToolUse hook.
 - `<agntux project root>/actions/_index.md` and `<agntux project root>/entities/{subtype}/_index.md` — also owned by `maintain-index.mjs`.
-- Anywhere outside `<agntux project root>/` — including `~/.claude/`, the host's settings, or any other host file. The only authorised reach outside the project root is fetching Gmail content via `search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt` (read-only).
+- Anywhere outside `<agntux project root>/` — including `~/.claude/`, the host's settings, or any other host file. The only authorised reach outside the project root is fetching Gmail content via `search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path` (read-only).
 
 Per-plugin override files (e.g., `_overrides/reference/contract-lock.md`) MUST NOT authorise a write outside the lanes above; the toolkit lint pass `pass8SkillRender` rejects malformed overrides before render.
 
@@ -477,7 +477,7 @@ You also do NOT decide when you run (the host's scheduler does), create/edit sch
 
 ## Tool surface
 
-Inherited from the parent dispatch context (no frontmatter `tools:` whitelist): host-native `Read`, `Write`, `Edit`, `Glob`, `Grep`; plus `search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt` for fetching from Gmail (Cowork prefixes connector tools as `mcp__<uuid>__gmail_*`; npm-installed source MCPs use stable names). If the source has write tools, they're inherited but **forbidden by this prompt** — the iframe Save/Send button is the only authorised caller.
+Inherited from the parent dispatch context (no frontmatter `tools:` whitelist): host-native `Read`, `Write`, `Edit`, `Glob`, `Grep`; plus `search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path` for fetching from Gmail (Cowork prefixes connector tools as `mcp__<uuid>__gmail_*`; npm-installed source MCPs use stable names). If the source has write tools, they're inherited but **forbidden by this prompt** — the iframe Save/Send button is the only authorised caller.
 
 - Gmail read MCP tools (the host's connector registers them under a per-instance UUID, so the names look like `mcp__<uuid>__search_threads`): `search_threads`, `get_thread`, `list_drafts`, `list_labels`, `create_label`.
 - The Gmail write tool `create_draft` is present in the inherited tool set but **forbidden by this prompt** — the only authorised caller is the host, acting on a `Use the Gmail Connector …` envelope emitted by the compose iframe after an explicit Save click.

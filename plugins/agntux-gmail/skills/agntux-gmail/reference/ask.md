@@ -24,7 +24,7 @@ ask-mode is interactive only.
 ## Behavior
 
 1. Use these Gmail read MCP tools to investigate:
-   search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt.
+   search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path.
 2. Form one bounded answer in chat. Default to ≤ 200 words; expand
    only if the user asks for more.
 3. **Do NOT** call any source write tool.

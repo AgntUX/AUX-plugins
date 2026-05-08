@@ -7,7 +7,41 @@ source-display-name: Gmail
 source-slug: gmail
 recommended-cadence: Hourly — email is bursty during the workday but doesn't need higher resolution than every 60 min
 source-cursor-semantics: "Single JSON map under `cursor`. Two key shapes: the literal string `inbox` for the discovery low-water-mark, and `<thread_id>` for per-thread cursors. Plus sibling fields `discovery_ts` and `user_email` on `sync.md`."
-source-mcp-tools: "search_threads, get_thread, list_drafts, list_labels, create_label (read-only); the write tool create_draft is inherited but forbidden by this prompt"
+source-mcp-tools: "search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path"
 thread-unit-name: thread
 bootstrap-window-default-days: "14"
 example-channel: Inbox
+
+# Documentation-only declarations (referenced by canonical sync.md / runbook.md
+# in prose; toolkit lint pass 6 will enforce these in a follow-up).
+source-identity-fields:
+  - user_email
+permitted-error-kinds:
+  # Generic kinds (canonical):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  - out-of-lane-write-attempted
+  # Source-prefixed canonical extensions:
+  - gmail-merged-into
+  - gmail-reconcile-failed
+  - gmail-cursor-evicted
+  - gmail-tool-result-truncated
+  - gmail-deferred-orphan
+  # Gmail-specific extensions:
+  - gmail-thread-evicted
+  - gmail-thread-truncated
+  - gmail-search-truncated
+  - gmail-large-backlog
+  - gmail-denylist-section-missing
+  - gmail-denylist-cap-breached-by-user-entries

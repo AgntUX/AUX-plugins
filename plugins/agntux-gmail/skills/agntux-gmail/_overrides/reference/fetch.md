@@ -1,11 +1,8 @@
 # Gmail fetch — Step 5 orchestration
 
-Companion to `../SKILL.md` Step 5. The Gmail source has 6 read tools:
-`search_threads`, `get_thread`, `list_drafts`, `list_labels`, `create_label`,
-plus the (write-only, forbidden by this skill) `create_draft`. There is no
-`historyId` surface and no `list_messages` — coverage is hybrid: a
-discovery sweep with date-windowed Gmail searches seeds the per-thread
-cursor map, then per-thread polling does the bulk of the work.
+Companion to `../SKILL.md` Step 5. The Gmail source has two read tools the sync flow uses (`search_threads`, `get_thread`) plus a third (`list_labels`) that is host-side metadata and not part of the Step 5 path. The write tools (`create_label`, `create_draft`) are inherited from the connector but **forbidden by this skill** — drafting fires from the iframe Save/Send button at click time via `sendFollowUpMessage`, never from the sync flow. There is no `historyId` surface and no `list_messages` — coverage is hybrid: a discovery sweep with date-windowed Gmail searches seeds the per-thread cursor map, then per-thread polling does the bulk of the work.
+
+`list_drafts` was previously included in the tool surface as a "do I have an in-progress draft for this thread?" signal but no Step 5 path consumes it; subsequent runs informed by drafts go through the iframe's own state. It is dropped from the manifest in `frontmatter.yaml`. The MCP layer still permits it on the connector — UI handlers can call it directly when they need the user's draft inventory.
 
 ## Step 5a — Resolve user_email (first run only)
 
@@ -91,9 +88,21 @@ volume and exhaust the tool-result budget. Skip Stage 2 entirely if
 the user has set `# Notes: skip-sent-awaiting-reply` in
 `data/instructions/agntux-gmail.md`.
 
-The `label:IMPORTANT` signal is NOT lost by folding it into Stage 1 —
-it's now a thread-property the agent uses in Step 8 priority anchoring
-after thread fetch, the way it always intended to.
+**`label:IMPORTANT` priority anchoring (verify-then-use).** Folding
+the label into Stage 1 catches the threads in discovery, but Step 8
+priority anchoring on the label is conditional on `get_thread`
+returning a `labels:` field on each message in `FULL_CONTENT` mode.
+Inspect the first thread's response envelope this run for a `labels:`
+field at message or thread level: if present, treat
+`labels` containing `IMPORTANT` (or `^p1`) as a priority-bump anchor
+in Step 8 and cite it in `## Why this matters`. If absent, do **not**
+infer label state from the discovery query alone — the label set the
+search matched on might have changed between search-time and
+fetch-time, and inferring is hallucination. Step 8 then derives
+priority from content heuristics only (deadline phrases, escalation
+keywords, dollar figures) and cites those. Either path is honest;
+silently claiming "label-driven priority" without label evidence is
+not.
 
 **Truncation handling.** If either Stage's response comes back as a
 truncation marker (the host's MCP layer redirects oversized responses
