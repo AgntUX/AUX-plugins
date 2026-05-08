@@ -142,10 +142,9 @@ describe("marketplace listing.yaml", () => {
     expect(text).toMatch(/name:\s*"?compose"?/);
   });
 
-  it("supported_prompts uses the unified `/agntux-gmail` form (no trailing :sync)", () => {
+  it("supported_prompts uses the `/agntux-gmail` form", () => {
     const text = readFile(listingPath);
     expect(text).toMatch(/prompt:\s*"\/agntux-gmail"/);
-    expect(text).not.toMatch(/prompt:\s*"\/agntux-gmail:sync"/);
   });
 });
 
@@ -199,7 +198,7 @@ describe(`skills/${PLUGIN_SLUG}/SKILL.md`, () => {
     expect(content).toMatch(/Do NOT.*edit any file under.*<agntux project root>/i);
   });
 
-  it("legacy skills/sync/ directory does not exist (host's `:` is a namespace separator)", () => {
+  it("single skill directory at skills/{slug}/ — no stray skills/sync/", () => {
     expect(existsSync(join(PLUGIN_ROOT, "skills", "sync", "SKILL.md"))).toBe(false);
   });
 

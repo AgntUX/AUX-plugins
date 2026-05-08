@@ -10,23 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Slash-command unification — companion to agntux-core 8.0.0
 (cozy-squirrel) and agntux-gmail 3.0.0. The plugin's single user-facing
-entry point is now `/agntux-slack`, accepting either a sync sub-command
-or a natural-language question.
+entry point is `/agntux-slack`, accepting either a sync sub-command or
+a natural-language question.
 
 ### Changed
 
-- **BREAKING: `/agntux-slack:sync` → `/agntux-slack` (or
-  `/agntux-slack sync`).** Scheduled tasks built against the old form
-  must be recreated; the host's resolver treats `:` as a namespace
-  separator and will 404 once the `sync` skill is renamed.
-  `marketplace/listing.yaml → supported_prompts` is updated to the new
-  form.
-- **`/agntux-slack` now accepts natural-language queries** (e.g.
-  `/agntux-slack what's been happening in #implementations`). The first
-  whitespace-delimited token of `$ARGUMENTS` selects the sub-command:
-  empty or `sync` runs the ingest pass; anything else is treated as a
-  live question and answered via the Slack read MCP tools (no cursor
+- **`/agntux-slack` is the user-facing surface** (bare or
+  `/agntux-slack sync` runs the ingest pass; any other first token is
+  a live NL question answered via the Slack read MCP tools — no cursor
   advance, no knowledge-store write).
+  `marketplace/listing.yaml → supported_prompts` advertises the bare
+  form.
 - **`skills/sync/` renamed to `skills/agntux-slack/`** so the skill's
   `name:` matches the plugin slug and the host exposes it as
   `/agntux-slack`. Internal `resources/` directory renamed to
@@ -44,14 +38,6 @@ or a natural-language question.
   Read-only: skips the orchestrator gate, never advances a cursor,
   never writes to the knowledge store. Refuses cleanly if the Slack
   connector isn't configured.
-
-### Migration
-
-- Recreate any scheduled task whose prompt body is `/agntux-slack:sync`.
-  The new body is either `/agntux-slack` (bare — defaults to sync) or
-  `/agntux-slack sync` (explicit). Both lead to the same place.
-- No on-disk data migration. Existing action items, entities, cursor
-  state, and per-plugin instructions all keep working unchanged.
 
 ## [6.0.1] — 2026-05-07
 
