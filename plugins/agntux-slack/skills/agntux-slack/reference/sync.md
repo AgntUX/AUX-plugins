@@ -114,6 +114,8 @@ Before reading state, before fetching: load the tenant contract and per-plugin i
 
 4. **Read your contract** end-to-end. Extract `# Allowed entity subtypes`, `# Allowed action classes`, and any aliases/merges from `# Notes`.
 
+   **Per-plugin contract-lock routing.** If your rendered skill ships a `./contract-lock.md` reference file (your plugin's `_overrides/reference/contract-lock.md` exists), load it now and follow its routing — it owns lock-drift detection (`plugin_contracts["agntux-slack"]` present in `schema.lock.json` and version-aligned). Per the autonomy-boundary rule in "Out of scope", the per-plugin contract-lock reference MUST be exit-clean (no writes to `data/schema/`); on drift it appends a `contract-version-drift` or `contract-not-registered` entry to `sync.md → errors` and exits. The architect's `/agntux schema` Mode B owns the lock fix; the next scheduled run picks up clean. Plugins that don't ship a `contract-lock.md` rely on `validate-schema.mjs`'s self-healing runbook at first action-write time.
+
 5. **`<agntux project root>/data/instructions/agntux-slack.md`** — per-plugin user instructions. If missing, treat all sections as empty. If present, parse `# Always raise` / `# Never raise` / `# Rewrites` / `# Notes`.
 
 
