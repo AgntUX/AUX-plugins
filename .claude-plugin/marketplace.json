@@ -10,6 +10,19 @@
   },
   "plugins": [
     {
+      "name": "agntux-build",
+      "source": "./plugins/agntux-build",
+      "homepage": "https://agntux.ai/plugins/agntux-build",
+      "keywords": [
+        "plugin",
+        "build",
+        "contribute",
+        "extend",
+        "marketplace"
+      ],
+      "category": "meta"
+    },
+    {
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "homepage": "https://agntux.ai/plugins/agntux-core",
@@ -46,19 +59,6 @@
         "action-items"
       ],
       "category": "communication"
-    },
-    {
-      "name": "agntux-build",
-      "source": "./plugins/agntux-build",
-      "homepage": "https://agntux.ai/plugins/agntux-build",
-      "keywords": [
-        "plugin",
-        "build",
-        "contribute",
-        "extend",
-        "marketplace"
-      ],
-      "category": "meta"
     }
   ]
 }
