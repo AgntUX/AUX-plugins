@@ -1,0 +1,23 @@
+{
+  "name": "@agntux/agntux-build-test-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Headless UI test harness for agntux-build. Spawns the in-plugin host-renderer (which spawns the plugin's MCP server), POSTs /__test/render with a tool + args, returns screenshot + console errors + structuredContent. No MCPJam Inspector required — that's the whole point.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "agntux-build-test": "./bin/cli.mjs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "node bin/cli.mjs --help",
+    "syntax-check": "node --check bin/cli.mjs && node --check src/render.mjs && node --check src/host-spawn.mjs && node --check src/parse-flags.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,30 @@
+AgntUX Build (`agntux-build`)
+Copyright (c) 2026 AgntUX, Inc.
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file at the root of this plugin for the full text,
+or visit: https://www.apache.org/licenses/LICENSE-2.0
+
+---
+
+Third-Party Attributions
+
+The `host-renderer/` directory contains code derived from the
+Model Context Protocol example host:
+
+  @modelcontextprotocol/ext-apps-basic-host — 1.7.x — MIT —
+  https://github.com/modelcontextprotocol/ext-apps/tree/main/examples/basic-host
+
+The fork keeps the spec-canonical UI initialization, sandbox-proxy CSP
+builder, and AppBridge wiring; it adds a headless rendering mode, a plugin
+MCP bridge, and AgntUX-specific hostContext defaults.
+
+The `canonical/` directory contains UI authoring knowledge originally
+synthesised inside AgntUX, plus the React+Vite UI handler scaffold which
+vendors:
+
+  @modelcontextprotocol/apps-react — MIT
+  @modelcontextprotocol/apps-client — MIT
+
+See per-file headers under `canonical/ui-handlers/_template/` for the
+full attribution shape.

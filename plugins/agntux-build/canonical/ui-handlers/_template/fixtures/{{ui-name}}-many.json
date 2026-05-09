@@ -1,0 +1,20 @@
+{
+  "_doc": "Wide scope: many items. Asserts: internal-scroll discipline (sticky table headers, capped max-height, no horizontal scroll on desktop or mobile). Use `interact --action query --selector '[data-testid]'` to assert row count.",
+  "args": {
+    "structuredContent": {
+      "items": [
+        { "id": "f-001", "priority": "high",   "title": "Item 1",  "createdAt": "2026-05-04T09:00:00Z", "status": "pending" },
+        { "id": "f-002", "priority": "high",   "title": "Item 2",  "createdAt": "2026-05-04T09:05:00Z", "status": "pending" },
+        { "id": "f-003", "priority": "medium", "title": "Item 3",  "createdAt": "2026-05-04T09:10:00Z", "status": "pending" },
+        { "id": "f-004", "priority": "medium", "title": "Item 4",  "createdAt": "2026-05-04T09:15:00Z", "status": "pending" },
+        { "id": "f-005", "priority": "medium", "title": "Item 5",  "createdAt": "2026-05-04T09:20:00Z", "status": "pending" },
+        { "id": "f-006", "priority": "low",    "title": "Item 6",  "createdAt": "2026-05-04T09:25:00Z", "status": "pending" },
+        { "id": "f-007", "priority": "low",    "title": "Item 7",  "createdAt": "2026-05-04T09:30:00Z", "status": "pending" },
+        { "id": "f-008", "priority": "low",    "title": "Item 8",  "createdAt": "2026-05-04T09:35:00Z", "status": "pending" },
+        { "id": "f-009", "priority": "low",    "title": "Item 9",  "createdAt": "2026-05-04T09:40:00Z", "status": "pending" },
+        { "id": "f-010", "priority": "low",    "title": "Item 10", "createdAt": "2026-05-04T09:45:00Z", "status": "pending" }
+      ],
+      "lastSyncAt": "2026-05-04T10:00:00Z"
+    }
+  }
+}

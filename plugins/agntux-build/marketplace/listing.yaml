@@ -1,0 +1,33 @@
+tagline: "Build a new AgntUX plugin for a system AgntUX doesn't yet support."
+description: |
+  Walks you through extending AgntUX to a new connector — search the
+  marketplace, install or improve, design a simple write-back UI,
+  preview, build, test, install, iterate against real sync output, and
+  submit. Built for knowledge workers, not engineers — no jargon, no
+  extra tools running, gratitude at every milestone, the standard
+  AgntUX look enforced (light mode + the shared design tokens). The
+  3–5-iteration sync loop is normal and expected.
+categories:
+  - meta
+  - developer-tools
+keywords:
+  - plugin
+  - build
+  - contribute
+  - extend
+  - marketplace
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "/agntux-build:build"
+    purpose: "Walks you through building a plugin for a system AgntUX doesn't yet support. Also fixes an existing plugin if you've hit something specific (update mode)."
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-build"
+  email: "plugins@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
