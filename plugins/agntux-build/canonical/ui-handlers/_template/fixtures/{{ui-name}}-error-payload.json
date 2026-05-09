@@ -1,0 +1,10 @@
+{
+  "_doc": "Invalid / partial payload. Asserts: component falls back to a sane error/empty state without throwing. `consoleErrors` MUST be empty even though the input is malformed — every field boundary should pass through `safe-accessors.ts` typed coercion. If you see a console error, it is a bug: add the missing safeArray/safeString/safeEnum coercion, do not catch the error in a component-tree boundary.",
+  "args": {
+    "structuredContent": {
+      "items": "this should be an array but isn't",
+      "lastSyncAt": 12345,
+      "unexpected_field": { "nested": "garbage" }
+    }
+  }
+}

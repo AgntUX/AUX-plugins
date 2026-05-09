@@ -1,0 +1,18 @@
+{
+  "_doc": "Single high-priority item. Asserts: write-back actions reachable + trigger visible status change (per workflow-testing.md Step 4 Action Feedback Verification). Primary action button visible at 600px viewport.",
+  "args": {
+    "structuredContent": {
+      "items": [
+        {
+          "id": "fixture-action-001",
+          "priority": "high",
+          "title": "Replace with the realistic title shape your component renders",
+          "summary": "One-sentence description of why this item is actionable.",
+          "createdAt": "2026-05-04T10:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "lastSyncAt": "2026-05-04T10:05:00Z"
+    }
+  }
+}

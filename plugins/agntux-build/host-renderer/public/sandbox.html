@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light" />
+    <!--
+      CSP is set via HTTP headers by server.mjs based on the ?csp= query
+      param. The inner iframe inherits this CSP via document.write().
+      Lifted from modelcontextprotocol/ext-apps/examples/basic-host
+      sandbox.html (MIT) — see ../NOTICE.
+    -->
+    <title>agntux-build sandbox proxy</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+        background-color: transparent;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      iframe {
+        background-color: transparent;
+        border: 0;
+        padding: 0;
+        overflow: hidden;
+        flex-grow: 1;
+        color-scheme: inherit;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // Minimal sandbox proxy: receive the inner-iframe HTML from the
+      // outer host (window.parent), document.write it into a new
+      // child iframe so it inherits this document's CSP.
+      //
+      // Compatible with the spec's "ui/sandbox/resource-ready" message
+      // shape from @modelcontextprotocol/ext-apps but hand-rolled to
+      // avoid pulling in Zod (which JIT-compiles via eval and breaks
+      // strict CSP — see plugins/agntux-slack lib README).
+      (function () {
+        const READY_METHOD = "ui/notifications/sandbox-proxy-ready";
+        const RESOURCE_METHOD = "ui/sandbox/resource-ready";
+        let inner = null;
+        function ensureInnerIframe() {
+          if (inner) return inner;
+          inner = document.createElement("iframe");
+          inner.setAttribute(
+            "sandbox",
+            "allow-scripts allow-same-origin allow-forms",
+          );
+          document.body.appendChild(inner);
+          return inner;
+        }
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) return;
+          const data = event.data;
+          if (!data || typeof data !== "object") return;
+          if (data.method === RESOURCE_METHOD && data.params?.html) {
+            const ifr = ensureInnerIframe();
+            const doc = ifr.contentDocument;
+            doc.open();
+            doc.write(data.params.html);
+            doc.close();
+          }
+        });
+        // Tell the host we're ready to receive resource-ready.
+        window.parent.postMessage({ method: READY_METHOD }, "*");
+      })();
+    </script>
+  </body>
+</html>

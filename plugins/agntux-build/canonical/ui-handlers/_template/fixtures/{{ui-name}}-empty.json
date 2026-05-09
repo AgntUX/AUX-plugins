@@ -1,0 +1,9 @@
+{
+  "_doc": "Empty-state fixture. Asserts: bootstrap-period copy renders with reassuring tone (no FORBIDDEN words: 'failed', 'error', 'no results', unqualified 'no data'); component is not stuck in skeleton/loading; primary action is not visible (no items to act on yet).",
+  "args": {
+    "structuredContent": {
+      "items": [],
+      "lastSyncAt": null
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "{{plugin-slug}}-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for the {{plugin-slug}} plugin. Hosts view tools and serves UI bundle resources to MCP App-capable hosts.",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/embed-bundle.mjs",
+    "build:tsc": "tsc -p tsconfig.json",
+    "build:embed": "node scripts/embed-bundle.mjs",
+    "check:embed": "node scripts/embed-bundle.mjs --check",
+    "check:bundle-sync": "node scripts/check-bundle-sync.mjs",
+    "test": "vitest run",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
