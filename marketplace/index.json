@@ -1,6 +1,42 @@
 {
-  "generated_at": "2026-05-08T14:56:46.910Z",
+  "generated_at": "2026-05-09T01:21:44.877Z",
   "plugins": {
+    "agntux-build": {
+      "tagline": "Build a new AgntUX plugin for a system AgntUX doesn't yet support.",
+      "description": "Walks you through extending AgntUX to a new connector — search the\nmarketplace, install or improve, design a simple write-back UI,\npreview, build, test, install, iterate against real sync output, and\nsubmit. Built for knowledge workers, not engineers — no jargon, no\nextra tools running, gratitude at every milestone, the standard\nAgntUX look enforced (light mode + the shared design tokens). The\n3–5-iteration sync loop is normal and expected.\n",
+      "categories": [
+        "meta",
+        "developer-tools"
+      ],
+      "keywords": [
+        "plugin",
+        "build",
+        "contribute",
+        "extend",
+        "marketplace"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-build:build",
+          "purpose": "Walks you through building a plugin for a system AgntUX doesn't yet support. Also fixes an existing plugin if you've hit something specific (update mode)."
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-build",
+        "email": "plugins@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      }
+    },
     "agntux-core": {
       "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
       "description": "Installs first; everything else hangs off it. Maintains your `<agntux project root>/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
