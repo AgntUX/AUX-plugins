@@ -1,24 +1,43 @@
-# Stage 9 — zip the plugin, hand the user an install path
+# Stage 9 — package the plugin, drop a snapshot in Downloads
 
-Stages 1–8 ran without pausing for you. This is the first stage
-where I need you to do something — install the zip and try it.
+The plugin builds. The action buttons render. Now we package it as a
+`.zip` in the user's Downloads folder. **No install required at this
+point** — stages 9.5 and 10 drive onboarding and sync iteration inline,
+so the zip is just a snapshot the user can come back to.
 
-The plugin builds. The action buttons render. Now we hand it to the
-user as a `.zip` they can install in Claude Desktop. This is the
-first stage where the user has to do meaningful manual work — the
-install dialog has eight clicks and we want to walk every one.
+The first install walk happens at stage 11 (triage UI test), with the
+final regenerated zip going out at stage 12 (submission).
 
 ## Generate the zip
 
-Build location:
-```
-<agntux project root>/.agntux-build/submissions/agntux-{slug}-v{version}.zip
-```
+Build location (cross-platform — pick the first that resolves):
 
-The submissions directory is per-project-root (so a user with a work
-AgntUX root and a personal one keeps them separated). Don't write
-to `~/.agntux-build/` — the strategy is "identity follows the
-project root."
+| Platform       | Path                                                       |
+|----------------|------------------------------------------------------------|
+| Linux (XDG)    | `$(xdg-user-dir DOWNLOAD)/agntux-{slug}-v{version}.zip`    |
+| macOS / Linux  | `$HOME/Downloads/agntux-{slug}-v{version}.zip`             |
+| Windows        | `%USERPROFILE%\Downloads\agntux-{slug}-v{version}.zip`     |
+| Fallback       | `$HOME/agntux-{slug}-v{version}.zip` (no Downloads dir)    |
+
+Resolution algorithm:
+
+1. On Linux, try `xdg-user-dir DOWNLOAD` (handles non-English locales
+   and custom XDG settings). If it succeeds AND the resolved directory
+   exists, use it.
+2. Else try `$HOME/Downloads` (macOS / Linux default) or
+   `%USERPROFILE%\Downloads` (Windows). If `existsSync` returns true,
+   use it.
+3. Else fall back to `$HOME` directly. Don't create `~/Downloads/` —
+   the user's filesystem layout is theirs to set; just put the zip
+   somewhere they can find it.
+
+The version is part of the filename, so accumulating a paper trail in
+Downloads is a feature — the user keeps every snapshot side-by-side.
+
+Don't write to `<agntux-root>/.agntux-build/submissions/` (the previous
+location). It's a dot-folder and most users can't easily browse there;
+session state still lives at `<agntux-root>/.agntux-build/sessions/` but
+the user-facing zip belongs in Downloads.
 
 Zip contents (mirror what's in `<repo-root>/AUX-plugins/plugins/
 agntux-{slug}/` after stage 7's build):
@@ -64,89 +83,56 @@ gets written in stage 12 with the submission timestamp.
 >
 > Size: ~{N} MB.
 >
-> Now — and this is genuinely the most fiddly part of the flow —
-> let's install it in Claude Desktop. There are eight clicks.
-> Walking through them so nothing gets missed:
+> No need to install it yet — we're going to iterate on the prompts
+> in this same chat for the next few rounds, then re-zip at the end.
+> The Downloads copy is your snapshot in case you want to look at it.
 
-Then walk the install:
+## Reveal the file in Finder/Explorer (optional)
 
-> 1. Open **Claude Desktop**.
-> 2. Click the gear icon (top-right) → **Customize**.
-> 3. Find **Personal Plugins** in the left sidebar.
-> 4. Click the **+** button next to Personal Plugins.
-> 5. Hover over **Create plugin** → click it.
-> 6. Click **Upload plugin**.
-> 7. Drag the `.zip` from {zip-path} into the upload area, or click
->    Browse and select it.
-> 8. Click the **+** button to install.
->
-> Tell me when it's installed and I'll keep going.
-
-The walk is verbose on purpose. Don't condense — the user has never
-done this before and skipped steps mean wasted time.
-
-## Reveal the file in Finder/Explorer
-
-If the host exposes a "show in folder" tool, open the
-submissions directory so the user can grab the zip without
-typing the path:
+If the user wants to see the file, and the host exposes a
+"show in folder" tool, open Downloads:
 
 ```
 mcp__filesystem__open_in_explorer (or similar)
 ```
 
-Resolve via `ToolSearch`. If unavailable, just print the absolute
-path.
+Resolve via `ToolSearch`. If unavailable, just leave the path printed.
 
-## Confirm the install worked
+## Pass through to onboarding (stage 9.5)
 
-After the user says "done" or "installed":
+Once the zip is on disk:
 
-> Got it — should now see `/agntux-{slug}` in your slash command
-> picker in Cowork. Try typing `/agntux-{slug}` and see if it
-> shows up.
+> Right — let's test the onboarding flow first, then we'll run sync
+> against your real {connector-display-name} data.
 
-If yes:
+Then load [`09a-onboarding-iterate.md`](09a-onboarding-iterate.md).
 
-> Perfect. {Name}, you've installed your own plugin. Now we're
-> going to test it against your real {connector-display-name} data
-> — that's where the real iteration happens. Heads up: usually
-> takes 3 to 5 rounds to get sync feeling right. That's normal,
-> not a sign of failure.
-
-Then load [`10-sync-iterate.md`](10-sync-iterate.md).
-
-If the install failed (not in slash picker, or Claude Desktop
-showed an error):
-
-> Hmm — `/agntux-{slug}` isn't showing up. Few things to try:
->
-> 1. Restart Claude Desktop (sometimes needed for new plugins).
-> 2. Check Customize → Personal Plugins is the plugin actually
->    listed there?
-> 3. If listed but greyed out, click it and check the error
->    message — paste back to me here.
-
-Don't loop more than once. If the install keeps failing, redirect
-to issues with the session file path linked.
+(Stage 9.5 walks the user through the plugin's own onboarding flow —
+personalisation values that the sync skill needs to feel right.
+After 9.5, stage 10 picks up.)
 
 ## Saved state at end of stage 9
 
 ```json
 {
   ...,
-  "zip_path": "/Users/.../.agntux-build/submissions/agntux-linear-v0.1.0.zip",
+  "zip_path": "/Users/.../Downloads/agntux-linear-v0.1.0.zip",
   "zip_size_bytes": 2400000,
-  "user_install_confirmed_at": "2026-05-08T..."
+  "zip_generated_at": "2026-05-08T..."
 }
 ```
 
+(Note: no `user_install_confirmed_at` here. That field moves to
+stage 11, where install is first required.)
+
 ## What you do NOT do
 
-- Don't try to install the zip programmatically — the host doesn't
-  expose that path for personal plugins, and even if it did, the
-  user needs to see the install flow once so they can update later.
-- Don't fudge the path. Always show the absolute path so the user
-  can drag-and-drop without confusion.
-- Don't skip the confirm step. We need to know the plugin is live
-  before stage 10 starts polling.
+- Don't walk the install flow here. Stage 10's iteration is inline —
+  the user doesn't need an installed plugin to test it. Walking install
+  prematurely creates a stale install (no iterated prompts yet) and
+  risks the user testing the wrong version.
+- Don't try to install the zip programmatically anywhere — the host
+  doesn't expose that path for personal plugins.
+- Don't fudge the path. Always show the absolute path.
+- Don't write to `~/.agntux-build/` or any dot-folder for the
+  user-facing zip. Downloads only.

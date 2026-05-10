@@ -6,7 +6,119 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [0.1.2] — 2026-05-10
+## [0.1.3] — 2026-05-10
+
+Round 3 of the agntux-build improvements plan, driven by a Cowork
+dry-run building `agntux-jira`. Six issues — two harness bugs (false
+not-found banner, false missing-Chromium probe), two UX gaps (zip in a
+dot-folder, manual paste loop in stage 10), two flywheel-shape gaps
+(no plugin-onboarding test stage, over-fitted prompt edits). All
+addressed without breaking the public surface.
+
+### Added
+- **Stage 9.5 — onboarding test + iterate.**
+  `references/09a-onboarding-iterate.md` walks the plugin's own
+  onboarding flow inline before the first sync run. Captured values
+  land under the scratch root
+  (`<agntux-root>/.agntux-build/sessions/{session-id}/sync-output/`),
+  never the user's real `data/` or `preferences.md`. Skip-path fires
+  cleanly for read-only sources with no per-user personalisation
+  (one-line announcement, falls through to stage 10). Cap of 2
+  iterations on the onboarding prompts themselves; deeper ambiguity
+  belongs to the spec/sync stages.
+- **Per-handler `fixtures.json` auto-loaded by the test harness.**
+  Canonical scaffold ships
+  `canonical/ui-handlers/_template/fixtures.json` next to each
+  handler. The harness CLI accepts `--fixture <path|name>` and
+  auto-discovers `<plugin>/ui-handlers/<handler>/fixtures.json` when
+  neither `--args` nor `--fixture` is passed. Bare names resolve
+  under `<handler>/fixtures/` (matching existing TESTING.md
+  conventions). Args precedence: `--args` > `--fixture` > nearest
+  `fixtures.json` > `{}`. The harness output line now reports the
+  args source so the contributor sees where the test data came from.
+- **Empty-args self-doc hint in the headless renderer.** When the
+  view tool's required-id validation fires AND no args source was
+  applied upstream, `host-bridge-entry.mjs` sets
+  `window.__agntuxEmptyArgsHint`, the playwright driver propagates
+  it through the result envelope, and the harness CLI prints it as
+  `hint: …`. The gating predicate
+  (`host-renderer/src/empty-args-hint.mjs::shouldShowEmptyArgsHint`)
+  is factored out as a pure function with vitest coverage so the
+  most subtle logic in the args-source chain isn't browser-only.
+  An `argsExplicit` flag threads from the CLI through render.mjs →
+  server.mjs → playwright-driver to the host page so a fixture
+  whose args resolve to `{}` on purpose (empty-state regression
+  tests) doesn't trip the hint.
+- **Generalization checklist for stage-10 prompt edits.** New
+  load-bearing section in `references/10-sync-iterate.md`: 4
+  questions and a rule of thumb that catch over-fitting to one
+  user's data before the edit lands. The same checklist is
+  cross-referenced from stage 9.5's onboarding edits.
+- **`extractChromium(mod)` helper** on
+  `test-harness/src/probe-chromium.mjs`. Reads chromium from both
+  ESM-native and CJS-wrapped imports
+  (`mod.chromium ?? mod.default?.chromium`). Test coverage for
+  ESM, CJS-wrap, top-level-prefers-nested, and nullish shapes.
+- `test-harness/src/load-fixture.mjs` — fixture resolution helper
+  with full vitest coverage for tool-name → handler inference,
+  bare-name lookup, malformed-fixture errors, and the precedence
+  rules. Auto-discovered fixtures that fail to parse fall back to
+  `{}` with a warning (the contributor never asked for that file);
+  explicit `--fixture` paths still hard-fail. Bare names without a
+  resolvable plugin root or handler-shaped tool name throw rather
+  than silently resolving against cwd.
+
+### Changed
+- **Stage 10 rewritten for inline sync execution.** The build skill
+  now drives sync inline against the rendered sync skill on disk
+  (`plugins/agntux-{slug}/skills/agntux-{slug}/{SKILL.md,reference/sync.md,...}`)
+  using the source MCP tools that are already authorized in Cowork.
+  Sync writes go to the scratch root, not the user's real
+  `data/learnings/`. No zip install required for the iteration
+  loop. No "reinstall from file" between rounds. Re-render via
+  `node scripts/render-skill.mjs agntux-{slug}` is the only step
+  between edits and re-run; no MCP-server rebuild because the sync
+  skill is pure markdown.
+- **Stage 11 takes ownership of the install walk** (the eight-click
+  Personal-Plugins flow). It's the first stage that needs a live
+  plugin in Cowork (triage UI test). Stage 11 also re-zips into
+  Downloads with a bumped patch version so the install reflects the
+  iterated prompts from stage 10.
+- **Stage 9 demoted to "snapshot in Downloads".** No install walk
+  here — that moved to stage 11. The zip is informational at this
+  point (the user can see what's been packaged) and gets
+  regenerated at stages 11 and 12.
+- **Final zip moves from `<agntux-root>/.agntux-build/submissions/`
+  to `~/Downloads/`** (cross-platform with explicit resolution
+  algorithm: Linux tries `xdg-user-dir DOWNLOAD` first, then falls
+  through to `$HOME/Downloads` / `%USERPROFILE%\Downloads`, with a
+  final fallback to `$HOME` when no Downloads dir exists — the skill
+  doesn't create one). Discoverable for non-technical contributors.
+  Session state still lives at `<agntux-root>/.agntux-build/sessions/` —
+  only the user-facing zip moved. Stages 11 and 12 fail closed if
+  the version embedded in the zip filename didn't bump from the
+  saved session state, so a forgotten patch bump can never silently
+  overwrite a prior snapshot.
+- **SKILL.md routing table** adds row 9.5 between 9 and 10 and
+  documents the inline-sync no-install rule on row 10. Saved-state
+  schema notes call out the new fields (`onboarding_present`,
+  `onboarding_completed`, `onboarding_iterations`,
+  `onboarding_capture_path`, `inline_sync_scratch_dir`) and the
+  resume-rule that a session interrupted mid-9.5 re-enters at 9.5
+  rather than falling forward to 10.
+
+### Fixed
+- **`probeChromium` falsely reported the binary missing on CJS
+  imports.** Node wraps CommonJS modules in `default` when loaded
+  via `await import(absolutePath)`; the previous destructure
+  (`({ chromium } = await import(playwrightPath))`) silently
+  returned `undefined` and the probe reported "needs install" even
+  when the binary was on disk. The new path reads
+  `mod.chromium ?? mod.default?.chromium` and fails closed if
+  neither yields a chromium with the expected surface. Caught in
+  the Cowork dry-run; surfaced because the scratch playwright copy
+  shipped CJS.
+
 
 Round 2 of the agntux-build improvements plan. Five C-tier issues that
 the Cowork dry-run surfaced — all converging on "the canonical scaffold

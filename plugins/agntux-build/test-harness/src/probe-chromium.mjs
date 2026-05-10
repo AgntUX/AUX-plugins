@@ -27,12 +27,33 @@ const HOST_RENDERER_PKG = resolve(
   "package.json",
 );
 
+// Playwright resolves through createRequire from host-renderer/, which
+// gives us an absolute path on disk. Node treats `await import(absolutePath)`
+// against a CommonJS module as "wrap the exports under .default", so a
+// naive `({ chromium } = await import(...))` returns undefined when
+// playwright is shipped as CJS (the common case in the runtime tree).
+// Read both shapes — ESM-native and CJS-wrapped — and return null if
+// neither carries a `chromium` symbol. Note: this is a presence check
+// only; we don't validate the surface (executablePath, launch, …).
+// Validation happens at first call (`chromium.executablePath()` lower
+// down), which fails clearly if a stub or wrong shape slipped through.
+export function extractChromium(mod) {
+  return mod?.chromium ?? mod?.default?.chromium ?? null;
+}
+
 export async function probeChromium() {
   let chromium;
   try {
     const requireFromHostRenderer = createRequire(HOST_RENDERER_PKG);
     const playwrightPath = requireFromHostRenderer.resolve("playwright");
-    ({ chromium } = await import(playwrightPath));
+    const mod = await import(playwrightPath);
+    chromium = extractChromium(mod);
+    if (!chromium) {
+      return {
+        installed: false,
+        reason: "playwright import returned no chromium export",
+      };
+    }
   } catch (e) {
     return {
       installed: false,

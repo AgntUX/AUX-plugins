@@ -98,7 +98,12 @@ export async function startServer({
 
   // ---------- headless render (test harness drives this) ----------
   app.post("/__test/render", async (req, res) => {
-    const { toolName, args = {}, timeoutMs = 60_000 } = req.body ?? {};
+    const {
+      toolName,
+      args = {},
+      argsExplicit = false,
+      timeoutMs = 60_000,
+    } = req.body ?? {};
     if (typeof toolName !== "string") {
       return res.status(400).json({ error: "toolName required" });
     }
@@ -107,6 +112,7 @@ export async function startServer({
         hostBaseUrl: `http://localhost:${listenedPort}`,
         toolName,
         args,
+        argsExplicit,
         timeoutMs,
       });
       res.json(result);

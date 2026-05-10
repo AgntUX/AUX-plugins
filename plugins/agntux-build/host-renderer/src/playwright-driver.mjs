@@ -50,6 +50,7 @@ export async function runHeadlessRender({
   hostBaseUrl,
   toolName,
   args,
+  argsExplicit = false,
   timeoutMs = 60_000,
 }) {
   const browser = await chromium.launch({ headless: true });
@@ -75,9 +76,15 @@ export async function runHeadlessRender({
   });
 
   try {
+    // argsExplicit=1 means a fixture / --args was applied upstream; the
+    // host bridge uses this to suppress the empty-args hint when an
+    // applied fixture happens to resolve to {} (the hint should only
+    // fire when no source was applied at all).
     const url = `${hostBaseUrl}/host.html?tool=${encodeURIComponent(
       toolName,
-    )}&args=${encodeURIComponent(JSON.stringify(args))}&autorun=1`;
+    )}&args=${encodeURIComponent(JSON.stringify(args))}&argsExplicit=${
+      argsExplicit ? "1" : "0"
+    }&autorun=1`;
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
 
@@ -95,6 +102,7 @@ export async function runHeadlessRender({
       renderState: window.__agntuxRenderState,
       structuredContent: window.__agntuxStructuredContent ?? null,
       toolError: window.__agntuxToolError ?? null,
+      emptyArgsHint: window.__agntuxEmptyArgsHint ?? null,
     }));
 
     // --- CONTENT ASSERTIONS ---------------------------------------------
@@ -116,6 +124,7 @@ export async function runHeadlessRender({
       renderState: state.renderState,
       structuredContent: state.structuredContent,
       toolError: state.toolError,
+      emptyArgsHint: state.emptyArgsHint,
       consoleErrors,
       consoleMessageCount: consoleMessages.length,
       contentChecks,

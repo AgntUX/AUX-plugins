@@ -1,54 +1,94 @@
 # Stage 10 — sync iteration (the load-bearing one)
 
-This is where the plugin gets actually good. The user runs
-`/agntux-{slug} sync` against their real {connector-display-name}
-data, the run produces real outputs and real surprises, and we read
-the run, identify issues, regenerate the zip, and the user re-runs.
-It usually takes 3 to 5 rounds.
+This is where the plugin gets actually good. The build skill drives
+sync against the user's real {connector-display-name} data **inline,
+in the same Cowork thread** — no zip install needed for the iteration
+loop. Each round we observe the run, identify issues, edit prompts on
+disk, re-render, and re-run. It usually takes 3 to 5 rounds.
 
 **Set the expectation explicitly before starting.** The cycle is
 genuinely tedious; framing it as "the work that matters" rather than
 "more steps" is what gets the user through it.
+
+## Why inline (and not "install the zip and paste output back")
+
+Stage 9 dropped a snapshot zip in `~/Downloads/`. We don't need it
+yet — the rendered sync skill is on disk at
+`plugins/agntux-{slug}/skills/agntux-{slug}/SKILL.md` (and its
+`reference/` siblings). That's exactly the same file the host would
+load if the plugin were installed. We can read it and execute its
+steps directly against the source MCP tools that are already
+authorized in Cowork (the user authorized them in stage 3). Iteration
+becomes: edit `_overrides/`, re-render, re-run sync — no rebuild, no
+reinstall, no manual paste loop.
+
+The user only installs the zip later — at stage 11 (triage UI test) or
+stage 12 (final submission).
 
 ## The opening setup
 
 > {Name}, this next part is the single most useful thing we'll do
 > together. The plugin works against mock data, but real data has
 > capitalisation quirks, weird threading edge cases, sync volume
-> we can't predict. Three to five rounds of running and pasting
-> back is what turns a 70%-good plugin into one that just works.
+> we can't predict. Three to five rounds is what turns a 70%-good
+> plugin into one that just works.
 >
-> Here's the flow we'll loop through:
->
-> 1. Open **Cowork**.
-> 2. Type `/agntux-{slug} sync` and run it. The first run sweeps
->    a {bootstrap-window} window of your data — could take a
->    minute or two.
-> 3. When the run finishes, **expand every collapsed section**.
->    Specifically:
->    - Used a skill
->    - Result
->    - Running command
->    - Script
->    - {Connector-display-name} tool Result
-> 4. Highlight everything from top to bottom.
-> 5. Paste it here.
->
-> The point of expanding everything is so I see what the plugin
-> actually did, not the host's summary view. I'll read the whole
-> thing, find what's off, edit the prompts, regenerate the zip,
-> and you'll re-upload.
+> I'm going to drive sync against your real {connector-display-name}
+> data right here in the chat — no install needed yet. We'll iterate
+> on prompts, you'll tell me what looks right and what doesn't, and
+> at the end you'll have a plugin that fits how you actually work.
 
-## What you do with the pasted run
+## Inline-execution shim — what the build skill does each round
 
-Read the entire pasted output as user input. Look for these
+For each round, the build skill plays the role the host would play
+after install:
+
+1. **Read the rendered sync skill on disk.**
+   ```
+   plugins/agntux-{slug}/skills/agntux-{slug}/SKILL.md
+   plugins/agntux-{slug}/skills/agntux-{slug}/reference/sync.md
+   plugins/agntux-{slug}/skills/agntux-{slug}/reference/fetch.md
+   plugins/agntux-{slug}/skills/agntux-{slug}/reference/cursor.md
+   plugins/agntux-{slug}/skills/agntux-{slug}/reference/compose-payload.md
+   ```
+   These are post-render files (substitution applied, append markers
+   stripped). Same files the host would load.
+
+2. **Resolve a scratch knowledge-store root** for the run:
+   ```
+   <agntux-root>/.agntux-build/sessions/{session-id}/sync-output/
+   ```
+   Pass this as the AgntUX project root for the inline run. The
+   canonical sync skill resolves all writes (`data/learnings/...`,
+   `data/agntux-{slug}/...`, cursors, knowledge entries) relative to
+   that root, so the user's real `data/` directory stays clean. Mirror
+   any existing `preferences.md` / `user.md` from the real root by
+   reading-only — we want the personalisation values, not new writes.
+
+3. **Execute sync steps 0–11 inline.** The procedural body in
+   `reference/sync.md` is the same set of steps the host runs after
+   install. Dispatch each step in this conversation, calling the source
+   MCP tools (`mcp__jira_*`, `mcp__slack_*`, `mcp__gmail_*`, etc.) that
+   are already authorized in Cowork. The build skill is the
+   orchestrator; the sync skill's steps are the procedure.
+
+4. **Capture the run output** — every tool call, every result, every
+   write to the scratch knowledge store. The build skill sees all of
+   this in its own context. No paste loop required.
+
+5. **Read the run as user input** — same signal-reading we'd do on a
+   pasted run, applied directly to what we just observed (see the
+   signal table below).
+
+## What you do with the captured run
+
+The build skill has the full run output in context. Look for these
 specific signals:
 
 ### Sync output signals
 
-- **Action items raised that shouldn't have been.** "I got a
-  response-needed item for a Slackbot reminder" → add to the
-  plugin's denylist or filter.
+- **Action items raised that shouldn't have been.** Slackbot reminders
+  surfacing as response-needed → fix the upstream filter rule.
 - **Action items NOT raised that should have been.** "I @-mentioned
   myself in #general at 9am and nothing surfaced" → expand the
   channel discovery or fix a filter.
@@ -61,8 +101,8 @@ specific signals:
 - **Volume exploded.** "First run pulled 3000 messages" → tighten
   bootstrap window in `_overrides/frontmatter.yaml` or add a
   `volume_cap_per_run` setting.
-- **Duplicate entities.** "I see two `Jane Smith` entries" → fix
-  alias resolution or `_sources.json` lookup-before-write.
+- **Duplicate entities.** Two `Jane Smith` entries → fix alias
+  resolution or `_sources.json` lookup-before-write.
 
 ### Connector-tool-call signals
 
@@ -78,7 +118,7 @@ specific signals:
   cap, or the bootstrap window.
 - **Single run cost > $1 in tokens.** Same.
 
-## How you respond after each paste
+## How you respond after each round
 
 1. Lead with one sentence acknowledging the round. Concrete and
    specific:
@@ -89,40 +129,78 @@ specific signals:
 
 2. Translate each issue to plain language and propose the fix:
 
-   > For the @-mention thing: the channel discovery wasn't
-   > including private channels you've authored in. I'll add that
-   > to the discovery sweep. Easy fix.
-   >
-   > For the duplicate Jane: alias resolution wasn't matching
-   > display name + email; we'll add an "or-alias" lookup before
-   > writing.
+   > For the @-mention thing: the channel discovery wasn't including
+   > private channels you've authored in. I'll add that to the
+   > discovery sweep. Easy fix.
 
-3. Edit the prompts. Use the same internal specialists from stage 7
+3. **Apply the generalization checklist (see next section)** before
+   touching any prompt file. This is where most rounds get over-fit to
+   one user's data; the checklist exists to stop that drift.
+
+4. Edit the prompts. Use the same internal specialists from stage 7
    (silently — the user doesn't see specialist names). Most fixes
    live in:
-   - `_overrides/reference/fetch.md` (sync logic)
+   - `_overrides/reference/fetch.md` (sync logic — must generalize)
    - `_overrides/frontmatter.yaml` (cadence, bootstrap window,
-     volume cap)
-   - `_overrides/{step-id}-append.md` (extra rules at named steps)
+     volume cap — sensible defaults)
+   - `_overrides/{step-id}-append.md` (extra rules at named steps —
+     must generalize)
    - The view tool's structuredContent shape (UI fixes — rare here;
      stage 11 handles those).
 
-4. Regenerate the zip:
-
+5. **Re-render the skill tree** so the on-disk rendered files reflect
+   the override changes:
    ```
-   node scripts/build-plugin.mjs agntux-{slug}
+   node scripts/render-skill.mjs agntux-{slug}
    ```
-   Then re-zip into the same submissions path with a bumped patch
-   version (`0.1.0` → `0.1.1` → `0.1.2`).
+   No `build-plugin.mjs` rebuild needed — the sync skill is pure
+   markdown. The MCP server bundle is unchanged between rounds.
 
-5. Tell the user to re-upload:
+6. **Re-run sync inline** against the same scratch root. Compare
+   round-N output to round-(N-1) output and report what changed.
 
-   > New zip at {path}. Same install flow as before — Customize →
-   > Personal Plugins → click `agntux-{slug}` → there's a "Reinstall
-   > from file" option. Drag the new zip in and confirm.
+## Generalization checklist (read before every prompt edit)
 
-6. Once they confirm reinstall, ask them to re-run sync and paste
-   back.
+The danger of this loop is over-fitting prompts to one user's data —
+e.g., adding `denylist: [#random, #pets, #foosball]` because *this*
+user's Slack has those noisy channels, then shipping a plugin that
+silently skips channels named `#pets` for everyone else.
+
+**Before you propose any prompt edit, ask:**
+
+1. Is this fix specific to *this user's* {connector-display-name}
+   setup, or would it help the next user with the same connector?
+2. If it's a denylist entry, can you re-phrase it as a *rule* (e.g.,
+   "skip channels with no human messages in 30 days") rather than a
+   hardcoded list?
+3. If it's a personalization tweak (timezone, locale, role-specific
+   filter, cadence), does it belong in `_overrides/frontmatter.yaml`
+   so the next user gets a sensible default but can override?
+4. **If the fix is genuinely user-specific** (one-off Slackbot
+   variant, this user's Jira workflow, etc.), do NOT bake it into the
+   plugin. Note it as a candidate for the user's local `_overrides/`
+   in their installed copy and move on.
+
+**Rule of thumb:**
+
+- Edits to canonical fetch / cursor / compose-payload logic must
+  generalize across users.
+- Edits to `_overrides/frontmatter.yaml` may carry sensible defaults
+  (bootstrap window, cadence, volume cap) — defaults, not constants.
+- Edits to `_overrides/{step-id}-append.md` must read as universal
+  rules ("skip messages where author === 'Slackbot'"), not as
+  enumerations of one user's data.
+- User-specific tweaks belong in the user's own installed copy, not
+  the shipped plugin.
+
+When in doubt, say it out loud to the user:
+
+> That looks specific to your setup — channels you happen to be in.
+> If we bake it in, it'll only help you. Want me to make this a
+> rule the plugin can apply for any user (e.g., "skip channels
+> with no @-mentions in 30 days") instead?
+
+The user almost always says yes once it's framed that way.
 
 ## Iteration cadence and gates
 
@@ -149,33 +227,61 @@ flow without flinching. Not perfect — *good enough*.
 > {connector-display-name} data into your knowledge store the way
 > it should. Action items are raising for the right things. The
 > next thing to test is the action buttons themselves, in the
-> triage UI — that's a quick check.
+> triage UI — for that we'll install the zip and run it once
+> end-to-end.
 
 ## Saved state at end of stage 10
 
 ```json
 {
   ...,
+  "inline_sync_scratch_dir": "/Users/.../.agntux-build/sessions/{session-id}/sync-output/",
   "sync_iterations": [
     {
       "round": 1,
-      "user_run_pasted_at": "...",
+      "ran_at": "...",
       "issues_found": ["channel-discovery", "alias-resolution"],
-      "fix_summary": "added private-channel sweep + alias lookup",
-      "new_version": "0.1.1"
-    },
-    ...
+      "fix_summary": "added private-channel sweep + universal alias lookup (no hardcoded names)",
+      "generalization_check": "passed — alias rule applies to any user with display-name+email shape"
+    }
   ],
   "sync_iteration_count": 4,
   "sync_marked_good_enough_at": "2026-05-08T..."
 }
 ```
 
+## Fallback: when inline sync isn't possible
+
+A small set of cases force the install-then-run flow:
+
+- **The source MCP isn't reachable from Cowork** (e.g., user is on a
+  host without that connector) — even though stage 3 should have caught
+  this, occasionally a connector is auth'd but the MCP isn't wired in.
+- **The sync skill needs a host capability** the build skill can't
+  fake (e.g., direct host-renderer iframe interaction during sync).
+
+When this happens:
+
+1. Tell the user honestly: "I can't drive the connector from in here
+   for {reason}. Let's switch to install-and-run mode for this plugin."
+2. Walk the install — use the eight-click install steps documented in
+   `11-triage-ui-test.md → Regenerate and install` (stage 11 owns the
+   install walk now; load that section verbatim).
+3. Have the user run `/agntux-{slug}` in this same Cowork conversation
+   and paste the expanded run output back.
+4. Continue the iteration loop with paste rounds. Re-render after each
+   prompt edit; have the user re-zip via `node scripts/build-plugin.mjs
+   agntux-{slug}` (with a patch-version bump per stage 11's fail-closed
+   rule) and reinstall ("Reinstall from file" in Personal Plugins)
+   before each subsequent round.
+
+This fallback should be rare. If the inline path works on the first
+attempt, prefer it.
+
 ## What you do NOT do
 
-- Don't ask the user to copy the run from terminal output. Cowork
-  is the source of truth — the host renders the run with the
-  expandable sections we need.
+- Don't bake user-specific data into prompts. Re-read the generalization
+  checklist if you're unsure.
 - Don't try to short-circuit the loop ("looks fine, skip the next
   round"). The user's instinct on "good enough" is what matters,
   not yours.
@@ -183,3 +289,9 @@ flow without flinching. Not perfect — *good enough*.
   for the threading fix"). Talk in user-visible terms.
 - Don't bump major or minor versions for these fixes — they're
   patches.
+- Don't write to the user's real `data/` directory during iteration.
+  All inline-sync writes go to the scratch root under
+  `.agntux-build/sessions/{session-id}/sync-output/`.
+- Don't ask the user to reinstall a zip between rounds in the inline
+  path. That's the legacy flow; the inline path makes reinstall
+  unnecessary.

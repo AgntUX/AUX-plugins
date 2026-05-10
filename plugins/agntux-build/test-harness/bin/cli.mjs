@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { parseFlags, required, parseIntFlag } from "../src/parse-flags.mjs";
 import { runRender } from "../src/render.mjs";
 import { probeChromium } from "../src/probe-chromium.mjs";
+import { resolveHarnessArgs } from "../src/load-fixture.mjs";
 
 const HELP = `agntux-build-test — headless UI test runner
 
@@ -26,11 +27,23 @@ RENDER FLAGS
   --plugin <path>      Plugin root (required).
                        Must contain mcp-server/dist/index.js.
   --tool <name>        View tool to invoke (required).
-  --args <json>        Tool args as a JSON string. Default: '{}'.
+  --args <json>        Tool args as a JSON string. Wins over --fixture.
+  --fixture <ref>      Path or bare name of a fixture JSON file. Bare names
+                       resolve under <plugin>/ui-handlers/<handler>/fixtures/,
+                       where <handler> is the tool name with a trailing
+                       _view or -view suffix stripped (e.g. tool
+                       compose_view -> handler compose). Tools without
+                       that suffix use the tool name verbatim. The file
+                       must have an "args" object at the root.
   --out <dir>          Output dir for screenshot + metadata. Default ./test-results.
   --timeout <ms>       Render timeout. Default 60000.
   --host-bin <path>    Override path to host-renderer/bin/host.mjs.
                        Default: resolved relative to the harness location.
+
+  Args precedence: --args > --fixture > nearest fixtures.json next to the
+  handler dir > {}. With no override the harness auto-loads
+  <plugin>/ui-handlers/<handler>/fixtures.json (if it exists), so empty-args
+  runs render the component DOM rather than the not_found DegradedState.
 
 EXIT
   0   render succeeded, no console errors
@@ -84,13 +97,32 @@ async function main(argv) {
   }
 
   let toolArgs = {};
-  if (flags.args) {
-    try {
-      toolArgs = JSON.parse(flags.args);
-    } catch (e) {
-      console.error(`error: --args is not valid JSON: ${e.message}`);
-      return 2;
+  let argsSource = "default ({})";
+  let argsExplicit = false;
+  try {
+    const resolved = resolveHarnessArgs({
+      pluginRoot: pluginPath,
+      toolName,
+      fixtureArg: flags.fixture,
+      argsJson: flags.args,
+    });
+    if (resolved) {
+      toolArgs = resolved.args;
+      argsSource = resolved.source;
+      // A successfully-applied fixture / --args sets argsExplicit so the
+      // empty-args hint doesn't fire. A fallback from a broken
+      // auto-discovered fixture (warning present, source labelled
+      // "default (...)") leaves argsExplicit=false so the hint can still
+      // alert the operator that no real args reached the tool.
+      if (resolved.warning) {
+        console.warn(`warning: ${resolved.warning}`);
+      } else {
+        argsExplicit = true;
+      }
     }
+  } catch (e) {
+    console.error(`error: ${e.message}`);
+    return 2;
   }
 
   const outDir = flags.out ?? "./test-results";
@@ -102,6 +134,7 @@ async function main(argv) {
       pluginRoot: pluginPath,
       toolName,
       args: toolArgs,
+      argsExplicit,
       outDir,
       timeoutMs,
       hostBin,
@@ -116,10 +149,14 @@ async function main(argv) {
       `[${status}] ${toolName}  state=${summary.renderState}  ` +
         `consoleErrors=${summary.consoleErrorsCount}  ` +
         `content=${ccPassed}p/${ccFailed}f/${ccSkipped}s  ` +
+        `args=${argsSource}  ` +
         `→ ${summary.screenshotPath}`,
     );
     if (summary.toolError) {
       console.log(`tool error: ${summary.toolError}`);
+    }
+    if (summary.emptyArgsHint) {
+      console.log(`hint: ${summary.emptyArgsHint}`);
     }
     if (ccFailed > 0) {
       for (const f of cc.failed) {
