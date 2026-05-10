@@ -25,7 +25,8 @@ Group the tools into three buckets:
    the user's knowledge store.
 2. **Write** — tools that create / update / delete on the source.
    Names typically `send_*`, `create_*`, `update_*`, `comment_*`,
-   `transition_*`, `complete_*`. These power the action button.
+   `transition_*`, `complete_*`. These power the action buttons —
+   one UI handler per meaningful verb (see stage 5).
 3. **Auth / meta** — `whoami`, `authenticate`, `complete_authentication`.
    Don't surface to the user; we use these only for stage 3.
 
@@ -52,10 +53,12 @@ technical noun the user wouldn't know.
 > - {plain-language line 2}
 > - {plain-language line 3}
 >
-> **Action button** — when an action item from
+> **Action buttons** — when an action item from
 > {connector-display-name} appears in your AgntUX triage, you'll be
 > able to:
-> - {primary write verb in plain language}
+> - {plain-language verb 1}
+> - {plain-language verb 2}
+> - {plain-language verb 3}
 >
 > Anything missing, or look right?
 
@@ -93,7 +96,7 @@ Save:
     "read": ["list_issues", "get_issue", "search_issues", ...],
     "write": ["create_comment", "update_issue_state", ...]
   },
-  "primary_write_verb": "comment_on_issue",
+  "primary_write_verbs": ["comment_on_issue", "transition_state", "assign_user", "edit_description"],
   "recommended_cadence": "Every 60 min, 7am–10pm weekdays"
 }
 ```
@@ -107,25 +110,42 @@ Save:
   "refreshes every X."
 - Don't ask about the schema (entities + actions) yet — that's
   internal, you'll handle it during stage 7's build pass.
-- Don't pick more than one primary write verb. The action button
-  has one job.
+- **Cover the connector's meaningful write verbs.** Default
+  posture: every distinct write verb that a knowledge worker
+  actually uses gets a UI handler. For project trackers (Linear,
+  Jira, GitHub Issues) that's typically 4–5: comment, transition
+  state, assign, edit description, set priority/labels. For chat
+  (Slack, Discord) it's typically 1–2: reply, plus thread-level
+  actions. The plugin should let the user complete their everyday
+  work *without bouncing back to the source app*.
+- **Collapse only when inputs collapse.** Two verbs that take the
+  same input shape (e.g., "reply to thread" vs "reply with
+  schedule") become tabs over one Send button, not two handlers.
+  Two verbs with genuinely different inputs (comment text vs
+  transition picker) get two handlers.
 
 ## When the connector is read-only
 
-Some sources have no write tools (read-only feeds, log streams,
-analytics). That's fine — the plugin will be ingest-only and the
-action button is just `Open in {connector-display-name}`. Tell the
-user:
+Some sources have no write tools (read-only feeds, log streams).
+The plugin will be ingest-only, with no in-host action button —
+action items will surface "Open in {connector-display-name}" as
+their only affordance. Tell the user:
 
 > {Connector-display-name} doesn't have a way to take action back —
-> we can read everything but not respond. That's fine; the action
-> button on action items will open the source in
-> {connector-display-name} so you can act there directly.
+> we'll surface action items with an "Open in
+> {connector-display-name}" link. Anywhere it does have actions
+> (newer API, etc.), we'll add buttons in a follow-up.
 
-Save `primary_write_verb: null`.
+Save `primary_write_verbs: []`.
+
+Note: even on write-capable plugins, "Open in {connector}" is a
+standard *secondary* link in every action item's iframe header
+(matches `agntux-slack` and `agntux-gmail`'s `Open ↗` link). It's
+never the primary surface, and never replaces an in-host handler
+when the source supports the verb. See stage 5.
 
 ## Path forward
 
-Move to [`05-plan-ui.md`](05-plan-ui.md). If `primary_write_verb` is
-null (read-only source), stage 5 is a one-line confirmation rather
-than a full UI plan.
+Move to [`05-plan-ui.md`](05-plan-ui.md). If `primary_write_verbs`
+is empty (read-only source), stage 5 is a one-line confirmation
+rather than a full UI plan.

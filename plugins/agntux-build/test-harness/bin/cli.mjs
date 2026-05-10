@@ -8,6 +8,7 @@
 import { resolve } from "node:path";
 import { parseFlags, required, parseIntFlag } from "../src/parse-flags.mjs";
 import { runRender } from "../src/render.mjs";
+import { probeChromium } from "../src/probe-chromium.mjs";
 
 const HELP = `agntux-build-test — headless UI test runner
 
@@ -15,8 +16,11 @@ USAGE
   agntux-build-test <subcommand> [flags]
 
 SUBCOMMANDS
-  render      Spawn the in-plugin host renderer, render the requested
-              tool, capture screenshot + console + structuredContent.
+  render            Spawn the in-plugin host renderer, render the requested
+                    tool, capture screenshot + console + structuredContent.
+  probe-chromium    Report whether Playwright's Chromium binary is installed.
+                    Prints a JSON object: { installed, executablePath?,
+                    reason? }. Exits 0 if installed, 1 otherwise.
 
 RENDER FLAGS
   --plugin <path>      Plugin root (required).
@@ -30,7 +34,9 @@ RENDER FLAGS
 
 EXIT
   0   render succeeded, no console errors
+        OR  probe-chromium found the binary
   1   render failed (timeout, errors, tool error)
+        OR  probe-chromium did not find the binary
   2   bad CLI args
 `;
 
@@ -39,6 +45,12 @@ async function main(argv) {
   if (!sub || sub === "--help" || sub === "-h") {
     console.log(HELP);
     return 0;
+  }
+
+  if (sub === "probe-chromium") {
+    const result = await probeChromium();
+    console.log(JSON.stringify(result));
+    return result.installed ? 0 : 1;
   }
 
   if (sub !== "render") {
@@ -95,14 +107,28 @@ async function main(argv) {
       hostBin,
     });
 
+    const cc = summary.contentChecks;
+    const ccPassed = cc?.passed?.length ?? 0;
+    const ccFailed = cc?.failed?.length ?? 0;
+    const ccSkipped = cc?.skipped?.length ?? 0;
     const status = summary.passed ? "PASS" : "FAIL";
     console.log(
       `[${status}] ${toolName}  state=${summary.renderState}  ` +
         `consoleErrors=${summary.consoleErrorsCount}  ` +
+        `content=${ccPassed}p/${ccFailed}f/${ccSkipped}s  ` +
         `→ ${summary.screenshotPath}`,
     );
     if (summary.toolError) {
       console.log(`tool error: ${summary.toolError}`);
+    }
+    if (ccFailed > 0) {
+      for (const f of cc.failed) {
+        const rule = f.rule ?? {};
+        const desc = rule.source ?? (rule.verb ? `verb:${rule.verb}` : "structural");
+        const locator = rule.locator ?? "n/a";
+        const reason = f.reason ?? "expected " + JSON.stringify(f.expected ?? null);
+        console.log(`  content FAIL [${desc} via ${locator}]: ${reason}`);
+      }
     }
 
     return summary.passed ? 0 : 1;

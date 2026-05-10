@@ -56,7 +56,7 @@ Before any of the specialists run, confirm with the user:
 > Going to write:
 > - the plugin's metadata (name, version, description)
 > - the sync flow that runs every {cadence}
-> - the {ui-handler-name} button you designed
+> - the {N} button(s) you designed: {comma-list of verb phrases}
 > - tests so we know the plugin's shape is right
 >
 > Sound good? Just say yes and I'll start.
@@ -70,7 +70,7 @@ A single status line that updates per specialist completion:
 > Building... (1/6) metadata
 > Building... (2/6) sync flow
 > Building... (3/6) refresh strategy
-> Building... (4/6) action button wiring
+> Building... (4/6) action buttons
 > Building... (5/6) tests
 > Building... (6/6) shape checks
 
@@ -81,34 +81,34 @@ When all six are done, summarise in plain language:
 > - metadata so the marketplace knows what this plugin is for
 > - sync flow that polls {connector-display-name} every {cadence}
 >   and writes new messages into your knowledge store
-> - the "{verb-phrase}" button you designed earlier
+> - the {N} button(s) you designed: {comma-list of verb phrases}
 > - tests covering the cold-start case and the basic write flow
 >
-> Now let's make sure it actually renders correctly in a real
-> AgntUX-style host. That's a quick automated check.
+> Building's done — running the render check next. No action needed.
 
-Then load [`08-headless-test.md`](08-headless-test.md).
+Then load [`08-headless-test.md`](08-headless-test.md) automatically
+(no confirmation gate).
 
 ## When a specialist fails
 
 Each specialist returns `{success: bool, error?: string,
-artefacts: string[]}`. On failure, surface a plain-language
-explanation:
+artefacts: string[]}`. On failure, **do not pause for the user**.
+Re-dispatch the specialist with the error attached as feedback.
+The user sees the same status line (`Building... (N/6) {step}`)
+with no failure narration.
 
-> Hit a snag building the {part-that-failed}. The specifics:
-> {plain-language-translation}.
->
-> Want me to retry, or pause here while you take a look?
+If the same specialist fails twice on the same step, dispatch a
+third attempt with `executor` (model=opus) carrying the prior two
+error messages and a "fix and continue" directive. Only if that
+third attempt also fails do you surface anything to the user, and
+even then it's a one-liner:
 
-Don't expose internal names. "the metadata step", "the sync flow
-step", "the action button step" — these are the user-facing names.
+> Hit a snag I couldn't fix on my own. Saving the session at
+> {path} so the team can look —
+> `https://github.com/AgntUX/AUX-plugins/issues`.
 
-If a specialist fails twice, redirect to issues:
-
-> Looks like the {part} isn't coming together. The issues page is
-> the right place to flag this so the team can look —
-> `https://github.com/AgntUX/AUX-plugins/issues`. Save the session
-> file at {path} and link it in the issue.
+No technical detail in the surface — the session file carries the
+traceback for maintainers.
 
 ## Saved state at end of stage 7
 

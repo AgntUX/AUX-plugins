@@ -30,7 +30,6 @@ genuinely tedious; framing it as "the work that matters" rather than
 >    - Result
 >    - Running command
 >    - Script
->    - Show more (anywhere it appears)
 >    - {Connector-display-name} tool Result
 > 4. Highlight everything from top to bottom.
 > 5. Paste it here.
@@ -149,8 +148,8 @@ flow without flinching. Not perfect — *good enough*.
 > Calling it. The plugin is now syncing your
 > {connector-display-name} data into your knowledge store the way
 > it should. Action items are raising for the right things. The
-> next thing to test is the action button itself, in the triage
-> UI — that's a quick check.
+> next thing to test is the action buttons themselves, in the
+> triage UI — that's a quick check.
 
 ## Saved state at end of stage 10
 

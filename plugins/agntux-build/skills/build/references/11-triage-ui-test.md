@@ -1,7 +1,7 @@
-# Stage 11 — test the action button in the real triage UI
+# Stage 11 — test the action buttons in the real triage UI
 
-The sync flow's good. Now we test the action button against an
-action item that just came out of stage 10's sync, in the real
+The sync flow's good. Now we test the action buttons against
+action items that just came out of stage 10's sync, in the real
 AgntUX triage UI. The headless test in stage 8 caught render bugs;
 this catches behavioural ones — does the Send actually fire, does
 the source-side write land correctly, does the action item resolve.
@@ -10,15 +10,18 @@ the source-side write land correctly, does the action item resolve.
 
 > One last quick test. Open your **AgntUX triage UI**, find an
 > action item from this plugin (you should have a few from
-> {connector-display-name} after the sync rounds), and click the
-> "{verb-phrase}" button.
+> {connector-display-name} after the sync rounds), and click whichever
+> action button shows up — could be any of: {comma-list of verb phrases}.
 >
-> The action button is the same iframe we previewed earlier — it'll
-> open inline with a draft. Edit if you want, hit Send.
+> The button opens the same iframe we previewed earlier — inline,
+> with a draft. Edit if you want, hit Send.
 >
 > Tell me what happens — did the source-side write actually land?
 > {connector-display-name} should show your {comment / reply /
 > transition / etc.} immediately.
+>
+> If you have multiple action items, try a couple — different
+> action items will surface different buttons.
 
 ## What can go wrong
 
@@ -39,9 +42,9 @@ For each, translate to plain language:
 
 ## Iteration cadence
 
-Cap at 2 iterations. The action button's behaviour is mostly
-mechanical wiring — if it's wrong twice, escalate to issues.
-Stage 11 isn't a deep prompt-engineering loop like stage 10.
+Cap at 2 iterations. Each button's behaviour is mostly mechanical
+wiring — if it's wrong twice, escalate to issues. Stage 11 isn't a
+deep prompt-engineering loop like stage 10.
 
 ## When it works
 

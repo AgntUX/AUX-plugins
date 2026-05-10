@@ -101,32 +101,20 @@ async function run() {
   const iframe = document.getElementById("ui");
   await loadSandbox(iframe, uiResource.csp);
 
-  // 4. Once sandbox-proxy is ready, send the inner HTML.
+  // 4a. Pre-attach the ui/initialize listener so we don't lose the inner
+  //     iframe's request to a race.
+  const initListener = attachInitListener();
+  // 4b. Once sandbox-proxy is ready, send the inner HTML.
   await sendResource(iframe, uiResource);
 
-  // 5. Wait for the inner iframe (the actual UI handler component) to
-  // signal it has wired its message listener. The MCP App spec uses
-  // `ui/notifications/initialized` for this; AgntUX's hand-rolled
-  // SimpleMcpApp posts the same. If the inner iframe doesn't speak the
-  // protocol within INNER_INIT_TIMEOUT_MS, fall through anyway —
-  // non-spec components just need their first message slightly later.
+  // 5. Wait for the inner iframe to send `ui/initialize` (the modern
+  // JSON-RPC handshake from SimpleMcpApp), respond with hostContext,
+  // then push tool-input + tool-result as JSON-RPC notifications.
   setRenderState("ui-ready");
-  await waitForInnerInitialized(iframe, 1500);
-
-  // 6. Send hostContext + tool input + tool result to the inner app.
   const innerWindow = iframe.contentWindow;
-  innerWindow.postMessage(
-    { method: "ui/host/context", params: HOST_CONTEXT },
-    "*",
-  );
-  innerWindow.postMessage(
-    { method: "ui/tool-input", params: { arguments: toolArgs } },
-    "*",
-  );
-  innerWindow.postMessage(
-    { method: "ui/tool-result", params: toolResult },
-    "*",
-  );
+  // (initListener was attached earlier, before sendResource, to avoid a race
+  //  where the inner iframe sends ui/initialize before we listen.)
+  await handleInitializeAndPushResult(innerWindow, toolArgs, toolResult, initListener);
 
   setRenderState("tool-result");
   setStatus(`rendered`);
@@ -182,4 +170,71 @@ async function sendResource(iframe, uiResource) {
   );
   // Give the inner iframe ~one tick to receive + document.write the HTML.
   await new Promise((r) => setTimeout(r, 50));
+}
+
+function attachInitListener() {
+  // Listens for the ui/initialize JSON-RPC request from the inner iframe.
+  // Returns a promise that resolves with the id (or null on 5s timeout).
+  let resolveOuter;
+  const promise = new Promise((r) => { resolveOuter = r; });
+  let done = false;
+  const finish = (initId) => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("message", onMessage);
+    resolveOuter(initId);
+  };
+  const onMessage = (event) => {
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.method === "ui/initialize" && data.id != null && data.jsonrpc === "2.0") {
+      console.log("[host-bridge] caught ui/initialize id=", data.id);
+      finish(data.id);
+    }
+  };
+  window.addEventListener("message", onMessage);
+  setTimeout(() => finish(null), 5000);
+  return promise;
+}
+
+async function handleInitializeAndPushResult(innerWindow, toolArgs, toolResult, initPromise) {
+  console.log("[host-bridge] waiting for ui/initialize");
+  const seen = await initPromise;
+  console.log("[host-bridge] init seen=", seen);
+
+  if (seen != null) {
+    innerWindow.postMessage(
+      {
+        jsonrpc: "2.0",
+        id: seen,
+        result: {
+          protocolVersion: "0.5.0",
+          hostInfo: { name: "agntux-build-host", version: "0.1.0" },
+          hostContext: {
+            ...HOST_CONTEXT,
+            toolInfo: { tool: { name: toolName } },
+          },
+          hostCapabilities: {},
+        },
+      },
+      "*",
+    );
+  }
+
+  innerWindow.postMessage(
+    {
+      jsonrpc: "2.0",
+      method: "ui/notifications/tool-result",
+      params: { ...toolResult, _arguments: toolArgs },
+    },
+    "*",
+  );
+  innerWindow.postMessage(
+    { jsonrpc: "2.0", method: "ui/notifications/tool-result", params: toolResult },
+    "*",
+  );
+  innerWindow.postMessage(
+    { jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: toolArgs } },
+    "*",
+  );
 }

@@ -47,16 +47,14 @@ export async function startServer({
   app.use(cors());
   app.use(express.json({ limit: "5mb" }));
 
-  // ---------- static (foreground only) ----------
-  if (!headless) {
-    app.get("/host.html", (_req, res) => {
-      res.sendFile(join(PUBLIC_DIR, "host.html"));
-    });
-    app.get("/host-bridge.mjs", (_req, res) => {
-      res.type("application/javascript");
-      res.sendFile(join(PUBLIC_DIR, "host-bridge.mjs"));
-    });
-  }
+  // ---------- static (always served — Playwright also loads host.html in headless) ----------
+  app.get("/host.html", (_req, res) => {
+    res.sendFile(join(PUBLIC_DIR, "host.html"));
+  });
+  app.get("/host-bridge.mjs", (_req, res) => {
+    res.type("application/javascript");
+    res.sendFile(join(PUBLIC_DIR, "host-bridge.mjs"));
+  });
 
   // ---------- sandbox (always served — even in headless, Playwright loads it) ----------
   app.get(["/sandbox.html"], (req, res) => {
