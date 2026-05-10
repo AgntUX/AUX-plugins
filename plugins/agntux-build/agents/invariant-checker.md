@@ -13,9 +13,9 @@ You enforce the four pre-flight gates that, if missed, fail CI hard:
    `hooks/` directory: `plugins/{slug}/hooks/` matches
    `canonical/hooks/checksums.txt` except the two documented
    substitutions. Source ingest plugins (`agntux-slack`, `agntux-gmail`,
-   any new `agntux-{source}`) ship NO hooks — license enforcement lives
-   in the MCP server via `@agntux/mcp-license`. Only `agntux-core`
-   ships hooks today.
+   any new `agntux-{source}`) ship NO hooks — plugins are Apache-2.0
+   and unconditionally free, with no MCP-server license gate. Only
+   `agntux-core` ships hooks today (for schema + index validation).
 2. **Skill-render reproducibility (lint pass 8 sub-checks 1–4)** — the
    rendered `plugins/{slug}/skills/{slug}/` tree is byte-identical to
    what `node scripts/render-skill.mjs {slug}` would emit from the
@@ -188,10 +188,10 @@ security before adding — the array controls runtime scope.
 If your plugin's hook bundle was the legacy byte-frozen copy, the same
 file in `plugins/{slug}/hooks/lib/agntux-plugins.mjs` (per the
 substitution table above) also included your slug, but it's a separate
-file. Today most source plugins ship NO `hooks/` directory at all
-(license enforcement moved into the MCP server via
-`@agntux/mcp-license`); the agntux-core copy is the only one that
-governs scope checks.
+file. Today most source plugins ship NO `hooks/` directory at all —
+plugins are Apache-2.0 and unconditionally free, with no MCP-server
+license gate. The agntux-core copy is the only one that governs
+scope checks.
 
 ### 3.3 `plugins/agntux-core/CHANGELOG.md`
 

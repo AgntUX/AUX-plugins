@@ -36,10 +36,31 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderSkill, RenderSkillError } from "./render-skill.mjs";
+
+// stdout/stderr signatures that indicate Vite + @vitejs/plugin-react crashed
+// architecturally (aarch64 Linux is the canonical host) rather than failing
+// for a real error in the component code. On match, fall back to esbuild
+// per plan §C4. Non-architectural failures (typescript errors, missing
+// imports, etc.) propagate so the contributor sees the real cause.
+const TOOLCHAIN_CRASH_SIGNATURES = [
+  /Bus error/i,
+  /SIGBUS/,
+  /Segmentation fault/i,
+  /core dumped/i,
+];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -82,7 +103,7 @@ if (argv.serve && argv.port && slugs.length > 1) {
 for (const slug of slugs) {
   const pluginDir = join(PLUGINS_DIR, slug);
   if (!existsSync(pluginDir)) fail(`Plugin not found: plugins/${slug}/`);
-  buildPlugin(slug, pluginDir, argv.skipInstall);
+  await buildPlugin(slug, pluginDir, argv.skipInstall);
 }
 
 if (argv.serve) {
@@ -98,8 +119,22 @@ if (argv.serve) {
 
 // ── steps ────────────────────────────────────────────────────────────────────
 
-function buildPlugin(slug, pluginDir, skipInstall) {
+async function buildPlugin(slug, pluginDir, skipInstall) {
   log(`[${slug}] starting build`);
+
+  // C2 — `@agntux/ui-primitives` is a workspace dep declared via the
+  // file:../../../../../packages/agntux-ui-primitives path. When the
+  // build runs inside AUX-plugins/ (the normal case) that path resolves
+  // to packages/agntux-ui-primitives — already there, no-op. When the
+  // build runs in a scaffolded location outside AUX-plugins/ (the
+  // agntux-build stage 7 case), the path doesn't resolve. ensurePackages
+  // creates a symlink (or copies on filesystems that don't allow them)
+  // from a sourceable location, picking in this order:
+  //   1. AGNTUX_PACKAGES_DIR env var (explicit override)
+  //   2. <REPO_ROOT>/packages (internal AUX-plugins build — already there)
+  //   3. <CLAUDE_PLUGIN_ROOT>/canonical/packages (agntux-build scaffold)
+  // If none resolve and the file: target is missing, log a clear error.
+  ensurePackagesAvailable(slug, pluginDir);
 
   // npm 10.9+ crashes ("Cannot read properties of null (reading 'package')")
   // if you run `npm install` inside a workspace member directory. When the
@@ -132,7 +167,14 @@ function buildPlugin(slug, pluginDir, skipInstall) {
     if (memberInstall) {
       runOrFail("npm", ["install", "--no-audit", "--no-fund"], c.componentDir);
     }
-    runOrFail("npm", ["run", "build"], c.componentDir);
+    // C4 — Try Vite first, fall back to esbuild on architectural crashes
+    // (aarch64 Linux is the canonical SIGBUS host). The locale-stubs
+    // problem (canonical use-translation.ts static-imports 11 locales)
+    // is solved at the template level: the canonical scaffold ships all
+    // 11 locale files (10 are en-US copies awaiting real translations).
+    // Customised use-translation hooks in shipped plugins import only
+    // the locales they ship — no runtime stubbing required.
+    await runComponentBuildWithFallback(slug, c);
     if (!existsSync(join(c.componentDir, "out", "index.html"))) {
       fail(
         `[${slug}/${c.uiName}] build did not produce out/index.html — check the component's vite config.`,
@@ -253,6 +295,185 @@ function pipeWithPrefix(src, slug, dst) {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+function ensurePackagesAvailable(slug, pluginDir) {
+  // Resolve the `@agntux/ui-primitives` workspace path via the canonical
+  // `file:../../../../../packages/agntux-ui-primitives` declaration:
+  // 5 levels up from {plugin}/ui-handlers/{name}/component/ lands at
+  // {pluginDir}/../../packages. Same calculation from {pluginDir} alone.
+  const expected = resolve(pluginDir, "..", "..", "packages");
+  const expectedPrimitive = join(expected, "agntux-ui-primitives");
+  if (existsSync(expectedPrimitive)) return;
+
+  // Source candidates, in priority order. The first one whose
+  // agntux-ui-primitives child exists wins.
+  const candidates = [
+    process.env.AGNTUX_PACKAGES_DIR,
+    join(REPO_ROOT, "packages"),
+    process.env.CLAUDE_PLUGIN_ROOT
+      ? join(process.env.CLAUDE_PLUGIN_ROOT, "canonical", "packages")
+      : null,
+  ].filter(Boolean);
+
+  let source = null;
+  for (const cand of candidates) {
+    if (existsSync(join(cand, "agntux-ui-primitives"))) {
+      source = cand;
+      break;
+    }
+  }
+  if (!source) {
+    fail(
+      `[${slug}] @agntux/ui-primitives not resolvable. Expected ` +
+        `${expectedPrimitive} or one of: ${candidates.join(", ") || "<no candidates>"}. ` +
+        `Set AGNTUX_PACKAGES_DIR to point at a directory containing ` +
+        `agntux-ui-primitives/, or run inside the AUX-plugins repo where ` +
+        `packages/ already lives.`,
+    );
+  }
+
+  log(`[${slug}] linking packages/ from ${source}`);
+  mkdirSync(dirname(expected), { recursive: true });
+  try {
+    symlinkSync(source, expected, "dir");
+  } catch (err) {
+    // EPERM on Windows or some sandboxed filesystems — fall back to copy.
+    if (err.code === "EPERM" || err.code === "EXDEV") {
+      log(
+        `[${slug}] symlink failed (${err.code}); copying packages/ instead`,
+      );
+      cpSync(source, expected, { recursive: true, dereference: true });
+    } else {
+      throw err;
+    }
+  }
+}
+
+async function runComponentBuildWithFallback(slug, component) {
+  // First pass: the canonical Vite + @vitejs/plugin-react path. Stream
+  // stdout/stderr live to the user (so a long build keeps showing
+  // progress) while also tee-ing into a buffer so we can sniff for
+  // architectural-crash signatures on failure. Plain stdio:"inherit"
+  // would lose the buffer; plain stdio:"pipe" would batch output to
+  // the end. Run async + manual tee gives us both.
+  const { status, signal, stdout, stderr } = await runAndTee(
+    "npm",
+    ["run", "build"],
+    component.componentDir,
+  );
+
+  if (status === 0) return;
+
+  const combined = `${stdout}\n${stderr}\n${signal ?? ""}`;
+  const crashed =
+    signal === "SIGBUS" ||
+    signal === "SIGSEGV" ||
+    TOOLCHAIN_CRASH_SIGNATURES.some((re) => re.test(combined));
+  if (!crashed) {
+    fail(
+      `[${slug}/${component.uiName}] component build failed (exit ${status}). ` +
+        `Not an architectural crash; propagating the real error above.`,
+    );
+  }
+
+  log(
+    `[${slug}/${component.uiName}] Vite crashed architecturally${
+      signal ? ` (signal=${signal})` : ""
+    }; falling back to direct esbuild`,
+  );
+  runEsbuildFallback(slug, component);
+}
+
+function runAndTee(cmd, args, cwd) {
+  const proc = spawn(cmd, args, {
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  proc.stdout.setEncoding("utf8");
+  proc.stderr.setEncoding("utf8");
+  proc.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    stdout += chunk;
+  });
+  proc.stderr.on("data", (chunk) => {
+    process.stderr.write(chunk);
+    stderr += chunk;
+  });
+  return new Promise((resolve) => {
+    proc.on("close", (status, signal) => {
+      resolve({ status, signal, stdout, stderr });
+    });
+  });
+}
+
+function runEsbuildFallback(slug, component) {
+  const componentDir = component.componentDir;
+  const entry = pickEsbuildEntry(componentDir);
+  if (!entry) {
+    fail(
+      `[${slug}/${component.uiName}] esbuild fallback could not find an entry ` +
+        `(looked for src/main.tsx, src/main.ts, src/index.tsx, src/index.ts).`,
+    );
+  }
+  const outDir = join(componentDir, "out");
+  mkdirSync(outDir, { recursive: true });
+  const bundlePath = join(outDir, "bundle.js");
+  const args = [
+    "esbuild",
+    entry,
+    "--bundle",
+    `--outfile=${bundlePath}`,
+    "--jsx=automatic",
+    "--loader:.json=json",
+    "--loader:.css=text",
+    "--target=es2022",
+    "--format=esm",
+    "--minify",
+    "--resolve-extensions=.tsx,.ts,.jsx,.js,.mjs",
+    "--conditions=import,module,browser,default",
+    "--alias:react=./node_modules/react",
+    "--alias:react-dom=./node_modules/react-dom",
+    "--alias:react/jsx-runtime=./node_modules/react/jsx-runtime.js",
+    "--external:tailwindcss",
+  ];
+  // Drop --no-install so npx will fetch esbuild on demand if it's not
+  // already in the workspace's node_modules (the canonical scaffold
+  // doesn't list esbuild as a component dep — it only enters the picture
+  // here as an architectural-crash escape hatch).
+  const r = spawnSync("npx", args, {
+    cwd: componentDir,
+    stdio: "inherit",
+  });
+  if (r.status !== 0) {
+    fail(
+      `[${slug}/${component.uiName}] esbuild fallback also failed (exit ${r.status}). ` +
+        `The component likely has a real build error — check the output above.`,
+    );
+  }
+  // Wrap the bundle into a single-file HTML shell so the rest of the
+  // pipeline (embed-bundle.mjs etc.) still finds out/index.html.
+  const bundleSource = readFileSync(bundlePath, "utf8");
+  const html =
+    `<!doctype html>\n<html><head><meta charset="utf-8"><title></title></head>` +
+    `<body><div id="root"></div><script type="module">${bundleSource}</script></body></html>\n`;
+  const indexPath = join(outDir, "index.html");
+  writeFileSync(indexPath, html, "utf8");
+  log(`[${slug}/${component.uiName}] esbuild fallback produced out/index.html`);
+}
+
+function pickEsbuildEntry(componentDir) {
+  for (const candidate of [
+    "src/main.tsx",
+    "src/main.ts",
+    "src/index.tsx",
+    "src/index.ts",
+  ]) {
+    if (existsSync(join(componentDir, candidate))) return candidate;
+  }
+  return null;
+}
 
 function renderSyncSkillIfPresent(slug, pluginDir) {
   const syncDir = join(pluginDir, "skills", "sync");

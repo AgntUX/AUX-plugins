@@ -28,7 +28,7 @@ committed example fixtures are structurally clean.
 | `cursor-map.test.ts` | no | Source has structured cursor (per-channel JSON map, GDrive per-folder map). Coordinate with `source-semantics-advisor`. |
 | `thread-association.test.ts` | no | Source has threads / parent-child messages. Coordinate with `source-semantics-advisor`. |
 | `connector-envelope.test.ts` | recommended | Source has a UI handler that emits connector-targeted send envelopes (the modern default per `draft-flow-author.md` §1). Asserts handler manifest `follow_up_intents` are non-empty for connector-direct plugins. Coordinate with `draft-flow-author`. |
-| `error-envelope.test.ts` | recommended | Plugin ships a UI handler. Asserts the iframe surfaces runtime error envelopes (e.g. license-gate `pairing_required`) cleanly. |
+| `error-envelope.test.ts` | recommended | Plugin ships a UI handler. Asserts the iframe surfaces runtime error envelopes (rate limit, auth failure, upstream 5xx) cleanly. |
 | `draft-flow.test.ts` | LEGACY — only when the source is chat-only with no UI handler | Source has write tools AND the plugin ships `skills/draft/SKILL.md` (the legacy chat-confirm-then-write skill). Most modern plugins ship a UI handler instead and use `connector-envelope.test.ts` above. Coordinate with `draft-flow-author`. |
 | `idempotent.test.ts` | recommended | Asserts dedup mechanisms in the prompt + structural cleanliness of fixtures. |
 
@@ -62,9 +62,10 @@ describe("plugin shape (inline-skill pattern, post 6aa72b8)", () => {
     expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
   });
 
-  it("does NOT ship a hooks/ directory — license enforcement is in the MCP server", () => {
-    // Only agntux-core ships hooks (schema + index + cursor validation). Source
-    // ingest plugins gate via @agntux/mcp-license inside the MCP server.
+  it("does NOT ship a hooks/ directory — plugins are Apache-2.0 and unconditionally free", () => {
+    // Only agntux-core ships hooks (schema + index + cursor validation).
+    // Source ingest plugins ship no hooks; there is no MCP-server license
+    // gate (the relicensing PR removed `@agntux/mcp-license` entirely).
     expect(existsSync(join(PLUGIN_ROOT, "hooks"))).toBe(false);
   });
 });
@@ -244,11 +245,11 @@ by `manifest-author` § "Connector-targeted intent naming".
 ## `error-envelope.test.ts` (when the plugin ships a UI handler)
 
 Asserts the iframe surfaces runtime error envelopes cleanly. The
-canonical pattern: when the MCP-license gate (or any tool-level error
-path) returns a `{ isError: true, content: [{ type: "text", text: "..." }] }`
-envelope, the component's App.tsx short-circuits via
-`detectErrorEnvelope` and renders `LicenseErrorScreen` with the full
-text via `whitespace-pre-wrap`.
+canonical pattern: when any tool-level error path returns a
+`{ isError: true, content: [{ type: "text", text: "..." }] }` envelope
+(rate limit, auth failure, upstream 5xx), the component's App.tsx
+short-circuits via `detectErrorEnvelope` and renders
+`ServerErrorScreen` with the full text via `whitespace-pre-wrap`.
 
 The test asserts the helper imports + the App.tsx short-circuit are
 both present:
@@ -260,11 +261,11 @@ import { join } from "node:path";
 
 const COMPONENT_ROOT = join(__dirname, "..", "ui-handlers", "compose", "component");
 
-describe("license-gate error envelope rendering", () => {
+describe("server-error envelope rendering", () => {
   it("App.tsx short-circuits on detectErrorEnvelope", () => {
     const app = readFileSync(join(COMPONENT_ROOT, "src/App.tsx"), "utf-8");
     expect(app).toMatch(/detectErrorEnvelope/);
-    expect(app).toMatch(/LicenseErrorScreen/);
+    expect(app).toMatch(/ServerErrorScreen/);
     expect(app).toMatch(/from ['"]@agntux\/ui-primitives['"]/);
   });
 });

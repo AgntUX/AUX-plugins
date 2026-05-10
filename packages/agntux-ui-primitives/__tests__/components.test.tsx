@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AgntuxLogo } from "../src/agntux-logo.js";
 import { ComponentErrorBoundary } from "../src/error-boundary.js";
-import { LicenseErrorScreen } from "../src/license-error-screen.js";
+import { ServerErrorScreen } from "../src/server-error-screen.js";
 import { ScrollablePanel } from "../src/scrollable-panel.js";
 import { Spinner } from "../src/spinner.js";
 
@@ -32,13 +32,15 @@ describe("Spinner", () => {
   });
 });
 
-describe("LicenseErrorScreen", () => {
+describe("ServerErrorScreen", () => {
   it("renders the message verbatim", () => {
     render(
-      <LicenseErrorScreen message={"Pairing required.\nLink: https://x"} />,
+      <ServerErrorScreen
+        message={"Atlassian rate limit (429).\nRetry-After: 60s"}
+      />,
     );
-    expect(screen.getByText(/Pairing required/)).toBeInTheDocument();
-    expect(screen.getByText(/https:\/\/x/)).toBeInTheDocument();
+    expect(screen.getByText(/Atlassian rate limit/)).toBeInTheDocument();
+    expect(screen.getByText(/Retry-After: 60s/)).toBeInTheDocument();
   });
 });
 

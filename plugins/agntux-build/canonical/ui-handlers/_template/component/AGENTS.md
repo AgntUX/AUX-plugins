@@ -59,17 +59,16 @@ This template supports the **MCP Apps protocol** via the inlined library in `src
 - Files in `src/lib/` are inlined from @mcp-apps-kit packages - DO NOT MODIFY
 - Exception: `SimpleMcpApp` is our own code and can be modified for protocol updates
 
-**License Gate — DO NOT MODIFY rules (P2a / T09):**
+**App.tsx — DO NOT MODIFY rules:**
 
-- `src/App.tsx` has ONE approved edit: the `<LicenseGate>` wrapper around `<MainComponent>`.
-  Do **not** remove or weaken that wrapper — removing it breaks the revenue moat.
-- Do **not** edit `src/lib/license.ts` — it contains the Ed25519 public key and
-  gate logic. Changes here bypass or break the signature check.
-- Do **not** edit `src/components/license-gate.tsx` or its sub-components
-  (`TrialBanner`, `TrialExpiredScreen`, `LicenseRequiredScreen`).
-- Do **not** edit the `<LicenseGate>` import line in `App.tsx`.
-- The **only** file you should touch in `App.tsx` is `src/components/main-component.tsx`
-  (the child of `<LicenseGate>`). All custom component logic lives there.
+- `src/App.tsx` is the protocol wrapper that bridges MCP App hooks to
+  `<MainComponent>`. The error-envelope short-circuit (`detectErrorEnvelope`
+  + `<ServerErrorScreen>`) is load-bearing — keep it intact so server-level
+  failures (rate limits, auth failures, upstream 5xx) render the real
+  message instead of a stuck loading skeleton.
+- The **only** file you should touch in this tree (besides tests, locales,
+  and `globals.css`) is `src/components/main-component.tsx`. All custom
+  component logic lives there.
 
 ## Display Modes
 

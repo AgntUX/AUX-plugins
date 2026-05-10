@@ -1,0 +1,6 @@
+node_modules/
+# host-bridge.mjs is bundled from src/host-bridge-entry.mjs by
+# scripts/bundle-host-bridge.mjs at install time (npm `prepare` script).
+# Don't commit the bundle; the bundler regenerates it on every install
+# and tracking it would clobber install-time edits silently.
+public/host-bridge.mjs

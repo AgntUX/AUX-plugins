@@ -92,7 +92,7 @@ Use `/review-pr` or apply manually:
 
 - [ ] `marketplace/listing.yaml` passes `npm run lint:marketplace`
 - [ ] `CHANGELOG.md` version matches `plugin.json` version
-- [ ] No `@agntux/mcp-license` gate or other paywall machinery introduced into any plugin
+- [ ] No license gate or other paywall machinery introduced into any plugin (no `@agntux/mcp-license` import, no `<LicenseGate>` wrapper, no render-token verifier — plugins are Apache-2.0 and unconditionally free)
 - [ ] Screenshots are present, ≥1, dimensions correct (per P15 §4.2)
 - [ ] `icon.png` is 512×512, ≤ 512 KB
 - [ ] `README.md` is ≤ 500 lines and renders cleanly

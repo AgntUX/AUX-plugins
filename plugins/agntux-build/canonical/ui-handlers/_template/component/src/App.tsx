@@ -31,12 +31,9 @@ import {
   MainComponent,
   type MainComponentProps,
 } from './components/main-component';
-// Protocol-level addition (P2a / T09): render-token gate.
-// DO NOT remove this import or the <LicenseGate> wrapper below.
-import { LicenseGate } from './components/license-gate.js';
 import {
   ComponentErrorBoundary,
-  LicenseErrorScreen,
+  ServerErrorScreen,
   detectErrorEnvelope,
 } from '@agntux/ui-primitives';
 
@@ -94,16 +91,16 @@ export function App() {
   const isStreaming = !toolOutput && !!partialInput;
 
   // Short-circuit when the tool result is an MCP-layer error envelope
-  // (e.g. license gate returned `pairing_required` / `trial_expired`).
-  // The adapter strips `isError`, but the user-facing text survives in
-  // `_content[0].text` and the lack of any payload-shaped keys is the
-  // signature of an envelope without `structuredContent`.
+  // (rate limit, auth failure, upstream 5xx — anything the server returned
+  // with `isError: true`). The adapter preserves the flag under `_isError`
+  // and the user-facing text under `_content[0].text`, so the iframe shows
+  // the real reason instead of a stuck loading skeleton.
   const errorEnvelope = detectErrorEnvelope(toolOutput);
   if (errorEnvelope) {
     return (
       <div className="h-full">
         <ComponentErrorBoundary>
-          <LicenseErrorScreen message={errorEnvelope} />
+          <ServerErrorScreen message={errorEnvelope} />
         </ComponentErrorBoundary>
       </div>
     );
@@ -138,9 +135,7 @@ export function App() {
   return (
     <div className="h-full">
       <ComponentErrorBoundary>
-        <LicenseGate>
-          <MainComponent {...props} />
-        </LicenseGate>
+        <MainComponent {...props} />
       </ComponentErrorBoundary>
     </div>
   );

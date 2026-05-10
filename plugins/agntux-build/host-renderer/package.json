@@ -9,7 +9,9 @@
     "agntux-build-host": "./bin/host.mjs"
   },
   "scripts": {
-    "syntax-check": "node --check bin/host.mjs && node --check src/server.mjs && node --check src/mcp-bridge.mjs && node --check src/playwright-driver.mjs && node --check src/csp.mjs"
+    "syntax-check": "node --check bin/host.mjs && node --check src/server.mjs && node --check src/mcp-bridge.mjs && node --check src/playwright-driver.mjs && node --check src/csp.mjs && node --check src/host-bridge-entry.mjs && node --check scripts/bundle-host-bridge.mjs",
+    "bundle:host-bridge": "node scripts/bundle-host-bridge.mjs",
+    "prepare": "node scripts/bundle-host-bridge.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -21,6 +23,8 @@
     "playwright": "^1.57.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.1",
+    "esbuild": "^0.25.0",
     "vitest": "^3.2.4"
   }
 }

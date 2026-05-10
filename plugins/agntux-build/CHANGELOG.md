@@ -6,6 +6,127 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- **`scripts/build-plugin.mjs` build-prep handles two preconditions
+  before each component build (plan §C2/C4):**
+  - **Packages auto-resolution.** When the canonical scaffold's
+    `file:../../../../../packages/agntux-ui-primitives` workspace
+    dependency doesn't resolve from the build path (typical when the
+    contributor doesn't have AUX-plugins/ cloned and stage 7
+    scaffolds into `<agntux project root>/.agntux-build/builds/{id}/`),
+    the script symlinks (or copies on EPERM/EXDEV) `packages/` from
+    one of three sources in priority order: `AGNTUX_PACKAGES_DIR` env
+    var, `<REPO_ROOT>/packages/`, or
+    `<CLAUDE_PLUGIN_ROOT>/canonical/packages/`. Fails fast with all
+    three candidates listed if none resolve.
+  - **Vite → esbuild fallback chain.** If the component build's
+    stdout/stderr matches an architectural-crash signature
+    (`SIGBUS`, `SIGSEGV`, `Bus error`, `Segmentation fault`,
+    `core dumped` — aarch64 Linux is the canonical host; both
+    `@vitejs/plugin-react` and `-swc` crash there on larger
+    components), the script falls back to direct `esbuild` with the
+    canonical flag set (`jsx=automatic`, `target=es2022`,
+    `format=esm`, react/react-dom aliased, `tailwindcss` external)
+    and wraps the output bundle into `out/index.html`. Real build
+    errors (TypeScript, missing imports) propagate without
+    triggering the fallback so the contributor sees the actual cause.
+  - Build output streams live to the user via a buffered tee — the
+    user keeps seeing progress on long builds while the script also
+    captures the full transcript for crash-signature sniffing.
+- **Locale stubs ship in the canonical template (plan §C3).** The
+  scaffold's `use-translation.ts` static-imports 11 locale files
+  (`en-US`, `es-ES`, `es-MX`, `fr-FR`, `de-DE`, `ja-JP`, `zh-CN`,
+  `pt-BR`, `it-IT`, `ko-KR`, `ru-RU`); all 11 are now present in
+  `plugins/agntux-build/canonical/ui-handlers/_template/component/locales/`
+  (10 are `en-US.json` copies awaiting real translations). Fresh
+  scaffolds get every locale Vite expects from the moment
+  `manifest-author` copies the template. Plugin authors who
+  customise the hook to import only what they ship (e.g.,
+  `agntux-slack`'s `compose` handler) are unaffected — the build
+  script does no runtime locale stubbing, so existing trees aren't
+  modified silently.
+- `canonical/ui-handlers/_template/component/src/__tests__/lib/mcp-adapter.test.ts`
+  gains two cases asserting `_isError` preservation on error envelopes
+  and absence on normal payloads.
+
+### Changed
+- **Replaced hand-rolled `host-bridge.mjs` with the canonical `AppBridge`
+  + `PostMessageTransport`** from `@modelcontextprotocol/ext-apps@1.7.x`
+  (plan §C1). The previous hand-roll had five separate divergences
+  from the wire protocol — wrong sandbox-resource-ready namespace,
+  missing `jsonrpc: "2.0"` envelope on outbound notifications, no
+  `ui/initialize` request/response handshake, wrong tool-result
+  method name, and a one-way sandbox.html pipe. Each one was
+  independently fatal: the inner React iframe stayed in its loading
+  skeleton forever even on protocol-conformant components. Switching
+  to the canonical bridge removes the entire class of drift in one
+  move.
+  - New: `host-renderer/src/host-bridge-entry.mjs` (source) +
+    `scripts/bundle-host-bridge.mjs` (esbuild driver). Install
+    regenerates `public/host-bridge.mjs` (now a build artifact;
+    `.gitignore`d) via the package's `prepare` script.
+  - `public/sandbox.html` accepts the canonical
+    `ui/notifications/sandbox-resource-ready` method name (was
+    `ui/sandbox/resource-ready`) and emits a `jsonrpc: "2.0"`-tagged
+    `ui/notifications/sandbox-proxy-ready` notification with `params:
+    {}` (was missing both the version field and params, which made
+    the canonical `JSONRPCMessageSchema.safeParse` silently drop it).
+  - The "client-side stays hand-rolled" rule now applies to the
+    component bundle ONLY (production CSP, `unsafe-eval` forbidden);
+    the dev-only host page has no CSP constraint and ext-apps@1.7.x
+    ships in jitless Zod mode anyway. README documents the split.
+  - Critical ordering invariant: `bridge.connect(transport)` BEFORE
+    `iframe.src = "/sandbox.html?…"`. Documented in the entry file's
+    header comment AND in the host-renderer README so the next person
+    who touches it doesn't reintroduce the deaf-listener race.
+- **`LicenseErrorScreen` renamed to `ServerErrorScreen`** in
+  `@agntux/ui-primitives` (plan §C5). The component was always a
+  generic multi-paragraph error renderer; the name was load-bearing
+  only for the now-deleted gate. New name matches what it does —
+  surface any `isError: true` envelope from `tools/call` (rate limit,
+  auth failure, upstream 5xx). All four shipped plugin handlers
+  (slack canvas/compose, gmail compose, core triage) and the
+  canonical scaffold now import `ServerErrorScreen`.
+- **`extractToolOutput` preserves `_isError`** in the canonical
+  apps-client mcp adapter. `detectErrorEnvelope` now reads the
+  preserved flag as the precise path; the legacy
+  absence-of-payload-keys heuristic is the fallback for adapters that
+  strip `isError`. An explicit `_isError: false` always returns null
+  (regression-guarded by a new test) so callers never mis-surface a
+  normal payload as an error.
+- **`07-build.md`** gains a "Build-prep the contributor never sees"
+  section documenting the C2/C3/C4 contract between the skill and the
+  marketplace's build pipeline (`scripts/build-plugin.mjs`).
+- Stale "license enforcement is in the MCP server via
+  `@agntux/mcp-license`" prose updated across `invariant-checker.md`,
+  `release-checker.md`, `tests-author.md`, the
+  cold-start / skills-structure tests, and `CONTRIBUTING.md`. Plugins
+  are Apache-2.0 and unconditionally free; no MCP-server license
+  gate exists.
+
+### Removed
+- **`<LicenseGate>` purged from the canonical UI handler scaffold
+  (plan §C5).** The relicensing PR (`009d125`) removed the
+  server-side license gate but left the iframe-side render-token gate
+  in the template; every newly scaffolded plugin's `App.tsx`
+  re-imported it. Deleted:
+  `canonical/.../components/license-gate.tsx`,
+  `canonical/.../lib/license.ts`, the matching test, and the
+  `<LicenseGate>` wrapper around `<MainComponent>`. New scaffolds
+  render `MainComponent` directly inside `<ComponentErrorBoundary>`.
+- Orphan `__tests__/lib/license.test.ts` removed.
+- `canonical/hooks/test/fixtures/test-key.mjs` removed (the JWT signing
+  helper for the now-deleted server-side gate).
+- Dead `license.*` keys removed from canonical `en-US.json` (paired
+  with the C5 purge).
+
+### Fixed
+- `plugins/agntux-core/e2e/smoke.test.mjs` was reading the deleted
+  `agents/pattern-feedback.md`; now reads
+  `skills/agntux/reference/feedback-review.md` (where the body lives
+  post the 8.0.0 single-skill consolidation). Two formerly-failing
+  tests now pass.
+
 ## [0.1.1] — 2026-05-10
 
 Tightens the build skill's voice, scopes the marketplace search,

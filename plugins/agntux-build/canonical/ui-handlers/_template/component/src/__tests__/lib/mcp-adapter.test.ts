@@ -139,4 +139,39 @@ describe('McpAdapter.extractToolOutput', () => {
     expect(output._content).toEqual(content);
     expect(Object.keys(output)).toEqual(['_content']);
   });
+
+  it('preserves isError as _isError on error envelopes', () => {
+    // Tool-level error path: server returns
+    // `{ isError: true, content: [{ type: "text", text: "..." }] }` with no
+    // structuredContent. Without preservation the iframe can't tell an error
+    // envelope apart from a payload-shaped result whose only keys are
+    // `_content`/`_meta`. detectErrorEnvelope (in @agntux/ui-primitives)
+    // reads `_isError` first.
+    const adapter = new McpAdapter();
+    const extract = getExtractor(adapter);
+
+    const content = [
+      { type: 'text', text: 'Atlassian rate limit (429). Retry after 60s.' },
+    ];
+    const output = extract({ isError: true, content });
+
+    expect(output._isError).toBe(true);
+    expect(output._content).toEqual(content);
+  });
+
+  it('does NOT add _isError when isError is absent or false', () => {
+    const adapter = new McpAdapter();
+    const extract = getExtractor(adapter);
+
+    const content = [{ type: 'text', text: 'fine' }];
+    const ok1 = extract({ structuredContent: { ok: true }, content });
+    expect('_isError' in ok1).toBe(false);
+
+    const ok2 = extract({
+      structuredContent: { ok: true },
+      content,
+      isError: false,
+    });
+    expect('_isError' in ok2).toBe(false);
+  });
 });

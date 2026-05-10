@@ -124,6 +124,10 @@ describe("hooks shape (ingest variant)", () => {
 
 // ---------------------------------------------------------------------------
 // Pass 2b: license-gate absence (Apache-2.0 regression guard)
+//
+// Plugins are Apache-2.0 and unconditionally free; no license gate of any
+// kind ships in this repo. The relicensing PR removed `@agntux/mcp-license`
+// entirely. These assertions catch any reintroduction.
 // ---------------------------------------------------------------------------
 
 describe("license-gate absence", () => {
@@ -136,7 +140,7 @@ describe("license-gate absence", () => {
       })
     : { dependencies: {} };
 
-  it("mcp-server source does not import the @agntux/mcp-license gate", () => {
+  it("mcp-server source does not reintroduce a license gate", () => {
     expect(indexText).not.toContain("@agntux/mcp-license");
     expect(indexText).not.toContain("createLicenseGate");
     expect(indexText).not.toContain("requireValidLicense");

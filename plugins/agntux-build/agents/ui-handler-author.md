@@ -227,7 +227,7 @@ already wires them; if a developer's edits removed one, restore it):
 | `safe-accessors.ts` | `src/lib/safe-accessors.ts` | Mandatory typed coercion. From `briefing-learnings.md` §1.1. |
 | `Spinner` | `src/components/spinner.tsx` | Inline-SVG, no icon dep. §1.9. |
 | `ScrollablePanel` | `@agntux/ui-primitives` (workspace package) | Sticky header + scrolling body + sticky footer primitive. The canonical top-level layout for any inline-iframe view. **`ScrollableModal` is retired** — modals are forbidden in inline iframes (see `briefing-learnings.md` §2.4). |
-| `LicenseErrorScreen` + `detectErrorEnvelope` | `@agntux/ui-primitives` | Wired in `App.tsx` to short-circuit on MCP-layer error envelopes (license-gate `pairing_required`, `trial_expired`, etc.). Renders the full envelope text via `whitespace-pre-wrap`. |
+| `ServerErrorScreen` + `detectErrorEnvelope` | `@agntux/ui-primitives` | Wired in `App.tsx` to short-circuit on MCP-layer error envelopes (rate limit, auth failure, upstream 5xx — anything the server returned with `isError: true`). Renders the full envelope text via `whitespace-pre-wrap`. |
 | `apps-react/`, `apps-client/` | `src/lib/` | MIT-inlined hooks (see plugin root `THIRD_PARTY_NOTICES.md`). DO NOT modify. |
 
 Now walk through `briefing-learnings.md` §1 with the developer as a

@@ -662,19 +662,19 @@ export function useHostVersion(): HostVersion | undefined {
 /**
  * Subscribe to the resource `_meta` envelope surfaced by the host.
  *
- * Carries host-signed claims like `_meta.license` (iframe gate) and
- * `_meta.ui.csp` (sandbox policy). Updates whenever the host pushes a
- * new envelope (initial mount, resource refresh, tool-result `_meta`,
- * or host-context update).
+ * Carries host-published metadata like `_meta.ui.csp` (sandbox policy)
+ * and any custom keys the host attaches alongside a tool result. Updates
+ * whenever the host pushes a new envelope (initial mount, resource
+ * refresh, tool-result `_meta`, or host-context update).
  *
  * @returns Resource meta envelope, or `undefined` until first surfaced.
  *
  * @example
  * ```tsx
- * function LicenseGate({ children }) {
+ * function CspBanner() {
  *   const meta = useResourceMeta();
- *   const token = meta?.license?.token as string | undefined;
- *   // verify + branch on outcome ...
+ *   const csp = meta?.ui?.csp as string | undefined;
+ *   return csp ? <pre>{csp}</pre> : null;
  * }
  * ```
  */

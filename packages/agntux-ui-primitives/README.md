@@ -12,7 +12,7 @@ Shared React primitives for AgntUX UI-handler component bundles.
 | `AgntuxLogo` | Two-tone wordmark (`Agnt` adapts to `currentColor`; `UX` renders in the brand gradient). |
 | `Spinner` | Inline pulsing-dot indicator with a status role. |
 | `ComponentErrorBoundary` | Class boundary with a "Something went wrong" + Retry surface. Wrap `MainComponent` with this. |
-| `LicenseErrorScreen` | Full-surface renderer for any tool-level error envelope. Pair with `detectErrorEnvelope`. |
+| `ServerErrorScreen` | Full-surface renderer for any tool-level error envelope (rate limit, auth failure, upstream 5xx). Pair with `detectErrorEnvelope`. |
 | `detectErrorEnvelope` | Recognises an MCP error-envelope shape from `tools/call`. Returns the user-facing text or `null`. |
 | `safeArray`, `safeString`, `safeNumber`, `safeBoolean`, `safeObject`, `safeEnum`, `safeDate`, `formatTime`, `daysSince` | Defensive coercion helpers for streaming/partial tool payloads. |
 
@@ -36,7 +36,7 @@ import {
   ScrollablePanel,
   AgntuxLogo,
   ComponentErrorBoundary,
-  LicenseErrorScreen,
+  ServerErrorScreen,
   detectErrorEnvelope,
   safeArray,
   safeString,
