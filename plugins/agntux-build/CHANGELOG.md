@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-10
+
+Round 2 of the agntux-build improvements plan. Five C-tier issues that
+the Cowork dry-run surfaced — all converging on "the canonical scaffold
+must build cleanly outside AUX-plugins, and the headless test must
+actually verify protocol conformance." Internal scaffold + build-pipeline
+hardening; no user-visible surface change to the build skill.
+
 ### Added
 - **`scripts/build-plugin.mjs` build-prep handles two preconditions
   before each component build (plan §C2/C4):**
