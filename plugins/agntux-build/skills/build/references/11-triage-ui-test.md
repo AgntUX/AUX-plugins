@@ -1,10 +1,87 @@
-# Stage 11 — test the action buttons in the real triage UI
+# Stage 11 — install the plugin, test action buttons in the real triage UI
 
 The sync flow's good. Now we test the action buttons against
 action items that just came out of stage 10's sync, in the real
 AgntUX triage UI. The headless test in stage 8 caught render bugs;
 this catches behavioural ones — does the Send actually fire, does
 the source-side write land correctly, does the action item resolve.
+
+**This is the first stage that requires the plugin to be installed.**
+Stages 9.5 and 10 ran inline against on-disk files, but the triage UI
+test exercises the host's real action-button routing — that only works
+once the plugin is installed in Cowork.
+
+## Regenerate and install
+
+The zip dropped in Downloads at stage 9 is stale by now (stage 10
+iterated prompts). Re-zip first so the install reflects the latest:
+
+1. **Bump the patch version FIRST.** Edit
+   `plugins/agntux-{slug}/.claude-plugin/plugin.json` (e.g.
+   `0.1.0` → `0.1.1`) and add a matching `CHANGELOG.md` entry. The
+   linter rejects mismatches, so do both together.
+2. Re-run `node scripts/build-plugin.mjs agntux-{slug}` so the rendered
+   skill tree and any UI bundle changes land in the dist tree.
+3. Re-zip into `~/Downloads/agntux-{slug}-v{new-version}.zip`.
+
+**Fail closed if the version didn't bump.** The zip filename includes
+the version, so writing to `agntux-{slug}-v{old-version}.zip` would
+silently overwrite the snapshot stage 9 dropped — breaking the paper
+trail the user relies on. Before opening the writer, confirm:
+
+- The new version in `plugin.json` is strictly greater than the version
+  embedded in `zip_path` from the saved session state (compare via
+  semver).
+- If they're equal, stop and bump again — don't write.
+
+If for some reason a bump can't happen (rare; only if stage 10 made no
+prompt edits at all), fall back to a non-colliding filename:
+
+```
+~/Downloads/agntux-{slug}-v{version}-iter{N}.zip
+```
+
+where `{N}` is `sync_iteration_count` from saved state. Document this
+in the saved-state's `post_iteration_zip_path` field so stage 12 picks
+the right artifact for the final submission.
+
+Then walk the user through install (eight clicks, verbose on purpose —
+the user has never done this before):
+
+> {Name}, time to install the plugin. There are eight clicks. Walking
+> through them so nothing gets missed:
+>
+> 1. Open **Claude Desktop**.
+> 2. Click the gear icon (top-right) → **Customize**.
+> 3. Find **Personal Plugins** in the left sidebar.
+> 4. Click the **+** button next to Personal Plugins.
+> 5. Hover over **Create plugin** → click it.
+> 6. Click **Upload plugin**.
+> 7. Drag the `.zip` from {zip-path} into the upload area, or click
+>    Browse and select it.
+> 8. Click the **+** button to install.
+>
+> Tell me when it's installed and I'll keep going.
+
+After the user confirms install:
+
+> Got it — should now see `/agntux-{slug}` in your slash command
+> picker in Cowork. Try typing `/agntux-{slug}` and see if it
+> shows up.
+
+If install fails (not in slash picker, or Claude Desktop showed an
+error):
+
+> Hmm — `/agntux-{slug}` isn't showing up. Few things to try:
+>
+> 1. Restart Claude Desktop (sometimes needed for new plugins).
+> 2. Check Customize → Personal Plugins — is the plugin actually
+>    listed there?
+> 3. If listed but greyed out, click it and check the error
+>    message — paste back to me here.
+
+Don't loop more than once. If install keeps failing, redirect to
+issues with the session file path linked.
 
 ## Set the expectation
 
@@ -70,6 +147,8 @@ Advance to [`12-submit.md`](12-submit.md).
 ```json
 {
   ...,
+  "post_iteration_zip_path": "/Users/.../Downloads/agntux-linear-v0.1.1.zip",
+  "user_install_confirmed_at": "2026-05-08T...",
   "triage_test_iterations": 1,
   "triage_test_passed_at": "2026-05-08T...",
   "verified_source_side_write": true

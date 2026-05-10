@@ -57,8 +57,9 @@ prior runs — re-load the resource so per-stage updates apply.
 | 7 | After preview iterations look right | [`references/07-build.md`](references/07-build.md) |
 | 8 | After build completes | [`references/08-headless-test.md`](references/08-headless-test.md) |
 | 9 | After headless tests pass | [`references/09-zip-and-install.md`](references/09-zip-and-install.md) |
-| 10 | After user installs the zip and runs `/agntux-{slug} sync` | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
-| 11 | After sync iterations converge | [`references/11-triage-ui-test.md`](references/11-triage-ui-test.md) |
+| 9.5 | After the snapshot zip lands in Downloads (test + iterate the plugin's onboarding flow inline before any sync run) | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
+| 10 | After onboarding completes (or skip-path fires); build skill drives sync inline against on-disk rendered prompts — no install required | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
+| 11 | After sync iterations converge — first stage that walks the install flow (triage UI test needs a live plugin) | [`references/11-triage-ui-test.md`](references/11-triage-ui-test.md) |
 | 12 | After action button works in triage | [`references/12-submit.md`](references/12-submit.md) |
 
 [`references/update-mode.md`](references/update-mode.md) is loaded
@@ -98,6 +99,26 @@ build manifest, the install path, the iteration count. If the
 conversation is interrupted, the next `/agntux-build:build` invocation
 resumes from the last saved stage rather than starting over. The
 session-id is the timestamp of the first turn (`YYYY-MM-DD-HHmmss`).
+
+Stage-9.5 + stage-10 fields the inline-execution flow adds to the
+session record:
+
+- `onboarding_present` — bool; false = plugin defines no onboarding
+  (skip-path); true = stage 9.5 ran the flow.
+- `onboarding_completed` — bool; only meaningful when `onboarding_present`.
+- `onboarding_iterations` — int; how many edit-and-rerun rounds
+  stage 9.5 needed (cap 2).
+- `onboarding_capture_path` — string; absolute path under the scratch
+  root where captured values landed.
+- `inline_sync_scratch_dir` — string; absolute path to
+  `<agntux-root>/.agntux-build/sessions/{session-id}/sync-output/`.
+  Both onboarding and inline sync write here, never to the user's
+  real `data/` directory.
+
+Resume rule: if a session is interrupted mid-9.5, resume at 9.5
+(don't fall forward to 10). Stage 10 expects onboarding to be either
+completed or explicitly skip-pathed; an unfinished 9.5 is a state we
+must re-enter, not paper over.
 
 ## What you NEVER do in user-facing copy
 

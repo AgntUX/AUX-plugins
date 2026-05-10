@@ -11,6 +11,7 @@ export async function runRender({
   pluginRoot,
   toolName,
   args,
+  argsExplicit = false,
   outDir,
   timeoutMs,
   hostBin,
@@ -23,7 +24,7 @@ export async function runRender({
     const renderRes = await fetch(`http://localhost:${host.port}/__test/render`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ toolName, args, timeoutMs }),
+      body: JSON.stringify({ toolName, args, argsExplicit, timeoutMs }),
     });
 
     if (!renderRes.ok) {
@@ -62,6 +63,7 @@ export async function runRender({
       metaPath,
       structuredContent: result.structuredContent,
       toolError: result.toolError,
+      emptyArgsHint: result.emptyArgsHint ?? null,
     };
   } finally {
     host.dispose();

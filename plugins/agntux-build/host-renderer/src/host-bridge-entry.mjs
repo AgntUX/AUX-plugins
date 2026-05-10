@@ -46,10 +46,15 @@ import {
   AppBridge,
   PostMessageTransport,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
+import {
+  shouldShowEmptyArgsHint,
+  EMPTY_ARGS_HINT_TEXT,
+} from "./empty-args-hint.mjs";
 
 const params = new URLSearchParams(window.location.search);
 const toolName = params.get("tool");
 const argsRaw = params.get("args");
+const argsExplicit = params.get("argsExplicit") === "1";
 const autorun = params.get("autorun") === "1";
 
 let toolArgs = {};
@@ -134,6 +139,15 @@ async function run() {
 
   // Stash structuredContent for the headless driver to read.
   window.__agntuxStructuredContent = toolResult?.structuredContent ?? null;
+
+  // Self-doc when no args source was applied AND the view tool returned a
+  // required-id validation failure. Predicate lives in empty-args-hint.mjs
+  // so it's unit-testable without a Playwright spin-up.
+  const errorKind = window.__agntuxStructuredContent?.error;
+  if (shouldShowEmptyArgsHint({ argsExplicit, errorKind })) {
+    window.__agntuxEmptyArgsHint = EMPTY_ARGS_HINT_TEXT;
+    setStatus(window.__agntuxEmptyArgsHint, true);
+  }
 
   if (!uiResource) {
     // No UI handler — nothing to render.

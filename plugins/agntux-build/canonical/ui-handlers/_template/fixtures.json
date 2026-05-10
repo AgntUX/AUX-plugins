@@ -1,0 +1,18 @@
+{
+  "_doc": "Default fixture loaded automatically by agntux-build-test when --args and --fixture are both omitted. Mirrors the single-high.json stub so headless runs (e.g. scripts/build-plugin.mjs stage 8) render the component DOM rather than a not_found DegradedState. Replace the structuredContent shape with realistic values for this handler.",
+  "args": {
+    "structuredContent": {
+      "items": [
+        {
+          "id": "fixture-action-001",
+          "priority": "high",
+          "title": "Replace with the realistic title shape your component renders",
+          "summary": "One-sentence description of why this item is actionable.",
+          "createdAt": "2026-05-04T10:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "lastSyncAt": "2026-05-04T10:05:00Z"
+    }
+  }
+}

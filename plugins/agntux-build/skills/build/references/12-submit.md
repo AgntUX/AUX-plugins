@@ -83,14 +83,24 @@ Write to `{build-path}/CONTRIBUTING-SIGNATURE.md`.
 ### 2. The final zip (final version, with the signature)
 
 Re-run `node scripts/build-plugin.mjs agntux-{slug}` so the
-signature lands inside the bundled tree, then re-zip:
+signature lands inside the bundled tree, then re-zip into the user's
+Downloads folder. Use the **same cross-platform resolution algorithm
+documented in `09-zip-and-install.md → Generate the zip`** — Linux
+`xdg-user-dir DOWNLOAD` first, then `$HOME/Downloads` /
+`%USERPROFILE%\Downloads` if it exists, falling back to `$HOME`.
+
+The final filename:
 
 ```
-<agntux project root>/.agntux-build/submissions/agntux-{slug}-v{final-version}.zip
+agntux-{slug}-v{final-version}.zip
 ```
 
-Note: this is a **new zip** — keep the prior iteration zips around
-so the user has a paper trail of versions.
+Note: this is a **new zip** — keep the prior iteration zips around in
+Downloads so the user has a paper trail of versions. The version-stamped
+filename means snapshots accumulate naturally without overwriting. Same
+fail-closed rule as stage 11: if the version didn't bump from
+`post_iteration_zip_path`'s embedded version, fall back to
+`agntux-{slug}-v{final-version}-final.zip` rather than overwriting.
 
 ## The mailto link
 
@@ -199,7 +209,7 @@ In update mode, change the closing:
   ...,
   "submission": {
     "final_version": "0.1.0",
-    "zip_path": "/Users/.../.agntux-build/submissions/agntux-linear-v0.1.0.zip",
+    "zip_path": "/Users/.../Downloads/agntux-linear-v0.1.0.zip",
     "signature_path": "/Users/.../agntux-linear/CONTRIBUTING-SIGNATURE.md",
     "mailto_link": "mailto:plugins@agntux.ai?...",
     "mode": "create",
