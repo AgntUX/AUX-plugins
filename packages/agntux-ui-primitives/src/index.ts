@@ -15,9 +15,9 @@ export {
   type ComponentErrorBoundaryProps,
 } from "./error-boundary.js";
 export {
-  LicenseErrorScreen,
-  type LicenseErrorScreenProps,
-} from "./license-error-screen.js";
+  ServerErrorScreen,
+  type ServerErrorScreenProps,
+} from "./server-error-screen.js";
 export {
   ScrollablePanel,
   type ScrollablePanelProps,

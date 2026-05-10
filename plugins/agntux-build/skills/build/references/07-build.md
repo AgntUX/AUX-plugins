@@ -46,6 +46,49 @@ the build creates it under `<agntux project root>/.agntux-build/builds/{session-
 instead. The user doesn't need a clone of the marketplace repo to
 build a plugin — we just need a working tree.
 
+### Build-prep the contributor never sees
+
+Three preconditions must hold before `vite build` can run against a
+scaffolded component. They're handled transparently — none surface
+in the user-facing status line.
+
+1. **`@agntux/ui-primitives` resolves.** The canonical scaffold's
+   `component/package.json` declares the workspace dep via
+   `file:../../../../../packages/agntux-ui-primitives`. Inside an
+   AUX-plugins clone the path resolves to the marketplace's tracked
+   `packages/`. Outside, the orchestrator must symlink (or copy on
+   filesystems that don't allow symlinks) from one of three sources,
+   in priority order: the `AGNTUX_PACKAGES_DIR` env var, the
+   marketplace clone's `packages/` if present, or
+   `<CLAUDE_PLUGIN_ROOT>/canonical/packages/`. The marketplace's
+   `scripts/build-plugin.mjs` already implements this auto-resolution;
+   when the orchestrator shells out to it (the typical path for the
+   stage-7.5 compile gate, see `08-headless-test.md` §B5), no
+   additional work is needed.
+2. **The 11 locale stubs exist.** `use-translation.ts` static-imports
+   `en-US.json` plus ten siblings (es-ES, es-MX, fr-FR, de-DE, ja-JP,
+   zh-CN, pt-BR, it-IT, ko-KR, ru-RU). The canonical scaffold template
+   already ships all 11 (ten are en-US copies awaiting real
+   translations), so the moment `manifest-author` copies the template
+   into the build path, every locale Vite expects is present. Plugin
+   authors who customise the hook to import only what they ship are
+   unaffected — the build script does no runtime locale stubbing, so
+   existing trees aren't modified silently.
+3. **The toolchain has a fallback.** Some hosts (aarch64 Linux is the
+   canonical case) crash `@vitejs/plugin-react`'s babel transform with
+   SIGBUS / "Bus error" / "core dumped" on larger components.
+   `@vitejs/plugin-react-swc` also crashes on the same hosts.
+   `scripts/build-plugin.mjs` watches the build's stdout/stderr and
+   the child-process exit signal; on an architectural-crash match it
+   re-runs the build through direct `esbuild` (jsx=automatic,
+   target=es2022, format=esm, react/react-dom aliased, tailwindcss
+   external). Real build errors — TypeScript, missing imports, etc.
+   — propagate without triggering the fallback so the contributor
+   sees the actual cause.
+
+You don't need to mention any of this in chat. The user's view stays
+"Building... (N/6) {step}".
+
 ## Confirmation gate
 
 Before any of the specialists run, confirm with the user:

@@ -10,7 +10,7 @@
  */
 export { AgntuxLogo, type AgntuxLogoProps } from "./agntux-logo.js";
 export { ComponentErrorBoundary, type ComponentErrorBoundaryProps, } from "./error-boundary.js";
-export { LicenseErrorScreen, type LicenseErrorScreenProps, } from "./license-error-screen.js";
+export { ServerErrorScreen, type ServerErrorScreenProps, } from "./server-error-screen.js";
 export { ScrollablePanel, type ScrollablePanelProps, } from "./scrollable-panel.js";
 export { Spinner, type SpinnerProps } from "./spinner.js";
 export { detectErrorEnvelope } from "./detect-error-envelope.js";

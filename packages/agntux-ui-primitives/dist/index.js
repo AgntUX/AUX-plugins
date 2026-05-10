@@ -10,7 +10,7 @@
  */
 export { AgntuxLogo } from "./agntux-logo.js";
 export { ComponentErrorBoundary, } from "./error-boundary.js";
-export { LicenseErrorScreen, } from "./license-error-screen.js";
+export { ServerErrorScreen, } from "./server-error-screen.js";
 export { ScrollablePanel, } from "./scrollable-panel.js";
 export { Spinner } from "./spinner.js";
 export { detectErrorEnvelope } from "./detect-error-envelope.js";

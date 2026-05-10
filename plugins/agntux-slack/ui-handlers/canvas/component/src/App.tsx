@@ -33,7 +33,7 @@ import {
 } from './components/main-component';
 import {
   ComponentErrorBoundary,
-  LicenseErrorScreen,
+  ServerErrorScreen,
   detectErrorEnvelope,
 } from '@agntux/ui-primitives';
 
@@ -99,7 +99,7 @@ export function App() {
     return (
       <div className="h-full">
         <ComponentErrorBoundary>
-          <LicenseErrorScreen message={errorEnvelope} />
+          <ServerErrorScreen message={errorEnvelope} />
         </ComponentErrorBoundary>
       </div>
     );

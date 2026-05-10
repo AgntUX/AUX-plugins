@@ -333,7 +333,10 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
     expect(src).not.toContain("license_paused");
   });
 
-  it("agntux-core mcp-server source does not import the @agntux/mcp-license gate", () => {
+  it("agntux-core mcp-server source does not reintroduce a license gate", () => {
+    // Plugins are Apache-2.0 and unconditionally free; the relicensing PR
+    // removed `@agntux/mcp-license` entirely. This regression guard catches
+    // any reintroduction.
     const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
     const text = readFileSync(indexPath, "utf-8");
     expect(text).not.toContain("@agntux/mcp-license");

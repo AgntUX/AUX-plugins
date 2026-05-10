@@ -99,11 +99,25 @@ describe("E1 — cold start: first action item appears", () => {
 });
 
 // ---------------------------------------------------------------------------
-// E2: Pattern detection — feedback subagent prompt encodes the 5-dismissal rule
+// E2: Pattern detection — feedback-review prompt encodes the 5-dismissal rule
+//
+// Post 8.0.0 single-skill consolidation: the legacy
+// `agents/pattern-feedback.md` body lives at
+// `skills/agntux/reference/feedback-review.md` (loaded by the slim
+// `/agntux feedback-review` router — see `skills-structure.test.ts` for
+// the structural assertion).
 // ---------------------------------------------------------------------------
 describe("E2 — pattern detection: 5 dismissals → # Auto-learned bullet", () => {
-  it("feedback.md encodes the N-dismissals threshold rule", () => {
-    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "pattern-feedback.md"), "utf8");
+  const FEEDBACK_REF = join(
+    PLUGIN_ROOT,
+    "skills",
+    "agntux",
+    "reference",
+    "feedback-review.md",
+  );
+
+  it("feedback-review.md encodes the N-dismissals threshold rule", () => {
+    const feedbackMd = readFileSync(FEEDBACK_REF, "utf8");
     // Verify the prompt encodes the pattern threshold
     expect(feedbackMd).toMatch(/feedback_min_pattern_threshold|threshold/i);
     expect(feedbackMd).toMatch(/default.*5|5.*default/i);
@@ -112,8 +126,8 @@ describe("E2 — pattern detection: 5 dismissals → # Auto-learned bullet", () 
     expect(feedbackMd).toMatch(/observation.*→.*adjustment|→.*deprioritize|→.*trust/i);
   });
 
-  it("feedback.md specifies dismissed status in 30-day scope", () => {
-    const feedbackMd = readFileSync(join(PLUGIN_ROOT, "agents", "pattern-feedback.md"), "utf8");
+  it("feedback-review.md specifies dismissed status in 30-day scope", () => {
+    const feedbackMd = readFileSync(FEEDBACK_REF, "utf8");
     expect(feedbackMd).toMatch(/dismissed/);
     expect(feedbackMd).toMatch(/30.day|30 day/i);
   });

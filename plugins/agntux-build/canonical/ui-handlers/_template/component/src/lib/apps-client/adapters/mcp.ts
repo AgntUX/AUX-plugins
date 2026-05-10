@@ -411,6 +411,7 @@ export class McpAdapter implements ProtocolAdapter {
     const structured = (result as { structuredContent?: unknown })
       .structuredContent;
     const meta = (result as { _meta?: unknown })._meta;
+    const isError = (result as { isError?: unknown }).isError === true;
 
     let base: Record<string, unknown> =
       structured && typeof structured === 'object' && !Array.isArray(structured)
@@ -453,6 +454,13 @@ export class McpAdapter implements ProtocolAdapter {
       !('_content' in base)
     ) {
       base = { ...base, _content: rawContent };
+    }
+
+    // Preserve isError under `_isError` so widgets (via detectErrorEnvelope +
+    // ServerErrorScreen) can distinguish a real error envelope from a normal
+    // payload that happens to carry only metadata keys.
+    if (isError) {
+      base = { ...base, _isError: true };
     }
 
     // Add _meta if present (independent of base extraction)

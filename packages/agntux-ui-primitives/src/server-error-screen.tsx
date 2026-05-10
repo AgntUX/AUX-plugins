@@ -1,22 +1,24 @@
 /**
- * LicenseErrorScreen — full-surface error envelope renderer.
+ * ServerErrorScreen — full-surface error envelope renderer.
  *
  * Author: AgntUX
  * License: Apache-2.0
  *
  * Used at the top of `App.tsx` to short-circuit rendering when a tool-level
- * error envelope reaches the iframe. Renders the entire `text` field with
- * `whitespace-pre-wrap` so multi-paragraph messages survive intact.
+ * error envelope reaches the iframe (rate limits, auth failures, upstream
+ * 5xx, anything the MCP server returned with `isError: true`). Renders the
+ * entire `text` field with `whitespace-pre-wrap` so multi-paragraph messages
+ * survive intact.
  *
  * Pair with `detectErrorEnvelope(toolOutput)` to decide when to render this.
  */
 
-export interface LicenseErrorScreenProps {
+export interface ServerErrorScreenProps {
   /** The full error text from `_content[0].text`. Rendered as-is. */
   message: string;
 }
 
-export function LicenseErrorScreen({ message }: LicenseErrorScreenProps) {
+export function ServerErrorScreen({ message }: ServerErrorScreenProps) {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">

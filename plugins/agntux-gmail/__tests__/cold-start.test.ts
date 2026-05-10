@@ -263,9 +263,10 @@ describe("mcp-server", () => {
     expect(indexText).toContain("CallToolRequestSchema");
   });
 
-  it("does NOT import the removed @agntux/mcp-license gate", () => {
-    // The plugin is now Apache-2.0 and unconditionally free; the gate
-    // moved to the proprietary AgntUX Teams runtime.
+  it("does NOT reintroduce a license gate", () => {
+    // Plugins are Apache-2.0 and unconditionally free; the relicensing PR
+    // removed `@agntux/mcp-license` entirely. This regression guard catches
+    // any reintroduction.
     expect(indexText).not.toContain("@agntux/mcp-license");
     expect(indexText).not.toContain("createLicenseGate");
     expect(indexText).not.toContain("requireValidLicense");

@@ -154,9 +154,10 @@ checklist by hand:
   `context: fork` + `agent: general-purpose`.
 - [ ] Legacy `agents/` directory is absent for ingest plugins (the
   top-level-skill pattern replaced sub-agents).
-- [ ] `hooks/` directory is absent for source ingest plugins (license
-  enforcement is in the MCP server via `@agntux/mcp-license`). Only
-  `agntux-core` ships hooks today.
+- [ ] `hooks/` directory is absent for source ingest plugins. Plugins
+  are Apache-2.0 and unconditionally free; no MCP-server license gate
+  exists. Only `agntux-core` ships hooks today (schema + index
+  validation).
 - [ ] `cold-start.test.ts` and `render-reproducibility.test.ts`
   present and passing (`npm test` from the plugin directory).
 - [ ] If the plugin handles threads/comments:

@@ -30,13 +30,11 @@ _template/
 │   │   ├── App.tsx                            # Protocol wrapper (do-not-modify)
 │   │   ├── components/
 │   │   │   ├── main-component.tsx             # Skeleton with parsePayload, fieldset disabled, streaming indicator
-│   │   │   ├── license-gate.tsx               # P2a/T09 render-token gate (do-not-modify)
 │   │   │   ├── empty-state.tsx                # Default empty state
 │   │   │   └── layouts.tsx                    # Display-mode layouts
 │   │   ├── lib/
-│   │   │   ├── apps-react/                    # MCP App SDK hooks (license-checked)
-│   │   │   ├── apps-client/                   # Protocol detection
-│   │   │   └── license.ts                     # Ed25519 verifier for the render-token gate
+│   │   │   ├── apps-react/                    # MCP App SDK hooks
+│   │   │   └── apps-client/                   # Protocol detection
 │   │   ├── globals.css                        # Semantic CSS variables
 │   │   └── __tests__/                         # Happy-path / empty / error / interaction
 │   └── locales/en-US.json
@@ -45,7 +43,7 @@ _template/
         ├── tools/
         │   └── {{ui-name}}-view.ts            # Stateless view tool scaffold
         └── ui-resources/
-            └── {{ui-name}}.ts                 # CSP + _meta.license fragment (build-time embed)
+            └── {{ui-name}}.ts                 # ui:// resource registration (build-time embed)
 ```
 
 ## Placeholders the scaffolder substitutes
@@ -162,7 +160,7 @@ per-handler quick-reference, not a substitute.
 ## Shared UI primitives
 
 Cross-handler primitives — `ScrollablePanel`, `AgntuxLogo`, `Spinner`,
-`ComponentErrorBoundary`, `LicenseErrorScreen`, `detectErrorEnvelope`,
+`ComponentErrorBoundary`, `ServerErrorScreen`, `detectErrorEnvelope`,
 and the `safe-accessors` helpers (`safeArray`, `safeString`,
 `safeNumber`, `safeBoolean`, `safeObject`, `safeEnum`, `safeDate`,
 `formatTime`, `daysSince`) — live in the marketplace's
@@ -175,7 +173,7 @@ import {
   AgntuxLogo,
   Spinner,
   ComponentErrorBoundary,
-  LicenseErrorScreen,
+  ServerErrorScreen,
   detectErrorEnvelope,
   safeArray,
   safeString,

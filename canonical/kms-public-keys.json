@@ -45,7 +45,6 @@
       "status": "active",
       "rotation_status": "primary",
       "consumed_by": [
-        "component-template/src/lib/license.ts (PUBLIC_KEY_RENDER_SPKI_PEM)",
         "AgntUX backend /api/license/refresh render-token signer"
       ],
       "public_key_spki_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAFGzWfy8wMeEIEpUh7ssswmDXkU5JtxOclwvDx8qlIBM=\n-----END PUBLIC KEY-----\n"
