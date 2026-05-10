@@ -61,15 +61,27 @@
           return inner;
         }
         window.addEventListener("message", (event) => {
-          if (event.source !== window.parent) return;
-          const data = event.data;
-          if (!data || typeof data !== "object") return;
-          if (data.method === RESOURCE_METHOD && data.params?.html) {
-            const ifr = ensureInnerIframe();
-            const doc = ifr.contentDocument;
-            doc.open();
-            doc.write(data.params.html);
-            doc.close();
+          const isFromParent = event.source === window.parent;
+          const isFromInner = inner && event.source === inner.contentWindow;
+          console.log("[sandbox] msg from", isFromParent ? "parent" : isFromInner ? "inner" : "other", "method=", event.data?.method, "id=", event.data?.id);
+          if (isFromParent) {
+            const data = event.data;
+            if (!data || typeof data !== "object") return;
+            if (data.method === RESOURCE_METHOD && data.params?.html) {
+              const ifr = ensureInnerIframe();
+              const doc = ifr.contentDocument;
+              doc.open();
+              doc.write(data.params.html);
+              doc.close();
+            } else if (inner && inner.contentWindow) {
+              inner.contentWindow.postMessage(data, "*");
+            }
+            return;
+          }
+          // Messages from the inner iframe: bubble up to the parent host.
+          if (isFromInner) {
+            console.log("[sandbox] forwarding inner→parent:", event.data?.method, "id=", event.data?.id);
+            window.parent.postMessage(event.data, "*");
           }
         });
         // Tell the host we're ready to receive resource-ready.

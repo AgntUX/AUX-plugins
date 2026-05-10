@@ -54,30 +54,40 @@ spelling or naming.
 
 ## Where to look
 
-`<repo-root>/marketplace/index.json` is a CI-regenerated read-only
-aggregate of every `listing.yaml` in the marketplace. It's the
-canonical source for "which plugins exist." Read it from the
-`AUX-plugins/marketplace/index.json` path that the marketplace
-plugin's source pulls from.
+The AgntUX marketplace is the *only* registry that matters here.
+Other Claude Code plugins (Anthropic-shipped, third-party) are out
+of scope — even if a plugin called "Jira" exists somewhere else,
+it's not an AgntUX plugin and won't ingest into the user's AgntUX
+knowledge store.
 
-You can also use the host's plugin tools:
+Two sources, in order:
 
-1. Load the host's plugin discovery tool with `ToolSearch` —
-   `mcp__plugins__list_plugins` is the typical name (the same tool
-   `agntux-core`'s `_preconditions.md` check 0.5 uses). The exact
-   name may shift between hosts; resolve by querying with
-   `query: "list plugins"`. If the host doesn't expose a listing
-   tool, fall back to reading `marketplace/index.json` directly.
+1. **Local first.** If `<repo-root>/AUX-plugins/marketplace/index.json`
+   exists on the user's machine (developer setup), read it.
+2. **Public fallback.** Otherwise fetch
+   `https://raw.githubusercontent.com/AgntUX/AUX-plugins/main/marketplace/index.json`
+   via `WebFetch`. This is CI-regenerated on every merge to `main`
+   and is the canonical "what AgntUX plugins exist today" answer.
+
+Do NOT reach for `mcp__plugins__list_plugins`, `ToolSearch query:
+"list plugins"`, or any other host-level plugin discovery — those
+enumerate the host's full plugin universe (all marketplaces) and
+will produce false negatives ("nothing called agntux-jira") that
+are really false positives ("the host knows about non-AgntUX
+Atlassian plugins, but they don't ingest into AgntUX").
 
 ## How to match
 
-Search both:
+Match against entries in `marketplace/index.json` only — every
+AgntUX plugin's slug starts with `agntux-`, and the keyword /
+tagline scope is bounded by that file. Search both:
 
 1. **Slug match.** If `agntux-{guessed-slug}` appears in the index,
    that's a hit (e.g., `agntux-linear` for `Linear`).
 2. **Keyword match.** If the user's input appears in any plugin's
-   `keywords[]` or `tagline`, that's a softer hit. Common alias cases:
-   `gh` → `agntux-github`, `gcal` → `agntux-google-calendar`,
+   `keywords[]` or `tagline` *within `marketplace/index.json`*,
+   that's a softer hit. Common alias cases: `gh` →
+   `agntux-github`, `gcal` → `agntux-google-calendar`,
    `mail` → `agntux-gmail`.
 
 ## Three branches

@@ -98,11 +98,21 @@ ask gently:
 
 ## Multi-handler case
 
-If stage 5 planned two UI handlers, design them sequentially. Don't
-batch — the user fatigues. Show handler 1, iterate to acceptance,
-then handler 2. Acknowledge the work between:
+Stage 5 typically plans 1 handler for chat connectors and 4–5 for
+project trackers. Design them sequentially — don't batch, the user
+fatigues. Show handler 1, iterate to acceptance, then handler 2,
+and so on. Acknowledge the work between each:
 
-> One down. Now the second button — "{verb}".
+> One down — "{verb-1}" looks great. Next up: "{verb-2}".
+
+For plugins with 4+ handlers, after handler 3 check in:
+
+> Three down, {N-remaining} to go. Want a quick break, or keep
+> rolling?
+
+Don't push through user fatigue. A handler designed by an exhausted
+contributor is worse than the same handler designed two hours
+later.
 
 ## Saved state at end of stage 6
 
@@ -128,7 +138,7 @@ against it.
 
 > Great — designs are locked. Building the plugin around them now.
 > This part takes a minute or two — the metadata, the sync prompt,
-> the wiring around the action button. I'll show you a summary when
-> it's done.
+> the wiring around the action button(s). I'll show you a summary
+> when it's done.
 
 Then load [`07-build.md`](07-build.md).

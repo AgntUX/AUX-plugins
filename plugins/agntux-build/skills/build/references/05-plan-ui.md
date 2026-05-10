@@ -1,46 +1,45 @@
-# Stage 5 — plan the action button
+# Stage 5 — plan the action buttons
 
-The "action button" is the single write-capable UI handler the plugin
+The "action buttons" are the write-capable UI handlers the plugin
 ships. When AgntUX surfaces an action item from the new connector
-into triage, the user sees a Send-style button. Clicking it opens an
-inline iframe with a pre-composed draft, an editable form, and a
-Send button that's the explicit authorisation gate for the source-
-side write.
+into triage, the host's ingest LLM picks **one** suggested-action
+button from the handlers your plugin makes available — clicking it
+opens an inline iframe with a pre-composed draft, an editable form,
+and a Send button that's the explicit authorisation gate for the
+source-side write.
 
-The default is **one UI handler**. Sometimes two. Push back politely
-on more than two — additional UIs split user attention and rarely
-add value.
+The default is **one handler per meaningful write verb identified
+in stage 4** — typically 1 for chat (`reply`), 4–5 for project
+trackers (`comment`, `transition`, `assign`, `edit description`,
+`set priority`). Goal: the user can complete their everyday work
+in this connector without bouncing back to the source app.
 
 ## Read-only sources
 
-If `primary_write_verb` is null (stage 4), there's no UI handler.
-Skip this whole stage and go to stage 6 — but stage 6 also becomes a
-no-op (no preview to design). Move directly to
+If `primary_write_verbs` is empty (stage 4), there's no UI handler.
+Skip this whole stage and go to stage 6 — but stage 6 also becomes
+a no-op (no preview to design). Move directly to
 [`07-build.md`](07-build.md). Tell the user:
 
 > Since {connector-display-name} doesn't have a way to act back,
 > there's no action button to design — action items will just have
 > "Open in {connector-display-name}." That's set. Building now.
 
-## Sources with a single write verb
+## Sources with multiple write verbs (the common case)
 
-The common case. The UI handler wraps the verb. Frame it in user
-terms, not connector terms:
+Stage 4 saved an array of verbs. Each gets its own UI handler.
+Frame each in user terms:
 
-> When AgntUX surfaces an action item from
-> {connector-display-name}, what's the one button the user should
-> press?
-
-The user's answer maps to a verb. Examples:
-
-| User says | Component name | Verb phrase |
+| Verb (saved) | Component name | Verb phrase (user-facing) |
 |---|---|---|
-| "Reply" | `reply` | "send a reply" |
-| "Comment" | `comment` | "comment on the issue" |
-| "Mark done" | `done` | "mark the issue done" |
-| "Transition state" | `transition` | "move the issue to a new state" |
+| `create_comment` | `comment` | "comment on the issue" |
+| `transition_state` | `transition` | "move the issue to a new state" |
+| `assign_user` | `assign` | "assign the issue to someone" |
+| `edit_description` | `edit` | "edit the issue description" |
+| `set_priority` | `priority` | "set priority or labels" |
+| `send_message` | `reply` | "send a reply" |
 
-For the action verb to be valid:
+For each handler to be valid:
 
 - It MUST map to exactly one connector write tool.
 - It MUST quote the user's source-side context above the editor (the
@@ -48,55 +47,74 @@ For the action verb to be valid:
 - It MUST commit via the iframe Send click — not via a chat
   round-trip.
 
-## Sources with multiple write verbs (the two-UI case)
+## When inputs collapse, collapse to tabs
 
-If the user names two different actions ("reply, AND mark done as a
-separate button"), confirm the split:
+If two verbs take the **same input shape** (e.g., "reply" vs
+"reply scheduled" — both need the body of a message), collapse to
+mode tabs above one Send button instead of two handlers.
 
-> Two buttons, then — one for "reply" and one for "mark done"?
->
-> Just to flag: in AgntUX, the convention is one main button per
-> action item, with extra modes (Reply / Schedule / Save draft) as
-> tabs above one Send button when they take the same input. Here
-> "Reply" needs the body of a message and "Mark done" doesn't, so
-> a separate button is the right call.
->
-> Confirming: two UIs — `reply` and `done`.
+If two verbs take **genuinely different inputs** (comment text vs
+transition state picker), ship two handlers.
 
-Save both component names. Stage 6 will design and preview both.
+That's the only collapse rule. There is no cap on handler count —
+ship whatever the connector's verbs warrant.
 
-## More than two verbs
+## "Open in <source>" is always secondary
 
-Push back politely:
+Every UI handler's iframe ships an `Open ↗` link in the header
+pointing at the source-side context (the issue URL, thread
+permalink, etc.) — same convention as `agntux-slack` and
+`agntux-gmail`. It's a small text link, not a button, and never
+a top-level suggested-action button. The host LLM picks
+suggested actions per action item from the in-host handlers;
+"Open in <source>" lives inside the iframe chrome the user sees
+after clicking one of those handlers, never alongside them.
 
-> That's a lot of buttons. AgntUX action items work best when
-> there's one main thing to do — the user gets a clear signal of
-> "this is what's expected of me."
->
-> Want to pick the one that comes up most, and we add the others
-> later if they really feel needed?
+## One button per action — no "more" menus
 
-Don't relent on this rule unless the user really pushes back AND
-the verbs really are equally critical AND they take genuinely
-different inputs. In that case, three is the absolute max — never
-four.
+AgntUX's suggested-action UX is one button per action, chosen by
+the host's ingest LLM based on what fits the action item. We do
+NOT bundle multiple actions behind a "more" affordance — that
+pushes the choice onto the user. Every UI handler the plugin
+ships is an *option* the host LLM can surface; the plugin
+doesn't decide which renders for any given action item. If you
+ship five handlers, the host picks one of those five per action
+item; the user sees one button.
 
 ## Plan the structuredContent (internal)
 
 Internally (silent to user), `ui-handler-author` will design the
-`structuredContent` schema for the view tool — the typed shape the
-component receives at render time. You don't need to surface this to
-the user. Save the planned shape in the session file:
+`structuredContent` schema for each view tool — the typed shape the
+component receives at render time. You don't need to surface this
+to the user. Save the planned shape in the session file:
 
 ```json
 {
   ...,
   "ui_handlers": [
     {
-      "name": "reply",
-      "verb_phrase": "send a reply",
-      "primary_write_tool": "mcp__claude_ai_Linear__create_comment",
-      "structured_content_keys": ["issue_url", "issue_title", "draft_body", "personalization_signals"]
+      "name": "comment",
+      "verb_phrase": "comment on the issue",
+      "primary_write_tool": "mcp__claude_ai_Jira__create_comment",
+      "structured_content_keys": ["issue_url", "issue_key", "issue_title", "draft_body", "personalization_signals"]
+    },
+    {
+      "name": "transition",
+      "verb_phrase": "move the issue to a new state",
+      "primary_write_tool": "mcp__claude_ai_Jira__transition_issue",
+      "structured_content_keys": ["issue_url", "issue_key", "current_state", "available_transitions"]
+    },
+    {
+      "name": "assign",
+      "verb_phrase": "assign the issue to someone",
+      "primary_write_tool": "mcp__claude_ai_Jira__assign_issue",
+      "structured_content_keys": ["issue_url", "issue_key", "current_assignee", "candidate_assignees"]
+    },
+    {
+      "name": "edit",
+      "verb_phrase": "edit the issue description",
+      "primary_write_tool": "mcp__claude_ai_Jira__update_issue",
+      "structured_content_keys": ["issue_url", "issue_key", "current_description", "draft_description"]
     }
   ]
 }
@@ -104,11 +122,12 @@ the user. Save the planned shape in the session file:
 
 ## What you say to advance
 
-> Got it — one button: "{user-verb}". I'll mock up the UI and we'll
-> iterate together until it feels right. Heads up: I'll only do
-> light mode and the standard AgntUX colours — keeps every plugin
-> looking like part of the same product. If something feels off
-> about that, the issues page is the place to flag it.
+> Got it — {N} buttons: {comma-list of verb phrases}. I'll mock up
+> the UI and we'll iterate together until each one feels right.
+> Heads up: I'll only do light mode and the standard AgntUX
+> colours — keeps every plugin looking like part of the same
+> product. If something feels off about that, the issues page is
+> the place to flag it.
 
 Then load [`06-design-and-preview.md`](06-design-and-preview.md).
 
@@ -123,3 +142,7 @@ Then load [`06-design-and-preview.md`](06-design-and-preview.md).
 - User wants to skip the editor and "just send" → no, the editable
   form is the authorisation gate. The Send click is what makes the
   write authorised.
+- User asks for a "more" menu / overflow affordance to bundle
+  several actions → no. AgntUX surfaces one suggested-action
+  button per action item; if the source has more verbs, ship more
+  handlers and let the host LLM pick.

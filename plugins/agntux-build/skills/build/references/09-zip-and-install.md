@@ -1,6 +1,9 @@
 # Stage 9 — zip the plugin, hand the user an install path
 
-The plugin builds. The action button renders. Now we hand it to the
+Stages 1–8 ran without pausing for you. This is the first stage
+where I need you to do something — install the zip and try it.
+
+The plugin builds. The action buttons render. Now we hand it to the
 user as a `.zip` they can install in Claude Desktop. This is the
 first stage where the user has to do meaningful manual work — the
 install dialog has eight clicks and we want to walk every one.

@@ -57,6 +57,7 @@ export async function runRender({
       passed: result.passed,
       renderState: result.renderState,
       consoleErrorsCount: result.consoleErrors?.length ?? 0,
+      contentChecks: result.contentChecks ?? null,
       screenshotPath,
       metaPath,
       structuredContent: result.structuredContent,
