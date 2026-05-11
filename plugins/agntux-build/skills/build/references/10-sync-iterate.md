@@ -1,16 +1,18 @@
-# Stage 10 — sync iteration (the load-bearing one)
+# Stage 10 — sync iteration (analyze-only)
 
 This is where the plugin gets actually good. The build skill drives
 sync against the user's real {connector-display-name} data **inline,
-in the same Cowork thread** — no zip install needed for the iteration
-loop. Each round we observe the run, identify issues, edit prompts on
-disk, re-render, and re-run. It usually takes 3 to 5 rounds.
+in the same Cowork thread, and analyze-only** — no zip install, no
+scratch directory, no writes to disk. Each round we pull data, run
+the compose logic, summarize what sync *would* produce, identify
+issues, edit prompts on disk, re-render, and re-run. It usually takes
+3 to 5 rounds.
 
 **Set the expectation explicitly before starting.** The cycle is
 genuinely tedious; framing it as "the work that matters" rather than
 "more steps" is what gets the user through it.
 
-## Why inline (and not "install the zip and paste output back")
+## Why inline-and-analyze-only
 
 Stage 9 dropped a snapshot zip in `~/Downloads/`. We don't need it
 yet — the rendered sync skill is on disk at
@@ -18,12 +20,20 @@ yet — the rendered sync skill is on disk at
 `reference/` siblings). That's exactly the same file the host would
 load if the plugin were installed. We can read it and execute its
 steps directly against the source MCP tools that are already
-authorized in Cowork (the user authorized them in stage 3). Iteration
-becomes: edit `_overrides/`, re-render, re-run sync — no rebuild, no
-reinstall, no manual paste loop.
+authorized in Cowork (the user authorized them in stage 3).
+
+**The build session never writes sync artifacts to disk.** No
+entities, no actions, no learnings/cursor file, no scratch directory.
+The build assistant runs the compose logic in conversation and prints
+structured tables of what sync *would* produce. The contributor's
+real `<agntux project root>/data/` directory stays untouched
+end-to-end. Iteration becomes: edit `_overrides/`, re-render, re-run
+analyze-only sync — no rebuild, no reinstall, no manual paste loop,
+no residue.
 
 The user only installs the zip later — at stage 11 (triage UI test) or
-stage 12 (final submission).
+stage 12 (final submission). Those stages run against installed-plugin
+disk writes; this stage does not.
 
 ## The opening setup
 
@@ -33,15 +43,18 @@ stage 12 (final submission).
 > we can't predict. Three to five rounds is what turns a 70%-good
 > plugin into one that just works.
 >
-> I'm going to drive sync against your real {connector-display-name}
-> data right here in the chat — no install needed yet. We'll iterate
-> on prompts, you'll tell me what looks right and what doesn't, and
-> at the end you'll have a plugin that fits how you actually work.
+> I'm going to pull your real {connector-display-name} data right here
+> in the chat — no install needed yet — and walk you through exactly
+> what your plugin's sync prompt would do with it. Analyze-only:
+> nothing gets written to your AgntUX data store. You'll tell me what
+> looks right and what doesn't, and at the end you'll have a plugin
+> that fits how you actually work.
 
 ## Inline-execution shim — what the build skill does each round
 
 For each round, the build skill plays the role the host would play
-after install:
+after install, with one critical difference: every would-be write is
+captured as in-conversation state instead of being persisted to disk.
 
 1. **Read the rendered sync skill on disk.**
    ```
@@ -54,27 +67,48 @@ after install:
    These are post-render files (substitution applied, append markers
    stripped). Same files the host would load.
 
-2. **Resolve a scratch knowledge-store root** for the run:
-   ```
-   <agntux-root>/.agntux-build/sessions/{session-id}/sync-output/
-   ```
-   Pass this as the AgntUX project root for the inline run. The
-   canonical sync skill resolves all writes (`data/learnings/...`,
-   `data/agntux-{slug}/...`, cursors, knowledge entries) relative to
-   that root, so the user's real `data/` directory stays clean. Mirror
-   any existing `preferences.md` / `user.md` from the real root by
-   reading-only — we want the personalisation values, not new writes.
+2. **Use the synthesized personalization from stage 9.5 as the
+   project-root equivalent.** Stage 9.5 holds three blocks in
+   conversation context: a simulated `user.md`, a simulated
+   `data/instructions/{slug}.md`, and a simulated
+   `data/schema/contracts/{slug}.md`. When the canonical sync prompt's
+   Step 0 instructs you to "read the schema and instructions", read
+   those conversation blocks rather than the user's real filesystem.
+   Do NOT resolve a scratch directory under `.agntux-build/sessions/`
+   — no directory gets created and nothing gets written for sync.
 
-3. **Execute sync steps 0–11 inline.** The procedural body in
-   `reference/sync.md` is the same set of steps the host runs after
-   install. Dispatch each step in this conversation, calling the source
-   MCP tools (`mcp__jira_*`, `mcp__slack_*`, `mcp__gmail_*`, etc.) that
-   are already authorized in Cowork. The build skill is the
-   orchestrator; the sync skill's steps are the procedure.
+3. **Execute sync steps 0–11 inline in analyze-only mode.** The
+   procedural body in `reference/sync.md` is the same set of steps the
+   host runs after install. Dispatch each step in this conversation,
+   calling the source MCP **read** tools (`mcp__jira_*`, `mcp__slack_*`,
+   `mcp__gmail_*`, etc.) that are already authorized in Cowork. Every
+   step that would normally write to disk gets captured as
+   in-conversation state instead:
 
-4. **Capture the run output** — every tool call, every result, every
-   write to the scratch knowledge store. The build skill sees all of
-   this in its own context. No paste loop required.
+   | Canonical step | Would write to | Analyze-only behaviour |
+   |---|---|---|
+   | Step 2 (bootstrap learnings template) | `data/learnings/{{slug}}/sync.md` | Initialize an in-memory `learnings` object with `cursor: null`, `last_run: null`, `items_processed: 0`, `errors: []`. No file write. |
+   | Step 3 (acquire lock) | `data/learnings/{{slug}}/sync.md` | Skip the lock entirely — there's no shared state to guard against. |
+   | Step 6 (create entity) | `entities/{subtype}/{slug}.md` | Append `{action: "create", subtype, slug, frontmatter, body_sections}` to the in-memory `would_create_entities[]` list. |
+   | Step 7 (update entity) | `entities/{subtype}/{slug}.md` | Append `{action: "update", subtype, slug, diff_summary}` to `would_update_entities[]`. |
+   | Step 8 / 8.5 / 8.6 / 9 / 10 (action writes — deferred / drained / merged / fresh / auto-resolved) | `actions/{YYYY-MM-DD}-{slug}.md` | Append `{action_class, id, status, priority, reason_class, source_ref, related_entities, body_summary}` to the matching list (`would_create_actions[]`, `would_defer_actions[]`, `would_resolve_actions[]`, `would_merge_actions[]`). |
+   | Step 11 (advance cursor, update learnings) | `data/learnings/{{slug}}/sync.md` | Compute the cursor diff (keys added / advanced / evicted) and `items_processed` increment as in-memory state. No file write; no lock release. |
+
+   The source MCP **write** tools (`*_send_message`, `*_create_issue`,
+   `*_create_draft`) are never called — same contract as
+   `canonical/prompts/ingest/skills/sync/reference/ask.md`'s read-only
+   rule. If a source plugin's compose-payload step would normally
+   prepare a draft for a write tool, capture the payload in-memory and
+   move on; do not invoke the write tool.
+
+4. **Capture the run output as a structured summary.** After the
+   inline execution finishes, the build skill has six in-memory lists:
+   `would_create_entities`, `would_update_entities`,
+   `would_create_actions`, `would_defer_actions`,
+   `would_resolve_actions`, `would_merge_actions`, plus the cursor
+   diff and `items_processed` count. Format these into a
+   contributor-facing summary (see "How you respond after each round"
+   below). Nothing else is captured to disk.
 
 5. **Read the run as user input** — same signal-reading we'd do on a
    pasted run, applied directly to what we just observed (see the
@@ -123,9 +157,45 @@ specific signals:
 1. Lead with one sentence acknowledging the round. Concrete and
    specific:
 
-   > Round 1 done. {N-action-items-raised} action items, {M-entities}
-   > new entities. Two things stood out — {issue-1-summary} and
+   > Round 1 done. {N-actions-would-raise} action items would have been
+   > raised, {M-entities-would-create} new entities would have been
+   > created. Two things stood out — {issue-1-summary} and
    > {issue-2-summary}.
+
+   Then print the structured tables from the in-memory state:
+
+   **Entities that would be created**
+
+   | Subtype | Slug | Key facts |
+   |---|---|---|
+   | person | jane-smith | first_seen: 2026-04-12; sources: [slack, gmail] |
+   | … | … | … |
+
+   **Entities that would be updated** (diff summary, not full content)
+
+   | Subtype | Slug | What changed |
+   |---|---|---|
+   | project | platform-v2 | last_active advanced 2026-05-01 → 2026-05-09; appended 3 signals |
+   | … | … | … |
+
+   **Action items that would be raised**
+
+   | Priority | Reason class | Source ref | Why this matters (one line) |
+   |---|---|---|---|
+   | p1 | response-needed | slack://C123/p456 | EM-A asked a yes/no decision; thread has 4 follow-ups without you |
+   | … | … | … | … |
+
+   **Cursor diff** (keys added / advanced / evicted; no write).
+   **Items processed**: N.
+
+   The three buckets above (would-create entities, would-update
+   entities, would-raise actions) are always shown. The other three
+   buckets — `would_defer_actions`, `would_resolve_actions`,
+   `would_merge_actions` — are typically empty on a first run; render
+   them only when non-empty, with the same one-line-per-row shape.
+   Cap each table at the first 10 rows; if more, append a "+ N more"
+   row. The contributor needs enough to read signal, not a wall of
+   data.
 
 2. Translate each issue to plain language and propose the fix:
 
@@ -156,8 +226,10 @@ specific signals:
    No `build-plugin.mjs` rebuild needed — the sync skill is pure
    markdown. The MCP server bundle is unchanged between rounds.
 
-6. **Re-run sync inline** against the same scratch root. Compare
-   round-N output to round-(N-1) output and report what changed.
+6. **Re-run sync inline** in analyze-only mode using the same
+   synthesized personalization from stage 9.5. Compare round-N output
+   tables to round-(N-1) and report what changed (delta in
+   would-create entities, would-raise actions, cursor advancement).
 
 ## Generalization checklist (read before every prompt edit)
 
@@ -223,23 +295,32 @@ want more rounds, do them — but watch fatigue and offer a break.
 Define explicitly: the user can use the plugin in their daily
 flow without flinching. Not perfect — *good enough*.
 
-> Calling it. The plugin is now syncing your
-> {connector-display-name} data into your knowledge store the way
-> it should. Action items are raising for the right things. The
-> next thing to test is the action buttons themselves, in the
-> triage UI — for that we'll install the zip and run it once
-> end-to-end.
+> Calling it. The plugin's sync prompt is producing the right
+> entities and action items for your {connector-display-name} data —
+> based on the analyze-only runs we just walked through. Once you
+> install it, sync will actually write to your knowledge store on
+> the cadence in `recommended_ingest_cadence`. The next thing to
+> test is the action buttons themselves in the triage UI — for that
+> we'll install the zip and run it once end-to-end.
 
 ## Saved state at end of stage 10
 
 ```json
 {
   ...,
-  "inline_sync_scratch_dir": "/Users/.../.agntux-build/sessions/{session-id}/sync-output/",
+  "dry_run": true,
   "sync_iterations": [
     {
       "round": 1,
       "ran_at": "...",
+      "simulated_entity_creates": 14,
+      "simulated_entity_updates": 23,
+      "simulated_action_creates": 6,
+      "simulated_action_defers": 2,
+      "simulated_action_resolves": 0,
+      "simulated_action_merges": 1,
+      "simulated_cursor_advance": "advanced 3 keys; evicted 1",
+      "items_processed": 187,
       "issues_found": ["channel-discovery", "alias-resolution"],
       "fix_summary": "added private-channel sweep + universal alias lookup (no hardcoded names)",
       "generalization_check": "passed — alias rule applies to any user with display-name+email shape"
@@ -249,6 +330,11 @@ flow without flinching. Not perfect — *good enough*.
   "sync_marked_good_enough_at": "2026-05-08T..."
 }
 ```
+
+The session record is itself a file under
+`<agntux project root>/.agntux-build/sessions/{session-id}.json` — that
+write is fine (build-tooling state, not user data). What stays off-disk
+is the sync output itself: entities, actions, learnings, cursors.
 
 ## Fallback: when inline sync isn't possible
 
@@ -262,8 +348,18 @@ A small set of cases force the install-then-run flow:
 
 When this happens:
 
-1. Tell the user honestly: "I can't drive the connector from in here
-   for {reason}. Let's switch to install-and-run mode for this plugin."
+1. **Warn first.** Tell the contributor honestly:
+
+   > I can't drive the connector from in here for {reason}, so we'll
+   > switch to install-and-run mode. **This breaks the analyze-only
+   > guarantee** — once the plugin is installed and you run
+   > `/agntux-{slug}`, sync will write entities, actions, and a
+   > cursor file to your AgntUX data directory exactly like it would
+   > for any real user. If you don't want that, point your host at a
+   > throwaway `agntux` project root before installing, or skip stage
+   > 10 entirely and rely on stage 11's triage UI test to catch
+   > issues.
+
 2. Walk the install — use the eight-click install steps documented in
    `11-triage-ui-test.md → Regenerate and install` (stage 11 owns the
    install walk now; load that section verbatim).
@@ -276,7 +372,7 @@ When this happens:
    before each subsequent round.
 
 This fallback should be rare. If the inline path works on the first
-attempt, prefer it.
+attempt, prefer it — it's the only mode that's strictly analyze-only.
 
 ## What you do NOT do
 
@@ -289,9 +385,16 @@ attempt, prefer it.
   for the threading fix"). Talk in user-visible terms.
 - Don't bump major or minor versions for these fixes — they're
   patches.
-- Don't write to the user's real `data/` directory during iteration.
-  All inline-sync writes go to the scratch root under
-  `.agntux-build/sessions/{session-id}/sync-output/`.
+- **Don't write any sync artifact to disk.** No entities, no actions,
+  no learnings/cursor, no scratch directory under
+  `.agntux-build/sessions/{id}/sync-output/`. All would-writes are
+  emitted as structured tables in the contributor-facing summary. The
+  build session leaves zero filesystem residue from the sync pass
+  itself. The session JSON at
+  `.agntux-build/sessions/{id}.json` is the only sync-related write,
+  and it carries summary counts only, not the entity/action content.
+- **Don't call source MCP write tools.** Only read tools. Same
+  contract as `canonical/prompts/ingest/skills/sync/reference/ask.md`.
 - Don't ask the user to reinstall a zip between rounds in the inline
   path. That's the legacy flow; the inline path makes reinstall
   unnecessary.

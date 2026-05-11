@@ -1,202 +1,253 @@
-# Stage 9.5 — onboarding test + iterate
+# Stage 9.5 — synthesize test personalization
 
-Sync iteration (stage 10) only feels right when the plugin's onboarding
-flow has run first — that's where personalisation values like role,
-team scope, cadence, bootstrap window, and per-user filters get
-captured. If we run sync against pure defaults, every issue we see is
-ambiguous: "is this a prompt bug or did onboarding never happen?"
+Stage 10 (sync iteration) only feels right when the sync prompt has the
+same personalization context it would have in production. In a real
+install, that context comes from `agntux-core`'s onboarding — `user.md`,
+`data/instructions/{slug}.md`, `data/schema/contracts/{slug}.md`.
+Without those, every issue Stage 10 surfaces is ambiguous: "is this a
+prompt bug, or did onboarding never run?"
 
-So before stage 10's first sync, we drive the plugin's own onboarding
-flow inline (just like sync), iterate the prompts in `_overrides/` if
-the questions land badly, and only then move on.
+But onboarding is **owned by `agntux-core`, not by the source plugin
+we're building.** The source plugin only advertises declarative
+metadata in `marketplace/listing.yaml` (`tagline`, `purpose`,
+`supported_prompts`, `proposed_schema`) and
+`.claude-plugin/plugin.json` (`recommended_ingest_cadence`). Core's
+per-plugin interview reads that metadata and produces the
+personalization files at install time.
 
-If the plugin doesn't define onboarding (some read-only sources have
-no per-user personalisation), this stage announces that and falls
-through to stage 10 with one sentence.
+So this stage **doesn't run the user through an interview** (the user
+is the contributor, not a real ingest user — asking them to roleplay a
+new ingest setup they themselves authored is confusing and adds noise).
+Instead, it synthesizes a plausible personalization context from a
+shipped test persona plus the source plugin's listing metadata, shows
+the contributor what was synthesized, and hands off to Stage 10.
 
-## Locate the onboarding flow
+Everything synthesized here stays **in conversation context only.**
+Nothing is written to disk — not the user's real `data/`, and not a
+scratch directory either. Stage 10 reads the synthesized blocks
+directly from this conversation.
 
-The canonical pattern (per `canonical/prompts/ui/skill-writer-discipline.md`
-and `spec-writer-discipline.md → Section 14: Onboarding Flow`) puts
-onboarding in one of these places, in priority order:
+## What you do this stage
 
-1. A `## Onboarding` section in the plugin's
-   `skills/agntux-{slug}/SKILL.md`.
-2. A dedicated `skills/agntux-{slug}/reference/onboarding.md`.
-3. Embedded in the `## Onboarding commands` block of SKILL.md (rare —
-   only if the prompt body is fully inline).
+1. **Load the shipped test persona** from
+   `${CLAUDE_PLUGIN_ROOT}/skills/build/fixtures/test-persona/`:
+   - `user.md` — generic-but-plausible AgntUX user profile.
+   - `schema/_seed.md` — minimal entity-subtype baseline.
+   - `README.md` — explains what the fixture is for (you don't need
+     to surface this to the contributor).
 
-Read the rendered files on disk:
+   Hold the contents in conversation context. Do not copy them to
+   disk.
 
-```
-plugins/agntux-{slug}/skills/agntux-{slug}/SKILL.md
-plugins/agntux-{slug}/skills/agntux-{slug}/reference/onboarding.md   # if present
-```
+2. **Read the source plugin's `marketplace/listing.yaml`** at
+   `plugins/agntux-{slug}/marketplace/listing.yaml` for these fields:
+   - `tagline` — informs question phrasing
+   - `description` and any `purpose` block — informs the
+     fit-to-situation tailoring
+   - `supported_prompts` — examples of what sync should produce
+   - `proposed_schema` — extends the seed schema (entity subtypes,
+     action classes, cursor semantics, source_id format)
 
-Substitution has already been applied (these are post-render files),
-so what you read is what the host would load after install.
+   Failure modes (mirror the "Per-plugin onboarding interview" section
+   of `plugins/agntux-core/skills/agntux/reference/onboard.md` — search
+   for the `listing-yaml-malformed` learnings-log paragraph):
+   - File missing → treat every field empty; proceed with generic
+     synthesis.
+   - YAML malformed → note the issue in conversation and proceed with
+     every field empty.
+   - Individual field missing → treat that field empty; the rest
+     still apply.
 
-## Skip-path: no onboarding defined
+3. **Read the source plugin's `.claude-plugin/plugin.json`** for
+   `recommended_ingest_cadence`. Default to `Daily 04:00` if absent.
 
-If neither location yields an onboarding flow, say so and pass through:
+4. **Read the canonical per-plugin interview shape** from
+   `plugins/agntux-core/skills/agntux/reference/onboard.md`. Locate
+   the section titled "Per-plugin onboarding interview" and use its
+   5-question shape as the template:
+   1. Intent
+   2. Always raise
+   3. Usually ignore
+   4. Fit to your situation
+   5. Source-specific quirk
 
-> {Name}, this plugin doesn't have a personalised onboarding step —
-> the source doesn't need per-user setup beyond what we already
-> captured at connector authorization. Skipping to sync.
+   Read this fresh every run so when core's interview evolves, the
+   synthesis inherits it without re-rendering anything.
 
-Then load [`10-sync-iterate.md`](10-sync-iterate.md). Don't invent
-onboarding questions to fill the gap; if the spec author decided no
-onboarding was needed, that's an intentional choice (per spec-writer
-§14: "Either populate the table OR write `## Onboarding Flow — Not
-applicable` with a one-sentence rationale").
+5. **Synthesize answers as the test persona.** Impersonate the
+   loaded `user.md` persona (PM at a fictional B2B SaaS) and produce
+   plausible answers for each of the 5 questions, conditioned on the
+   source plugin's listing metadata. Examples of the synthesis shape:
+   - Slack source: "Always raise: threads where someone @-mentions
+     me asking for a decision; messages in #platform-leadership."
+   - Gmail source: "Always raise: emails from leadership asking for
+     a decision; customer-escalation threads where I'm tagged."
+   - Jira source: "Always raise: tickets assigned to me with
+     `blocking-release`; escalations linked to active customers."
 
-## Drive the onboarding flow inline
+   The persona's `# Preferences > ## Always action-worthy` and
+   `## Usually noise` sections give you the universal baseline;
+   adapt to the source's specific vocabulary using the listing
+   metadata.
 
-Same shape as the inline-sync shim from stage 10 — the build skill
-plays the role the host would play after install:
+6. **Produce three in-conversation blocks** Stage 10 will reference:
 
-1. **Read the rendered onboarding prompt.** Resolve the source from the
-   priority list above.
-2. **Set the expectation:**
+   **Block A — simulated `user.md`** (verbatim from the persona,
+   possibly with the source name added to `# Sources` if it wasn't
+   already there).
 
-   > {Name}, before we test sync I want to walk the onboarding flow
-   > the plugin defines. It's {N} short questions and the answers
-   > shape what sync surfaces — without them, sync runs on defaults
-   > and we can't tell whether issues are prompt bugs or just an
-   > unpersonalised setup. Should take a minute.
+   **Block B — simulated `data/instructions/{plugin-slug}.md`**, shape
+   per the canonical instructions-file frontmatter described in
+   `onboard.md`'s "Per-plugin onboarding interview" pre-step:
+   ```
+   ---
+   type: plugin-instructions
+   plugin: agntux-{slug}
+   schema_version: "1.0.0"
+   updated_at: <ISO 8601 UTC, computed at run time>
+   authored_by: agntux-build:stage-9.5
+   status: final
+   ---
 
-3. **Ask the questions.** Follow the onboarding prompt verbatim. Don't
-   re-phrase, paraphrase, or skip questions — those edits belong in
-   `_overrides/`, not in this conversation. If the prompt is unclear,
-   that's a signal to iterate (see below), not a reason to wing it.
+   # Always raise
+   - <synthesized rule> (source: <YYYY-MM-DD> test-synthesis)
+   - ...
 
-4. **Capture answers** to the configured destination. Per the canonical
-   shape, that's one of:
-   - `<scratch-root>/preferences.md` → `## Profile` section (universal
-     keys: `status`, `asked_at`, `job_title`, `company_website`,
-     `company_description`, `top_weekly_activities`, `team_structure`,
-     `primary_tools`).
-   - `<scratch-root>/preferences.md` → `## {App} preferences` section
-     (app-specific keys per spec-writer §14(a)).
-   - `<scratch-root>/data/agntux-{slug}/onboarding.md` (some plugins
-     prefer a per-app file).
-   - `<scratch-root>/preferences.md` → `## Onboarding` ledger only:
-     `status: completed | deferred | skipped`, `asked_at`,
-     `deferred_until`. `skipped` is permanent.
+   # Never raise
+   - <synthesized rule> (source: <YYYY-MM-DD> test-synthesis)
+   - ...
 
-   `<scratch-root>` is the same scratch dir stage 10 will use:
-   `<agntux-root>/.agntux-build/sessions/{session-id}/sync-output/`.
-   Mirror any pre-existing `preferences.md` from the user's real root
-   read-only — we want to see what's there but never overwrite the
-   user's real personalisation file from the build session.
+   # Rewrites
 
-   **Resume policy.** If a prior session was interrupted mid-9.5, the
-   scratch root may already contain a partial `preferences.md` with an
-   `## Onboarding` ledger entry. On re-entry to 9.5, truncate that
-   ledger to `status: in_progress` and clear any per-question answers
-   captured in the prior run — restart cleanly rather than splicing
-   answers across two runs. The captured-once `## Profile` block from
-   stage 0 (contributor identity) is untouched; only the per-app
-   `## Onboarding` and `## {App} preferences` sections reset.
+   # Notes
+   - Source: {source-display-name}
+   - Tagline: {tagline if present}
+   - discovery_summary: <from persona>
+   ```
 
-5. **Confirm completion** in plain language:
+   **Block C — simulated `data/schema/contracts/{plugin-slug}.md`**,
+   composed from `schema/_seed.md` + `listing.yaml → proposed_schema`.
+   Near-deterministic transformation: copy the seed, append the
+   source-specific entity subtypes, narrow the action `reason_class`
+   enum to what the source's `proposed_schema → action_classes`
+   declares, document the cursor semantics and `source_id_format`.
 
-   > Got it. {Brief restatement of one or two captured values that
-   > will visibly shape sync — e.g. "I'll bias the first sweep toward
-   > Eng-leadership channels and skip channels with zero @-mentions
-   > in the last 30 days."}
+7. **Show the contributor a one-screen summary** of what got
+   synthesized. Plain language, no internal vocabulary. Example:
 
-## Iterate on the onboarding prompts
+   > {Name}, before we test sync I've set up a fake user profile so
+   > your plugin has realistic personalization to work against. Here's
+   > the gist:
+   >
+   > - **Test persona**: PM at a fictional B2B SaaS company,
+   >   managing a platform roadmap across three teams.
+   > - **What they want from {source-display-name}**:
+   >   {one-sentence intent}
+   > - **Always surface**: {2 bullets, plain language}
+   > - **Usually ignore**: {2 bullets, plain language}
+   > - **Entity types from your `proposed_schema`**:
+   >   {comma-separated subtype names}
+   >
+   > Looks reasonable? You can: **accept** and move on to sync,
+   > **edit** any of these (say what to change), or **regenerate**
+   > if it doesn't fit your source.
 
-If the user gets confused, the questions don't fit their setup, or the
-answers don't capture what sync needs, that's an iteration signal —
-edit the onboarding prompt and re-run, same as a sync round.
+   Three signals to honour:
+   - **accept** → save state and load
+     [`10-sync-iterate.md`](10-sync-iterate.md).
+   - **edit** → take the user's specific change ("make the
+     usually-ignore list include CI bots", "the entity types should
+     also cover `channel`") and revise the affected block. Re-show.
+   - **regenerate** → resample the synthesis from scratch (different
+     phrasings, maybe a different persona variant if a sibling fixture
+     exists under `fixtures/test-persona-{variant}/`).
 
-Common signals:
+   Cap at 3 revisions. After 3, say so honestly and let the
+   contributor either accept what's there or explicitly skip Stage 10:
 
-- **Question is ambiguous.** "Wait, what counts as my team?" → the
-  question needs a clarifying example. Add it to the prompt.
-- **Question is too narrow.** Multi-select needed where single was
-  offered, or vice versa. Edit the prompt's option shape.
-- **Question doesn't apply to this user.** "I'm not a manager so the
-  team-structure question doesn't fit" → either add a skip-branch or
-  rephrase to be role-agnostic.
-- **Captured value can't shape sync.** If you can't trace from a
-  captured key to a concrete sync filter, the question isn't earning
-  its place — drop it or rewrite.
+   > Three revisions in. Want to move on with this setup (accept), or
+   > skip the sync test entirely and jump to the triage UI test? If
+   > sync personalization is the bottleneck, the underlying issue may
+   > be that your `listing.yaml -> proposed_schema` block needs more
+   > shape — that's a stage-5 / spec question, not a stage-9.5 one.
 
-Where to edit (same `_overrides/` system stage 10 uses):
+   - **accept** → continue as in the normal accept path.
+   - **skip** → save state with `sync_test_skipped: true`, do NOT load
+     `10-sync-iterate.md`, jump directly to
+     `11-triage-ui-test.md`. The triage UI test still validates the
+     end-to-end render path, so the plugin isn't shipping unvalidated.
 
-- `_overrides/reference/onboarding.md` — full replacement of the
-  canonical onboarding body (if a canonical default exists).
-- `_overrides/onboarding-append.md` — append-only extension at the
-  canonical `<!-- append:onboarding -->` marker.
-- `_overrides/frontmatter.yaml` — add or rename onboarding question
-  IDs that the canonical template substitutes into.
+8. **Save state** to the session record:
+   ```json
+   {
+     "onboarding_mode": "synthesized",
+     "persona_fixture_version": "<agntux-build version>",
+     "synthesis_revisions": <int, 0–3>,
+     "synthesized_at": "<ISO 8601>",
+     "sync_test_skipped": <bool, true only when the contributor chose 'skip' at the 3-revision cap>
+   }
+   ```
 
-After each edit:
+   Always write the session record before transitioning — whether the
+   contributor accepted, skipped, or the synthesis converged cleanly
+   on the first try. A resume that finds `onboarding_mode:
+   "synthesized"` and no `sync_test_skipped` falls forward to Stage 10;
+   a resume with `sync_test_skipped: true` falls forward to Stage 11.
 
-```
-node scripts/render-skill.mjs agntux-{slug}
-```
+## What's deliberately not here
 
-Then re-read the rendered onboarding file and re-run the round. Cap at
-2 iterations on onboarding — it's usually fine after one fix, and any
-deeper ambiguity is a sync-skill issue (which stage 10 catches anyway).
+- **No interview of the contributor.** They authored the plugin
+  metadata; running them through a 5-question interview shaped by
+  that metadata would be circular. The synthesis stands in for an
+  imagined typical user.
+- **No scratch directory.** The synthesized blocks live in conversation
+  context. Stage 10 reads them from there. The user's real `data/`
+  stays untouched and no `.agntux-build/sessions/{id}/sync-output/`
+  directory gets created by this stage.
+- **No skip-path.** Every source plugin gets synthesized
+  personalization. The earlier "this plugin defines no onboarding" path
+  was based on a wrong assumption that source plugins owned onboarding
+  in the first place.
+- **No iteration on the plugin's prompts during this stage.** Onboarding
+  prompts don't live in the source plugin — they live in `agntux-core`.
+  If the contributor wants to influence how core's per-plugin interview
+  phrases its questions for their source, that's a `listing.yaml`
+  refinement (improving `tagline`, `purpose`, `proposed_schema`), which
+  belongs back at stages 1–5, not here.
 
-**The generalization checklist applies here too** — re-read the
-"Generalization checklist" section of `10-sync-iterate.md` before
-editing onboarding prompts. The same trap applies: easy to bake one
-user's role/setup into the question wording. Phrase questions so the
-next user with this connector recognises themselves in them.
+## Resume rule
 
-## When onboarding is "good enough"
+If a prior session was interrupted mid-9.5, regenerate the synthesis
+fresh on resume. The synthesis is cheap (a few reads + an LLM
+composition) and reproducible from the persona + listing metadata, so
+there's no value in splicing partial state across runs. Reset
+`synthesis_revisions` to 0 and re-show the summary.
 
-The user finished the questions, the captured values are in the
-expected file, and the next round of sync should have personalisation
-values to honour. That's it.
+## When this stage is done
 
-> Onboarding done. Now let's test sync against your real
-> {connector-display-name} data.
+The contributor accepted the synthesized personalization (or accepted
+after revisions). Three in-conversation blocks (`user.md`,
+`instructions/{slug}.md`, `contracts/{slug}.md`) are held in context.
+Session state records `onboarding_mode: "synthesized"`.
 
-Then load [`10-sync-iterate.md`](10-sync-iterate.md).
+> Personalization ready. Now let's test sync against your real
+> {connector-display-name} data — analyze-only, nothing gets written
+> to your `data/` directory.
 
-## Saved state at end of stage 9.5
-
-```json
-{
-  ...,
-  "onboarding_present": true,
-  "onboarding_completed": true,
-  "onboarding_iterations": 1,
-  "onboarding_completed_at": "2026-05-08T...",
-  "onboarding_capture_path": "/Users/.../.agntux-build/sessions/{session-id}/sync-output/preferences.md"
-}
-```
-
-For the skip-path:
-
-```json
-{
-  ...,
-  "onboarding_present": false,
-  "onboarding_completed": false,
-  "onboarding_skip_reason": "plugin defines no onboarding (read-only source)"
-}
-```
+Load [`10-sync-iterate.md`](10-sync-iterate.md).
 
 ## What you do NOT do
 
-- Don't invent onboarding questions when the plugin's spec says
-  "Not applicable". The spec author had a reason; respect it.
-- Don't write captured answers to the user's real `data/` or
-  `preferences.md`. Everything goes under the scratch root, same as
-  stage 10. The user's real personalisation file stays untouched
-  during the build session.
-- Don't condense or paraphrase the questions. If a question reads
-  badly, edit the prompt, re-render, re-ask — that's the iteration
-  loop's whole point.
-- Don't skip the generalization check. An over-fitted onboarding
-  question is just as bad as an over-fitted sync filter.
-- Don't loop more than 2 rounds on onboarding. Deeper issues belong
-  to stage 10 (sync) or stage 5 (UI/spec).
+- Don't copy the persona to the user's real `<agntux project root>/`.
+  The persona stays in conversation context.
+- Don't write `data/instructions/{slug}.md` or
+  `data/schema/contracts/{slug}.md` to disk — those are Stage 10's
+  inputs, held in conversation only.
+- Don't ask the contributor the 5 interview questions yourself. The
+  synthesis impersonates the persona; the contributor only sees the
+  summary and accepts / edits / regenerates.
+- Don't surface internal vocabulary ("synthesis", "fixture",
+  "personalization context") in the summary. Say "fake user profile"
+  or "test setup".
+- Don't loop more than 3 revisions. If the synthesis can't land, the
+  upstream issue is the plugin's listing metadata.
