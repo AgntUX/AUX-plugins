@@ -15,6 +15,35 @@ Use `ToolSearch` with the connector display name as the query, with
 read the `description` field — that's the connector's own plain
 description.
 
+## When the inventory came back empty (Cowork recovery path)
+
+If `ToolSearch` returns zero matches for the connector display name,
+the connector probably isn't authorized — stage 3 either skipped or
+the auth lapsed. Before walking the user back through manual auth,
+try the Cowork MCP registry as a recovery path:
+
+1. Resolve the registry tools:
+   `ToolSearch({query: "select:mcp__mcp-registry__search_mcp_registry,mcp__mcp-registry__suggest_connectors", max_results: 5})`.
+2. If `search_mcp_registry` resolves, call it with
+   `{keywords: ["{connector-display-name}"]}`. The result shows which
+   connectors match and whether each is already connected.
+3. If a matching connector exists but `connected` is false, render
+   `mcp__mcp-registry__suggest_connectors({uuids: ["{directoryUuid}"], keywords: ["{connector-display-name-lowercase}"]})`.
+   The card shows a Connect button right in the chat — one click and
+   the user is back through auth. After the user clicks Connect, re-run
+   the tool-inventory `ToolSearch` from the top of this section.
+4. If neither registry tool resolves (non-Cowork host) or the
+   connector isn't in the registry at all, fall through to the
+   existing flow: tell the user *"{connector-display-name} doesn't
+   look connected right now — let's reconnect quickly"* and re-load
+   [`03-connect-source.md`](03-connect-source.md). Don't reference
+   "stage 3" or any stage number in user-facing prose — silent
+   transitions, same as everywhere else in this skill.
+
+Never narrate the registry-tool resolution itself ("I'll check the
+MCP registry…") — silent lookup, card-or-prose handoff. Same voice
+rule as everywhere else in this skill.
+
 ## Categorise
 
 Group the tools into three buckets:

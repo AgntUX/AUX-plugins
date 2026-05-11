@@ -166,6 +166,39 @@ Recipient: `plugins@agntux.ai`. Build the URL:
 mailto:plugins@agntux.ai?subject={url-encoded-subject}&body={url-encoded-body}
 ```
 
+## Drop the zip + email body into chat as cards (Cowork)
+
+Before printing the prose handoff, try to render the artefacts as
+inline cards so the user can see the zip download and grab the email
+body without leaving the chat. Write the email body to a file the host
+can present — **outside the build tree** so it never ends up inside
+the submission zip:
+
+1. Write the rendered email body (subject + body, plain text) to
+   `<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt`.
+   The same body that goes into the `mailto:` URL, unencoded. Keep
+   it readable — it's the fallback if the user's `mailto:` handler
+   is misconfigured. **Never write this file under `{build-path}`**;
+   that tree gets zipped, and the email body must not travel with
+   the plugin.
+2. Resolve the tool:
+   `ToolSearch({query: "select:mcp__cowork__present_files", max_results: 1})`.
+3. On resolve, call:
+   ```
+   mcp__cowork__present_files({files: [
+     {file_path: "{absolute-zip-path}"},
+     {file_path: "<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt"}
+   ]})
+   ```
+4. On no resolve, skip silently — the prose below carries the path
+   and the mailto link. **Don't narrate the failed lookup.**
+
+The cards don't replace the drag-and-drop step — chat cards can't be
+dragged into a third-party mail client window — so the absolute zip
+path stays in the prose either way. The cards are supplementary:
+visual confirmation, a one-click download of the email body if the
+`mailto:` link fires into a browser tab they can't easily edit.
+
 ## What you tell the user
 
 > {Name}, your plugin is packaged and ready.

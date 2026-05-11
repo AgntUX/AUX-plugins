@@ -6,7 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [0.1.3] — 2026-05-10
+## [0.1.4] — 2026-05-10
+
+Weaves Cowork-native tools into four touch points in the build flow,
+each behind `ToolSearch` + graceful degradation so non-Cowork hosts
+(claude-desktop, MCPJam) keep working unchanged. Mirrors the
+established idiom from `agntux-core`'s onboarding skill.
+
+### Changed
+- **Stage 9 — zip handoff renders as a Cowork download card.**
+  `references/09-zip-and-install.md` now tries
+  `mcp__cowork__present_files` with the absolute zip path before the
+  prose handoff. On resolve, the user sees an inline download card and
+  the prose drops the redundant bold path line. On miss, the prose
+  fallback is byte-identical to today.
+- **Stage 4 — empty tool-inventory falls back to the MCP registry.**
+  When `ToolSearch` on the connector display name returns zero results
+  (the connector lapsed auth or stage 3 was skipped), the skill now
+  tries `mcp__mcp-registry__search_mcp_registry` to locate the
+  connector and renders `mcp__mcp-registry__suggest_connectors` so the
+  user can re-auth from a one-click chat card. On miss, falls back to
+  re-loading stage 3.
+- **Stage 1 — already-installed branch uses `suggest_plugin_install`
+  for the install card.** When the marketplace match is positive, the
+  skill now renders `mcp__plugins__suggest_plugin_install` with the
+  matched `agntux-{slug}` entry only — the pluginId comes from our own
+  `marketplace/index.json`, never from a host-wide plugin search, so
+  scope stays AgntUX-only. On miss, falls back to printing the slug +
+  the GitHub link to the plugin tree.
+- **Stage 12 — final submission renders zip + email body as cards.**
+  The skill writes the rendered submission email body to
+  `{build-path}/SUBMISSION-EMAIL.txt` and tries
+  `mcp__cowork__present_files` with both the zip and the email-body
+  file. The absolute zip path stays in the prose (drag-and-drop into a
+  third-party mail client can't consume a chat card); the cards are
+  supplementary. On miss, prose is unchanged.
+
+
 
 Round 3 of the agntux-build improvements plan, driven by a Cowork
 dry-run building `agntux-jira`. Six issues — two harness bugs (false

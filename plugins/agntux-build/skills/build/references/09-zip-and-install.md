@@ -75,7 +75,29 @@ library (the host typically has `archiver` or similar — fall back to
 `CONTRIBUTING-SIGNATURE.md` is a stage-9 placeholder; the real one
 gets written in stage 12 with the submission timestamp.
 
+## Drop the zip into chat as an inline card (Cowork)
+
+When the host supports it, also render the zip as a download card the
+user can click in-chat — no Finder hunt, no path-copy-paste. The card
+is supplementary: the absolute path below remains the primary
+affordance because the user may need it to find the file on disk later.
+Use the same ToolSearch + graceful-degradation idiom that
+`agntux-core`'s onboarding skill uses for `request_cowork_directory`:
+
+1. Resolve the tool:
+   `ToolSearch({query: "select:mcp__cowork__present_files", max_results: 1})`.
+2. On resolve, call
+   `mcp__cowork__present_files({files: [{file_path: "{absolute-zip-path}"}]})`.
+   The host renders the `.zip` as a download card right in the chat.
+3. On no resolve (claude-desktop, MCPJam, any non-Cowork host), skip
+   silently — the prose below carries the absolute path. **Never
+   narrate the failed lookup.**
+
 ## What you say to the user
+
+The prose below runs whether or not the card rendered — the absolute
+path stays visible because the user may need it for the iteration
+loop in stage 10:
 
 > Your plugin is packaged at:
 >
