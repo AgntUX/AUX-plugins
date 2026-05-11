@@ -108,9 +108,30 @@ Branch on the answer:
   > — every {polling-cadence-from-listing-yaml}, with the same triage
   > flow.
 
-  If yes, dispatch the host's plugin install tool (resolve the name
-  via ToolSearch — typical names are `mcp__plugins__install_plugin` or
-  similar). After install, thank the user and stop:
+  If yes, render the install card for the matched AgntUX plugin via
+  Cowork's plugin-suggest tool. **The pluginId comes from the
+  `marketplace/index.json` entry you just matched** — never from a
+  host-wide plugin search, which would broaden the scope past AgntUX:
+
+  1. Resolve the tool:
+     `ToolSearch({query: "select:mcp__plugins__suggest_plugin_install", max_results: 1})`.
+  2. On resolve, call with the matched entry only:
+     ```
+     mcp__plugins__suggest_plugin_install({
+       plugins: [{
+         pluginId: "agntux-{slug}",
+         pluginName: "agntux-{slug}",
+         description: "{tagline-from-marketplace-index-json}"
+       }],
+       contextLabel: "Already in the AgntUX marketplace"
+     })
+     ```
+  3. On no resolve (non-Cowork host), fall back to the prior prose
+     path: tell the user the slug to install manually and link
+     `https://github.com/AgntUX/AUX-plugins/tree/main/plugins/agntux-{slug}`.
+
+  After the install card renders (or the manual path is acknowledged),
+  thank the user and stop:
 
   > That's installed. Run `/agntux onboard` if you haven't already —
   > that'll walk through how {connector-display-name} fits into your
