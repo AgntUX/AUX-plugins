@@ -71,7 +71,7 @@ describe("agntux-build cold start", () => {
     expect(body).toMatch(/\/agntux-build:build/);
   });
 
-  it("ships all 14 reference files", () => {
+  it("ships all reference files", () => {
     const refs = [
       "00-identity-and-dco.md",
       "01-search-marketplace.md",
@@ -83,6 +83,7 @@ describe("agntux-build cold start", () => {
       "07-build.md",
       "08-headless-test.md",
       "09-zip-and-install.md",
+      "09a-onboarding-iterate.md",
       "10-sync-iterate.md",
       "11-triage-ui-test.md",
       "12-submit.md",
@@ -96,6 +97,31 @@ describe("agntux-build cold start", () => {
       // Each reference must be non-trivial.
       expect(statSync(p).size).toBeGreaterThan(200);
     }
+  });
+
+  it("ships the stage-9.5 test-persona fixture", () => {
+    const fixtureDir = join(
+      PLUGIN_ROOT,
+      "skills",
+      "build",
+      "fixtures",
+      "test-persona",
+    );
+    for (const f of ["user.md", "schema/_seed.md", "README.md"]) {
+      const p = join(fixtureDir, f);
+      expect(existsSync(p), `missing fixtures/test-persona/${f}`).toBe(true);
+      expect(
+        statSync(p).size,
+        `fixtures/test-persona/${f} must be non-trivial`,
+      ).toBeGreaterThan(200);
+    }
+    // The persona user.md must carry the AgntUX user-config frontmatter
+    // shape so stage 9.5 can pass it through as a plausible simulated
+    // user.md to stage 10.
+    const personaBody = readFileSync(join(fixtureDir, "user.md"), "utf-8");
+    expect(personaBody).toMatch(/type:\s*user-config/);
+    expect(personaBody).toMatch(/discovery_summary:/);
+    expect(personaBody).toMatch(/bootstrap_window_days:/);
   });
 
   it("ships all 8 internal specialist agents", () => {

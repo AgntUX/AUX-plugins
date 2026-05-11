@@ -39,8 +39,30 @@ describe("skill ↔ references consistency", () => {
     }
   });
 
+  it("each NNa-*.md reference's H1 advertises matching stage N.5", () => {
+    // Half-stage files use the `NNa-` prefix (e.g., `09a-` → Stage 9.5).
+    // These intentionally fall outside the NN-*.md numbered range
+    // because they are inserted between major stages.
+    const halfStage = refFiles.filter((n) => /^\d{2}a-/.test(n));
+    for (const f of halfStage) {
+      const stageNum = Number(f.slice(0, 2));
+      const halfNum = `${stageNum}.5`;
+      const body = readFileSync(join(REF_DIR, f), "utf-8");
+      const h1Match = body.match(/^# ([^\n]+)/);
+      expect(h1Match, `${f} must start with an H1`).not.toBeNull();
+      const h1 = h1Match![1];
+      const re = new RegExp(`Stage\\s+${halfNum.replace(".", "\\.")}\\b`, "i");
+      expect(
+        re.test(h1),
+        `${f} H1 "${h1}" must announce Stage ${halfNum}`,
+      ).toBe(true);
+    }
+  });
+
   it("SKILL.md links to every numbered reference exactly once", () => {
-    const numbered = refFiles.filter((n) => /^\d{2}-/.test(n));
+    // Include both major-stage (NN-) and half-stage (NNa-) files —
+    // both shapes need to be linked from the routing table.
+    const numbered = refFiles.filter((n) => /^\d{2}a?-/.test(n));
     for (const f of numbered) {
       const occurrences = countOccurrences(
         skillBody,

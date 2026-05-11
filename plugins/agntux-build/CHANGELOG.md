@@ -6,6 +6,85 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.5] — 2026-05-10
+
+Corrects two assumptions in the stage-9.5/10 inline-execution flow
+that surfaced when contributors tried to build against a real source.
+
+Onboarding logic lives in `agntux-core` — driven by the source
+plugin's declarative `marketplace/listing.yaml` metadata
+(`tagline`, `purpose`, `supported_prompts`, `proposed_schema`) and
+`.claude-plugin/plugin.json → recommended_ingest_cadence`. Source
+plugins never owned onboarding prompts; the old stage-9.5 hunt for a
+`## Onboarding` section in `skills/agntux-{slug}/SKILL.md` was based
+on a wrong mental model and produced a skip-path on every real
+plugin, leaving stage 10's sync run without the personalization it
+needs.
+
+Separately, stage 10 was writing entities, actions, learnings, and
+cursor state to a scratch directory under
+`.agntux-build/sessions/{id}/sync-output/`. The contributor's real
+`data/` directory was untouched, but the build session still left
+filesystem residue from the sync pass. Stage 10 is now strictly
+analyze-only — pulls source data via read tools, runs compose logic
+in conversation, emits "would create / would raise" tables, persists
+nothing.
+
+### Changed
+- **Stage 9.5 rewritten as test-personalization synthesis.**
+  `references/09a-onboarding-iterate.md` now ships a fixture-and-
+  synthesis flow. Loads the shared test persona from
+  `skills/build/fixtures/test-persona/`, reads the source plugin's
+  `marketplace/listing.yaml` + `.claude-plugin/plugin.json`, and
+  reads the canonical per-plugin interview shape from
+  `plugins/agntux-core/skills/agntux/reference/onboard.md` ("Per-
+  plugin onboarding interview" section). Synthesizes three
+  in-conversation blocks — simulated `user.md`, simulated
+  `data/instructions/{slug}.md`, simulated
+  `data/schema/contracts/{slug}.md` — and shows the contributor a
+  one-screen summary with an accept / edit / regenerate choice
+  (cap 3 revisions). No interview of the contributor; nothing
+  written to disk. The skip-path is removed (every plugin gets
+  synthesized personalization). When core's interview shape evolves,
+  build inherits the new shape at runtime without a re-render.
+- **Stage 10 rewritten as analyze-only.**
+  `references/10-sync-iterate.md` no longer resolves a scratch
+  knowledge-store root. The build skill reads stage 9.5's
+  synthesized personalization from conversation context, executes
+  canonical sync steps 0–11 inline against authorized source MCP
+  **read** tools, and captures every would-be write as in-memory
+  state. A structured-table summary (would create / would update
+  entities, would raise / defer / resolve / merge actions, cursor
+  diff, items processed) replaces the prior scratch-dir writes. No
+  entity files, no action files, no learnings/cursor file, no
+  scratch directory. The session JSON at
+  `.agntux-build/sessions/{id}.json` stays the only sync-related
+  write and carries summary counts only. Source MCP **write** tools
+  are never called.
+- **Session-record schema updated** (`SKILL.md:103-122`). Dropped
+  fields: `onboarding_present`, `onboarding_completed`,
+  `onboarding_iterations`, `onboarding_capture_path`,
+  `inline_sync_scratch_dir`. Added fields: `onboarding_mode`
+  (always `"synthesized"`), `persona_fixture_version`,
+  `synthesis_revisions` (cap 3), `dry_run` (always `true`),
+  `simulated_entity_writes`, `simulated_action_writes`. Resume rule
+  changed: mid-9.5 resume regenerates synthesis fresh (cheap)
+  rather than splicing partial state.
+- **Stage 10 install-mode fallback now warns about the analyze-only
+  guarantee breaking.** When the source MCP isn't reachable inline
+  and the contributor has to install-and-run, the skill explicitly
+  flags that installed sync writes to the host's data root and
+  recommends a throwaway `agntux` project root for that path.
+
+### Added
+- **`skills/build/fixtures/test-persona/`** ships with the plugin:
+  `user.md` (generic-but-plausible PM-at-fictional-SaaS profile,
+  type: `user-config`, fixed `bootstrap_window_days: 30`),
+  `schema/_seed.md` (generic entity-subtype baseline that
+  stage 9.5 extends with the source plugin's `proposed_schema`),
+  and `README.md` (explains the fixture's purpose and how stage 9.5
+  uses it).
+
 ## [0.1.4] — 2026-05-10
 
 Weaves Cowork-native tools into four touch points in the build flow,

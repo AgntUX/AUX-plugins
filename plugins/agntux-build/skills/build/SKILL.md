@@ -57,8 +57,8 @@ prior runs — re-load the resource so per-stage updates apply.
 | 7 | After preview iterations look right | [`references/07-build.md`](references/07-build.md) |
 | 8 | After build completes | [`references/08-headless-test.md`](references/08-headless-test.md) |
 | 9 | After headless tests pass | [`references/09-zip-and-install.md`](references/09-zip-and-install.md) |
-| 9.5 | After the snapshot zip lands in Downloads (test + iterate the plugin's onboarding flow inline before any sync run) | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
-| 10 | After onboarding completes (or skip-path fires); build skill drives sync inline against on-disk rendered prompts — no install required | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
+| 9.5 | After the snapshot zip lands in Downloads. Synthesizes a test personalization context (shipped persona + source plugin's listing.yaml metadata) so stage 10 has realistic inputs. No interview of the contributor; nothing written to disk. | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
+| 10 | After stage 9.5 leaves the synthesized personalization in conversation context. Build skill drives sync against on-disk rendered prompts and real source data in **analyze-only** mode — pulls data, runs compose logic, emits would-write tables. No install, no scratch dir, no writes to the user's `data/`. | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
 | 11 | After sync iterations converge — first stage that walks the install flow (triage UI test needs a live plugin) | [`references/11-triage-ui-test.md`](references/11-triage-ui-test.md) |
 | 12 | After action button works in triage | [`references/12-submit.md`](references/12-submit.md) |
 
@@ -103,22 +103,33 @@ session-id is the timestamp of the first turn (`YYYY-MM-DD-HHmmss`).
 Stage-9.5 + stage-10 fields the inline-execution flow adds to the
 session record:
 
-- `onboarding_present` — bool; false = plugin defines no onboarding
-  (skip-path); true = stage 9.5 ran the flow.
-- `onboarding_completed` — bool; only meaningful when `onboarding_present`.
-- `onboarding_iterations` — int; how many edit-and-rerun rounds
-  stage 9.5 needed (cap 2).
-- `onboarding_capture_path` — string; absolute path under the scratch
-  root where captured values landed.
-- `inline_sync_scratch_dir` — string; absolute path to
-  `<agntux-root>/.agntux-build/sessions/{session-id}/sync-output/`.
-  Both onboarding and inline sync write here, never to the user's
-  real `data/` directory.
+- `onboarding_mode` — string; always `"synthesized"`. Stage 9.5
+  composes personalization from a shipped test persona plus the source
+  plugin's `marketplace/listing.yaml` metadata; it does NOT run the
+  contributor through an interview, and it does NOT look for
+  onboarding inside the source plugin (onboarding lives in
+  agntux-core).
+- `persona_fixture_version` — string; the agntux-build version at the
+  time the persona under `skills/build/fixtures/test-persona/` was
+  consumed.
+- `synthesis_revisions` — int; how many regenerate / edit cycles the
+  contributor requested during stage 9.5 (cap 3).
+- `dry_run` — bool; always `true` for stage 10. Stage 10 is
+  analyze-only — it pulls real source data via read tools, runs the
+  compose logic in conversation, and emits structured "would create /
+  would raise" tables. No sync artifacts (entities, actions,
+  learnings, cursor) are written to disk. No scratch directory is
+  created under `.agntux-build/sessions/{id}/sync-output/` — that
+  legacy path no longer exists.
+- `simulated_entity_writes`, `simulated_action_writes` — int counts of
+  what sync would have written per round.
 
-Resume rule: if a session is interrupted mid-9.5, resume at 9.5
-(don't fall forward to 10). Stage 10 expects onboarding to be either
-completed or explicitly skip-pathed; an unfinished 9.5 is a state we
-must re-enter, not paper over.
+Resume rule: stage 9.5's synthesis is cheap to re-run (a few reads
+plus an LLM composition), so on resume mid-9.5, regenerate the
+synthesized personalization fresh rather than splicing partial state
+across runs. Stage 10 expects 9.5 to have left a final synthesized
+personalization block in conversation context; if a session resumes
+mid-10, re-enter 9.5 first so the context is rebuilt.
 
 ## What you NEVER do in user-facing copy
 
