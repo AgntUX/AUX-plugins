@@ -6,7 +6,11 @@ Lane: read-only natural-language query against team data.
 
 The SKILL.md preflight has already verified `<agntux project root>`,
 `user.md`, non-empty `teams.json`, and the license JWT's structural
-presence. Proceed directly to the query.
+presence.
+
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: prefix the first answer with the soft-warning, then continue.
+
+Then proceed to the query.
 
 ## What you read
 

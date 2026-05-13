@@ -5,6 +5,8 @@ P7's additive-only policy — no MAJOR bumps).
 
 ## Preflight
 
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
 1. **Parse `$ARGUMENTS`.** The first token is the `team-slug`. Remainder
    is treated as freeform context (e.g., "we want to track ARR per
    customer").

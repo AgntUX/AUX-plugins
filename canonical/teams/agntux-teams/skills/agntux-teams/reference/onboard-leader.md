@@ -12,9 +12,9 @@ the leader-view scheduled task that runs the per-cycle synthesis pass
 Six gates, in order. Any failure stops the skill with the quoted
 short message and **no file writes**.
 
-1. **Parse `$ARGUMENTS`.** The first token is `{view-slug}`. Missing
-   → emit "Usage: `/agntux-teams onboard:leader {view-slug}`" and
-   stop.
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
+1. **Parse `$ARGUMENTS`.** The first token is `{view-slug}`. Missing → emit "Usage: `/agntux-teams onboard:leader {view-slug}`" and stop.
 
 2. **`user.md` gate.** If `<root>/user.md` is missing, emit "Run
    `/agntux onboard` first — the leader-view interview needs your

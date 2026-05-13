@@ -7,6 +7,8 @@ team-lead role) wants the scheduled task to honour.
 
 Beyond the SKILL.md preflight:
 
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
 1. **Parse `$ARGUMENTS`.** The first token after `teach` is the
    `team-slug`. The remainder is the rule body (free-form
    natural-language).
