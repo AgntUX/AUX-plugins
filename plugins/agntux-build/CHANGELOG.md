@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-12
+
+Adds team-aware Stage 0 detection + Stage 12 team-publish path
+behind the `<root>/.agntux/teams.json` runtime gate (P3 / S3.3).
+Solo behavior is byte-identical: with no `teams.json` present,
+Stage 0 records no team context and Stage 12 emits the same
+`mailto:plugins@agntux.ai` body and zip as `0.1.5`.
+
+When `teams.json` is present, Stage 0 offers the user the team(s)
+they're a member of (or "submit publicly" to opt out) and Stage 12
+calls a new MCP tool `agntux_build_publish_to_team` instead of
+opening a `mailto:` link. The tool reads the license JWT from
+`teams.json`, walks the built plugin directory, and POSTs the
+manifest to
+`app.agntux.ai/api/teams/{org_slug}/marketplace/publish`. The
+backend verifies the license JWT, re-validates the DCO trailer,
+and commits the plugin tree under `plugins/{plugin-slug}/` in the
+org's private marketplace repo.
+
+Adds a minimal MCP server under `mcp-server/` that ships exactly
+this one tool. Solo runs never invoke it.
+
 ## [0.1.5] — 2026-05-10
 
 Corrects two assumptions in the stage-9.5/10 inline-execution flow
