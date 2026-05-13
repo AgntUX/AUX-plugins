@@ -68,6 +68,104 @@ type TeamsJson = {
   memberships?: Array<{ team_slug: string; org_slug?: string }>;
 };
 
+type LicenseJwtClaims = {
+  exp?: number;
+  iat?: number;
+  org_slug?: string;
+  tier?: string;
+  subscription_status?: string;
+  valid_for_team_slugs?: string[];
+};
+
+/** Subscription states under which client-side publish should attempt the
+ *  POST. `canceled`, `canceled_locked`, `incomplete`, and legacy `lapsed`
+ *  are rejected here so the user gets an actionable error without paying
+ *  a network round-trip. The server runs the same check with full crypto
+ *  verification — this is fast-fail UX, not the security gate. */
+const CLIENT_ALLOWED_STATUSES: ReadonlySet<string> = new Set([
+  "trialing",
+  "active",
+  "lapse_grace",
+]);
+
+/** Decode a JWT payload without signature verification — the client side
+ *  of an MCP tool has no KMS access and cannot crypto-verify. The server
+ *  is the security boundary; this decode is purely a UX fast-fail so we
+ *  don't make the user wait on a network round-trip when the cached JWT
+ *  is clearly expired or shaped for a different audience. */
+export function decodeLicenseClaims(jwt: string): LicenseJwtClaims | null {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = Buffer.from(
+      parts[1].replace(/-/g, "+").replace(/_/g, "/"),
+      "base64"
+    ).toString("utf8");
+    return JSON.parse(payload) as LicenseJwtClaims;
+  } catch {
+    return null;
+  }
+}
+
+/** Local (client-side) preflight of the cached license JWT. Returns null
+ *  on success, or a PublishError on any failure. Failures here always
+ *  carry `reason: "auth"` and a message pointing the user at how to
+ *  recover ("subscription required" + how-to-refresh hint).
+ *
+ *  We deliberately do NOT verify the signature — the JWT is opaque to
+ *  this tool. The backend re-runs every check with full Ed25519
+ *  verification (see `verifyLicenseJwt` in app/lib/license/jwt.ts). */
+export function preflightLicenseJwt(
+  jwt: string,
+  input: { org_slug: string; team_slug: string },
+  nowSeconds: number = Math.floor(Date.now() / 1000)
+): PublishError | null {
+  const claims = decodeLicenseClaims(jwt);
+  if (!claims) {
+    return new PublishError(
+      "auth",
+      "subscription required — license JWT is malformed; sign in to the AgntUX desktop app to refresh"
+    );
+  }
+  if (typeof claims.exp !== "number" || claims.exp < nowSeconds) {
+    return new PublishError(
+      "auth",
+      "subscription required — license JWT is expired; sign in to the AgntUX desktop app to refresh"
+    );
+  }
+  if (claims.tier !== "team") {
+    return new PublishError(
+      "auth",
+      "subscription required — license JWT is not a team-tier token"
+    );
+  }
+  if (
+    typeof claims.subscription_status !== "string" ||
+    !CLIENT_ALLOWED_STATUSES.has(claims.subscription_status)
+  ) {
+    return new PublishError(
+      "auth",
+      `subscription required — current state '${claims.subscription_status ?? "unknown"}' does not allow team publish; ask your admin to update billing`
+    );
+  }
+  if (claims.org_slug && claims.org_slug !== input.org_slug) {
+    return new PublishError(
+      "auth",
+      `subscription required — license JWT authorizes org '${claims.org_slug}', not '${input.org_slug}'`
+    );
+  }
+  if (
+    Array.isArray(claims.valid_for_team_slugs) &&
+    !claims.valid_for_team_slugs.includes(input.team_slug)
+  ) {
+    return new PublishError(
+      "auth",
+      `subscription required — license JWT does not grant publish to team '${input.team_slug}'`
+    );
+  }
+  return null;
+}
+
 const DEFAULT_API_BASE = "https://app.agntux.ai";
 const MAX_FILES = 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -227,6 +325,16 @@ export async function publishToTeam(
   try {
     validateInput(input);
     const licenseJwt = await readLicenseJwt(input.agntux_root);
+
+    // Client-side preflight (per P11 S7.3). Avoids a round-trip when the
+    // cached JWT is plainly unusable; the backend re-runs every check
+    // with full Ed25519 verification.
+    const preflightErr = preflightLicenseJwt(licenseJwt, {
+      org_slug: input.org_slug,
+      team_slug: input.team_slug,
+    });
+    if (preflightErr) throw preflightErr;
+
     const files = buildManifest(input.plugin_dir);
 
     const apiBase =
