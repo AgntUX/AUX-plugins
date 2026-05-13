@@ -38,6 +38,13 @@ export interface ActionFrontmatter {
   team_slug: string | null;
   source_team: string | null;
   member_relevance_class: string | null;
+  // P9 (1.2.0): relevance_classes[] for strict-intersection filter; team-
+  // wide mark-done attribution fields. All optional; absent on personal
+  // items and on team items that haven't yet been marked done.
+  relevance_classes: string[];
+  done_by_user_slug: string | null;
+  done_by_user_id: string | null;
+  done_at: string | null;
 }
 
 export interface ParsedAction {
@@ -67,6 +74,10 @@ const FALLBACK_FRONTMATTER: ActionFrontmatter = {
   team_slug: null,
   source_team: null,
   member_relevance_class: null,
+  relevance_classes: [],
+  done_by_user_slug: null,
+  done_by_user_id: null,
+  done_at: null,
 };
 
 function asString(v: unknown, fallback = ""): string {
@@ -164,6 +175,10 @@ export function parseFrontmatter(text: string): {
       team_slug: asNonEmptyStringOrNull(raw.team_slug),
       source_team: asNonEmptyStringOrNull(raw.source_team),
       member_relevance_class: asNonEmptyStringOrNull(raw.member_relevance_class),
+      relevance_classes: asStringArray(raw.relevance_classes),
+      done_by_user_slug: asNonEmptyStringOrNull(raw.done_by_user_slug),
+      done_by_user_id: asNonEmptyStringOrNull(raw.done_by_user_id),
+      done_at: asNonEmptyStringOrNull(raw.done_at),
     },
     body,
   };

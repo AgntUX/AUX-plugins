@@ -47,9 +47,11 @@ import { join } from "node:path";
 import { expectedAgntuxRoot } from "../agntux-root.js";
 import {
   parseActionFile,
+  parseFrontmatter,
   type ActionFrontmatter,
   type SuggestedActionRow,
 } from "../parse-action.js";
+import { readTriagePrefs, type TriagePrefsV2 } from "./triage-prefs.js";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
 
@@ -118,6 +120,22 @@ interface TriageActionRow {
   team_id?: string;
   source_team?: string;
   member_relevance_class?: string;
+  // P9 (9.3.0): the row's relevance-class list — used by the UI's
+  // strict-intersection filter against the member's onboarding-time
+  // picks. Empty array on personal items (filter is a no-op).
+  relevance_classes?: string[];
+  // Path to the action file relative to the AgntUX root. Lets the UI
+  // call the per-path triage-prefs tool without re-deriving paths from
+  // (scope_kind, scope_slug, id). Present on every row in team mode;
+  // omitted on solo rows so the byte-identical payload contract holds.
+  relative_path?: string;
+  // Team-wide done attribution (P9). Visible in the UI's "Recently
+  // handled" section as "Done by Alice · 2 days ago". Present on team /
+  // leader-view rows that have been marked done; absent on open items
+  // and on personal items.
+  done_by_user_slug?: string;
+  done_by_user_id?: string;
+  done_at?: string;
 }
 
 interface TriageHandledRow {
@@ -143,6 +161,13 @@ interface TriageTeamSection {
   display_name: string;
   actions: TriageActionRow[];
   handled_recent: TriageHandledRow[];
+  // P9: the current member's relevance-class picks from
+  // `teams/{slug}/data/members/{self_user_slug}.md`. Used by the UI's
+  // strict-intersection filter. Empty array when the user has no picks
+  // yet (the UI shows a "Set your relevance picks…" empty state) OR
+  // when the public plugin can't determine the self user-slug (no
+  // filter applied; defensive default).
+  member_relevance_classes?: string[];
 }
 
 interface TriageLeaderSection {
@@ -169,6 +194,22 @@ interface TriageStructuredContent {
   };
   teams?: TriageTeamSection[];
   leader_views?: TriageLeaderSection[];
+  // P9 (9.3.0): user-controlled UI state (filter chips, relevance
+  // picks, sort, show-done/snoozed/dismissed toggles, per-path snooze
+  // and dismiss state). Read server-side from
+  // `<root>/.agntux/triage-prefs.json` and passed to the iframe so the
+  // component can render filters and apply them without re-fetching.
+  // Present only in team mode; absent in solo mode so the
+  // byte-identical contract holds.
+  triage_prefs?: TriagePrefsV2;
+  // P9: the current member's identity, when available. The public
+  // plugin reads `self_user_slug` from teams.json (set by the
+  // proprietary `agntux-teams` plugin during member onboarding) and
+  // surfaces it so the UI can pass it back as `user_slug` on a
+  // mark-done call. `null` when the user-slug hasn't been established
+  // — mark-done still works but doesn't carry attribution.
+  self_user_slug?: string | null;
+  self_user_id?: string | null;
 }
 
 interface TriageStructuredError {
@@ -212,6 +253,13 @@ interface TeamsJsonLeaderView {
 interface ParsedTeamsJson {
   memberships: TeamsJsonMembership[];
   leader_views: TeamsJsonLeaderView[];
+  // P9: the user-slug / user-id this machine's user maps to. Read
+  // defensively — absent fields stay null and the triage UI falls
+  // back to no relevance filter (every team item visible to every
+  // member of every team). Owned by agntux-teams during member
+  // onboarding.
+  self_user_slug: string | null;
+  self_user_id: string | null;
 }
 
 // Tags added to TriageActionRow / TriageHandledRow rows when they're read
@@ -321,6 +369,15 @@ function readTeamsJson(root: string): ParsedTeamsJson | null {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const obj = parsed as Record<string, unknown>;
 
+  const self_user_slug =
+    typeof obj.self_user_slug === "string" && SLUG_RE.test(obj.self_user_slug.trim())
+      ? obj.self_user_slug.trim()
+      : null;
+  const self_user_id =
+    typeof obj.self_user_id === "string" && obj.self_user_id.trim().length > 0
+      ? obj.self_user_id.trim()
+      : null;
+
   const memberships: TeamsJsonMembership[] = [];
   if (Array.isArray(obj.memberships)) {
     for (const m of obj.memberships) {
@@ -359,7 +416,60 @@ function readTeamsJson(root: string): ParsedTeamsJson | null {
     }
   }
 
-  return { memberships, leader_views };
+  return { memberships, leader_views, self_user_slug, self_user_id };
+}
+
+// Read a team-member file at `<root>/teams/{slug}/data/members/{user_slug}.md`
+// and return the member's `relevance_classes[]` from frontmatter. Returns
+// the empty array when the file is absent, unreadable, or carries no
+// classes — the triage UI treats an empty array as "no filter set" and
+// shows a help-text empty state per P9 §"Empty / wait states".
+//
+// Failures are silent: the public plugin doesn't own the member-file
+// schema (agntux-teams does), so an unknown / partially-written file
+// can't surface as a render error. Defensive parse, defensive return.
+function readMemberRelevanceClasses(
+  root: string,
+  team_slug: string,
+  user_slug: string,
+): string[] {
+  if (!SLUG_RE.test(team_slug) || !SLUG_RE.test(user_slug)) return [];
+  const path = join(
+    root,
+    "teams",
+    team_slug,
+    "data",
+    "members",
+    `${user_slug}.md`,
+  );
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return [];
+  }
+  // We only need frontmatter; reuse the action parser since it tolerates
+  // missing fields and returns a normalized shape. The member-file
+  // schema is owned by agntux-teams; we read defensively. The
+  // `relevance_classes` array field is shared across action files and
+  // member files (both promote the same slug list).
+  let classes: string[];
+  try {
+    classes = parseFrontmatter(raw).frontmatter.relevance_classes;
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const c of classes) {
+    const trimmed = c.trim();
+    if (!trimmed || !SLUG_RE.test(trimmed)) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+    if (out.length >= 64) break;
+  }
+  return out;
 }
 
 // Process all .md files in an actions/ directory and return open + handled
@@ -367,10 +477,17 @@ function readTeamsJson(root: string): ParsedTeamsJson | null {
 // team/leader-view scan. `scope` decorates each row with team_slug /
 // team_id when reading from a non-personal directory; pass null for the
 // personal scan to keep the row JSON byte-identical to the prior release.
+// `relativePathPrefix` is the path of the actions directory relative to
+// the AgntUX root (e.g. `actions`, `teams/platform/actions`); when set,
+// rows gain a `relative_path` of `<prefix>/<basename>` so the UI can
+// call the per-path triage-prefs tool without re-deriving the path. Pass
+// `null` to omit `relative_path` from every row (the solo-mode personal
+// scan does this so the JSON stays byte-identical to 9.0.0).
 function processActionsDir(
   actionsDir: string,
   handledCutoffMs: number,
   scope: ScopeTag | null,
+  relativePathPrefix: string | null,
 ): { open: TriageActionRow[]; handled: TriageHandledRow[]; snoozedCount: number } {
   const files = listActionFiles(actionsDir);
   const open: TriageActionRow[] = [];
@@ -393,6 +510,13 @@ function processActionsDir(
     }
     const fm = parsed.frontmatter;
     if (!fm.id) continue;
+    // Use the filename (not fm.id) so a malicious frontmatter `id` field
+    // can't redirect the prefs tool to a different file. `listActionFiles`
+    // only returns *.md entries, so the slice is safe.
+    const basename = filePath.split("/").pop() ?? `${fm.id}.md`;
+    const relativePath = relativePathPrefix
+      ? `${relativePathPrefix}/${basename}`
+      : null;
 
     if (fm.status === "open" || fm.status === "snoozed") {
       if (fm.status === "snoozed") snoozedCount++;
@@ -424,12 +548,26 @@ function processActionsDir(
       // by agntux-teams from a different source team retains its
       // `source_team` distinction.
       decorateRow(row, fm, scope);
+      if (relativePath) row.relative_path = relativePath;
+      // P9: copy the action's relevance_classes when present. Done in
+      // decorateRow's adjacent scope so the solo byte-identical contract
+      // still holds — personal rows with no frontmatter classes don't
+      // gain the field.
+      if (fm.relevance_classes.length > 0) {
+        row.relevance_classes = fm.relevance_classes.slice(0, 32);
+      }
       open.push(row);
       continue;
     }
     if (fm.status === "done" || fm.status === "dismissed") {
+      // `done_at` is the team-wide field (P9); `completed_at` is the
+      // personal field. Prefer `done_at` when both are set so the UI's
+      // "Recently handled" timestamp reflects when the team-wide mark
+      // happened, not when the original author's local clock said so.
       const handledAt =
-        fm.status === "done" ? fm.completed_at : fm.dismissed_at;
+        fm.status === "done"
+          ? fm.done_at || fm.completed_at
+          : fm.dismissed_at;
       if (!handledAt) continue;
       const t = new Date(handledAt).getTime();
       if (!Number.isFinite(t) || t < handledCutoffMs) continue;
@@ -457,7 +595,16 @@ function decorateRow(
   // Personal scope + no team frontmatter ⇒ leave the row untouched. This
   // is the byte-identical solo path; even adding `team_slug: undefined`
   // would risk JSON-stringify drift if a future change set it explicitly.
-  if (!scope && !fm.team_slug && !fm.team_id && !fm.source_team && !fm.member_relevance_class) {
+  if (
+    !scope &&
+    !fm.team_slug &&
+    !fm.team_id &&
+    !fm.source_team &&
+    !fm.member_relevance_class &&
+    !fm.done_by_user_slug &&
+    !fm.done_by_user_id &&
+    !fm.done_at
+  ) {
     return;
   }
   const team_slug = fm.team_slug ?? scope?.team_slug ?? undefined;
@@ -466,6 +613,12 @@ function decorateRow(
   if (team_id) row.team_id = team_id;
   if (fm.source_team) row.source_team = fm.source_team;
   if (fm.member_relevance_class) row.member_relevance_class = fm.member_relevance_class;
+  // P9 team-wide mark-done attribution. Surfaced even on open rows when
+  // a previous done-then-reopen left the fields set (the set-status
+  // tool clears them on re-open, but a hand-edited file might not).
+  if (fm.done_by_user_slug) row.done_by_user_slug = fm.done_by_user_slug;
+  if (fm.done_by_user_id) row.done_by_user_id = fm.done_by_user_id;
+  if (fm.done_at) row.done_at = fm.done_at;
 }
 
 function sortOpen(open: TriageActionRow[]): void {
@@ -539,6 +692,11 @@ export const triageViewTool = {
             team_id: { type: "string" },
             source_team: { type: "string" },
             member_relevance_class: { type: "string" },
+            relevance_classes: { type: "array", items: { type: "string" } },
+            relative_path: { type: "string" },
+            done_by_user_slug: { type: "string" },
+            done_by_user_id: { type: "string" },
+            done_at: { type: "string" },
           },
         },
       },
@@ -559,6 +717,9 @@ export const triageViewTool = {
       personal: { type: "object" },
       teams: { type: "array" },
       leader_views: { type: "array" },
+      triage_prefs: { type: "object" },
+      self_user_slug: { type: "string" },
+      self_user_id: { type: "string" },
     },
   },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
@@ -609,9 +770,18 @@ export async function handleTriageView(
     );
   }
 
-  // Personal scope.
+  // Personal scope. The relative-path prefix is omitted in solo mode
+  // (no team mode) so the byte-identical-to-9.0.0 contract holds —
+  // rows never carry `relative_path`. In team mode the personal scan
+  // gets `actions` as its prefix so the per-path prefs tool can target
+  // personal items too.
   const personalScan = personalDirOk
-    ? processActionsDir(personalActionsDir, handledCutoffMs, null)
+    ? processActionsDir(
+        personalActionsDir,
+        handledCutoffMs,
+        null,
+        teamModeActive ? "actions" : null,
+      )
     : { open: [], handled: [], snoozedCount: 0 };
   sortOpen(personalScan.open);
   sortHandled(personalScan.handled);
@@ -672,13 +842,16 @@ export async function handleTriageView(
   }
 
   // Team-mode branch.
+  const selfUserSlug = teamsJson!.self_user_slug;
   const teamSections: TriageTeamSection[] = [];
   for (const m of teamsJson!.memberships) {
     const teamActionsDir = join(root, "teams", m.team_slug, "actions");
-    const scan = processActionsDir(teamActionsDir, handledCutoffMs, {
-      team_slug: m.team_slug,
-      team_id: m.team_id ?? null,
-    });
+    const scan = processActionsDir(
+      teamActionsDir,
+      handledCutoffMs,
+      { team_slug: m.team_slug, team_id: m.team_id ?? null },
+      `teams/${m.team_slug}/actions`,
+    );
     sortOpen(scan.open);
     sortHandled(scan.handled);
     const truncated = scan.open.length > limit;
@@ -688,12 +861,19 @@ export async function handleTriageView(
     aggregateOpenCount += scan.open.filter((a) => a.status === "open").length;
     aggregateSnoozedCount += scan.snoozedCount;
     aggregateHandledCount += handledCapped.length;
+    // P9: member relevance picks for this team. Empty when the user
+    // hasn't onboarded as a member of this team yet — the UI shows the
+    // "Set your relevance picks for {Team}" empty state.
+    const memberRelevanceClasses = selfUserSlug
+      ? readMemberRelevanceClasses(root, m.team_slug, selfUserSlug)
+      : [];
     teamSections.push({
       team_slug: m.team_slug,
       team_id: m.team_id ?? null,
       display_name: m.display_name ?? m.team_slug,
       actions: actionsCapped,
       handled_recent: handledCapped,
+      member_relevance_classes: memberRelevanceClasses,
     });
   }
 
@@ -783,6 +963,13 @@ export async function handleTriageView(
     );
   const bootstrapMode = !anyContent;
 
+  // P9: read the user's filter / sort / per-path snooze+dismiss state
+  // server-side. The UI applies the filters; the server doesn't filter
+  // rows by relevance picks (the UI can toggle the chips at runtime
+  // without round-tripping). triage-prefs.json is read defensively —
+  // an absent / malformed file returns the v2 default shape.
+  const triagePrefs = readTriagePrefs();
+
   const payload: TriageStructuredContent = {
     // Legacy keys: personal scope only, so an older bundle that doesn't
     // know about teams still renders a sensible personal-only view.
@@ -804,6 +991,9 @@ export async function handleTriageView(
     },
     teams: teamSections,
     leader_views: leaderSections,
+    triage_prefs: triagePrefs,
+    self_user_slug: teamsJson!.self_user_slug,
+    self_user_id: teamsJson!.self_user_id,
   };
 
   const summaryLines: string[] = [
@@ -861,7 +1051,12 @@ function readLeaderViewScope(
   if (!dirStat.isDirectory()) return null;
   // Leader-view rows are not team-scoped (`team_slug` stays absent on
   // these rows). The view-slug shows up in the section header instead.
-  const scan = processActionsDir(dir, handledCutoffMs, null);
+  const scan = processActionsDir(
+    dir,
+    handledCutoffMs,
+    null,
+    `leader-views/${view_slug}/actions`,
+  );
   sortOpen(scan.open);
   sortHandled(scan.handled);
   const truncated = scan.open.length > DEFAULT_LIMIT;

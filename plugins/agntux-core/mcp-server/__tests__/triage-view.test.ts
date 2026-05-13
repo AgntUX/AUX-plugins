@@ -786,6 +786,258 @@ reason_class: knowledge-update`,
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// P9 (9.3.0): member relevance picks, triage-prefs surfacing, relative_path
+// ─────────────────────────────────────────────────────────────────────────────
+
+function writeMemberFile(team_slug: string, user_slug: string, relevanceClasses: string[]): void {
+  const dir = join(agntuxRoot, "teams", team_slug, "data", "members");
+  mkdirSync(dir, { recursive: true });
+  const yaml = relevanceClasses.map((c) => `  - ${c}`).join("\n");
+  writeFileSync(
+    join(dir, `${user_slug}.md`),
+    `---\nuser_slug: ${user_slug}\nrelevance_classes:\n${yaml}\n---\n\n## About\nMember of ${team_slug}.\n`,
+  );
+}
+
+function writePrefsFile(prefs: Record<string, unknown>): void {
+  const dir = join(agntuxRoot, ".agntux");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "triage-prefs.json"), JSON.stringify(prefs, null, 2));
+}
+
+describe("handleTriageView — P9 member relevance + triage_prefs surfacing", () => {
+  it("surfaces member_relevance_classes per team section when self_user_slug + member file exist", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction(
+      "platform",
+      "t-1",
+      `id: t-1
+status: open
+priority: high
+reason_class: risk
+team_slug: platform
+relevance_classes:
+  - product-decisions
+  - customer-pain`,
+    );
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+      self_user_slug: "alice",
+    });
+    writeMemberFile("platform", "alice", ["product-decisions", "customer-pain"]);
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    expect(teams[0].member_relevance_classes).toEqual([
+      "product-decisions",
+      "customer-pain",
+    ]);
+    // self_user_slug carried to the payload for the UI to use as
+    // user_slug on mark-done.
+    expect((result.structuredContent as Record<string, unknown>).self_user_slug).toBe("alice");
+  });
+
+  it("empty member_relevance_classes when self_user_slug is unset (defensive default)", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+      // No self_user_slug — public plugin can't look up member file.
+    });
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    expect(teams[0].member_relevance_classes).toEqual([]);
+    expect((result.structuredContent as Record<string, unknown>).self_user_slug).toBeNull();
+  });
+
+  it("empty member_relevance_classes when member file is missing for the team", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction("infra", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "infra" }],
+      leader_views: [],
+      self_user_slug: "alice",
+    });
+    // No infra members/alice.md.
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    expect(teams[0].member_relevance_classes).toEqual([]);
+  });
+
+  it("rejects traversal-shaped slugs in member-file lookup", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+      self_user_slug: "../etc",
+    });
+    const result = await handleTriageView({});
+    // Invalid self_user_slug is dropped → null on the payload, empty
+    // relevance classes per team.
+    expect((result.structuredContent as Record<string, unknown>).self_user_slug).toBeNull();
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    expect(teams[0].member_relevance_classes).toEqual([]);
+  });
+
+  it("surfaces triage_prefs server-side state in team-mode payload", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    writePrefsFile({
+      schema_version: 2,
+      team_filters: { platform: "shown", infra: "hidden" },
+      relevance_class_filters: { platform: ["product-decisions"] },
+      sort: "due-then-priority",
+      show_done: true,
+      show_snoozed: false,
+      show_dismissed: false,
+      triage_state: {
+        "actions/2026-05-12-foo.md": {
+          snoozed_until: "2026-05-14T09:00:00Z",
+          dismissed_at: null,
+        },
+      },
+    });
+    const result = await handleTriageView({});
+    const prefs = (result.structuredContent as Record<string, unknown>)
+      .triage_prefs as Record<string, unknown>;
+    expect(prefs.schema_version).toBe(2);
+    expect(prefs.team_filters).toEqual({ platform: "shown", infra: "hidden" });
+    expect(prefs.sort).toBe("due-then-priority");
+    expect(prefs.show_done).toBe(true);
+    expect((prefs.triage_state as Record<string, unknown>)["actions/2026-05-12-foo.md"]).toEqual({
+      snoozed_until: "2026-05-14T09:00:00Z",
+      dismissed_at: null,
+    });
+  });
+
+  it("triage_prefs returns the v2 default shape when the file is absent in team mode", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const prefs = (result.structuredContent as Record<string, unknown>)
+      .triage_prefs as Record<string, unknown>;
+    expect(prefs.schema_version).toBe(2);
+    expect(prefs.team_filters).toEqual({});
+    expect(prefs.triage_state).toEqual({});
+  });
+
+  it("solo payload does NOT carry triage_prefs (byte-identical guard)", async () => {
+    writeAction("solo-1", `id: solo-1\nstatus: open\npriority: medium`);
+    // No teams.json.
+    const result = await handleTriageView({});
+    expect((result.structuredContent as Record<string, unknown>).triage_prefs).toBeUndefined();
+    expect((result.structuredContent as Record<string, unknown>).self_user_slug).toBeUndefined();
+  });
+
+  it("team rows carry relative_path; solo rows do not", async () => {
+    writeAction("solo-1", `id: solo-1\nstatus: open\npriority: medium`);
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    const teams = payload.teams as Array<Record<string, unknown>>;
+    const teamRow = (teams[0].actions as Array<Record<string, unknown>>)[0];
+    expect(teamRow.relative_path).toBe("teams/platform/actions/t-1.md");
+    // Personal rows in team mode get a personal relative_path too so
+    // the per-path triage-prefs tool can target them.
+    const personal = payload.personal as Record<string, unknown>;
+    const personalRow = (personal.actions as Array<Record<string, unknown>>)[0];
+    expect(personalRow.relative_path).toBe("actions/solo-1.md");
+  });
+
+  it("solo personal rows do NOT carry relative_path (byte-identical guard)", async () => {
+    writeAction("solo-1", `id: solo-1\nstatus: open\npriority: medium`);
+    // No teams.json.
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    const row = (payload.actions as Array<Record<string, unknown>>)[0];
+    expect(row.relative_path).toBeUndefined();
+  });
+
+  it("team row carries relevance_classes when frontmatter declares them", async () => {
+    writeTeamAction(
+      "platform",
+      "t-1",
+      `id: t-1
+status: open
+priority: high
+team_slug: platform
+relevance_classes:
+  - product-decisions
+  - customer-pain`,
+    );
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    const row = (teams[0].actions as Array<Record<string, unknown>>)[0];
+    expect(row.relevance_classes).toEqual(["product-decisions", "customer-pain"]);
+  });
+
+  it("done-state row carries done_by_user_slug + done_at to handled_recent under the team-wide field", async () => {
+    writeTeamAction(
+      "platform",
+      "t-done",
+      `id: t-done
+status: done
+priority: high
+team_slug: platform
+created_at: 2026-05-12T14:30:00Z
+done_by_user_slug: alice
+done_by_user_id: uuid-alice
+done_at: 2026-05-12T15:00:00Z
+completed_at: 2026-05-12T15:00:00Z`,
+    );
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    const handled = teams[0].handled_recent as Array<Record<string, unknown>>;
+    expect(handled).toHaveLength(1);
+    expect(handled[0].id).toBe("t-done");
+    expect(handled[0].handled_at).toBe("2026-05-12T15:00:00Z");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // outputSchema covers the new team-mode keys
 // ─────────────────────────────────────────────────────────────────────────────
 
