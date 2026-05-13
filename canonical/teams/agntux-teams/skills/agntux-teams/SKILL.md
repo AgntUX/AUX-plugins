@@ -62,7 +62,7 @@ Before any sub-task body, run these gates in order:
 | `$ARGUMENTS` first token | Resource loaded | Notes |
 |---|---|---|
 | (empty / `sync`) | [`reference/sync.md`](reference/sync.md) | The per-team scheduled task. Default for bare `/agntux-teams` (the host scheduler fires this). |
-| `onboard:team-lead` (+ `{team-slug}`) | [`reference/onboard-team-lead.md`](reference/onboard-team-lead.md) | Team-Lead interview. **STUB** — S5.1 fills in the interview content. |
+| `onboard:team-lead` (+ `{team-slug}`) | [`reference/onboard-team-lead.md`](reference/onboard-team-lead.md) | Team-Lead onboarding — purpose, scope, relevance classes, schema design, per-plugin instructions, cadence, scheduled-task registration. |
 | `onboard:member` (+ `{team-slug}`) | [`reference/onboard-member.md`](reference/onboard-member.md) | Team-Member onboarding. **STUB** — S5.2 fills in. |
 | `onboard:leader` (+ `{view-slug}`) | [`reference/onboard-leader.md`](reference/onboard-leader.md) | Leader onboarding — relevance filter, alerting rules, cadence, scheduled-task registration. |
 | `ask` (+ natural-language) | [`reference/ask.md`](reference/ask.md) | Read-only query against team data. |

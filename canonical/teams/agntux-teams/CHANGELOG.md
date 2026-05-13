@@ -6,6 +6,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-13
+
+P8 S5.1 — author the team-lead onboarding skill body. Replaces the
+S3.4 stub (`reference/onboard-team-lead.md`) with the full 11-step
+interview that produces a team's `schema.lock.json` — the gate that
+unblocks `/agntux-teams onboard:member` for everyone else on the
+team.
+
+### Added
+
+- `skills/agntux-teams/reference/onboard-team-lead.md` (500 lines —
+  CLAUDE.md lint pass 8 ceiling).
+  - Steps 0–10: preflight (`/agntux onboard` delegate, edit-mode
+    detection, per-team marker resume); team-identity anchor; 3–4
+    adaptive scope follow-ups; pre-suggested relevance classes via
+    `AskUserQuestion` + bounded edit dialogue (cap 3 rounds);
+    plugin-agnostic schema design (entities + actions + lock at
+    `schema_version: "1.0.0"`); per-plugin instructions (lazy,
+    read-only consultation); cadence picker; scheduled-task
+    registration via `mcp__scheduled-tasks__create_scheduled_task`
+    (with `update_scheduled_task` edit-mode branch and graceful
+    fallback); team-lead member record; schema-ready trigger +
+    `mcp__cowork__create_artifact` summary card; marker drop.
+  - Inference heuristic at Step 3 carries the P8 step-3 mapping
+    verbatim (5 scope-signal rows + 11 fixed slug descriptions).
+  - Step 6 cron mappings: every-hour `0 7-21 * * *`, every-30-min
+    `*/30 7-21 * * *`, every-4-hours `0 7,11,15,19 * * *`.
+  - Step 0 sub-step 5 safeguard: re-run Step 4 from scratch when the
+    marker is past 4 but `schema.lock.json` is missing (mid-Step-4
+    crash recovery).
+- `__tests__/onboard-team-lead-body.test.mjs` — 37 prompt-grep tests
+  pinning the file shape (line-count cap, ordered step headings,
+  P8 inference-heuristic rows verbatim, P9 required-action-fields,
+  schema_version, cadence cron mappings, native-tool usage, consent
+  text version, marker frontmatter, voice rules, safeguards). All
+  whitespace-tolerant so markdown line-wrapping doesn't break the
+  assertions.
+
+### Changed
+
+- `skills/agntux-teams/SKILL.md` — routing-table note for
+  `onboard:team-lead` flips from "**STUB** — S5.1 fills in the
+  interview content." to a one-line summary of what the flow
+  produces.
+
 ## [0.3.0] — 2026-05-12
 
 P7 leader-view content-rule synthesis (S6.3) — completes the
