@@ -6,6 +6,108 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.3.0] — 2026-05-12
+
+P9 personalization + triage. Adds per-team / per-member relevance
+filtering, a team-wide mark-done attribution surface, and the personal
+snooze + dismiss migration into a single triage-prefs.json file.
+Schema bumps: personal action schema 1.1.0 → 1.2.0 (deprecates
+`snoozed_until` / `dismissed_at` on personal frontmatter — readers
+tolerate them on legacy files, new writers go to triage-prefs.json);
+triage-prefs schema 1 → 2 (new shape). Solo-mode payload remains
+byte-identical to 9.1.0 when `<root>/.agntux/teams.json` is absent.
+
+### Added
+
+- `agntux_core_set_status`: optional `user_slug` and `user_id`
+  arguments. When status flips to `done` on a team or leader-view
+  scope, the tool writes `done_by_user_slug`, `done_by_user_id`, and
+  `done_at` to the action file's frontmatter. After P5 sync, every
+  team member's triage UI sees who closed the item and when. On
+  personal scope these args are ignored; on re-open / dismiss /
+  snooze the attribution fields are cleared. The `user_slug` arg is
+  validated against the strict lowercase-alphanumeric-with-dashes
+  pattern; `user_id` is accepted as an opaque string up to 128 chars.
+- `agntux_core_save_triage_prefs`: v2 schema with `team_filters`,
+  `view_filters`, `relevance_class_filters`, `sort`, and `show_done`
+  / `show_snoozed` / `show_dismissed` toggles. Patch-style merge —
+  callers can patch a single key without re-sending the whole state.
+  The legacy `muted_team_slugs` / `muted_view_slugs` arrays remain
+  accepted and round-trip into the new map for backward compat with
+  older bundles.
+- `agntux_core_set_triage_pref`: new MCP tool. Writes per-path
+  snooze / dismiss state to `triage-prefs.json`'s `triage_state` map.
+  Path is validated against the strict `actions/*.md`,
+  `teams/{slug}/actions/*.md`, or `leader-views/{slug}/actions/*.md`
+  pattern before write. Passing `null` for both `snoozed_until` and
+  `dismissed_at` removes the entry.
+- `agntux_core_triage_view`: in team mode, the payload gains
+  `triage_prefs` (the v2 prefs JSON), `self_user_slug` /
+  `self_user_id` (read from `teams.json`), and per-team
+  `member_relevance_classes[]` (read from
+  `<root>/teams/{slug}/data/members/{self_user_slug}.md`). Rows gain
+  `relevance_classes[]`, `relative_path`, and team-wide done
+  attribution fields (`done_by_user_slug`, `done_by_user_id`,
+  `done_at`). All additions are gated on team mode being active —
+  solo payload stays byte-identical to 9.1.0.
+- Triage UI: per-team relevance-class filter chips inside each team
+  section (pre-selected from the member's onboarding picks). Chip
+  toggles persist to `prefs.relevance_class_filters[teamSlug]` —
+  they do NOT modify the member file. Strict-intersection filter
+  (`member.relevance_classes ∩ item.relevance_classes ≠ ∅`)
+  determines which items render; falls through to "show all" when
+  the member hasn't onboarded for the team yet (pre-onboarding
+  compatibility — the "Set your relevance picks for {Team}" CTA
+  surfaces alongside the items in this case).
+- Triage UI: bottom toggle bar — "Show done", "Show snoozed",
+  "Show dismissed". Reveal items the personal-prefs filter is
+  hiding. Each toggle persists to its own boolean in
+  `triage-prefs.json`.
+- Triage UI: sort dropdown gains "Team, then priority" and "Due
+  date, then priority" options. Sort persists to `prefs.sort`.
+- Triage UI: snooze and dismiss buttons on every row now write to
+  `triage-prefs.json` (per-path, personal) via the new
+  `agntux_core_set_triage_pref` tool. Team-scoped action files stay
+  untouched, so Alice's dismissal of a team item does not affect
+  Bob's view. Mark-done remains an action-file mutation
+  (team-wide for team scope, personal for personal scope).
+- Triage UI: per-team empty-state copy "All caught up for {Team}."
+  when the strict-intersection filter empties an originally
+  non-empty section.
+
+### Changed
+
+- MCP server `PLUGIN_VERSION` bumped 9.2.0 → 9.3.0 to match the
+  plugin manifest.
+- `data/schema-template/actions/_index.md`: bumped 1.1.0 → 1.2.0.
+  `snoozed_until` and `dismissed_at` on personal action frontmatter
+  are marked deprecated (still readable; new writes go to
+  triage-prefs.json). The "schema_version history" section was
+  added to document the 1.0.0 → 1.1.0 → 1.2.0 lineage. New required-
+  conditional fields documented for team and leader-view scopes:
+  `done_by_user_slug`, `done_by_user_id`, `done_at`.
+
+### Notes
+
+- **Solo behavior is byte-identical to 9.1.0.** With no
+  `<root>/.agntux/teams.json`, the triage_view payload, mutator-tool
+  behavior, and on-disk artifacts are exactly as they were in
+  9.1.0. Verified by the byte-identical regression tests in
+  `mcp-server/__tests__/triage-view.test.ts` and the solo render
+  guards in `ui-handlers/triage/component/src/__tests__/components/`.
+- **Migration of legacy frontmatter snooze / dismiss.** Personal
+  schema 1.2.0 ships with `snoozed_until` and `dismissed_at` marked
+  deprecated. Readers prefer the prefs value when both signals are
+  present. A maintenance pass to lift remaining frontmatter values
+  into triage-prefs.json and drop the deprecated fields is
+  scheduled for 90 days post-1.2.0 — out of scope for this release.
+- **Pre-onboarding fallback.** A member who hasn't run
+  `/agntux-teams onboard:member {team-slug}` has no
+  `relevance_classes` in their member file (or the file is absent).
+  The triage UI shows ALL team items in that case alongside the
+  "Set your relevance picks…" CTA so the user can act on items
+  immediately while being prompted to onboard.
+
 ## [9.2.0] — 2026-05-12
 
 Team-aware additions (P3 v2 §1, sub-plan S3.2). Adds team-mode awareness to

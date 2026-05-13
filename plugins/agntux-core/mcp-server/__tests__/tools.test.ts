@@ -419,6 +419,150 @@ describe("set_status + dismiss with outcome (end-to-end)", () => {
   });
 });
 
+// ---- team-wide mark-done attribution (P9 / 9.3.0) ----
+//
+// `done_by_user_slug`, `done_by_user_id`, and `done_at` are written to a
+// team or leader-view scoped action file when status flips to `done`.
+// They are absent on personal scope so the solo behavior stays
+// byte-identical to 9.2.0. Re-opening / snoozing / dismissing a
+// team-scoped item clears the attribution fields.
+
+describe("set_status team-wide done attribution (P9)", () => {
+  const FIXTURE_ID = "2026-05-12-acme-renewal";
+  let tmpProjectRoot: string;
+  let teamActionsDir: string;
+  let teamFixturePath: string;
+  let personalFixturePath: string;
+  let cwdSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+  beforeEach(() => {
+    const uniq = `team-done-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const parent = join(tmpdir(), uniq);
+    tmpProjectRoot = join(parent, "agntux");
+    const personalActionsDir = join(tmpProjectRoot, "actions");
+    teamActionsDir = join(tmpProjectRoot, "teams", "platform", "actions");
+    mkdirSync(personalActionsDir, { recursive: true });
+    mkdirSync(teamActionsDir, { recursive: true });
+
+    const teamContent = `---
+id: ${FIXTURE_ID}
+type: action-item
+schema_version: "1.0.0"
+status: open
+priority: high
+reason_class: risk
+team_slug: platform
+team_id: uuid-team-platform
+created_at: 2026-05-12T14:30:00Z
+source: slack
+source_ref: T01_team
+related_entities:
+  - companies/acme
+---
+
+## Why this matters
+Team item.
+`;
+    teamFixturePath = join(teamActionsDir, `${FIXTURE_ID}.md`);
+    writeFileSync(teamFixturePath, teamContent);
+    personalFixturePath = join(personalActionsDir, `${FIXTURE_ID}.md`);
+    writeFileSync(personalFixturePath, ACTION_CONTENT.replace("test-action", FIXTURE_ID));
+
+    cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tmpProjectRoot);
+  });
+
+  afterEach(() => {
+    cwdSpy?.mockRestore();
+    cwdSpy = null;
+    if (tmpProjectRoot && existsSync(join(tmpProjectRoot, ".."))) {
+      rmSync(join(tmpProjectRoot, ".."), { recursive: true, force: true });
+    }
+  });
+
+  it("writes done_by_user_slug + done_by_user_id + done_at on team-scope mark-done", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      team_slug: "platform",
+      user_slug: "alice",
+      user_id: "uuid-alice-1234",
+    });
+    const written = readFileSync(teamFixturePath, "utf-8");
+    expect(written).toContain("status: done");
+    expect(written).toContain("done_by_user_slug: alice");
+    expect(written).toContain("done_by_user_id: uuid-alice-1234");
+    expect(written).toMatch(/done_at: \d{4}-\d{2}-\d{2}T/);
+    // completed_at is also written (legacy field stays populated for
+    // backward compat with anything reading the personal-style timestamp).
+    expect(written).toMatch(/completed_at: \d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("omits done_by_* attribution on personal-scope mark-done (byte-identical to 9.2.0)", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      user_slug: "alice",
+      user_id: "uuid-alice-1234",
+    });
+    const written = readFileSync(personalFixturePath, "utf-8");
+    expect(written).toContain("status: done");
+    expect(written).not.toContain("done_by_user_slug");
+    expect(written).not.toContain("done_by_user_id");
+    expect(written).not.toContain("done_at:");
+  });
+
+  it("drops invalid user_slug values (strict slug pattern enforcement)", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      team_slug: "platform",
+      user_slug: "../etc",
+      user_id: "uuid-alice",
+    });
+    const written = readFileSync(teamFixturePath, "utf-8");
+    // user_slug rejected → done_by_user_slug not written; user_id still
+    // accepted (free-form) so done_by_user_id present.
+    expect(written).not.toContain("done_by_user_slug");
+    expect(written).toContain("done_by_user_id: uuid-alice");
+  });
+
+  it("clears done_by_* attribution on re-open (status: done → open)", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      team_slug: "platform",
+      user_slug: "alice",
+      user_id: "uuid-alice",
+    });
+    expect(readFileSync(teamFixturePath, "utf-8")).toContain(
+      "done_by_user_slug: alice",
+    );
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "open",
+      team_slug: "platform",
+    });
+    const written = readFileSync(teamFixturePath, "utf-8");
+    expect(written).toContain("status: open");
+    expect(written).toContain("done_by_user_slug: null");
+    expect(written).toContain("done_by_user_id: null");
+    expect(written).toContain("done_at: null");
+  });
+
+  it("works without user_slug / user_id (done_at still set; slug/id absent)", async () => {
+    await setStatusTool.handler({
+      id: FIXTURE_ID,
+      status: "done",
+      team_slug: "platform",
+    });
+    const written = readFileSync(teamFixturePath, "utf-8");
+    expect(written).toContain("status: done");
+    expect(written).toMatch(/done_at: \d{4}-\d{2}-\d{2}T/);
+    expect(written).not.toContain("done_by_user_slug");
+    expect(written).not.toContain("done_by_user_id");
+  });
+});
+
 // ---- path traversal guards (actions dir) ----
 
 describe("path traversal guards (actions dir)", () => {

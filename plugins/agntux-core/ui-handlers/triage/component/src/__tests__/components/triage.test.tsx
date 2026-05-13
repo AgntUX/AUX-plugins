@@ -755,12 +755,22 @@ describe('MainComponent — v6.0.0 features', () => {
     expect(ts.textContent).toContain('Updated');
   });
 
-  it('sort dropdown exposes priority / due / created options', () => {
+  it('sort dropdown exposes priority / due / created options (plus P9 team-mode sorts)', () => {
     const { props } = createMainComponentProps({ toolOutput: makePayload() });
     render(<MainComponent {...props} />);
     const select = screen.getByTestId('sort-select') as HTMLSelectElement;
     const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toEqual(['priority', 'due', 'created']);
+    // P9 (9.3.0) extended the dropdown with `team-then-priority` and
+    // `due-then-priority`. Original three remain in the same order at
+    // the top of the list so the default-priority assertion above
+    // doesn't have to know about the new options.
+    expect(values).toEqual([
+      'priority',
+      'due',
+      'created',
+      'team-then-priority',
+      'due-then-priority',
+    ]);
   });
 
   it('"Do something else…" button on the card opens the prompt modal', async () => {

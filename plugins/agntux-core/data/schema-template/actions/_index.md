@@ -1,12 +1,29 @@
 ---
 type: schema-actions
-schema_version: "1.1.0"
+schema_version: "1.2.0"
 updated_at: {{generated_at}}
 ---
 
 # Action item contract
 
 Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suffix}.md` and indexed in `<agntux project root>/actions/_index.md`. The validator (`hooks/validate-schema.mjs`) checks every action write against this contract.
+
+## Schema_version history
+
+- **`1.0.0`** — initial.
+- **`1.1.0`** — `entity_refs[]` promoted to required (P7).
+- **`1.2.0`** — P9 migration: `snoozed_until` and `dismissed_at` on the action
+  frontmatter are now **deprecated**. Personal triage state (snooze /
+  dismiss) lives in `<agntux project root>/.agntux/triage-prefs.json`
+  under the `triage_state` map (keyed by action-file path relative to the
+  AgntUX root). Mark-done remains an action-file mutation (`status: done`
+  plus `done_by_user_slug`, `done_by_user_id`, `done_at` for team-scoped
+  rows). Existing files that still carry `snoozed_until` /
+  `dismissed_at` in frontmatter remain readable during the transition;
+  triage-prefs.json takes precedence when both signals exist. A
+  scheduled maintenance pass after 90 days lifts any remaining
+  frontmatter values into triage-prefs.json and drops the deprecated
+  fields.
 
 ## Required frontmatter
 
@@ -26,14 +43,24 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 ## Optional frontmatter
 
 - `due_by` — date-only or RFC 3339 (when a deadline applies).
-- `snoozed_until` — RFC 3339 (set when `status: snoozed`).
+- `snoozed_until` — `deprecated: true` (1.2.0). Personal snooze state moved
+  to `.agntux/triage-prefs.json` under `triage_state[path].snoozed_until`.
+  Readers tolerate the field on legacy files but prefer the prefs value
+  when both are present. New writers MUST NOT set this field.
 - `completed_at` — RFC 3339 (set when `status: done`).
-- `dismissed_at` — RFC 3339 (set when `status: dismissed`).
+- `dismissed_at` — `deprecated: true` (1.2.0). Personal dismiss state moved
+  to `.agntux/triage-prefs.json` under `triage_state[path].dismissed_at`.
+  Readers tolerate the field on legacy files but prefer the prefs value
+  when both are present. New writers MUST NOT set this field.
 - `reason_detail` — required when `reason_class: other`; otherwise optional ≤120 chars.
 - `team_id` — opaque team identifier (UUID) when this action belongs to a team scope. Present on items under `<root>/teams/{team-slug}/actions/`. Absent on personal items. Owned by `agntux-teams`.
 - `team_slug` — denormalized human-friendly team slug (matches the parent directory name under `<root>/teams/`). Surfaced to the triage UI for fast filter rendering without resolving `team_id`. Absent on personal items.
 - `source_team` — the team-slug whose data spawned this action, when different from `team_id`. Set by leader-view passes that synthesize cross-team items. Absent for actions authored from a single team's own data.
 - `member_relevance_class` — slug naming the team-member onboarding category this item is tagged with (P3 v2). The triage UI renders a left-edge ribbon on rows where this is set. Absent on personal items.
+- `relevance_classes` — array of relevance-class slugs the action belongs to. Used by the triage UI's strict-intersection filter against each member's onboarding-time picks (`teams/{slug}/data/members/{user-slug}.md`). Team-scope-only.
+- `done_by_user_slug` — required-conditional when `status: done` on a team or leader-view scope. The user-slug of whoever marked it done. Absent on personal items (mark-done on a personal item only sets `status: done` + `completed_at`). Set by the `agntux_core_set_status` mutator.
+- `done_by_user_id` — required-conditional when `status: done` on a team or leader-view scope. The canonical UUID identity for the marker. Pairs with `done_by_user_slug`.
+- `done_at` — required-conditional when `status: done` on a team or leader-view scope. RFC 3339 timestamp. Distinct from `completed_at`: `completed_at` is the personal-item field; `done_at` is the team/leader-view-scope field. Both may be set on a team-scope action.
 
 ## `status` enum
 
