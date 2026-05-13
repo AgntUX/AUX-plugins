@@ -43,7 +43,9 @@ function setupAgntuxRoot() {
 }
 
 function writeFreshLock(home, slug, holder = "agntux-slack@7.0.0") {
-  const path = join(home, "agntux", "data", "learnings", slug, "sync.md");
+  const dir = join(home, "agntux", "data", "learnings", slug);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, "sync.md");
   writeFileSync(
     path,
     [
@@ -65,7 +67,9 @@ function writeFreshLock(home, slug, holder = "agntux-slack@7.0.0") {
 }
 
 function writeStaleLock(home, slug, holder = "agntux-slack@7.0.0") {
-  const path = join(home, "agntux", "data", "learnings", slug, "sync.md");
+  const dir = join(home, "agntux", "data", "learnings", slug);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, "sync.md");
   // 2 hours ago — past the 1-hour stale threshold.
   const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   writeFileSync(
@@ -217,6 +221,116 @@ describe("validate-write-lane.mjs — refuse off-lane during active ingest", () 
   it("refuses Write outside the project root", () => {
     const r = runHook(
       ctxWrite(join(home, "outside.md")),
+      home,
+    );
+    expect(r.code).toBe(2);
+  });
+});
+
+// P7 §"Per-folder write-ownership matrix" — only agntux-teams may write
+// under <root>/teams/{slug}/{entities,actions}/ and <root>/leader-views/{slug}/actions/.
+// Source plugins remain team-unaware; their writes to those subtrees reject.
+describe("validate-write-lane.mjs — team lanes (P7)", () => {
+  it("permits agntux-teams write to teams/{slug}/entities/{subtype}/{slug}.md", () => {
+    writeFreshLock(home, "agntux-teams");
+    mkdirSync(join(home, "agntux", "teams", "platform", "entities", "people"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "teams", "platform", "entities", "people", "alice.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(0);
+  });
+
+  it("permits agntux-teams write to teams/{slug}/actions/{date}-{slug}.md", () => {
+    writeFreshLock(home, "agntux-teams");
+    mkdirSync(join(home, "agntux", "teams", "platform", "actions"), { recursive: true });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "teams", "platform", "actions", "2026-05-12-x.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(0);
+  });
+
+  it("permits agntux-teams write to leader-views/{slug}/actions/{date}-{slug}.md", () => {
+    writeFreshLock(home, "agntux-teams");
+    mkdirSync(join(home, "agntux", "leader-views", "all-eng", "actions"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "leader-views", "all-eng", "actions", "2026-05-12-x.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(0);
+  });
+
+  it("refuses source-plugin write to teams/{slug}/entities/ — team lanes are agntux-teams territory", () => {
+    writeFreshLock(home, "agntux-slack");
+    mkdirSync(join(home, "agntux", "teams", "platform", "entities", "people"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "teams", "platform", "entities", "people", "alice.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("teams");
+    expect(r.stderr).toMatch(/agntux-slack|agntux-teams/);
+  });
+
+  it("refuses source-plugin write to leader-views/", () => {
+    writeFreshLock(home, "agntux-slack");
+    mkdirSync(join(home, "agntux", "leader-views", "all-eng", "actions"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "leader-views", "all-eng", "actions", "2026-05-12-x.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(2);
+  });
+
+  it("refuses agntux-teams write to leader-views/{slug}/entities/ — leader-views have no entities subtree (P7)", () => {
+    // P7 §"Note on leader-views" — leader-views are an actions-only
+    // substrate. A write to <root>/leader-views/{slug}/entities/* by ANY
+    // plugin (including agntux-teams) must reject; only actions/*.md
+    // belongs to the leader-view container.
+    writeFreshLock(home, "agntux-teams");
+    mkdirSync(join(home, "agntux", "leader-views", "all-eng", "entities", "people"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "leader-views", "all-eng", "entities", "people", "alice.md"),
+      ),
+      home,
+    );
+    expect(r.code).toBe(2);
+  });
+
+  it("refuses agntux-teams write to a malformed team-slug path", () => {
+    // The slug regex rejects empty / uppercase / underscore-bearing slugs;
+    // a malformed slug must fall through to the personal-only lane check
+    // and reject as out-of-lane.
+    writeFreshLock(home, "agntux-teams");
+    mkdirSync(join(home, "agntux", "teams", "_Bad_Slug_", "entities", "people"), {
+      recursive: true,
+    });
+    const r = runHook(
+      ctxWrite(
+        join(home, "agntux", "teams", "_Bad_Slug_", "entities", "people", "alice.md"),
+      ),
       home,
     );
     expect(r.code).toBe(2);

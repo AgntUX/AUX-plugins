@@ -26,34 +26,56 @@ const SCHEMA_DIR = AGNTUX_ROOT ? join(AGNTUX_ROOT, "data", "schema") : null;
 const LOCK_PATH = SCHEMA_DIR ? join(SCHEMA_DIR, "schema.lock.json") : null;
 
 const CACHE_TTL_MS = 2_000;
-let cached = null; // { lock, mtime, readAt }
+// Per-path cache: the team-aware extension (P7) needs to read multiple lock
+// files in one process lifetime (personal + N teams). Keyed by lock path so
+// adjacent team-scope writes don't thrash the cache.
+const cacheByPath = new Map(); // path -> { lock, readAt }
 
 /**
- * Read schema.lock.json with a short TTL cache.
+ * Read the personal schema.lock.json with a short TTL cache.
  * Returns null when the lock is missing (validator falls back to "no schema yet" — open).
  * Throws when the lock exists but is malformed (validator must block until the architect fixes it).
  */
 export function readSchemaLock() {
-  if (!LOCK_PATH || !existsSync(LOCK_PATH)) {
-    cached = null;
+  return readSchemaLockAt(LOCK_PATH);
+}
+
+/**
+ * Read a schema.lock.json at an arbitrary path. Used by the team-aware
+ * validators (P7) where the lock for a write at
+ * <root>/teams/{slug}/entities/... lives at
+ * <root>/teams/{slug}/data/schema/schema.lock.json.
+ *
+ * Returns null when the lock is missing (pre-bootstrap pass-through).
+ * Throws when the lock exists but is malformed.
+ */
+export function readSchemaLockAt(lockPath) {
+  // The early-null branch is the leader-view pass-through path: scope.mjs
+  // returns no schema dir for leader-view writes (P7), so callers pass
+  // null here. Bail before touching the cache so the null key never
+  // pollutes the map.
+  if (!lockPath) return null;
+  if (!existsSync(lockPath)) {
+    cacheByPath.delete(lockPath);
     return null;
   }
 
   const now = Date.now();
-  if (cached && now - cached.readAt < CACHE_TTL_MS) {
-    return cached.lock;
+  const hit = cacheByPath.get(lockPath);
+  if (hit && now - hit.readAt < CACHE_TTL_MS) {
+    return hit.lock;
   }
 
-  const raw = readFileSync(LOCK_PATH, "utf8");
+  const raw = readFileSync(lockPath, "utf8");
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    throw new Error(`schema.lock.json is not valid JSON: ${e.message}`);
+    throw new Error(`${lockPath} is not valid JSON: ${e.message}`);
   }
 
   validateLockShape(parsed);
-  cached = { lock: parsed, readAt: now };
+  cacheByPath.set(lockPath, { lock: parsed, readAt: now });
   return parsed;
 }
 
@@ -161,7 +183,7 @@ export function checkActionClassAllowed(lock, pluginSlug, actionClass) {
  * Test-only: clear the cache so unit tests can simulate consecutive writes.
  */
 export function _resetSchemaLockCache() {
-  cached = null;
+  cacheByPath.clear();
 }
 
 export const SCHEMA_LOCK_PATH = LOCK_PATH;
