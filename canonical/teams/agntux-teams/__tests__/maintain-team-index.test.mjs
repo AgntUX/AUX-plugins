@@ -244,6 +244,8 @@ describe("maintain-team-index hook", () => {
           "view_id: uuid-view-eng",
           `schema_version: "1.0.0"`,
           "status: open",
+          "triggered_by_rule: unhappy-high-revenue",
+          "trigger_inputs: customer-success:8f4b2c1d3e5a7b9c",
           "triggered_by_rule_hash: ruleabcd12345678",
           "created_at: 2026-05-12T14:30:00Z",
           "---",
@@ -257,6 +259,154 @@ describe("maintain-team-index hook", () => {
       const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
       expect(idxRaw).toMatch(/scope: "view-actions"/);
       expect(idxRaw).toMatch(/view_slug: "all-engineering"/);
+    });
+  });
+
+  describe("rebuildActionsIndex with triggered_by_rule_hash_index (leader-view)", () => {
+    function writeViewAction(viewSlug, id, options = {}) {
+      const viewActions = join(root, "leader-views", viewSlug, "actions");
+      const path = join(viewActions, `${id}.md`);
+      const lines = [
+        "---",
+        `view_slug: ${viewSlug}`,
+        "view_id: uuid-view-eng",
+        `schema_version: "1.0.0"`,
+        options.status !== undefined ? `status: ${options.status}` : "status: open",
+        `created_at: ${options.created_at ?? "2026-05-12T14:30:00Z"}`,
+      ];
+      if (options.triggered_by_rule !== undefined) {
+        lines.push(`triggered_by_rule: ${options.triggered_by_rule}`);
+      }
+      if (options.trigger_inputs !== undefined) {
+        lines.push(`trigger_inputs: ${JSON.stringify(options.trigger_inputs)}`);
+      }
+      if (options.triggered_by_rule_hash !== undefined) {
+        lines.push(
+          `triggered_by_rule_hash: ${JSON.stringify(options.triggered_by_rule_hash)}`,
+        );
+      }
+      lines.push("---");
+      lines.push("");
+      lines.push("## Why this matters");
+      lines.push(options.body ?? `Body for ${id}.`);
+      lines.push("");
+      writeFileSync(path, lines.join("\n"));
+      return path;
+    }
+
+    it("emits a triggered_by_rule_hash_index map (NOT trigger_key_index) for view actions", () => {
+      writeViewAction("all-engineering", "2026-05-12-acme-churn", {
+        triggered_by_rule: "unhappy-high-revenue",
+        trigger_inputs: "customer-success:8f4b2c1d3e5a7b9c",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60001",
+      });
+      writeViewAction("all-engineering", "2026-05-12-kudos", {
+        triggered_by_rule: "sprint-kudos",
+        trigger_inputs: "infrastructure:2026-W19",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60002",
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      expect(idxRaw).toMatch(/triggered_by_rule_hash_index:/);
+      expect(idxRaw).not.toMatch(/trigger_key_index:/);
+      expect(idxRaw).toMatch(/"rulea1b2c3d4e5f60001"/);
+      expect(idxRaw).toMatch(/"rulea1b2c3d4e5f60002"/);
+      expect(idxRaw).toMatch(/2026-05-12-acme-churn\.md/);
+      expect(idxRaw).toMatch(/2026-05-12-kudos\.md/);
+    });
+
+    it("recomputes triggered_by_rule_hash from inputs when frontmatter omits the hash (fallback)", () => {
+      // No hash on the file — exercises the resolveRuleHashInputs +
+      // computeRuleHash fallback chain.
+      writeViewAction("all-engineering", "2026-05-12-fallback", {
+        triggered_by_rule: "unhappy-high-revenue",
+        trigger_inputs: "customer-success:8f4b2c1d3e5a7b9c",
+        // intentionally no triggered_by_rule_hash
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      const ruleSection = idxRaw.split("triggered_by_rule_hash_index:")[1];
+      expect(ruleSection).toMatch(/"[0-9a-f]{16}"/);
+      expect(ruleSection).toMatch(/2026-05-12-fallback\.md/);
+    });
+
+    it("excludes status: resolved rows from triggered_by_rule_hash_index", () => {
+      // P7: resolved leader-view actions should not re-fire on the next cycle.
+      writeViewAction("all-engineering", "2026-05-12-active", {
+        triggered_by_rule: "rule-a",
+        trigger_inputs: "team:e1",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60001",
+        status: "open",
+      });
+      writeViewAction("all-engineering", "2026-05-12-resolved", {
+        triggered_by_rule: "rule-b",
+        trigger_inputs: "team:e2",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60002",
+        status: "resolved",
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      const ruleSection = idxRaw.split("triggered_by_rule_hash_index:")[1];
+      expect(ruleSection).toMatch(/2026-05-12-active\.md/);
+      expect(ruleSection).not.toMatch(/2026-05-12-resolved\.md/);
+    });
+
+    it("excludes status: superseded rows from triggered_by_rule_hash_index", () => {
+      writeViewAction("all-engineering", "2026-05-12-canonical", {
+        triggered_by_rule: "rule-a",
+        trigger_inputs: "team:e1",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60001",
+        status: "open",
+      });
+      writeViewAction("all-engineering", "2026-05-12-dup", {
+        triggered_by_rule: "rule-a",
+        trigger_inputs: "team:e1",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60001",
+        status: "superseded",
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      const ruleSection = idxRaw.split("triggered_by_rule_hash_index:")[1];
+      expect(ruleSection).toMatch(/2026-05-12-canonical\.md/);
+      expect(ruleSection).not.toMatch(/2026-05-12-dup\.md/);
+    });
+
+    it("groups files that share the same triggered_by_rule_hash (concurrent-author race)", () => {
+      writeViewAction("all-engineering", "2026-05-12-a", {
+        triggered_by_rule: "rule-a",
+        trigger_inputs: "team:e1",
+        triggered_by_rule_hash: "ruleconcurrentdup1",
+      });
+      writeViewAction("all-engineering", "2026-05-12-a-2", {
+        triggered_by_rule: "rule-a",
+        trigger_inputs: "team:e1",
+        triggered_by_rule_hash: "ruleconcurrentdup1",
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      const ruleSection = idxRaw.split("triggered_by_rule_hash_index:")[1];
+      expect(ruleSection).toMatch(/2026-05-12-a\.md/);
+      expect(ruleSection).toMatch(/2026-05-12-a-2\.md/);
+    });
+
+    it("emits @rule sigil on view-action lines (not @reason)", () => {
+      writeViewAction("all-engineering", "2026-05-12-x", {
+        triggered_by_rule: "unhappy-high-revenue",
+        trigger_inputs: "customer-success:8f4b2c1d3e5a7b9c",
+        triggered_by_rule_hash: "rulea1b2c3d4e5f60001",
+      });
+      const viewActions = join(root, "leader-views", "all-engineering", "actions");
+      rebuildActionsIndex(viewActions, "view", "all-engineering");
+      const idxRaw = readFileSync(join(viewActions, "_index.md"), "utf8");
+      expect(idxRaw).toMatch(/@rule:unhappy-high-revenue/);
+      expect(idxRaw).toMatch(/@rule_hash:rulea1b2c3d4e5f60001/);
+      expect(idxRaw).not.toMatch(/@reason:/);
+      expect(idxRaw).not.toMatch(/@trigger:/);
     });
   });
 

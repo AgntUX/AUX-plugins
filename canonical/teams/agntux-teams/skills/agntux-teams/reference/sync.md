@@ -60,33 +60,52 @@ the user-facing knob. Never narrate the dispatch logic to the user.
 
 ---
 
-## Step 1 — De-conflict pass (conflicted-copy siblings + trigger_key duplicates)
+## Step 1 — De-conflict pass (conflicted-copy siblings + trigger_key / rule_hash duplicates)
 
-> Per P9: this step merges TWO classes of duplicate. (a) Sibling files
+> Per P9: this step merges THREE classes of duplicate. (a) Sibling files
 > matching the conflicted-copy naming convention from P5; (b) Distinct
-> files under `actions/` that share the same `trigger_key`.
+> files under team `actions/` that share the same `trigger_key`; (c) Distinct
+> files under leader-view `actions/` that share the same
+> `triggered_by_rule_hash` (P7 — applies only when the current queue entry
+> is a leader-view).
 
-For the team currently being processed:
+For the team **or leader-view** currently being processed:
 
-1. **Acquire the team's `.lock`** (Step 5 covers the lock protocol; the
-   acquire happens here at step 1's start). If the lock is already held
-   and not stale, **exit this team's processing cleanly** and continue
-   with the next team in the queue. Do not block.
+1. **Acquire the queue entry's `.lock`** (Step 5 covers the lock
+   protocol; the acquire happens here at step 1's start). Teams hold
+   `<root>/teams/{slug}/.lock`; leader-views hold
+   `<root>/leader-views/{slug}/.lock`. If the lock is already held and
+   not stale, **exit this entry's processing cleanly** and continue
+   with the next entry in the queue. Do not block.
 
-2. **Walk `<root>/teams/{team-slug}/` recursively** for two duplicate
-   classes:
+2. **Walk the queue entry's data root recursively** for the
+   applicable duplicate classes. Teams check classes (a) + (b);
+   leader-views check classes (a) + (c).
 
    **(a) Conflicted-copy siblings.** Look for filename pairs matching
    the canonical conflicted-copy pattern (P5 picks the exact pattern;
    typical shape is `(<name>'s conflicted copy <YYYY-MM-DD>).md` next
    to the original `.md`). The detection is naming-agnostic — just
-   look for "(…conflicted copy…)" siblings.
+   look for "(…conflicted copy…)" siblings. Applies under both
+   `<root>/teams/{slug}/` and `<root>/leader-views/{slug}/`.
 
-   **(b) trigger_key duplicates.** Read the team's
+   **(b) trigger_key duplicates (team entries only).** Read the team's
    `<root>/teams/{team-slug}/actions/_index.md`. Walk its
    `trigger_key_index:` frontmatter map. Any key whose value is a list
    of >1 file is a trigger_key duplicate group (created by a concurrent
    author race per P9 step 3.6).
+
+   **(c) triggered_by_rule_hash duplicates (leader-view entries only).**
+   Read the view's `<root>/leader-views/{view-slug}/actions/_index.md`.
+   Walk its `triggered_by_rule_hash_index:` frontmatter map. Any key
+   whose value is a list of >1 file is a rule-hash duplicate group
+   (created by a concurrent author race when two leader-view owners'
+   schedulers both see the same rule fire as un-authored — see Step 3b
+   §7). The merge protocol below is identical to (b); replace
+   `trigger_key` with `triggered_by_rule_hash` and `team-config`
+   schema with the leader-view's read-only rule semantics (no schema
+   lock — the body is LLM-authored prose under the validator hook's
+   hash check).
 
 3. **For each duplicate set** (from class (a) or class (b)):
    - Read all siblings + the original (or all members of the
@@ -285,44 +304,150 @@ handling needed at write time.
 
 Run **only when the current queue entry is a leader-view** (not a team).
 
+The model is **rule-driven synthesis, not pointers**: every leader-view
+action is a fully-authored, content-rich item that the leader can act
+on without opening any source file. Pointer-shape thin references are
+disallowed (see P7 §"Leader-view content rules").
+
 For `<root>/leader-views/{view-slug}/`:
 
 1. Read `view-config.md` — both the frontmatter (`subscribed_teams:`)
    and the body (plain-English **alerting rules** + **standing
    questions** the leader authored at onboarding; see P7's
    "Leader-view content rules" section for the file shape).
+
 2. Read the subscribed teams' recent actions + entities (already
-   updated by step 2's lift pass for those teams' members — leader-view
-   pass runs after team passes complete in the same dispatch).
-3. **For each rule in the body:**
-   - LLM evaluates the rule against the read data.
-   - For each matching case, compute the rule's trigger inputs (the
-     rule slug + the natural keys of the triggering data). The
-     validator hook computes `triggered_by_rule_hash` deterministically
-     at write time per P7; the LLM never hashes.
-   - Look up existing actions by `triggered_by_rule_hash` via the
-     view's `actions/_index.md`.
-   - If found and the trigger is still active → re-author the action
-     body in place with current data (Write/Edit).
-   - If found and the trigger has resolved → mark the action
-     `status: resolved`.
-   - If not found and the trigger is active → create a new
-     **fully-authored, content-rich** leader action under
-     `<root>/leader-views/{view-slug}/actions/`. The body must be
-     self-contained — the leader can act without opening any source
-     files. Frontmatter carries `view_slug`, `view_id`,
-     `source_team_refs[]` (the team actions/entities that triggered
-     the rule), and `triggered_by_rule_hash`. **No "pointer-shape"
-     thin references** — every leader action stands on its own.
-   - If not found and trigger inactive → no-op.
-4. **For each "Standing question" in the body:**
+   updated by step 2's lift pass for those teams' members — the
+   leader-view pass runs after team passes complete in the same
+   dispatch).
+
+3. **For each rule in the body**:
+
+   a. **Identify the rule's stable slug.** The slug is the
+      kebab-cased version of the rule's `## Rule: <heading>` heading
+      from `view-config.md`. Apply the canonicalization in step 3b.h
+      below verbatim — two cycles must produce the same slug.
+      Renaming the heading is a real semantic change (it changes the
+      hash, which is the point).
+
+   b. **Evaluate the rule against the read data.** For each matching
+      case, identify the triggering data: a team_slug plus the
+      stable natural key of the subject (`entity_id` for an entity,
+      or for an action with no single entity subject, the action's
+      `trigger_key` from frontmatter — never the filename, which can
+      shift if the action is re-authored).
+
+   c. **Compose `trigger_inputs`** as the canonical key string per
+      step 3b.h's grammar. Two cycles over the same data MUST
+      produce the same string — that's how idempotency works. The
+      skill body composes the string; the validator hook computes
+      the hash.
+
+   d. **Look up existing actions by `triggered_by_rule_hash`** via
+      the view's `actions/_index.md`'s
+      `triggered_by_rule_hash_index:` frontmatter map (maintained by
+      the `maintain-team-index` PostToolUse hook on every write
+      under `<root>/leader-views/{view-slug}/actions/`). For the
+      local lookup you (the LLM) can front-compute the hash with
+      the same formula — but **the source of truth for written
+      values is the hook, not your local compute**.
+
+   e. **Branch per match state**:
+
+      | State | Action |
+      |---|---|
+      | EXISTING + trigger still active | Re-author the body in place with current data (Write/Edit). `last_authored_at` bumps; the hash stays unchanged because the inputs are unchanged. |
+      | EXISTING + trigger resolved | Mark the action `status: resolved` (a tiny Write). The validator hook short-circuits the hash check on `status: resolved` so this flip never blocks. |
+      | EXISTING + status was `done` or `dismissed` | No-op. Don't re-open a closed item. |
+      | NOT EXISTING + trigger active | **Author full body** (expensive LLM call). Write a new file at `<root>/leader-views/{view-slug}/actions/{YYYY-MM-DD}-{slug}.md` with the full P7 leader-action frontmatter (see below). Leave `triggered_by_rule_hash: ""` blank — the validator hook computes it. |
+      | NOT EXISTING + trigger inactive | No-op. |
+
+   f. **Required frontmatter for a new leader-view action item** (P7):
+
+      ```yaml
+      view_slug: <view-slug>
+      view_id: <uuid>
+      schema_version: "1.0.0"
+      triggered_by_rule: <rule-slug>            # the rule's stable slug (kebab from view-config.md heading)
+      trigger_inputs: <canonical-input-string>  # "<source-team-slug>:<entity_id-or-action-id>"
+      triggered_by_rule_hash: ""                # validator hook fills this in
+      source_team_refs:                         # which team data triggered this — fully-resolved, not opaque
+        - team_slug: <team-slug>
+          refs:
+            - kind: action                      # or 'entity'
+              path: actions/{date}-{slug}.md    # or 'entities/{subtype}/{slug}.md'
+              entity_id: <16-hex>               # required when kind=entity
+      status: open
+      created_at: <ISO-8601>
+      authored_by_user_slug: <user-slug-from-teams.json>
+      last_authored_at: <ISO-8601>
+      ```
+
+   g. **Hook protocol** (mirrors `entity_id` + `trigger_key`): the
+      `validate-leader-view-rule-hash.mjs` hook reads
+      `triggered_by_rule` and `trigger_inputs`, computes
+      `expected = sha256(triggered_by_rule + ":" + trigger_inputs).slice(0,16)`,
+      and rejects-with-runbook if the file's
+      `triggered_by_rule_hash` is missing or wrong. The runbook
+      quotes the correct value. **Re-Edit the file with that value
+      verbatim.** Never compute the hash yourself.
+
+   h. **Canonicalization grammar** (the single load-bearing
+      contract for determinism — two cycles must produce identical
+      strings for identical data, or the hash drifts and items
+      duplicate). The skill body MUST apply these rules exactly:
+
+      - **Rule slug** (`triggered_by_rule`): take the rule's
+        `## Rule: <heading>` text. Lowercase the heading. Replace
+        every run of non-`[a-z0-9]` characters with a single `-`.
+        Trim leading and trailing `-`. Result is the rule slug. The
+        same algorithm applies to `## Question: <heading>` for
+        standing-question slugs.
+
+      - **`trigger_inputs` grammar.** Pick exactly one of these
+        shapes per item:
+
+        | Shape | When | Example |
+        |---|---|---|
+        | `<team-slug>:<entity_id>` | The triggering data names a subject entity. `entity_id` is the 16-hex value from the team's entity file. | `customer-success:8f4b2c1d3e5a7b9c` |
+        | `<team-slug>:<trigger_key>` | The triggering data is a team action with no single subject entity. Use the action's frontmatter `trigger_key` (16-hex from team-action validation) — never the filename. | `infrastructure:f3a91b2c4d5e6f70` |
+        | `<period-kind>:<period-key>` | Standing-question only. Period kind is one of `weekly`, `monthly`, `quarterly`, `yearly`. Period key is ISO-week (`YYYY-Www`) for weekly, ISO-month (`YYYY-MM`) for monthly, etc. | `weekly:2026-W19` |
+
+        Strings are taken verbatim — no surrounding whitespace, no
+        re-casing. The validator hook trims surrounding whitespace
+        defensively, but two cycles authoring different
+        casing/spacing for the same data is a real divergence and
+        will hash differently.
+
+4. **For each "Standing question" in the body**:
    - Check cadence against the question's `last_run_at` timestamp
      (stored on the question file).
-   - If due, synthesize and write a single fully-authored action item.
+   - If due, synthesize and write a single fully-authored action
+     item. Frontmatter follows the same shape as a rule-fire action,
+     but `triggered_by_rule` is the standing-question's slug and
+     `trigger_inputs` is the canonical period key (e.g.,
+     `weekly:2026-W19` for a Monday-morning weekly question).
+
 5. **Cap**: 10 items per cycle (combined across rules + standing
-   questions). Excess defers.
+   questions). Excess defers to the next cycle — the trigger inputs
+   are stable, so the same items re-surface naturally.
+
 6. **No write-back to team data roots.** The leader-view pass is
    read-only on `<root>/teams/`.
+
+7. **Concurrent-author race**: two leader-view owners' scheduled
+   tasks may both see a rule fire as un-authored and both create a
+   file. Result: two files with identical `triggered_by_rule_hash`
+   and slightly different slugs. `maintain-team-index` surfaces this
+   on the next cycle by listing both filenames under the same key in
+   `triggered_by_rule_hash_index`. On the next cycle, the existence
+   check in step 3b.d sees a key with >1 file, picks the canonical
+   (alphabetically first) name, re-authors in place, and marks the
+   sibling `status: superseded` with a one-line stub pointing at the
+   canonical — same in-place supersede protocol Step 1 uses for
+   team-action `trigger_key` duplicates. Because `status: superseded`
+   rows are excluded from the index, the dedup converges in at most
+   two cycles after the race.
 
 ---
 
