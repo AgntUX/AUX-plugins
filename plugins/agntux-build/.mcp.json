@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agntux-build": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"],
+      "env": {
+        "AGNTUX_API_URL": "${AGNTUX_API_URL}"
+      }
+    }
+  }
+}

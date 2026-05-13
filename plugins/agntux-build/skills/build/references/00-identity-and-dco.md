@@ -185,3 +185,100 @@ don't agree", "stop"), thank them politely:
 
 Don't write `contributor.json`. Don't try to persuade them. Stop the
 flow.
+
+## Team-context detection (P3 / S3.3)
+
+After the DCO capture step completes (or was skipped because
+`contributor.json` already exists), check for team context. This
+step is **inert for solo users** — when `<agntux project root>/.agntux/
+teams.json` is absent, no team_context is recorded and Stage 12 takes
+the public mailto path verbatim as today.
+
+1. Read `<agntux project root>/.agntux/teams.json`.
+   - If the file is absent → solo path. **Do not write a
+     `team_context` field anywhere.** Continue to Stage 1.
+   - If the file is present and `memberships` is `[]` (rare; user is
+     in zero teams) → solo path. Same as absent.
+   - If the file is present and `memberships` is non-empty → team
+     path. Continue below.
+
+2. Read the session-scoped state at
+   `<agntux project root>/.agntux-build/sessions/{session-id}.json`.
+   If `team_context` is already pinned for this session (a previous
+   turn made the selection), skip the prompt and use the stored
+   selection — never re-ask within the same build session.
+
+3. **Single-team case:** if `memberships.length === 1`, offer the
+   single team explicitly and let the user opt out:
+
+   > I see you're on the **{display_name}** team for **{org_slug}**.
+   > Should this plugin be published to your team's private
+   > marketplace, or to the public AgntUX marketplace?
+   >
+   > - Type **team** to publish to {display_name}.
+   > - Type **public** to submit as an open-source contribution
+   >   (the standard email flow).
+
+   Accept exactly: `team`, `t`, `private` → team path. Anything else
+   that includes `public`, `p`, `open` → public path. Ambiguous input
+   → re-ask once.
+
+4. **Multi-team case:** if `memberships.length > 1`, list the teams
+   the user is on and let them pick one or opt out:
+
+   > You're a member of these teams under **{org_slug}**:
+   >
+   > 1. {team-A display_name} — {team-A team_slug}
+   > 2. {team-B display_name} — {team-B team_slug}
+   > …
+   > 0. Submit publicly (open source)
+   >
+   > Which is this plugin for? Reply with a number or the team's
+   > slug.
+
+   Numbers and slug matches both work. Selection of `0` / `public`
+   → public path. Invalid input → re-ask once.
+
+5. **Persist** the selection to the session JSON at
+   `<agntux project root>/.agntux-build/sessions/{session-id}.json`:
+
+   - **Public path (solo or opt-out):** do not write `team_context`.
+     The session JSON's `team_context` field remains absent — Stage
+     12 will read its absence as "take the mailto path".
+   - **Team path:** write
+     ```json
+     {
+       "team_context": {
+         "team_slug": "{selected-team-slug}",
+         "org_slug":  "{org_slug-from-teams.json}",
+         "team_display_name": "{selected-team-display-name}",
+         "selected_at": "{current-iso-timestamp}"
+       }
+     }
+     ```
+     Use `node:fs/promises` `writeFile` with `mode: 0o600`. **Do not
+     duplicate this into `.agntux-build/contributor.json`** — the
+     contributor file is cross-session (carries the user's DCO
+     agreement) and must not gain session-scoped state.
+
+6. **Brief acknowledgement** on the team path:
+
+   > Got it — this build is for the **{team_display_name}** team.
+   > When it's ready, I'll submit it to your team's private
+   > marketplace instead of the public one. Let's build.
+
+   On the public path, no acknowledgement is needed — the original
+   "Now let's build something" line from the DCO save step covers it.
+
+## What this does NOT do
+
+- **Never reads `license_jwt`.** Stage 0's only signal is the
+  *structural presence* of `teams.json`. The cryptographic license
+  check lives server-side at the publish endpoint (P11). Public
+  `agntux-build` remains Apache-2.0 and unconditionally usable.
+- **Never writes `teams.json`.** That file is owned by the
+  `agntux-teams` plugin and the desktop daemon. `agntux-build`
+  is a read-only consumer.
+- **Never asks about teams when no `teams.json` exists.** The
+  prompt only fires for users who have already onboarded a team via
+  `/agntux-teams onboard:*`. Solo users see no new questions.
