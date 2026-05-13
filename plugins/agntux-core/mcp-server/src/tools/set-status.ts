@@ -1,23 +1,13 @@
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
-import { join, resolve, relative } from "node:path";
 import { setFrontmatter } from "../frontmatter.js";
-import { expectedAgntuxRoot } from "../agntux-root.js";
+import {
+  describeScope,
+  readScopeFromArgs,
+  resolveActionPath,
+  SCOPE_INPUT_SCHEMA_FRAGMENT,
+} from "./scope.js";
 
 const VALID_STATUSES = new Set(["open", "snoozed", "done", "dismissed"]);
-
-function actionsDir(): string {
-  return join(expectedAgntuxRoot(), "actions");
-}
-
-function guardPath(id: string): string {
-  const dir = actionsDir();
-  const resolved = resolve(dir, `${id}.md`);
-  const rel = relative(dir, resolved);
-  if (rel.startsWith("..") || resolve(rel) === rel) {
-    throw new Error(`Path traversal rejected: id "${id}" resolves outside <agntux project root>/actions/`);
-  }
-  return resolved;
-}
 
 // Append an `## Outcome` body section to an action item file. Read by
 // `pattern-feedback` to distinguish positive dismissals (the user
@@ -38,7 +28,7 @@ export function appendOutcomeSection(
 
 export const setStatusTool = {
   description:
-    "Set the status of an action item (open, snoozed, done, or dismissed). Optionally captures user intent via `outcome` — `completed-externally`, `noise`, `irrelevant`, or any free-form string — appended as an `## Outcome` body section. pattern-feedback reads this to distinguish positive dismissals from negative.",
+    "Set the status of an action item (open, snoozed, done, or dismissed). Optionally captures user intent via `outcome` — `completed-externally`, `noise`, `irrelevant`, or any free-form string — appended as an `## Outcome` body section. pattern-feedback reads this to distinguish positive dismissals from negative. Defaults to the personal `<root>/actions/` scope; pass `team_slug` or `view_slug` to mutate a team- or leader-view-scoped item instead (team mode).",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -61,6 +51,7 @@ export const setStatusTool = {
         type: "string",
         description: "Optional free-form note appended to the `## Outcome` body section.",
       },
+      ...SCOPE_INPUT_SCHEMA_FRAGMENT,
     },
     required: ["id", "status"],
   },
@@ -75,7 +66,8 @@ export const setStatusTool = {
       throw new Error("snoozed_until is required when status is snoozed");
     }
 
-    const filePath = guardPath(id);
+    const scope = readScopeFromArgs(args);
+    const filePath = resolveActionPath(id, scope);
     const file = readFileSync(filePath, "utf8");
 
     const patch: Record<string, unknown> = { status };
@@ -111,6 +103,13 @@ export const setStatusTool = {
     const outcomeSuffix = outcomeArg && (status === "done" || status === "dismissed")
       ? ` (outcome: ${outcomeArg})`
       : "";
-    return { content: [{ type: "text", text: `Set status of ${id} to ${status}${outcomeSuffix}.` }] };
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Set status of ${id} to ${status}${outcomeSuffix}${describeScope(scope)}.`,
+        },
+      ],
+    };
   },
 };

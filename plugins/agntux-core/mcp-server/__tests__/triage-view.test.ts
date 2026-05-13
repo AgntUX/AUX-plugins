@@ -241,13 +241,16 @@ describe("handleTriageView — sort + handled cutoff + caps", () => {
     expect((payload.counts as Record<string, unknown>).truncated).toBe(true);
   });
 
-  it("clamps limit > MAX_LIMIT (50) down to 50", async () => {
+  it("ignores caller-supplied `limit` (server-side cap stays at DEFAULT_LIMIT)", async () => {
+    // Historical test expected a 50-cap clamp; the handler's `_args` has
+    // ignored caller input since 9.0.0 and the cap is fixed at
+    // DEFAULT_LIMIT (30). Updated to assert the actual contract.
     for (let i = 0; i < 60; i++) {
       writeAction(`bulk-${i}`, `id: bulk-${i}\nstatus: open\npriority: low`);
     }
     const result = await handleTriageView({ limit: 9999 });
     const payload = asPayload(result);
-    expect((payload.actions as unknown[]).length).toBe(50);
+    expect((payload.actions as unknown[]).length).toBe(30);
     expect((payload.counts as Record<string, unknown>).truncated).toBe(true);
   });
 
@@ -289,7 +292,10 @@ completed_at: ${isoMinus(1)}`,
     expect((asPayload(result).handled_recent as unknown[]).length).toBe(10);
   });
 
-  it("respects custom view_handled_days within bounds", async () => {
+  it("ignores caller-supplied `view_handled_days` (server-side cap stays at DEFAULT_HANDLED_DAYS=7)", async () => {
+    // Historical test expected a tunable window; the handler's `_args`
+    // has ignored caller input since 9.0.0 and the window is fixed at
+    // DEFAULT_HANDLED_DAYS=7. 14-day-old items always fall outside.
     writeAction(
       "fourteen-old",
       `id: fourteen-old
@@ -297,18 +303,19 @@ status: dismissed
 priority: low
 dismissed_at: ${isoMinus(14)}`,
     );
-    const within = await handleTriageView({ view_handled_days: 21 });
-    expect(
-      (asPayload(within).handled_recent as Array<Record<string, unknown>>).map(
-        (h) => h.id,
-      ),
-    ).toContain("fourteen-old");
-    const outside = await handleTriageView({ view_handled_days: 7 });
-    expect(
-      (asPayload(outside).handled_recent as Array<Record<string, unknown>>).map(
-        (h) => h.id,
-      ),
-    ).not.toContain("fourteen-old");
+    writeAction(
+      "two-day-old",
+      `id: two-day-old
+status: done
+priority: high
+completed_at: ${isoMinus(2)}`,
+    );
+    const result = await handleTriageView({ view_handled_days: 21 });
+    const handled = (
+      asPayload(result).handled_recent as Array<Record<string, unknown>>
+    ).map((h) => h.id);
+    expect(handled).toContain("two-day-old");
+    expect(handled).not.toContain("fourteen-old");
   });
 
   it("clamps view_handled_days > MAX_HANDLED_DAYS (30) down to 30", async () => {
@@ -477,6 +484,321 @@ ${lines.join("\n")}`,
     const result = await handleTriageView({});
     const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
     expect((a.suggested_actions as unknown[]).length).toBe(6);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Team-mode (P3 v2 §1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function writeTeamsJson(payload: unknown): void {
+  const dir = join(agntuxRoot, ".agntux");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "teams.json"), JSON.stringify(payload, null, 2));
+}
+
+function writeTeamAction(team_slug: string, name: string, frontmatter: string, body = ""): void {
+  const dir = join(agntuxRoot, "teams", team_slug, "actions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${name}.md`), `---\n${frontmatter}\n---\n\n${body}`);
+}
+
+function writeLeaderViewAction(view_slug: string, name: string, frontmatter: string, body = ""): void {
+  const dir = join(agntuxRoot, "leader-views", view_slug, "actions");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${name}.md`), `---\n${frontmatter}\n---\n\n${body}`);
+}
+
+describe("handleTriageView — team mode (P3 v2 §1)", () => {
+  it("solo behavior is byte-identical when teams.json is absent (regression guard)", async () => {
+    // Seeds the personal scope only; no .agntux/teams.json. The payload
+    // MUST contain exactly the keys 9.0.0 emits — no schema_version, no
+    // personal, no teams, no leader_views. If a future refactor sets one
+    // of those keys unconditionally, this test fails and the solo
+    // contract is intentionally broken.
+    writeAction(
+      "solo-1",
+      `id: solo-1\nstatus: open\npriority: medium`,
+      `## Why this matters\n\nA solo item.\n`,
+    );
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(
+      [
+        "actions",
+        "bootstrap_mode",
+        "counts",
+        "handled_recent",
+        "last_updated_at",
+      ].sort(),
+    );
+    // Defense-in-depth: each forbidden team-mode key is explicitly checked
+    // so a regression that adds the field-with-undefined-value (which
+    // Object.keys hides) still fails.
+    expect(payload.schema_version).toBeUndefined();
+    expect(payload.personal).toBeUndefined();
+    expect(payload.teams).toBeUndefined();
+    expect(payload.leader_views).toBeUndefined();
+    const actions = payload.actions as Array<Record<string, unknown>>;
+    expect(actions).toHaveLength(1);
+    // The row itself must not carry any team-aware decoration keys.
+    expect(actions[0].team_slug).toBeUndefined();
+    expect(actions[0].team_id).toBeUndefined();
+    expect(actions[0].source_team).toBeUndefined();
+    expect(actions[0].member_relevance_class).toBeUndefined();
+  });
+
+  it("solo behavior is byte-identical when teams.json is present but empty (no memberships, no leader_views)", async () => {
+    writeAction("solo-2", `id: solo-2\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    // Same byte-identical guarantee as the absent-file case — the gate
+    // is "has at least one team or leader-view", not "file exists".
+    expect(payload.schema_version).toBeUndefined();
+    expect(payload.personal).toBeUndefined();
+    expect(payload.teams).toBeUndefined();
+    expect(payload.leader_views).toBeUndefined();
+  });
+
+  it("solo behavior is byte-identical when teams.json is malformed (fails open to solo)", async () => {
+    writeAction("solo-3", `id: solo-3\nstatus: open\npriority: low`);
+    const dir = join(agntuxRoot, ".agntux");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "teams.json"), "{ not valid json at all");
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload.schema_version).toBeUndefined();
+    expect(payload.personal).toBeUndefined();
+    expect(payload.teams).toBeUndefined();
+    expect(payload.leader_views).toBeUndefined();
+  });
+
+  it("activates team mode when teams.json lists at least one membership", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamAction(
+      "platform",
+      "t-1",
+      `id: t-1
+status: open
+priority: high
+reason_class: response-needed
+team_slug: platform
+team_id: uuid-team-platform
+member_relevance_class: incidents`,
+    );
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [
+        {
+          team_slug: "platform",
+          team_id: "uuid-team-platform",
+          display_name: "Platform Team",
+        },
+      ],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+
+    expect(payload.schema_version).toBe(2);
+    const personal = payload.personal as Record<string, unknown>;
+    expect(personal).toBeDefined();
+    expect((personal.actions as Array<Record<string, unknown>>)[0].id).toBe("p-1");
+
+    const teams = payload.teams as Array<Record<string, unknown>>;
+    expect(teams).toHaveLength(1);
+    const t = teams[0];
+    expect(t.team_slug).toBe("platform");
+    expect(t.display_name).toBe("Platform Team");
+    expect(t.team_id).toBe("uuid-team-platform");
+    const teamActions = t.actions as Array<Record<string, unknown>>;
+    expect(teamActions).toHaveLength(1);
+    expect(teamActions[0].id).toBe("t-1");
+    expect(teamActions[0].team_slug).toBe("platform");
+    expect(teamActions[0].team_id).toBe("uuid-team-platform");
+    expect(teamActions[0].member_relevance_class).toBe("incidents");
+
+    // Backward-compat: top-level `actions` carries personal-only so an
+    // older bundle renders a sensible personal-only view.
+    const legacyActions = payload.actions as Array<Record<string, unknown>>;
+    expect(legacyActions.map((a) => a.id)).toEqual(["p-1"]);
+  });
+
+  it("activates team mode and surfaces leader views when teams.json lists them", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeLeaderViewAction(
+      "all-engineering",
+      "lv-1",
+      `id: lv-1
+status: open
+priority: high
+reason_class: knowledge-update`,
+    );
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [],
+      leader_views: [
+        {
+          view_slug: "all-engineering",
+          view_id: "uuid-view-eng",
+          display_name: "All Engineering",
+        },
+      ],
+    });
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload.schema_version).toBe(2);
+    const views = payload.leader_views as Array<Record<string, unknown>>;
+    expect(views).toHaveLength(1);
+    expect(views[0].view_slug).toBe("all-engineering");
+    expect(views[0].display_name).toBe("All Engineering");
+    const viewActions = views[0].actions as Array<Record<string, unknown>>;
+    expect(viewActions).toHaveLength(1);
+    expect(viewActions[0].id).toBe("lv-1");
+    // Leader-view rows are not team-scoped — `team_slug` must stay absent.
+    expect(viewActions[0].team_slug).toBeUndefined();
+  });
+
+  it("infers team_slug for team-scoped rows when frontmatter omits it", async () => {
+    writeTeamAction("platform", "infer-1", `id: infer-1\nstatus: open\npriority: low`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    const action = (teams[0].actions as Array<Record<string, unknown>>)[0];
+    // Scope-decoration backfills team_slug when frontmatter didn't carry it.
+    expect(action.team_slug).toBe("platform");
+  });
+
+  it("rejects traversal-shaped team_slug values from teams.json", async () => {
+    writeAction("solo-x", `id: solo-x\nstatus: open\npriority: low`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [
+        { team_slug: "../etc" },
+        { team_slug: "..\\Windows" },
+        { team_slug: "" },
+        { team_slug: "ok-team" },
+      ],
+      leader_views: [],
+    });
+    writeTeamAction("ok-team", "ok-1", `id: ok-1\nstatus: open\npriority: medium`);
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    expect(teams).toHaveLength(1);
+    expect(teams[0].team_slug).toBe("ok-team");
+  });
+
+  it("falls back to directory scan for leader-views not listed in teams.json", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeLeaderViewAction("offregister", "off-1", `id: off-1\nstatus: open\npriority: low`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [],
+    });
+    // No team_slug match required; we just need team-mode active so the
+    // leader-views/ scan fires. memberships: [{platform}] satisfies that.
+    writeTeamAction("platform", "ignore-me", `id: ignore-me\nstatus: open\npriority: low`);
+    const result = await handleTriageView({});
+    const views = (result.structuredContent as Record<string, unknown>).leader_views as Array<
+      Record<string, unknown>
+    >;
+    expect(views.map((v) => v.view_slug)).toContain("offregister");
+  });
+
+  it("falls back gracefully when a team's actions/ directory does not exist", async () => {
+    writeAction("p-1", `id: p-1\nstatus: open\npriority: medium`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }, { team_slug: "infra" }],
+      leader_views: [],
+    });
+    // Only platform/ has actions; infra/ doesn't exist at all.
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    const result = await handleTriageView({});
+    const teams = (result.structuredContent as Record<string, unknown>).teams as Array<
+      Record<string, unknown>
+    >;
+    // Both teams surface (so the UI can show empty sections); the missing
+    // dir scan yields zero actions rather than crashing the render.
+    expect(teams).toHaveLength(2);
+    const infra = teams.find((t) => t.team_slug === "infra")!;
+    expect(infra.actions).toEqual([]);
+  });
+
+  it("treats absent personal actions/ as empty (not an error) when team mode active", async () => {
+    rmSync(actionsDir, { recursive: true });
+    writeTeamAction("platform", "t-1", `id: t-1\nstatus: open\npriority: high`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform", display_name: "Platform" }],
+      leader_views: [],
+    });
+    const result = await handleTriageView({});
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload.error).toBeUndefined();
+    expect((payload.personal as Record<string, unknown>).actions).toEqual([]);
+    const teams = payload.teams as Array<Record<string, unknown>>;
+    expect((teams[0].actions as unknown[]).length).toBe(1);
+  });
+
+  it("still errors with actions_index_missing when personal/ is missing AND no team mode", async () => {
+    rmSync(actionsDir, { recursive: true });
+    // No teams.json at all → solo with no actions/ → existing error path.
+    const result = await handleTriageView({});
+    expect((result.structuredContent as Record<string, unknown>).error).toBe(
+      "actions_index_missing",
+    );
+  });
+
+  it("aggregates counts across personal + team + leader scopes", async () => {
+    writeAction("p-open", `id: p-open\nstatus: open\npriority: medium`);
+    writeAction("p-snz", `id: p-snz\nstatus: snoozed\npriority: low\nsnoozed_until: 2099-01-01T00:00:00Z`);
+    writeTeamAction("platform", "t-open", `id: t-open\nstatus: open\npriority: high`);
+    writeLeaderViewAction("all-eng", "lv-open", `id: lv-open\nstatus: open\npriority: low`);
+    writeTeamsJson({
+      schema_version: 1,
+      memberships: [{ team_slug: "platform" }],
+      leader_views: [{ view_slug: "all-eng" }],
+    });
+    const result = await handleTriageView({});
+    const counts = (result.structuredContent as Record<string, unknown>).counts as Record<
+      string,
+      unknown
+    >;
+    // 3 open across all scopes, 1 snoozed personal.
+    expect(counts.open).toBe(3);
+    expect(counts.snoozed).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// outputSchema covers the new team-mode keys
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("triageViewTool descriptor — outputSchema", () => {
+  it("declares team-mode keys in outputSchema", async () => {
+    const { triageViewTool } = await import("../src/tools/triage-view.js");
+    const schema = triageViewTool.outputSchema as {
+      type: string;
+      properties: Record<string, unknown>;
+    };
+    for (const key of ["schema_version", "personal", "teams", "leader_views"]) {
+      expect(schema.properties[key]).toBeDefined();
+    }
   });
 });
 

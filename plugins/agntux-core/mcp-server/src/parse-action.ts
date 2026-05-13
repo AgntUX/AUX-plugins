@@ -30,6 +30,14 @@ export interface ActionFrontmatter {
   completed_at: string | null;
   dismissed_at: string | null;
   created_at: string | null;
+  // Optional team-aware fields (P3 v2 §1). Present on team-scoped action
+  // items; absent on personal action items. Parsed best-effort: an empty
+  // string here is normalized to null so triage-view can use a uniform
+  // "is set?" check.
+  team_id: string | null;
+  team_slug: string | null;
+  source_team: string | null;
+  member_relevance_class: string | null;
 }
 
 export interface ParsedAction {
@@ -55,6 +63,10 @@ const FALLBACK_FRONTMATTER: ActionFrontmatter = {
   completed_at: null,
   dismissed_at: null,
   created_at: null,
+  team_id: null,
+  team_slug: null,
+  source_team: null,
+  member_relevance_class: null,
 };
 
 function asString(v: unknown, fallback = ""): string {
@@ -63,6 +75,16 @@ function asString(v: unknown, fallback = ""): string {
 
 function asStringOrNull(v: unknown): string | null {
   return typeof v === "string" ? v : null;
+}
+
+// Like asStringOrNull but normalizes whitespace-only strings to null so
+// callers don't have to distinguish "absent" from "blank". Used for the
+// optional team-aware fields where YAML may serialize `team_slug: ""` or
+// `team_slug: ~` interchangeably.
+function asNonEmptyStringOrNull(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function asStringArray(v: unknown): string[] {
@@ -138,6 +160,10 @@ export function parseFrontmatter(text: string): {
       completed_at: asStringOrNull(raw.completed_at),
       dismissed_at: asStringOrNull(raw.dismissed_at),
       created_at: asStringOrNull(raw.created_at),
+      team_id: asNonEmptyStringOrNull(raw.team_id),
+      team_slug: asNonEmptyStringOrNull(raw.team_slug),
+      source_team: asNonEmptyStringOrNull(raw.source_team),
+      member_relevance_class: asNonEmptyStringOrNull(raw.member_relevance_class),
     },
     body,
   };

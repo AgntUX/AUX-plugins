@@ -1,29 +1,14 @@
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
-import { join, resolve, relative } from "node:path";
 import { setFrontmatter } from "../frontmatter.js";
-import { expectedAgntuxRoot } from "../agntux-root.js";
-function actionsDir() {
-    return join(expectedAgntuxRoot(), "actions");
-}
-function guardPath(id) {
-    // Reject any id containing path separators or traversal sequences.
-    // Use resolve + relative check — not string-prefix comparison.
-    const dir = actionsDir();
-    const resolved = resolve(dir, `${id}.md`);
-    const rel = relative(dir, resolved);
-    if (rel.startsWith("..") || resolve(rel) === rel) {
-        // rel is absolute (didn't relativize) or escapes the dir.
-        throw new Error(`Path traversal rejected: id "${id}" resolves outside <agntux project root>/actions/`);
-    }
-    return resolved;
-}
+import { describeScope, readScopeFromArgs, resolveActionPath, SCOPE_INPUT_SCHEMA_FRAGMENT, } from "./scope.js";
 export const snoozeTool = {
-    description: "Snooze an action item until a specified date.",
+    description: "Snooze an action item until a specified date. Defaults to the personal `<root>/actions/` scope; pass `team_slug` or `view_slug` to snooze a team- or leader-view-scoped item instead (team mode).",
     inputSchema: {
         type: "object",
         properties: {
             id: { type: "string", description: "Action item ID (filename without .md)" },
             until: { type: "string", description: "ISO date or RFC 3339 timestamp" },
+            ...SCOPE_INPUT_SCHEMA_FRAGMENT,
         },
         required: ["id", "until"],
     },
@@ -34,7 +19,8 @@ export const snoozeTool = {
             throw new Error("id is required");
         if (!until)
             throw new Error("until is required");
-        const filePath = guardPath(id);
+        const scope = readScopeFromArgs(args);
+        const filePath = resolveActionPath(id, scope);
         const file = readFileSync(filePath, "utf8");
         const updated = setFrontmatter(file, {
             status: "snoozed",
@@ -45,6 +31,13 @@ export const snoozeTool = {
         const tmp = filePath + ".tmp";
         writeFileSync(tmp, updated, { mode: 0o644 });
         renameSync(tmp, filePath);
-        return { content: [{ type: "text", text: `Snoozed ${id} until ${until}.` }] };
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Snoozed ${id} until ${until}${describeScope(scope)}.`,
+                },
+            ],
+        };
     },
 };

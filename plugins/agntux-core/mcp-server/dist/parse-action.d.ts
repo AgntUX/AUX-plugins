@@ -18,6 +18,10 @@ export interface ActionFrontmatter {
     completed_at: string | null;
     dismissed_at: string | null;
     created_at: string | null;
+    team_id: string | null;
+    team_slug: string | null;
+    source_team: string | null;
+    member_relevance_class: string | null;
 }
 export interface ParsedAction {
     frontmatter: ActionFrontmatter;

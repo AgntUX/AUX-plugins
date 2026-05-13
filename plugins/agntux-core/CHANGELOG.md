@@ -6,6 +6,76 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.2.0] — 2026-05-12
+
+Team-aware additions (P3 v2 §1, sub-plan S3.2). Adds team-mode awareness to
+the public `agntux-core` plugin, gated entirely on the presence of
+`<root>/.agntux/teams.json`. Solo behavior is byte-identical to 9.1.0
+when the gate file is absent — the gate is purely additive and there is
+no license check, no nag, and no behavioral drift in the solo path.
+
+### Added
+
+- `agntux_core_triage_view`: when `<root>/.agntux/teams.json` exists and
+  carries at least one membership or leader-view, the payload gains
+  `schema_version: 2` plus three structured sections — `personal`,
+  `teams[]`, `leader_views[]` — alongside the existing top-level keys
+  (kept populated as personal-only for backward compat with older
+  bundle versions). Each section carries its own `actions[]` and
+  `handled_recent[]` arrays, independently capped at 30 / 10.
+- `agntux_core_triage_view`: action rows from a team scope are
+  decorated with optional `team_slug`, `team_id`, `source_team`, and
+  `member_relevance_class` fields read from frontmatter (or inferred
+  from the scope's parent directory). These fields are entirely
+  omitted from personal rows so the solo payload stays
+  byte-identical.
+- `agntux_core_snooze` / `agntux_core_dismiss` / `agntux_core_set_status`:
+  optional `team_slug` and `view_slug` arguments. When set, the mutator
+  routes to `<root>/teams/{team_slug}/actions/` or
+  `<root>/leader-views/{view_slug}/actions/` instead of personal.
+  Mutually exclusive. Slugs and ids are validated against strict
+  patterns before joining into the path; the resolved path is
+  re-checked against the canonical `dir + id.md` shape so any
+  traversal that slipped past the regex still rejects.
+- `agntux_core_save_triage_prefs`: new MCP tool. Writes
+  `<root>/.agntux/triage-prefs.json` (filter state — muted team /
+  view slugs). Called by the triage UI when the user toggles a team
+  filter chip; not user-facing. P9 will extend this file's shape.
+- `data/schema-template/actions/_index.md`: documents four new
+  optional action-frontmatter fields (`team_id`, `team_slug`,
+  `source_team`, `member_relevance_class`). Additive against
+  `schema_version 1.1.0`; existing validators accept them because
+  the lock declares them as optional.
+- Triage UI: when the payload carries `teams[]` or `leader_views[]`,
+  renders up to three stacked sections (My items / Team items /
+  Leader views) with mute chips above the list for each team and
+  leader view. Each team-scoped row carries a small team-name chip;
+  rows with `member_relevance_class` set get a left-edge ribbon.
+  Filter state persists to `triage-prefs.json` via the new tool.
+
+### Changed
+
+- MCP server `PLUGIN_VERSION` bumped from 9.1.0 → 9.2.0 to match the
+  plugin manifest.
+- `triage_view`: `last_updated_at` now picks the most-recent
+  `_index.md` mtime across every scope (personal + teams +
+  leader-views) when team mode is active, so the UI's "Updated
+  X ago" reflects the freshest signal in any scope. Solo behavior
+  unchanged — still reads the personal `_index.md` only.
+
+### Notes
+
+- **Solo behavior is byte-identical to 9.1.0.** With no
+  `<root>/.agntux/teams.json`, the triage_view payload,
+  mutator-tool behavior, and on-disk artifacts are exactly as they
+  were in 9.1.0. Verified by the `solo-byte-identical` regression
+  test in `mcp-server/__tests__/triage-view.test.ts`.
+- **No license gate.** The team-aware code paths in this Apache-2.0
+  plugin do not check `license_jwt`. The license gate lives in the
+  proprietary `agntux-teams` plugin's preflight and in the web-app
+  backend per P11. Users assembling a `teams.json` by hand can run the
+  team UI unconditionally.
+
 ## [9.1.0] — 2026-05-12
 
 P7 schema additions (sub-plan S3.1). Promotes three frontmatter fields to

@@ -14,9 +14,10 @@ import { snoozeTool } from "./tools/snooze.js";
 import { dismissTool } from "./tools/dismiss.js";
 import { setStatusTool } from "./tools/set-status.js";
 import { triageViewTool, handleTriageView } from "./tools/triage-view.js";
+import { triagePrefsTool } from "./tools/triage-prefs.js";
 
 const PLUGIN_NAME = "agntux-core";
-const PLUGIN_VERSION = "9.0.0";
+const PLUGIN_VERSION = "9.2.0";
 
 // MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
 // section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
@@ -44,10 +45,16 @@ const server = new Server(
 //   - agntux_core_snooze / agntux_core_dismiss / agntux_core_set_status —
 //     invoked by the triage component via useAppsClient().callTool() for
 //     inline mutations. NOT routed through the LLM, so their args are
-//     component-supplied and effectively free.
+//     component-supplied and effectively free. Team-mode (P3 v2) callers
+//     pass an optional `team_slug` or `view_slug` to route the mutation
+//     to the matching team / leader-view actions/ directory.
 //   - agntux_core_triage_view — invoked by the host's agent loop in response
 //     to `/agntux triage-digest` (or any of the routed verb phrases). Returns the
-//     structuredContent payload for ui://triage.
+//     structuredContent payload for ui://triage. Solo output is byte-identical
+//     to the prior release when `<root>/.agntux/teams.json` is absent.
+//   - agntux_core_save_triage_prefs — invoked by the triage component when
+//     the user toggles a team / leader-view filter chip; persists state to
+//     `<root>/.agntux/triage-prefs.json`. NOT user-facing.
 const TOOLS = {
   agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
   agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
@@ -58,6 +65,10 @@ const TOOLS = {
     outputSchema: triageViewTool.outputSchema,
     _meta: triageViewTool._meta,
     handler: handleTriageView,
+  },
+  agntux_core_save_triage_prefs: {
+    ...triagePrefsTool,
+    handler: triagePrefsTool.handler,
   },
 } as const;
 
