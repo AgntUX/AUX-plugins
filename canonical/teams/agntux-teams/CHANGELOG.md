@@ -6,6 +6,76 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-13
+
+P11 S7.2 — integrate claim-level license-JWT validation into the
+`agntux-teams` skill preflight. An expired, missing, or
+out-of-state JWT now causes every sub-command (sync, onboard:*,
+ask, teach, status, reshape) to no-op cleanly with a pointer to
+billing. The check is **additive** to the existing SKILL.md
+structural-shape gate and follows P11 §"Validation in agntux-teams
+preflight" — no signature verification at the LLM layer (that
+stays server-side at the sync-token mint and the
+`agntux_build_publish_to_team` endpoint, per P11's two-layer
+soft-gate/hard-gate split).
+
+The cross-plugin contract is preserved: public plugins
+(`agntux-core`, `agntux-build`, `agntux-slack`, `agntux-gmail`)
+gate on `teams.json` **file presence only** — no claim decode —
+per the P3 invariant and the master-plan "free for individuals"
+rule. A regression test in
+`__tests__/license-preflight.test.mjs` sweeps `agntux-build`'s
+`mcp-server/src/` for JWT-claim access and fails CI if any
+sibling tool accidentally adds one.
+
+### Added
+
+- `skills/agntux-teams/reference/_lib.md` — shared preflight
+  library carrying the license-JWT freshness gate. Decodes
+  `teams.json.license_jwt`, checks `exp >= now`, checks
+  `subscription_status ∈ {trialing, active, lapse_grace}`. On
+  failure: exits cleanly with the verbatim billing pointer
+  (slug-resolved variant when the JWT's `org_slug` claim is
+  readable; generic-message fallback when it isn't, so a
+  malformed `teams.json` doesn't leak the literal `{org-slug}`
+  template token to the user). On `lapse_grace`: emits a soft-
+  warning prefix carrying the `{N}-day` countdown derived from
+  `lapse_grace_ends_at` and continues. Documents the public-
+  plugin invariant + the `agntux_build_publish_to_team` opaque-
+  pass-through edge case for future maintainers.
+- `__tests__/license-preflight.test.mjs` — 58 prompt-grep
+  assertions pinning the gate's contract: `_lib.md` file shape
+  (≤500 lines, no `{{placeholder}}` survival, prose-only sibling
+  references); P11 §Validation semantics (decode, exp, status,
+  out-of-set rejection, no network calls); verbatim exit copy;
+  lapse_grace soft warning; the four P11 verification-matrix
+  scenarios (offline-24h, offline-25h, lapse_grace,
+  canceled_locked); the public-plugin invariant (agntux-core
+  source free of `license_jwt`; agntux-build's `mcp-server/src/`
+  free of any `.exp`/`.subscription_status`/`claims.*` access);
+  per-reference-body callouts at the top of every preflight
+  section, before the first numbered step.
+
+### Changed
+
+- `skills/agntux-teams/reference/sync.md`,
+  `.../onboard-team-lead.md`, `.../onboard-member.md`,
+  `.../onboard-leader.md`, `.../ask.md`, `.../teach.md`,
+  `.../status.md`, `.../reshape.md` — each gains a one-line
+  blockquote callout at the start of its preflight section
+  pointing at the `_lib.md` snippet, carrying the
+  "License freshness gate (runs first)" phrase, the billing
+  pointer at `app.agntux.ai/org/{slug}/billing`, and the
+  lapse_grace soft-warn behaviour. The callout is prose-only
+  (no markdown link) per lint pass 8's one-level-deep rule.
+- `skills/agntux-teams/reference/onboard-team-lead.md` — Step 2
+  scope-bullets at lines ~111-114 unwrapped (4 lines saved) to
+  keep the file ≤ 500 lines after the callout addition. No
+  semantic change.
+- `skills/agntux-teams/reference/onboard-leader.md` — Step 0
+  item-1 parse-args prose unwrapped (2 lines saved) for the
+  same reason. No semantic change.
+
 ## [0.4.0] — 2026-05-13
 
 P8 S5.1 — author the team-lead onboarding skill body. Replaces the

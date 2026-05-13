@@ -27,6 +27,8 @@ that unblocks `onboard:member` for everyone else on the team.
 
 ## Step 0 — Preflight (no writes)
 
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
 1. **Parse `$ARGUMENTS`.** First token is `{team-slug}`. Missing →
    "Usage: `/agntux-teams onboard:team-lead {team-slug}`" and stop.
 
@@ -106,14 +108,10 @@ exact phrasing). Update `display_name` in frontmatter. Bump
 Drawn from Step 1's answer. Pick 3–4 from this set; phrase each in the
 team-lead's vocabulary, not jargon:
 
-- "Who's the team mainly accountable to — customers, executives,
-  another team?"
-- "What kinds of decisions does this team make that the whole team
-  needs to see?"
-- "What kinds of customer or external signal does the team need to not
-  miss?"
-- "Anything chronically dropping on the floor that you want this to
-  catch?"
+- "Who's the team mainly accountable to — customers, executives, another team?"
+- "What kinds of decisions does this team make that the whole team needs to see?"
+- "What kinds of customer or external signal does the team need to not miss?"
+- "Anything chronically dropping on the floor that you want this to catch?"
 
 Persist each answer as a bullet under a `# Scope` body section in
 `team-config.md`. Stop after at most 4 follow-ups — team onboarding is

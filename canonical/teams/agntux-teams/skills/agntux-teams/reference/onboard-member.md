@@ -18,8 +18,12 @@ when an existing grant must be re-collected.
 
 The SKILL.md preflight has already resolved `<agntux project root>`,
 confirmed `teams.json` is non-empty, and verified the license JWT is
-structurally present. Run the member-specific gates below in order
-and stop the body on the first failure.
+structurally present.
+
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
+Then run the member-specific gates below in order and stop the body
+on the first failure.
 
 1. **Parse `$ARGUMENTS`.** The first whitespace-delimited token is
    `{team-slug}`. Missing or empty → emit one short

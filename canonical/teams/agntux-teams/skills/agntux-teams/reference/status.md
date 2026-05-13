@@ -8,6 +8,8 @@ state.
 The SKILL.md preflight has already verified `<agntux project root>`,
 `user.md`, non-empty `teams.json`, and the license JWT.
 
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: prefix the status report with the soft-warning, then emit the roster.
+
 ## What you read
 
 - `<root>/.agntux/teams.json` — `memberships[]` and `leader_views[]`.

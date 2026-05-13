@@ -23,7 +23,11 @@ not block other teams' cycles in the same dispatch.
 
 The SKILL.md preflight has already resolved `<agntux project root>`,
 verified `user.md`, confirmed `teams.json` is non-empty, and verified the
-license JWT is structurally present. Now do per-team dispatch:
+license JWT is structurally present.
+
+> **License freshness gate (runs first).** Run the shared `_lib.md` license-JWT freshness gate first — decode `teams.json.license_jwt`, check `exp` and `subscription_status ∈ {trialing, active, lapse_grace}`. Failure exits cleanly to `app.agntux.ai/org/{slug}/billing` (no writes; no state changes). On `lapse_grace`: soft-warn and continue.
+
+Now do per-team dispatch:
 
 1. **Read `<root>/.agntux/teams.json`.** Walk `memberships[]` (the user's
    team memberships) and `leader_views[]` (the user's leader-view
