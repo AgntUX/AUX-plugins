@@ -1,0 +1,54 @@
+tagline: "Team coordination for AgntUX. Lifts personal data into shared team views and generates team-relevant action items."
+description: |
+  agntux-teams is the proprietary plugin that turns a single-user AgntUX
+  install into a team-aware install. It writes the gate file
+  `<agntux project root>/.agntux/teams.json` that the public agntux-core /
+  agntux-build plugins read to activate their team-aware behaviour.
+
+  Skill-driven — zero MCP tools. The /agntux-teams scheduled task runs in
+  the LLM's own context, audited by two deterministic hooks. The per-team
+  scheduled-task pass de-conflicts conflicted-copy siblings and trigger_key
+  duplicates, lifts personal data to team scope, generates team-relevant
+  action items (write-1 + filter-at-render per P9), and runs leader-view
+  content rules.
+
+  Proprietary. Requires an active AgntUX Teams subscription (license JWT in
+  teams.json, refreshed by the AgntUX Teams desktop app).
+categories:
+  - meta
+  - teams
+keywords:
+  - teams
+  - coordination
+  - personalization
+  - knowledge-store
+  - leader-views
+available_on:
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "/agntux-teams"
+    purpose: "One entry point for AgntUX Teams. Sub-commands: onboard:team-lead, onboard:member, onboard:leader, ask, teach, status, reshape. Bare /agntux-teams defaults to the per-team scheduled task."
+ui_components: []
+screenshot_order:
+  - "01-status.png"
+  - "02-onboard-team-lead.png"
+  - "03-team-action-item.png"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-teams"
+  email: "support@agntux.ai"
+requires_plugins:
+  - agntux-core
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+license: "SEE LICENSE"
+visibility: "private"
+notes: |
+  This plugin is INTERNAL to AgntUX and is NOT committed to the public
+  AUX-plugins marketplace.json or aggregate-index. The web-app renderer at
+  app/lib/teams/renderer.ts reads from canonical/teams/agntux-teams/ and
+  writes a copy into each org's private marketplace repo at
+  plugins/agntux-teams/. Each org's marketplace.json installs it as a
+  relative-path source.

@@ -1,0 +1,30 @@
+{
+  "name": "@agntux/teams-mcp-server",
+  "version": "0.1.0",
+  "description": "Minimal local stdio MCP server for the agntux-teams plugin. Registers ZERO tools — per the P3 v2 no-escalation-no-tools policy, all team-coordination work runs in the /agntux-teams skill body, not in MCP tools.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --target=node18 --sourcemap --allow-overwrite --banner:js='import { createRequire as _esmCreateRequire } from \"module\"; const require = _esmCreateRequire(import.meta.url);'",
+    "check:bundle-sync": "node -e \"process.exit(0)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
