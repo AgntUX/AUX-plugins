@@ -1,6 +1,6 @@
 {
   "name": "agntux-teams",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Team coordination for AgntUX. Designs team data, lifts personal data into shared team views, and generates team-relevant action items via a per-team scheduled task.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "SEE LICENSE",
