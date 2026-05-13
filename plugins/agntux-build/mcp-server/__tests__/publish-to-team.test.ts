@@ -4,8 +4,6 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildManifest,
-  decodeLicenseClaims,
-  preflightLicenseJwt,
   publishToTeam,
   readLicenseJwt,
   walkPluginDir,
@@ -204,90 +202,12 @@ describe("readLicenseJwt", () => {
   });
 });
 
-describe("decodeLicenseClaims", () => {
-  it("decodes a well-formed JWT payload", () => {
-    const jwt = makeJwt(validClaims());
-    const claims = decodeLicenseClaims(jwt);
-    expect(claims).not.toBeNull();
-    expect(claims!.tier).toBe("team");
-    expect(claims!.org_slug).toBe("acme");
-  });
-
-  it("returns null on a malformed JWT (wrong segment count)", () => {
-    expect(decodeLicenseClaims("not.a.valid.jwt")).toBeNull();
-    expect(decodeLicenseClaims("only-one-segment")).toBeNull();
-  });
-
-  it("returns null when the payload is not JSON", () => {
-    const header = "abc";
-    const bad = Buffer.from("not-json", "utf8")
-      .toString("base64")
-      .replace(/=+$/, "");
-    expect(decodeLicenseClaims(`${header}.${bad}.sig`)).toBeNull();
-  });
-});
-
-describe("preflightLicenseJwt", () => {
-  const input = { org_slug: "acme", team_slug: "platform" };
-
-  it("returns null for a valid trialing/active/lapse_grace JWT", () => {
-    for (const status of ["trialing", "active", "lapse_grace"]) {
-      const jwt = makeJwt(validClaims({ subscription_status: status }));
-      expect(preflightLicenseJwt(jwt, input)).toBeNull();
-    }
-  });
-
-  it("returns an auth error when the JWT is expired", () => {
-    const jwt = makeJwt(validClaims({ exp: YESTERDAY_S }));
-    const err = preflightLicenseJwt(jwt, input);
-    expect(err).not.toBeNull();
-    expect(err!.reason).toBe("auth");
-    expect(err!.message).toMatch(/expired/);
-  });
-
-  it("returns an auth error when the JWT is malformed", () => {
-    const err = preflightLicenseJwt("not.a.valid.jwt.string", input);
-    expect(err).not.toBeNull();
-    expect(err!.reason).toBe("auth");
-  });
-
-  it("rejects subscription_status that isn't trialing/active/lapse_grace", () => {
-    for (const status of ["canceled_locked", "past_due", "canceled", "incomplete"]) {
-      const jwt = makeJwt(validClaims({ subscription_status: status }));
-      const err = preflightLicenseJwt(jwt, input);
-      expect(err).not.toBeNull();
-      expect(err!.reason).toBe("auth");
-      expect(err!.message).toMatch(/subscription required/);
-    }
-  });
-
-  it("rejects when org_slug doesn't match the requested org", () => {
-    const jwt = makeJwt(validClaims({ org_slug: "other" }));
-    const err = preflightLicenseJwt(jwt, input);
-    expect(err).not.toBeNull();
-    expect(err!.message).toMatch(/authorizes org/);
-  });
-
-  it("rejects when team_slug isn't in valid_for_team_slugs", () => {
-    const jwt = makeJwt(validClaims({ valid_for_team_slugs: ["other"] }));
-    const err = preflightLicenseJwt(jwt, input);
-    expect(err).not.toBeNull();
-    expect(err!.message).toMatch(/grant publish to team/);
-  });
-
-  it("rejects when tier isn't 'team'", () => {
-    const jwt = makeJwt(validClaims({ tier: "pro" }));
-    const err = preflightLicenseJwt(jwt, input);
-    expect(err).not.toBeNull();
-    expect(err!.message).toMatch(/team-tier/);
-  });
-
-  it("uses the injected nowSeconds for expiry math (test determinism)", () => {
-    const jwt = makeJwt(validClaims({ exp: 100 }));
-    expect(preflightLicenseJwt(jwt, input, 50)).toBeNull();
-    expect(preflightLicenseJwt(jwt, input, 200)).not.toBeNull();
-  });
-});
+// Note: `decodeLicenseClaims` and `preflightLicenseJwt` were removed when
+// the public-plugin invariant was restored — agntux-build keeps the
+// `license_jwt` opaque and lets the agntux-teams skill body run the
+// freshness gate (soft-gate) while the backend runs Ed25519 verify
+// (hard-gate). See `canonical/teams/agntux-teams/__tests__/license-preflight.test.mjs`
+// for the regression sweep that pins this invariant.
 
 describe("publishToTeam", () => {
   let root: string;
@@ -348,12 +268,25 @@ describe("publishToTeam", () => {
     }
   });
 
-  it("returns reason='auth' WITHOUT a network call when license_jwt is expired", async () => {
+  it("forwards an expired-JWT rejection from the backend (hard-gate owns freshness)", async () => {
+    // Under the opaque-Bearer invariant, agntux-build does NOT decode the
+    // JWT — an expired token still goes out on the wire and the backend's
+    // Ed25519 verify returns the rejection. The agntux-teams skill's
+    // `_lib.md` preflight is the soft-gate that prevents the user from
+    // ever reaching this code path with a stale JWT.
     seedTeamsJson(root, {
       license_jwt: makeJwt(validClaims({ exp: YESTERDAY_S })),
       memberships: [{ team_slug: "platform", org_slug: "acme" }],
     });
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({
+        ok: false,
+        reason: "auth",
+        error: "license JWT is expired",
+      }),
+    });
     try {
       const result = await publishToTeam(validInput(root, dir), {
         fetchImpl: fetchMock as unknown as typeof fetch,
@@ -362,21 +295,29 @@ describe("publishToTeam", () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.reason).toBe("auth");
-      expect(result.error).toMatch(/subscription required/);
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.error).toMatch(/expired/);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       cleanup();
     }
   });
 
-  it("returns reason='auth' WITHOUT a network call when subscription_status is canceled_locked", async () => {
+  it("forwards a canceled-subscription rejection from the backend (hard-gate owns subscription_status)", async () => {
     seedTeamsJson(root, {
       license_jwt: makeJwt(
         validClaims({ subscription_status: "canceled_locked" })
       ),
       memberships: [{ team_slug: "platform", org_slug: "acme" }],
     });
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        ok: false,
+        reason: "auth",
+        error: "subscription canceled",
+      }),
+    });
     try {
       const result = await publishToTeam(validInput(root, dir), {
         fetchImpl: fetchMock as unknown as typeof fetch,
@@ -385,7 +326,7 @@ describe("publishToTeam", () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.reason).toBe("auth");
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       cleanup();
     }

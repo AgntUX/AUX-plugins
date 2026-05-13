@@ -68,103 +68,19 @@ type TeamsJson = {
   memberships?: Array<{ team_slug: string; org_slug?: string }>;
 };
 
-type LicenseJwtClaims = {
-  exp?: number;
-  iat?: number;
-  org_slug?: string;
-  tier?: string;
-  subscription_status?: string;
-  valid_for_team_slugs?: string[];
-};
-
-/** Subscription states under which client-side publish should attempt the
- *  POST. `canceled`, `canceled_locked`, `incomplete`, and legacy `lapsed`
- *  are rejected here so the user gets an actionable error without paying
- *  a network round-trip. The server runs the same check with full crypto
- *  verification — this is fast-fail UX, not the security gate. */
-const CLIENT_ALLOWED_STATUSES: ReadonlySet<string> = new Set([
-  "trialing",
-  "active",
-  "lapse_grace",
-]);
-
-/** Decode a JWT payload without signature verification — the client side
- *  of an MCP tool has no KMS access and cannot crypto-verify. The server
- *  is the security boundary; this decode is purely a UX fast-fail so we
- *  don't make the user wait on a network round-trip when the cached JWT
- *  is clearly expired or shaped for a different audience. */
-export function decodeLicenseClaims(jwt: string): LicenseJwtClaims | null {
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = Buffer.from(
-      parts[1].replace(/-/g, "+").replace(/_/g, "/"),
-      "base64"
-    ).toString("utf8");
-    return JSON.parse(payload) as LicenseJwtClaims;
-  } catch {
-    return null;
-  }
-}
-
-/** Local (client-side) preflight of the cached license JWT. Returns null
- *  on success, or a PublishError on any failure. Failures here always
- *  carry `reason: "auth"` and a message pointing the user at how to
- *  recover ("subscription required" + how-to-refresh hint).
- *
- *  We deliberately do NOT verify the signature — the JWT is opaque to
- *  this tool. The backend re-runs every check with full Ed25519
- *  verification (see `verifyLicenseJwt` in app/lib/license/jwt.ts). */
-export function preflightLicenseJwt(
-  jwt: string,
-  input: { org_slug: string; team_slug: string },
-  nowSeconds: number = Math.floor(Date.now() / 1000)
-): PublishError | null {
-  const claims = decodeLicenseClaims(jwt);
-  if (!claims) {
-    return new PublishError(
-      "auth",
-      "subscription required — license JWT is malformed; sign in to the AgntUX desktop app to refresh"
-    );
-  }
-  if (typeof claims.exp !== "number" || claims.exp < nowSeconds) {
-    return new PublishError(
-      "auth",
-      "subscription required — license JWT is expired; sign in to the AgntUX desktop app to refresh"
-    );
-  }
-  if (claims.tier !== "team") {
-    return new PublishError(
-      "auth",
-      "subscription required — license JWT is not a team-tier token"
-    );
-  }
-  if (
-    typeof claims.subscription_status !== "string" ||
-    !CLIENT_ALLOWED_STATUSES.has(claims.subscription_status)
-  ) {
-    return new PublishError(
-      "auth",
-      `subscription required — current state '${claims.subscription_status ?? "unknown"}' does not allow team publish; ask your admin to update billing`
-    );
-  }
-  if (claims.org_slug && claims.org_slug !== input.org_slug) {
-    return new PublishError(
-      "auth",
-      `subscription required — license JWT authorizes org '${claims.org_slug}', not '${input.org_slug}'`
-    );
-  }
-  if (
-    Array.isArray(claims.valid_for_team_slugs) &&
-    !claims.valid_for_team_slugs.includes(input.team_slug)
-  ) {
-    return new PublishError(
-      "auth",
-      `subscription required — license JWT does not grant publish to team '${input.team_slug}'`
-    );
-  }
-  return null;
-}
+// Public-plugin invariant (P3 + P11 cross-plugin contract): the
+// `agntux-build` MCP server reads `license_jwt` as an OPAQUE Bearer
+// pass-through only. No JWT decode, no claim inspection, no
+// subscription_status / exp / tier checks at the LLM layer. The
+// `agntux-teams` skill body owns the freshness gate (`_lib.md` preflight,
+// per P11 §"Validation in agntux-teams preflight") and the backend owns
+// the hard-gate Ed25519 verify at
+// `/api/teams/{org_slug}/marketplace/publish`. Any client-side claim
+// decode here would (a) re-introduce the "free for individuals" footgun
+// the cross-plugin contract exists to prevent and (b) trip the
+// regression sweep in
+// `canonical/teams/agntux-teams/__tests__/license-preflight.test.mjs`
+// ("agntux-build's mcp-server src never decodes JWT claims").
 
 const DEFAULT_API_BASE = "https://app.agntux.ai";
 const MAX_FILES = 1000;
@@ -326,14 +242,12 @@ export async function publishToTeam(
     validateInput(input);
     const licenseJwt = await readLicenseJwt(input.agntux_root);
 
-    // Client-side preflight (per P11 S7.3). Avoids a round-trip when the
-    // cached JWT is plainly unusable; the backend re-runs every check
-    // with full Ed25519 verification.
-    const preflightErr = preflightLicenseJwt(licenseJwt, {
-      org_slug: input.org_slug,
-      team_slug: input.team_slug,
-    });
-    if (preflightErr) throw preflightErr;
+    // No client-side JWT decoding — the public-plugin invariant
+    // (documented above on `TeamsJson`) keeps `license_jwt` opaque here.
+    // Stale / lapsed JWTs are caught upstream by `agntux-teams`'
+    // `_lib.md` preflight (LLM-layer soft-gate) and downstream by the
+    // backend's Ed25519 verify (hard-gate). The fast-fail UX is the
+    // skill-layer preflight, not this tool.
 
     const files = buildManifest(input.plugin_dir);
 
