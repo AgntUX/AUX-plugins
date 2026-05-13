@@ -29,13 +29,15 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, basename, sep } from "node:path";
-import { readSchemaLock } from "./lib/schema-lock.mjs";
+import { readSchemaLockAt } from "./lib/schema-lock.mjs";
 import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
 
 const AGNTUX_ROOT = resolveAgntuxRoot();
 const CONTRACTS_ROOT = AGNTUX_ROOT
   ? join(AGNTUX_ROOT, "data", "schema", "contracts")
   : null;
+const TEAMS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "teams") : null;
+const TEAM_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 function readToolContext() {
   try {
@@ -54,12 +56,44 @@ function pass() {
   process.exit(0);
 }
 
+// P7 broadens contract validation to cover team-scope contracts at
+// <root>/teams/{slug}/data/schema/contracts/*.md. Returns:
+//   { kind: "personal", lockPath } for personal-side contracts
+//   { kind: "team", slug, lockPath } for team-scoped contracts
+//   null when out of scope
 function inScope(filePath) {
-  if (typeof filePath !== "string") return false;
-  if (!CONTRACTS_ROOT) return false;
-  if (!filePath.startsWith(CONTRACTS_ROOT + sep)) return false;
-  if (!filePath.endsWith(".md")) return false;
-  return true;
+  if (typeof filePath !== "string") return null;
+  if (!AGNTUX_ROOT) return null;
+  if (!filePath.endsWith(".md")) return null;
+
+  if (CONTRACTS_ROOT && filePath.startsWith(CONTRACTS_ROOT + sep)) {
+    return {
+      kind: "personal",
+      slug: null,
+      lockPath: join(AGNTUX_ROOT, "data", "schema", "schema.lock.json"),
+    };
+  }
+
+  if (TEAMS_ROOT && filePath.startsWith(TEAMS_ROOT + sep)) {
+    const rel = filePath.slice(TEAMS_ROOT.length + 1);
+    const parts = rel.split(sep);
+    // parts: [team-slug, data, schema, contracts, {slug}.md]
+    if (
+      parts.length === 5 &&
+      TEAM_SLUG_RE.test(parts[0]) &&
+      parts[1] === "data" &&
+      parts[2] === "schema" &&
+      parts[3] === "contracts"
+    ) {
+      return {
+        kind: "team",
+        slug: parts[0],
+        lockPath: join(TEAMS_ROOT, parts[0], "data", "schema", "schema.lock.json"),
+      };
+    }
+  }
+
+  return null;
 }
 
 function readContent(ctx) {
@@ -212,7 +246,8 @@ function main() {
   if (tool !== "Write" && tool !== "Edit") pass();
 
   const filePath = ctx.tool_input?.file_path;
-  if (!inScope(filePath)) pass();
+  const scope = inScope(filePath);
+  if (!scope) pass();
 
   const content = readContent(ctx);
   if (content === null) pass();
@@ -230,9 +265,11 @@ function main() {
   // Rule 2 — every value in `## reason_class enum` MUST be in the lock.
   // Skip when the lock is unreadable / pre-bootstrap; the runtime validator
   // would surface that separately and we don't want to double-block.
+  // P7: the scope-correct lock is the personal one for personal contracts
+  // and the team's own lock for team-scoped contracts.
   let lock = null;
   try {
-    lock = readSchemaLock();
+    lock = readSchemaLockAt(scope.lockPath);
   } catch {
     // malformed lock — let validate-schema.mjs handle that diagnostic; pass here.
   }

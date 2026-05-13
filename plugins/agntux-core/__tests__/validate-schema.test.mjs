@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { computeEntityId } from "../hooks/lib/entity-id.mjs";
 
 const HOOK = new URL("../hooks/validate-schema.mjs", import.meta.url).pathname;
 
@@ -41,19 +42,30 @@ function writeLock(homeRoot, lock) {
 }
 
 function entityFrontmatter(overrides = {}) {
-  return {
+  // P7 adds entity_id, source, source_ref as required fields on every entity.
+  // The fixture auto-derives entity_id from source + source_ref via the same
+  // helper the validator uses, so test bodies that want a "good" entity get
+  // one by default and only have to override fields they intentionally
+  // mutate (e.g. a wrong entity_id for the runbook test).
+  const merged = {
     id: "alice",
     type: "entity",
     schema_version: "1.0.0",
     subtype: "person",
     aliases: ["Alice"],
     sources: { notes: "/n/alice.md" },
+    source: "agntux-notes",
+    source_ref: "/n/alice.md",
     created_at: "2026-04-29",
     updated_at: "2026-04-29",
     last_active: "2026-04-29",
     deleted_upstream: null,
     ...overrides,
   };
+  if (!("entity_id" in overrides)) {
+    merged.entity_id = computeEntityId(merged.source, merged.source_ref);
+  }
+  return merged;
 }
 
 function entityFile(fm = entityFrontmatter()) {
@@ -258,6 +270,8 @@ describe("validate-schema hook", () => {
       source: "notes",
       source_ref: "/n/acme.md",
       related_entities: ["companies/acme"],
+      // P7 §"Schema additions" — actions reference entities by entity_id.
+      entity_refs: [computeEntityId("agntux-notes", "/n/alice.md")],
       suggested_actions: [{ label: "Open", host_prompt: "ux: open it" }],
       ...overrides,
     };
@@ -365,13 +379,22 @@ describe("validate-schema hook", () => {
     expect(result.stderr).toMatch(/agntux-notes.*risk/);
   });
 
-  it("falls back to entity sources map (single key) when payload omits plugin", () => {
+  it("resolves plugin slug from entity frontmatter `source` (bare slug) when payload omits plugin", () => {
+    // P7 makes `source` a required entity field, so the validator's priority-2
+    // resolvePluginSlug path (fm.source via the sourceTokenToSlug ladder) is
+    // now the canonical resolver for entity writes when the hook event payload
+    // lacks `plugin`. The legacy priority-3 path (single-key `sources` map
+    // fallback) is preserved for unmigrated v1.0.0 files, but those writes
+    // now reject earlier on the required-fields check; the fallback only
+    // matters for hand-edited files where source/source_ref were preserved
+    // from a prior write.
     writeLock(homeRoot, VALID_LOCK);
-    // agntux-slack contract excludes `project`. Entity sources has only "slack".
     mkdirSync(join(homeRoot, "agntux", "entities", "projects"), { recursive: true });
     const fm = entityFrontmatter({
       id: "mango",
       subtype: "project",
+      source: "slack", // bare slug; sourceTokenToSlug → agntux-slack
+      source_ref: "C123",
       sources: { slack: "C123" },
     });
     const result = runHook({
@@ -694,6 +717,169 @@ describe("validate-schema hook", () => {
         new_string: "status: \"snoozed\"",
       },
       plugin: "agntux-core",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // P7 — entity_id integrity (hook-computed; LLM never invokes the hash).
+  //
+  // The validator computes the expected entity_id from (source, source_ref)
+  // and rejects writes with missing or wrong values, baking the correct
+  // value into a runbook. These tests pin that behavior.
+  // ---------------------------------------------------------------------------
+
+  it("entity_id: rejects when entity_id is missing entirely (missing-required-field path)", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter();
+    delete fm.entity_id;
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    // The missing-field check fires before the entity-id runbook for the
+    // strict "field absent" case — both surface the same fix-path to the
+    // LLM (add `entity_id: <value>`), but the missing-field error is the
+    // canonical message for an outright absence.
+    expect(result.stderr).toMatch(/missing required frontmatter field: entity_id/);
+  });
+
+  it("entity_id: rejects when entity_id is wrong, runbook quotes the correct value (LLM never hashes)", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter({ entity_id: "deadbeefdeadbeef" });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/entity_id is missing or incorrect/);
+    const expected = computeEntityId("agntux-notes", "/n/alice.md");
+    // The runbook MUST quote the expected value; the LLM copies it
+    // verbatim and never invokes a hash function itself.
+    expect(result.stderr).toContain(expected);
+    expect(result.stderr).toContain("DO NOT compute the hash yourself");
+    expect(result.stderr).toContain("Retry your blocked Edit/Write");
+  });
+
+  it("entity_id: accepts a write with the correct (source, source_ref, entity_id) trio", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    // entityFrontmatter() auto-derives entity_id from the same helper the
+    // validator uses, so the round-trip naturally passes.
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile() },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(0);
+  });
+
+  it("entity_id: changing source flips the expected entity_id (deterministic across keys)", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    // Write a file whose source/source_ref points at agntux-slack but whose
+    // entity_id was computed for the agntux-notes pair. The validator MUST
+    // reject — the deterministic hash depends on both inputs, and a
+    // mismatch would otherwise let cross-source confusion sneak in.
+    const wrongPairEntityId = computeEntityId("agntux-notes", "/n/alice.md");
+    const fm = entityFrontmatter({
+      source: "agntux-slack",
+      source_ref: "T01XYZ:U02ABC",
+      entity_id: wrongPairEntityId,
+    });
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-slack",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/entity_id is missing or incorrect/);
+    expect(result.stderr).toContain(computeEntityId("agntux-slack", "T01XYZ:U02ABC"));
+  });
+
+  it("entity_id: rejects when source is missing (missing-required-field, not entity-id runbook)", () => {
+    writeLock(homeRoot, VALID_LOCK);
+    const filePath = join(homeRoot, "agntux", "entities", "people", "alice.md");
+    const fm = entityFrontmatter();
+    delete fm.source;
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: filePath, content: entityFile(fm) },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    // Source missing surfaces before the entity-id computation — the
+    // runbook for the missing-field case tells the LLM to fix source +
+    // source_ref first, then retry (which surfaces the entity-id runbook
+    // if those values change).
+    expect(result.stderr).toMatch(/missing required frontmatter field: source/);
+  });
+
+  // -------------------------------------------------------------------------
+  // P7 — team-scoped writes pick up the team's own schema lock.
+  // -------------------------------------------------------------------------
+
+  it("team scope: validates against teams/{slug}/data/schema/schema.lock.json", () => {
+    // Personal lock declares person subtype; the team's lock declares only
+    // company. A team-path write of a person entity must reject because
+    // the team's lock — not the personal lock — is the authority.
+    writeLock(homeRoot, VALID_LOCK);
+    const teamSchemaDir = join(homeRoot, "agntux", "teams", "platform", "data", "schema");
+    mkdirSync(teamSchemaDir, { recursive: true });
+    const teamLock = JSON.parse(JSON.stringify(VALID_LOCK));
+    teamLock.entity_subtypes = ["company"]; // no `person`
+    teamLock.plugin_contracts["agntux-notes"].allowed_subtypes = ["company"];
+    writeFileSync(
+      join(teamSchemaDir, "schema.lock.json"),
+      JSON.stringify(teamLock, null, 2),
+    );
+    mkdirSync(join(homeRoot, "agntux", "teams", "platform", "entities", "people"), {
+      recursive: true,
+    });
+    const teamFilePath = join(
+      homeRoot,
+      "agntux",
+      "teams",
+      "platform",
+      "entities",
+      "people",
+      "alice.md",
+    );
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: teamFilePath, content: entityFile() },
+      plugin: "agntux-notes",
+    }, homeRoot);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toMatch(/person.*not in/);
+  });
+
+  it("team scope: pre-bootstrap (team lock absent) passes through", () => {
+    // Team data tree exists but the team's lock has not been generated yet
+    // (onboard:team-lead hasn't run). The validator must pass-through, the
+    // same way it does for pre-bootstrap personal writes.
+    writeLock(homeRoot, VALID_LOCK);
+    mkdirSync(join(homeRoot, "agntux", "teams", "platform", "entities", "people"), {
+      recursive: true,
+    });
+    const teamFilePath = join(
+      homeRoot,
+      "agntux",
+      "teams",
+      "platform",
+      "entities",
+      "people",
+      "alice.md",
+    );
+    const result = runHook({
+      tool_name: "Write",
+      tool_input: { file_path: teamFilePath, content: entityFile() },
+      plugin: "agntux-notes",
     }, homeRoot);
     expect(result.code).toBe(0);
   });

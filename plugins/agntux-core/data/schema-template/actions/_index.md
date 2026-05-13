@@ -1,6 +1,6 @@
 ---
 type: schema-actions
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 updated_at: {{generated_at}}
 ---
 
@@ -19,7 +19,8 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 - `created_at` — RFC 3339 UTC timestamp.
 - `source` — slug of the ingest plugin that wrote this item (e.g., `notes`, `slack`, `gmail`).
 - `source_ref` — opaque reference into the source system (file path, message ID, ticket key).
-- `related_entities` — array of `{subtype}/{slug}` pointers.
+- `related_entities` — array of `{subtype}/{slug}` pointers (human-readable; survives renames as long as the slug is stable).
+- `entity_refs` — array of `entity_id` values (hook-computed 16-hex-char identifiers) for the entities this action concerns. Promoted to required in `schema_version 1.1.0` (P7); supersedes `related_entities` for cross-namespace joins because `entity_id` is stable across the personal data root and every team data root that lifts the same entity.
 - `suggested_actions` — 2–4 button definitions (P3 §4.5).
 
 ## Optional frontmatter
@@ -29,6 +30,10 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 - `completed_at` — RFC 3339 (set when `status: done`).
 - `dismissed_at` — RFC 3339 (set when `status: dismissed`).
 - `reason_detail` — required when `reason_class: other`; otherwise optional ≤120 chars.
+- `team_id` — opaque team identifier (UUID) when this action belongs to a team scope. Present on items under `<root>/teams/{team-slug}/actions/`. Absent on personal items. Owned by `agntux-teams`.
+- `team_slug` — denormalized human-friendly team slug (matches the parent directory name under `<root>/teams/`). Surfaced to the triage UI for fast filter rendering without resolving `team_id`. Absent on personal items.
+- `source_team` — the team-slug whose data spawned this action, when different from `team_id`. Set by leader-view passes that synthesize cross-team items. Absent for actions authored from a single team's own data.
+- `member_relevance_class` — slug naming the team-member onboarding category this item is tagged with (P3 v2). The triage UI renders a left-edge ribbon on rows where this is set. Absent on personal items.
 
 ## `status` enum
 

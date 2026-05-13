@@ -1,7 +1,7 @@
 ---
 type: schema-subtype
 subtype: topic
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 updated_at: {{generated_at}}
 ---
 
@@ -11,7 +11,7 @@ Recurring themes, products, contracts, areas of concern. Topics are MOC-style (M
 
 ## Required frontmatter
 
-- `id`, `type: entity`, `schema_version`, `subtype: topic`, `aliases`, `sources`, `created_at`, `updated_at`, `last_active`, `deleted_upstream`.
+- `id`, `type: entity`, `schema_version`, `subtype: topic`, `aliases`, `sources`, `source`, `source_ref`, `entity_id`, `created_at`, `updated_at`, `last_active`, `deleted_upstream` (see `person.md` for shared semantics, including the hook-computed `entity_id` rule).
 
 ## Optional frontmatter
 

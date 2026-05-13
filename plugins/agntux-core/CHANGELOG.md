@@ -6,6 +6,80 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.1.0] — 2026-05-12
+
+P7 schema additions (sub-plan S3.1). Promotes three frontmatter fields to
+required on every entity file and one field on every action file at
+`schema_version 1.1.0`, all hook-enforced. The change is additive and
+self-heals via the existing PreToolUse runbook loop — no one-shot
+migration is involved, and the `agntux-teams` plugin's gate is still
+inert in the public marketplace tree, so the team-aware code paths
+remain dormant until that plugin's per-Org renderer lands.
+
+### Added
+
+- `canonical/hooks/lib/entity-id.mjs` — new helper exporting
+  `computeEntityId(source, sourceRef)` and `isWellFormedEntityId(value)`.
+  `entity_id = sha256(source + ":" + source_ref).slice(0, 16)`. A
+  byte-frozen copy lives at `plugins/agntux-core/hooks/lib/entity-id.mjs`;
+  S3.4's `canonical/teams/agntux-teams/hooks/lib/` carries the same
+  helper. A vitest pin asserts the canonical / agntux-core pair stays
+  byte-identical.
+- `plugins/agntux-core/hooks/lib/scope.mjs` — path-scope resolver that
+  classifies a write as personal / team / leader-view, plus
+  `schemaDirForScope` for the team-aware lock lookup.
+- `hooks/lib/schema-lock.mjs` — `readSchemaLockAt(lockPath)` reads any
+  scope's lock with per-path TTL caching; the legacy `readSchemaLock()`
+  remains and delegates to the personal lock path.
+- `validate-schema.mjs` — entity files now require `entity_id`, `source`,
+  and `source_ref`; action files now require `entity_refs`. The hook
+  computes the expected `entity_id` from `source` + `source_ref` and
+  emits a rejection runbook quoting the correct value when the field
+  is missing or wrong. **The LLM never computes the hash** — the
+  runbook is the only way the correct value reaches the file. Team-
+  scope writes (`<root>/teams/{slug}/entities/...` and
+  `.../actions/...`) validate against the team's own
+  `data/schema/schema.lock.json`.
+- `validate-write-lane.mjs` — when `agntux-teams` holds the active
+  ingest lock, the hook now permits writes under
+  `<root>/teams/{slug}/entities/...`, `<root>/teams/{slug}/actions/...`,
+  and `<root>/leader-views/{slug}/actions/...`. Source plugins remain
+  team-unaware: a write to those subtrees by `agntux-slack`,
+  `agntux-gmail`, or any other source plugin still rejects with the
+  team-lane runbook. Leader-views have no entities subtree (P7) — even
+  `agntux-teams` cannot write `<root>/leader-views/{slug}/entities/...`.
+- `validate-contract.mjs` — recognises team-scope contract files at
+  `<root>/teams/{slug}/data/schema/contracts/*.md` and reads the
+  scope-correct lock for the reason_class-enum membership check.
+- `lint-entity-shape.mjs` — broadened to lint team-scope entity files
+  too (the deprecated `## Recent Activity` → `## Recent signals`
+  guidance applies regardless of scope).
+- `data/schema-template/schema.md` — bumped to `schema_version 1.1.0`
+  with an additive-only versioning policy documented inline (no MAJOR
+  bumps, ever — schemas evolve via the hook+runbook self-heal loop).
+- `data/schema-template/entities/{person,company,project,topic}.md`,
+  `entities/_index.md`, `actions/_index.md` — schema_version bumped
+  to `1.1.0`; new required fields documented.
+- `__tests__/entity-id.test.mjs` — unit tests for the helper plus a
+  byte-freeze pin against the canonical copy.
+- `__tests__/validate-schema.test.mjs` — new coverage for entity_id
+  missing / wrong / correct trio, team-scope lock validation, and
+  pre-bootstrap team passthrough.
+- `__tests__/validate-write-lane.test.mjs` — new coverage for
+  agntux-teams permitted lanes, source-plugin rejection against
+  team subtrees, and the leader-views-have-no-entities invariant.
+
+### Notes
+
+- **Solo behaviour unchanged on existing 1.0.0 corpora.** Files at
+  `schema_version: "1.0.0"` are accepted as-is (contract-ahead MINOR
+  drift passes silently). The next write to any such entity surfaces
+  the runbook and the file picks up the new shape additively.
+- **No MAJOR bumps.** P7 ratifies the additive-only schema policy; the
+  authoring flow rewrites breaking proposals as additive deprecations
+  before they reach the validator. Users never have to manually run a
+  migration.
+
 ## [9.0.0] — 2026-05-08
 
 Open source. The plugin relicenses from Elastic License v2 (ELv2) to

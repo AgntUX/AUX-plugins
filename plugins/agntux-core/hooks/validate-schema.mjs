@@ -30,13 +30,12 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, basename, dirname, sep } from "node:path";
 import { parseFrontmatter } from "./lib/frontmatter.mjs";
-import { readSchemaLock, checkSubtypeAllowed, checkActionClassAllowed } from "./lib/schema-lock.mjs";
+import { readSchemaLockAt, checkSubtypeAllowed, checkActionClassAllowed } from "./lib/schema-lock.mjs";
 import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
+import { resolveScope, schemaDirForScope } from "./lib/scope.mjs";
+import { computeEntityId, isWellFormedEntityId } from "./lib/entity-id.mjs";
 
 const AGNTUX_ROOT = resolveAgntuxRoot();
-const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
-const ACTIONS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "actions") : null;
-const CONTRACTS_DIR = AGNTUX_ROOT ? join(AGNTUX_ROOT, "data", "schema", "contracts") : null;
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 const SOURCE_TO_PLUGIN_RE = /^[a-z][a-z0-9-]*$/;
@@ -59,12 +58,15 @@ function pass() {
 }
 
 function inScope(filePath) {
-  if (typeof filePath !== "string") return null;
-  if (!ENTITIES_ROOT || !ACTIONS_ROOT) return null; // no project root resolved
-  if (basename(filePath) === "_index.md") return null; // index files are hook-managed, not agent-written
-  if (filePath.startsWith(ENTITIES_ROOT + sep)) return "entity";
-  if (filePath.startsWith(ACTIONS_ROOT + sep)) return "action";
-  return null;
+  // P7: scope is now richer than entity-vs-action — a write can be against the
+  // personal root, a team root, or a leader-view root. The scope resolver
+  // returns the full structure (kind + role + container root + slug); callers
+  // map it back to the legacy "entity" / "action" string when only the role
+  // matters.
+  if (!AGNTUX_ROOT) return null;
+  const scope = resolveScope(filePath, AGNTUX_ROOT);
+  if (!scope) return null;
+  return scope;
 }
 
 function sourceTokenToSlug(token) {
@@ -121,6 +123,13 @@ function checkRequiredEntityFrontmatter(fm) {
     "updated_at",
     "last_active",
     "deleted_upstream",
+    // P7 §"Entity link" — required on all entity files (personal + team).
+    // `entity_id` is computed by this hook from (source, source_ref); the LLM
+    // never invokes a hash function. `source` + `source_ref` carry the
+    // natural key the source connector already has in context.
+    "entity_id",
+    "source",
+    "source_ref",
   ];
   for (const field of required) {
     if (!(field in fm)) return field;
@@ -142,6 +151,9 @@ function checkRequiredActionFrontmatter(fm) {
     "source_ref",
     "related_entities",
     "suggested_actions",
+    // P7 §"Schema additions" — action items reference entities via entity_id
+    // values now that personal + team copies of an entity share a stable id.
+    "entity_refs",
   ];
   for (const field of required) {
     if (!(field in fm)) return field;
@@ -205,14 +217,24 @@ function main() {
   const scope = inScope(filePath);
   if (!scope) pass();
 
-  // Read the lock once. If absent (no schema bootstrapped yet), pass through
-  // — the user is in pre-bootstrap state and the architect will set things up.
-  let lock;
+  // P7: the lock lives next to the container. For personal it's
+  // <root>/data/schema/schema.lock.json; for a team it's
+  // <root>/teams/{slug}/data/schema/schema.lock.json. Leader-view writes
+  // are validated against no lock here — the leader-view skill body is
+  // authored from team data and the team's lock already constrained the
+  // values flowing in. (When the agntux-teams plugin ships, its
+  // validate-team-schema hook owns leader-view entity_id enforcement.)
+  const schemaDir = schemaDirForScope(scope);
+  const lockPath = schemaDir ? join(schemaDir, "schema.lock.json") : null;
+  let lock = null;
   try {
-    lock = readSchemaLock();
+    lock = lockPath ? readSchemaLockAt(lockPath) : null;
   } catch (e) {
-    reject(`schema.lock.json is unreadable: ${e.message}. Run \`/ux schema review\` to regenerate.`);
+    reject(`${e.message}. Run \`/agntux schema\` to regenerate.`);
   }
+  // Pre-bootstrap (no lock for this scope) is a hard pass — same legacy
+  // semantics as before P7 for personal, plus team writes that arrive
+  // before the team's onboarding flow has populated the lock.
   if (!lock) pass();
 
   const content = readContent(ctx);
@@ -234,6 +256,9 @@ function main() {
   // Resolve plugin slug.
   const pluginSlug = resolvePluginSlug(ctx, fm);
 
+  // Per-scope contracts dir for the late-install runbook lookup.
+  const contractsDir = schemaDir ? join(schemaDir, "contracts") : null;
+
   // Late-install runbook: contract markdown sits at status: approved but
   // the lock hasn't yet registered the plugin under plugin_contracts. The
   // 2026-05-07 agntux-gmail incident hit exactly this — Mode B never ran
@@ -244,14 +269,14 @@ function main() {
   if (pluginSlug && pluginSlug !== "agntux-core") {
     const registered = lock.plugin_contracts && lock.plugin_contracts[pluginSlug];
     if (!registered) {
-      const approved = readApprovedContractFrontmatter(pluginSlug);
+      const approved = readApprovedContractFrontmatter(contractsDir, pluginSlug);
       if (approved) {
-        rejectWithMissingContractRunbook(filePath, pluginSlug, approved);
+        rejectWithMissingContractRunbook(filePath, pluginSlug, approved, scope);
       }
     }
   }
 
-  if (scope === "entity") {
+  if (scope.role === "entity") {
     const missing = checkRequiredEntityFrontmatter(fm);
     if (missing) reject(`${basename(filePath)} missing required frontmatter field: ${missing}`);
 
@@ -260,9 +285,14 @@ function main() {
     // be plural (people, companies), singular, or irregular; the schema contract
     // is the authority on subtype membership, not the directory name.
 
+    // entity_id integrity (P7): the LLM authored source + source_ref; the
+    // hook computes the expected entity_id deterministically and rejects
+    // with the entity-id runbook if the file's value is missing or wrong.
+    enforceEntityIdOrReject(filePath, fm);
+
     const check = checkSubtypeAllowed(lock, pluginSlug, fm.subtype);
     if (!check.ok) reject(check.reason);
-  } else if (scope === "action") {
+  } else if (scope.role === "action") {
     const missing = checkRequiredActionFrontmatter(fm);
     if (missing) reject(`${basename(filePath)} missing required frontmatter field: ${missing}`);
 
@@ -437,9 +467,9 @@ function rejectWithRunbook(filePath, fileVer, contractVer, pluginSlug, result) {
 // that case — the contract genuinely isn't approved yet).
 // -----------------------------------------------------------------------------
 
-function readApprovedContractFrontmatter(pluginSlug) {
-  if (!CONTRACTS_DIR) return null;
-  const contractPath = join(CONTRACTS_DIR, `${pluginSlug}.md`);
+function readApprovedContractFrontmatter(contractsDir, pluginSlug) {
+  if (!contractsDir) return null;
+  const contractPath = join(contractsDir, `${pluginSlug}.md`);
   if (!existsSync(contractPath)) return null;
   let raw;
   try {
@@ -457,9 +487,12 @@ function readApprovedContractFrontmatter(pluginSlug) {
   return fm;
 }
 
-function rejectWithMissingContractRunbook(filePath, pluginSlug, approvedFm) {
-  const contractMdRel = `data/schema/contracts/${pluginSlug}.md`;
-  const lockJsonRel = `data/schema/schema.lock.json`;
+function rejectWithMissingContractRunbook(filePath, pluginSlug, approvedFm, scope) {
+  // P7: parameterise the runbook paths for the active scope so a team-scope
+  // write surfaces the team-scope contract/lock paths, not the personal ones.
+  const scopePrefix = scope && scope.kind === "team" ? `teams/${scope.slug}/` : "";
+  const contractMdRel = `${scopePrefix}data/schema/contracts/${pluginSlug}.md`;
+  const lockJsonRel = `${scopePrefix}data/schema/schema.lock.json`;
   const nowIso = new Date().toISOString();
   const schemaVersion = approvedFm.schema_version || "1.0.0";
   const sourceIdFormat = approvedFm.source_id_format || null;
@@ -523,6 +556,75 @@ function rejectWithMissingContractRunbook(filePath, pluginSlug, approvedFm) {
   lines.push(`If you suspect the contract markdown should NOT yet be approved (e.g. the user`);
   lines.push(`hasn't reviewed the schema), stop and surface this to the user instead — do`);
   lines.push(`not auto-register an unreviewed plugin into the lock.`);
+
+  process.stderr.write(lines.join("\n") + "\n");
+  process.exit(2);
+}
+
+// -----------------------------------------------------------------------------
+// P7 — entity_id integrity (hook-computed; LLM never invokes the hash).
+//
+// The LLM authors `source` (the writing plugin's slug or `agntux-core` for
+// onboarding entities) and `source_ref` (a stable natural key from the
+// source connector). The validator computes the expected entity_id from
+// these two values via canonical/hooks/lib/entity-id.mjs and rejects when
+// the file's value is missing or wrong, baking the correct value into the
+// rejection runbook. The required-fields check above already catches the
+// case where `source` or `source_ref` is missing entirely.
+// -----------------------------------------------------------------------------
+
+function enforceEntityIdOrReject(filePath, fm) {
+  // The required-fields check upstream guarantees source/source_ref/entity_id
+  // are all present; this function only runs when they are.
+  let expected;
+  try {
+    expected = computeEntityId(String(fm.source), String(fm.source_ref));
+  } catch (e) {
+    // Defensive — required-fields check should have prevented empty values.
+    reject(`${basename(filePath)} entity_id cannot be computed: ${e.message}`);
+    return;
+  }
+
+  if (isWellFormedEntityId(fm.entity_id) && fm.entity_id === expected) return;
+
+  rejectWithEntityIdRunbook(filePath, fm, expected);
+}
+
+function rejectWithEntityIdRunbook(filePath, fm, expected) {
+  const lines = [];
+  lines.push(
+    `schema-validator: ${basename(filePath)} entity_id is missing or incorrect (expected \`${expected}\`)`,
+  );
+  lines.push("");
+  lines.push(
+    "This entity file's `entity_id` does not match the deterministic value computed",
+  );
+  lines.push("from `source` + `source_ref`. The validator computes entity_id so every");
+  lines.push("device produces the same value for the same real-world entity.");
+  lines.push("DO NOT compute the hash yourself — the formula is internal to the hook.");
+  lines.push("");
+  lines.push("Runbook (execute this Edit, then retry your blocked Write/Edit):");
+  lines.push("");
+  lines.push(`  1. Edit ${filePath}`);
+  if (typeof fm.entity_id === "string" && fm.entity_id.length > 0) {
+    lines.push(`     old_string: entity_id: ${JSON.stringify(fm.entity_id)}`);
+  } else {
+    lines.push(
+      "     Add (or correct) the frontmatter line `entity_id:` so it reads:",
+    );
+  }
+  lines.push(`     new_string: entity_id: ${JSON.stringify(expected)}`);
+  lines.push("");
+  lines.push("  2. Retry your blocked Edit/Write.");
+  lines.push("");
+  lines.push("Inputs the validator used (verify these are the natural key for this entity):");
+  lines.push(`  - source:     ${JSON.stringify(fm.source)}`);
+  lines.push(`  - source_ref: ${JSON.stringify(fm.source_ref)}`);
+  lines.push("");
+  lines.push(
+    "If `source` or `source_ref` is wrong (not the entity_id), fix those first —",
+  );
+  lines.push("the entity_id depends on them and the validator will recompute on retry.");
 
   process.stderr.write(lines.join("\n") + "\n");
   process.exit(2);

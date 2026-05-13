@@ -30,6 +30,15 @@ const AGNTUX_ROOT = resolveAgntuxRoot();
 const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
 const ACTIONS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "actions") : null;
 const LEARNINGS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "data", "learnings") : null;
+const TEAMS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "teams") : null;
+const LEADER_VIEWS_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "leader-views") : null;
+// P7 §"Per-folder write-ownership matrix" — only the agntux-teams plugin is
+// authorized to write under <root>/teams/{slug}/{entities,actions}/ and
+// <root>/leader-views/{slug}/actions/. Source plugins (agntux-slack, gmail,
+// etc.) write personal-only. The slug rule mirrors P6's
+// `(organization_id, slug)` team-slug discipline.
+const TEAMS_LANE_OWNER = "agntux-teams";
+const TEAM_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 const STALE_LOCK_MS = 60 * 60 * 1000; // 1 hour, matches Step 3's stale-lock window
 
 function readToolContext() {
@@ -92,6 +101,18 @@ function isPermittedLane(filePath, activeSlug) {
   if (name === "_index.md") return false;
   if (name === "_sources.json") return false;
 
+  // Team-scope and leader-view lanes are owned exclusively by agntux-teams
+  // (P7 §"Per-folder write-ownership matrix"). When agntux-teams is the
+  // active source, permit writes under those subtrees. When any other
+  // ingest plugin is active, those subtrees are off-limits and the hook
+  // falls through to the personal-only lanes below.
+  if (activeSlug === TEAMS_LANE_OWNER) {
+    const teamLane = inTeamLane(filePath);
+    if (teamLane) return true;
+    const viewLane = inLeaderViewLane(filePath);
+    if (viewLane) return true;
+  }
+
   // entities/{subtype}/{slug}.md
   if (
     ENTITIES_ROOT &&
@@ -118,6 +139,38 @@ function isPermittedLane(filePath, activeSlug) {
   return false;
 }
 
+// Match teams/{team-slug}/{entities|actions}/... under TEAMS_ROOT.
+// Returns the team slug on match, null otherwise.
+function inTeamLane(filePath) {
+  if (!TEAMS_ROOT) return null;
+  if (!filePath.startsWith(TEAMS_ROOT + sep)) return null;
+  if (!filePath.endsWith(".md")) return null;
+  const rel = filePath.slice(TEAMS_ROOT.length + 1);
+  const parts = rel.split(sep);
+  // parts[0] = team-slug, parts[1] = "entities"|"actions", parts[2..] = path under it
+  if (parts.length < 3) return null;
+  if (!TEAM_SLUG_RE.test(parts[0])) return null;
+  if (parts[1] === "entities" && parts.length >= 3) return parts[0];
+  if (parts[1] === "actions" && parts.length === 3) return parts[0];
+  return null;
+}
+
+// Match leader-views/{view-slug}/actions/*.md under LEADER_VIEWS_ROOT.
+// Returns the view slug on match, null otherwise. Leader-views intentionally
+// have no entities/ subtree (P7 §"Note on leader-views"); the substrate is
+// fully-authored action items synthesized from subscribed teams' data.
+function inLeaderViewLane(filePath) {
+  if (!LEADER_VIEWS_ROOT) return null;
+  if (!filePath.startsWith(LEADER_VIEWS_ROOT + sep)) return null;
+  if (!filePath.endsWith(".md")) return null;
+  const rel = filePath.slice(LEADER_VIEWS_ROOT.length + 1);
+  const parts = rel.split(sep);
+  if (parts.length !== 3) return null;
+  if (!TEAM_SLUG_RE.test(parts[0])) return null;
+  if (parts[1] !== "actions") return null;
+  return parts[0];
+}
+
 function main() {
   const ctx = readToolContext();
   if (!ctx) pass();
@@ -135,12 +188,21 @@ function main() {
   if (isPermittedLane(filePath, activeSlug)) pass();
 
   // Not in a permitted lane — refuse and emit a runbook message.
+  const teamLaneNote =
+    activeSlug === TEAMS_LANE_OWNER
+      ? `  - <root>/teams/{team-slug}/entities/{subtype}/{slug}.md\n` +
+        `  - <root>/teams/{team-slug}/actions/{YYYY-MM-DD}-{slug}.md\n` +
+        `  - <root>/leader-views/{view-slug}/actions/{YYYY-MM-DD}-{slug}.md\n`
+      : `If the target is under <root>/teams/ or <root>/leader-views/, only the ` +
+        `agntux-teams plugin is authorized to write there (P7 §"Per-folder write-ownership matrix") — ` +
+        `source plugins like ${activeSlug} are team-unaware at runtime.\n`;
   reject(
     `${activeSlug} attempted to write outside the permitted ingest lanes (\`${filePath}\`). ` +
-    `The canonical "Out of scope" rule (reference/sync.md) names three permitted write lanes:\n` +
+    `The canonical "Out of scope" rule (reference/sync.md) names these permitted write lanes:\n` +
     `  - <root>/entities/{subtype}/{slug}.md\n` +
     `  - <root>/actions/{YYYY-MM-DD}-{slug}.md\n` +
     `  - <root>/data/learnings/${activeSlug}/sync.md\n` +
+    teamLaneNote +
     `Append a \`kind: out-of-lane-write-attempted: ${filePath}\` entry to ` +
     `\`data/learnings/${activeSlug}/sync.md\` → errors and continue. ` +
     `Do NOT retry this Write/Edit. ` +
