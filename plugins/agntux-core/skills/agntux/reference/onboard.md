@@ -477,8 +477,6 @@ confirmation; always update `updated_at` after any edit; preserve
 byte-exact section ordering; reject values outside validated ranges
 (never silently clamp).
 
----
-
 ## Out of scope
 
 Profile edits to an existing `user.md` (`/agntux profile`), graduation
