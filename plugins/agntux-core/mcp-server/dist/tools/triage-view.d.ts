@@ -16,6 +16,10 @@ interface TriageActionRow {
     personalization_fit_excerpt: string;
     created_at: string | null;
     updated_at: string | null;
+    team_slug?: string;
+    team_id?: string;
+    source_team?: string;
+    member_relevance_class?: string;
 }
 interface TriageHandledRow {
     id: string;
@@ -24,6 +28,7 @@ interface TriageHandledRow {
     status: "done" | "dismissed";
     handled_at: string;
     outcome: string | null;
+    team_slug?: string;
 }
 interface TriageCounts {
     open: number;
@@ -31,12 +36,33 @@ interface TriageCounts {
     handled_recent: number;
     truncated: boolean;
 }
+interface TriageTeamSection {
+    team_slug: string;
+    team_id: string | null;
+    display_name: string;
+    actions: TriageActionRow[];
+    handled_recent: TriageHandledRow[];
+}
+interface TriageLeaderSection {
+    view_slug: string;
+    view_id: string | null;
+    display_name: string;
+    actions: TriageActionRow[];
+    handled_recent: TriageHandledRow[];
+}
 interface TriageStructuredContent {
     actions: TriageActionRow[];
     handled_recent: TriageHandledRow[];
     counts: TriageCounts;
     last_updated_at: string;
     bootstrap_mode: boolean;
+    schema_version?: 2;
+    personal?: {
+        actions: TriageActionRow[];
+        handled_recent: TriageHandledRow[];
+    };
+    teams?: TriageTeamSection[];
+    leader_views?: TriageLeaderSection[];
 }
 interface TriageStructuredError {
     error: "actions_index_missing";
@@ -118,6 +144,18 @@ export declare const triageViewTool: {
                         };
                         readonly created_at: {};
                         readonly updated_at: {};
+                        readonly team_slug: {
+                            readonly type: "string";
+                        };
+                        readonly team_id: {
+                            readonly type: "string";
+                        };
+                        readonly source_team: {
+                            readonly type: "string";
+                        };
+                        readonly member_relevance_class: {
+                            readonly type: "string";
+                        };
                     };
                 };
             };
@@ -149,6 +187,18 @@ export declare const triageViewTool: {
             };
             readonly error: {
                 readonly type: "string";
+            };
+            readonly schema_version: {
+                readonly type: "number";
+            };
+            readonly personal: {
+                readonly type: "object";
+            };
+            readonly teams: {
+                readonly type: "array";
+            };
+            readonly leader_views: {
+                readonly type: "array";
             };
         };
     };

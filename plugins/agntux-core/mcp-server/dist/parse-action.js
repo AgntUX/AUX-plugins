@@ -23,12 +23,26 @@ const FALLBACK_FRONTMATTER = {
     completed_at: null,
     dismissed_at: null,
     created_at: null,
+    team_id: null,
+    team_slug: null,
+    source_team: null,
+    member_relevance_class: null,
 };
 function asString(v, fallback = "") {
     return typeof v === "string" ? v : fallback;
 }
 function asStringOrNull(v) {
     return typeof v === "string" ? v : null;
+}
+// Like asStringOrNull but normalizes whitespace-only strings to null so
+// callers don't have to distinguish "absent" from "blank". Used for the
+// optional team-aware fields where YAML may serialize `team_slug: ""` or
+// `team_slug: ~` interchangeably.
+function asNonEmptyStringOrNull(v) {
+    if (typeof v !== "string")
+        return null;
+    const trimmed = v.trim();
+    return trimmed.length > 0 ? trimmed : null;
 }
 function asStringArray(v) {
     if (!Array.isArray(v))
@@ -102,6 +116,10 @@ export function parseFrontmatter(text) {
             completed_at: asStringOrNull(raw.completed_at),
             dismissed_at: asStringOrNull(raw.dismissed_at),
             created_at: asStringOrNull(raw.created_at),
+            team_id: asNonEmptyStringOrNull(raw.team_id),
+            team_slug: asNonEmptyStringOrNull(raw.team_slug),
+            source_team: asNonEmptyStringOrNull(raw.source_team),
+            member_relevance_class: asNonEmptyStringOrNull(raw.member_relevance_class),
         },
         body,
     };

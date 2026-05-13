@@ -12,10 +12,10 @@
 //     there is no third-party MCP for the LLM to call first.
 //   - The handler is read-only: zero file writes, zero network. Stateless
 //     across calls — same project state in, same payload out.
-//   - structuredContent budgets are enforced server-side (max 30 actions,
-//     last 7 days handled max 10, body excerpts ≤600 chars). The handler
-//     never returns more than these caps, even when the LLM passes larger
-//     values.
+//   - structuredContent budgets are enforced server-side (max 30 actions
+//     per scope, last 7 days handled max 10 per scope, body excerpts ≤600
+//     chars). The handler never returns more than these caps, even when the
+//     LLM passes larger values.
 //
 // Returns:
 //   On success — { structuredContent: TriagePayload, content: [...], _meta }
@@ -24,9 +24,25 @@
 // Errors are STRUCTURED (per P2a §4): the tool never throws an exception
 // from the happy path, so the host always renders the iframe and the
 // component shows the corresponding degraded-state copy.
+//
+// Team-mode (P3 v2 §1):
+//   When `<root>/.agntux/teams.json` exists and lists at least one team
+//   or leader-view, the payload gains `schema_version: 2` and three
+//   structured sections: `personal`, `teams[]`, `leader_views[]`. The
+//   legacy `actions` / `handled_recent` / `counts` / `last_updated_at` /
+//   `bootstrap_mode` keys stay populated for backward compatibility
+//   with older bundle versions; in team mode those keys carry the
+//   personal scope only so an older bundle renders identical-to-solo
+//   personal content rather than a confusing mash-up.
+//
+//   When `teams.json` is absent OR present-but-empty (no memberships
+//   AND no leader_views), the payload shape is BYTE-IDENTICAL to the
+//   solo release prior to this change: no `schema_version`, no
+//   `personal`, no `teams`, no `leader_views` keys. This invariant is
+//   enforced by the byte-identical regression test in the suite.
 // =============================================================================
 
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { expectedAgntuxRoot } from "../agntux-root.js";
 import {
@@ -46,6 +62,22 @@ const MAX_SUGGESTED_ACTIONS = 6;
 const MAX_SUMMARY_CHARS = 200;
 const MAX_TITLE_CHARS = 120;
 const MAX_EXCERPT_CHARS = 600;
+// Hard ceiling on the number of teams / leader-views the tool scans per
+// call. teams.json is authored by the agntux-teams plugin and is expected
+// to carry a small handful of entries (the user's team memberships); the
+// cap is a defense against a buggy or hostile writer ballooning the
+// payload to thousands of sections.
+const MAX_TEAMS = 32;
+const MAX_LEADER_VIEWS = 32;
+// Strict slug pattern (mirrors P3 §"Team identifier" decision). Used to
+// guard against path traversal when joining a directory like
+// `<root>/teams/{team_slug}/actions/`. Even though teams.json is
+// authored by agntux-teams (trusted), the public-plugin gate file
+// surface is the one place an attacker could inject; treat it as
+// untrusted input.
+// Strict slug pattern shared with scope.ts and triage-prefs.ts: 1–64
+// chars, lowercase + digits + dashes, must start AND end with [a-z0-9].
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
 const PRIORITY_RANK: Record<string, number> = {
   high: 0,
@@ -78,6 +110,14 @@ interface TriageActionRow {
   // remembers to bump a field).
   created_at: string | null;
   updated_at: string | null;
+  // Optional team-aware fields. Present only for rows read from a team
+  // or leader-view scope; omitted (undefined → not serialized) for
+  // personal rows so the JSON of a solo-only payload stays byte-identical
+  // to the prior release.
+  team_slug?: string;
+  team_id?: string;
+  source_team?: string;
+  member_relevance_class?: string;
 }
 
 interface TriageHandledRow {
@@ -87,6 +127,7 @@ interface TriageHandledRow {
   status: "done" | "dismissed";
   handled_at: string;
   outcome: string | null;
+  team_slug?: string;
 }
 
 interface TriageCounts {
@@ -96,12 +137,38 @@ interface TriageCounts {
   truncated: boolean;
 }
 
+interface TriageTeamSection {
+  team_slug: string;
+  team_id: string | null;
+  display_name: string;
+  actions: TriageActionRow[];
+  handled_recent: TriageHandledRow[];
+}
+
+interface TriageLeaderSection {
+  view_slug: string;
+  view_id: string | null;
+  display_name: string;
+  actions: TriageActionRow[];
+  handled_recent: TriageHandledRow[];
+}
+
 interface TriageStructuredContent {
   actions: TriageActionRow[];
   handled_recent: TriageHandledRow[];
   counts: TriageCounts;
   last_updated_at: string;
   bootstrap_mode: boolean;
+  // Team-mode-only fields. These keys are entirely absent from the
+  // serialized payload when team mode is inactive — the byte-identical
+  // solo guarantee depends on it.
+  schema_version?: 2;
+  personal?: {
+    actions: TriageActionRow[];
+    handled_recent: TriageHandledRow[];
+  };
+  teams?: TriageTeamSection[];
+  leader_views?: TriageLeaderSection[];
 }
 
 interface TriageStructuredError {
@@ -128,6 +195,32 @@ interface ViewToolError {
 }
 
 type ViewToolResult = ViewToolSuccess | ViewToolError;
+
+// Shape of a single membership / leader-view entry inside teams.json. The
+// gate file is owned by the agntux-teams plugin (P3 v2); the public
+// plugin reads only the structural fields it needs.
+interface TeamsJsonMembership {
+  team_slug: string;
+  team_id?: string | null;
+  display_name?: string | null;
+}
+interface TeamsJsonLeaderView {
+  view_slug: string;
+  view_id?: string | null;
+  display_name?: string | null;
+}
+interface ParsedTeamsJson {
+  memberships: TeamsJsonMembership[];
+  leader_views: TeamsJsonLeaderView[];
+}
+
+// Tags added to TriageActionRow / TriageHandledRow rows when they're read
+// from a non-personal scope. Threaded through processActionsDir so the
+// scope decoration lives in one place.
+interface ScopeTag {
+  team_slug?: string;
+  team_id?: string | null;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -191,14 +284,203 @@ function listActionFiles(actionsDir: string): string[] {
 function indexLastUpdated(actionsDir: string): string {
   // Read frontmatter `updated_at` from _index.md if present; otherwise return
   // the most-recent action file's mtime as ISO. Falls back to "" if neither is
-  // available. Never throws.
+  // available. Never throws. Guards against `_index.md` accidentally being a
+  // directory (statSync succeeds on dirs and would return a misleading mtime).
   try {
     const indexPath = join(actionsDir, "_index.md");
     const stat = statSync(indexPath);
+    if (!stat.isFile()) return "";
     return new Date(stat.mtimeMs).toISOString();
   } catch {
     return "";
   }
+}
+
+// Best-effort read of teams.json. The file may be absent (solo user — the
+// common case), unparseable (don't crash), or missing the expected
+// top-level arrays (treat as empty). Any of those return an "empty"
+// ParsedTeamsJson — the caller decides whether that counts as team mode.
+function readTeamsJson(root: string): ParsedTeamsJson | null {
+  const path = join(root, ".agntux", "teams.json");
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Malformed JSON: fail open (solo). Authoring is owned by agntux-teams;
+    // a corrupt file here means the proprietary plugin is mid-write or
+    // something has gone wrong, and we'd rather show the user their
+    // personal triage than refuse to render.
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const obj = parsed as Record<string, unknown>;
+
+  const memberships: TeamsJsonMembership[] = [];
+  if (Array.isArray(obj.memberships)) {
+    for (const m of obj.memberships) {
+      if (!m || typeof m !== "object" || Array.isArray(m)) continue;
+      const r = m as Record<string, unknown>;
+      const team_slug = typeof r.team_slug === "string" ? r.team_slug.trim() : "";
+      if (!team_slug || !SLUG_RE.test(team_slug)) continue;
+      memberships.push({
+        team_slug,
+        team_id: typeof r.team_id === "string" ? r.team_id : null,
+        display_name:
+          typeof r.display_name === "string" && r.display_name.trim().length > 0
+            ? r.display_name.trim()
+            : null,
+      });
+      if (memberships.length >= MAX_TEAMS) break;
+    }
+  }
+
+  const leader_views: TeamsJsonLeaderView[] = [];
+  if (Array.isArray(obj.leader_views)) {
+    for (const v of obj.leader_views) {
+      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+      const r = v as Record<string, unknown>;
+      const view_slug = typeof r.view_slug === "string" ? r.view_slug.trim() : "";
+      if (!view_slug || !SLUG_RE.test(view_slug)) continue;
+      leader_views.push({
+        view_slug,
+        view_id: typeof r.view_id === "string" ? r.view_id : null,
+        display_name:
+          typeof r.display_name === "string" && r.display_name.trim().length > 0
+            ? r.display_name.trim()
+            : null,
+      });
+      if (leader_views.length >= MAX_LEADER_VIEWS) break;
+    }
+  }
+
+  return { memberships, leader_views };
+}
+
+// Process all .md files in an actions/ directory and return open + handled
+// rows plus a snoozed count. Shared by the personal scan and every
+// team/leader-view scan. `scope` decorates each row with team_slug /
+// team_id when reading from a non-personal directory; pass null for the
+// personal scan to keep the row JSON byte-identical to the prior release.
+function processActionsDir(
+  actionsDir: string,
+  handledCutoffMs: number,
+  scope: ScopeTag | null,
+): { open: TriageActionRow[]; handled: TriageHandledRow[]; snoozedCount: number } {
+  const files = listActionFiles(actionsDir);
+  const open: TriageActionRow[] = [];
+  const handled: TriageHandledRow[] = [];
+  let snoozedCount = 0;
+
+  for (const filePath of files) {
+    let parsed;
+    let fileMtime: string | null = null;
+    try {
+      parsed = parseActionFile(filePath);
+      try {
+        fileMtime = new Date(statSync(filePath).mtimeMs).toISOString();
+      } catch {
+        fileMtime = null;
+      }
+    } catch {
+      // Skip malformed files; never crash the whole render.
+      continue;
+    }
+    const fm = parsed.frontmatter;
+    if (!fm.id) continue;
+
+    if (fm.status === "open" || fm.status === "snoozed") {
+      if (fm.status === "snoozed") snoozedCount++;
+      const why = parsed.why_matters;
+      const fitRaw = parsed.personalization_fit;
+      const row: TriageActionRow = {
+        id: fm.id,
+        title: deriveTitle(fm, why),
+        summary: truncate(firstParagraph(why), MAX_SUMMARY_CHARS),
+        priority: asPriority(fm.priority),
+        status: asActionStatus(fm.status),
+        reason_class: fm.reason_class || "",
+        due_by: fm.due_by || null,
+        snoozed_until: fm.snoozed_until || null,
+        source: fm.source || null,
+        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
+        suggested_actions: fm.suggested_actions.slice(
+          0,
+          MAX_SUGGESTED_ACTIONS,
+        ),
+        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
+        personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
+        created_at: fm.created_at || null,
+        updated_at: fileMtime,
+      };
+      // Optional team-aware fields are added only when this is a
+      // non-personal scope OR the file's own frontmatter carries them.
+      // Frontmatter wins over scope-inferred values so an action lifted
+      // by agntux-teams from a different source team retains its
+      // `source_team` distinction.
+      decorateRow(row, fm, scope);
+      open.push(row);
+      continue;
+    }
+    if (fm.status === "done" || fm.status === "dismissed") {
+      const handledAt =
+        fm.status === "done" ? fm.completed_at : fm.dismissed_at;
+      if (!handledAt) continue;
+      const t = new Date(handledAt).getTime();
+      if (!Number.isFinite(t) || t < handledCutoffMs) continue;
+      const hrow: TriageHandledRow = {
+        id: fm.id,
+        title: deriveTitle(fm, parsed.why_matters),
+        priority: asPriority(fm.priority),
+        status: asHandledStatus(fm.status),
+        handled_at: handledAt,
+        outcome: null, // outcome history lives in body; v1 omits.
+      };
+      if (scope?.team_slug) hrow.team_slug = scope.team_slug;
+      handled.push(hrow);
+    }
+  }
+
+  return { open, handled, snoozedCount };
+}
+
+function decorateRow(
+  row: TriageActionRow,
+  fm: ActionFrontmatter,
+  scope: ScopeTag | null,
+): void {
+  // Personal scope + no team frontmatter ⇒ leave the row untouched. This
+  // is the byte-identical solo path; even adding `team_slug: undefined`
+  // would risk JSON-stringify drift if a future change set it explicitly.
+  if (!scope && !fm.team_slug && !fm.team_id && !fm.source_team && !fm.member_relevance_class) {
+    return;
+  }
+  const team_slug = fm.team_slug ?? scope?.team_slug ?? undefined;
+  if (team_slug) row.team_slug = team_slug;
+  const team_id = fm.team_id ?? scope?.team_id ?? undefined;
+  if (team_id) row.team_id = team_id;
+  if (fm.source_team) row.source_team = fm.source_team;
+  if (fm.member_relevance_class) row.member_relevance_class = fm.member_relevance_class;
+}
+
+function sortOpen(open: TriageActionRow[]): void {
+  open.sort((a, b) => {
+    const pa = PRIORITY_RANK[a.priority] ?? 99;
+    const pb = PRIORITY_RANK[b.priority] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return (a.due_by ?? "z").localeCompare(b.due_by ?? "z");
+  });
+}
+
+function sortHandled(handled: TriageHandledRow[]): void {
+  handled.sort((a, b) =>
+    a.handled_at < b.handled_at ? 1 : a.handled_at > b.handled_at ? -1 : 0,
+  );
 }
 
 // ── Tool descriptor ──────────────────────────────────────────────────────────
@@ -228,7 +510,8 @@ export const triageViewTool = {
   // `_meta.ui.resourceUri` and `outputSchema` for the same combination of
   // structuredContent + iframe. No `required` fields: both the success
   // payload and the structured-error envelope (`{error: ...}`) need to
-  // validate.
+  // validate, and in team mode additional keys (`personal`, `teams`,
+  // `leader_views`, `schema_version`) join the success shape.
   outputSchema: {
     type: "object" as const,
     properties: {
@@ -252,6 +535,10 @@ export const triageViewTool = {
             personalization_fit_excerpt: { type: "string" },
             created_at: {},
             updated_at: {},
+            team_slug: { type: "string" },
+            team_id: { type: "string" },
+            source_team: { type: "string" },
+            member_relevance_class: { type: "string" },
           },
         },
       },
@@ -268,6 +555,10 @@ export const triageViewTool = {
       last_updated_at: { type: "string" },
       bootstrap_mode: { type: "boolean" },
       error: { type: "string" },
+      schema_version: { type: "number" },
+      personal: { type: "object" },
+      teams: { type: "array" },
+      leader_views: { type: "array" },
     },
   },
   // The MCP Apps spec defines two synonymous keys for declaring a tool's
@@ -290,132 +581,253 @@ export async function handleTriageView(
 ): Promise<ViewToolResult> {
   const handledDays = DEFAULT_HANDLED_DAYS;
   const limit = DEFAULT_LIMIT;
+  const handledCutoffMs = Date.now() - handledDays * 86_400_000;
 
   const root = expectedAgntuxRoot();
-  const actionsDir = join(root, "actions");
+  const personalActionsDir = join(root, "actions");
+  const teamsJson = readTeamsJson(root);
+  const teamModeActive =
+    !!teamsJson &&
+    (teamsJson.memberships.length > 0 || teamsJson.leader_views.length > 0);
 
-  let dirStat: ReturnType<typeof statSync>;
+  // The `actions_index_missing` error path preserves the prior contract
+  // exactly: solo users without a personal actions/ directory see the
+  // onboarding pointer. In team mode a missing personal directory is no
+  // longer a hard error — the team and leader sections may still have
+  // useful content. We surface it as an empty personal scope instead.
+  let personalDirOk = true;
   try {
-    dirStat = statSync(actionsDir);
+    const dirStat = statSync(personalActionsDir);
+    if (!dirStat.isDirectory()) personalDirOk = false;
   } catch {
-    return structuredError(
-      "actions_index_missing",
-      `triage_view: ${actionsDir} does not exist.`,
-    );
+    personalDirOk = false;
   }
-  if (!dirStat.isDirectory()) {
+  if (!personalDirOk && !teamModeActive) {
     return structuredError(
       "actions_index_missing",
-      `triage_view: ${actionsDir} is not a directory.`,
+      `triage_view: ${personalActionsDir} does not exist.`,
     );
   }
 
-  const files = listActionFiles(actionsDir);
+  // Personal scope.
+  const personalScan = personalDirOk
+    ? processActionsDir(personalActionsDir, handledCutoffMs, null)
+    : { open: [], handled: [], snoozedCount: 0 };
+  sortOpen(personalScan.open);
+  sortHandled(personalScan.handled);
+  const personalTruncated = personalScan.open.length > limit;
+  const personalActionsCapped = personalTruncated
+    ? personalScan.open.slice(0, limit)
+    : personalScan.open;
+  const personalHandledCapped = personalScan.handled.slice(0, MAX_HANDLED_RECENT);
 
-  const open: TriageActionRow[] = [];
-  const handled: TriageHandledRow[] = [];
-  const handledCutoffMs = Date.now() - handledDays * 86_400_000;
-  let snoozedCount = 0;
+  // Track aggregate counts + the global truncation flag across every
+  // scope. counts.open is "all open across all visible scopes" so the
+  // UI's badge reflects the user's real queue size when team mode is
+  // active.
+  let aggregateOpenCount = personalScan.open.filter(
+    (a) => a.status === "open",
+  ).length;
+  let aggregateSnoozedCount = personalScan.snoozedCount;
+  let aggregateHandledCount = personalHandledCapped.length;
+  let aggregateTruncated = personalTruncated;
 
-  for (const filePath of files) {
-    let parsed;
-    let fileMtime: string | null = null;
+  // Solo branch: short-circuit. The payload below is BYTE-IDENTICAL to
+  // the prior release — no schema_version, no personal/teams/leader_views
+  // keys. Tested by the byte-identical regression in the suite.
+  if (!teamModeActive) {
+    const lastUpdatedAt =
+      indexLastUpdated(personalActionsDir) || new Date().toISOString();
+    const bootstrapMode =
+      personalScan.open.length === 0 && personalScan.handled.length === 0;
+    const payload: TriageStructuredContent = {
+      actions: personalActionsCapped,
+      handled_recent: personalHandledCapped,
+      counts: {
+        open: aggregateOpenCount,
+        snoozed: aggregateSnoozedCount,
+        handled_recent: aggregateHandledCount,
+        truncated: aggregateTruncated,
+      },
+      last_updated_at: lastUpdatedAt,
+      bootstrap_mode: bootstrapMode,
+    };
+    return {
+      structuredContent: payload,
+      content: [
+        {
+          type: "text",
+          text: bootstrapMode
+            ? "Triage rendered. No items yet — bootstrap mode."
+            : `Triage rendered. ${personalActionsCapped.length} open, ${personalHandledCapped.length} recently handled.`,
+        },
+      ],
+      _meta: {
+        ui: {
+          resourceUri: TRIAGE_RESOURCE_URI,
+        },
+        "ui/resourceUri": TRIAGE_RESOURCE_URI,
+      },
+    };
+  }
+
+  // Team-mode branch.
+  const teamSections: TriageTeamSection[] = [];
+  for (const m of teamsJson!.memberships) {
+    const teamActionsDir = join(root, "teams", m.team_slug, "actions");
+    const scan = processActionsDir(teamActionsDir, handledCutoffMs, {
+      team_slug: m.team_slug,
+      team_id: m.team_id ?? null,
+    });
+    sortOpen(scan.open);
+    sortHandled(scan.handled);
+    const truncated = scan.open.length > limit;
+    if (truncated) aggregateTruncated = true;
+    const actionsCapped = truncated ? scan.open.slice(0, limit) : scan.open;
+    const handledCapped = scan.handled.slice(0, MAX_HANDLED_RECENT);
+    aggregateOpenCount += scan.open.filter((a) => a.status === "open").length;
+    aggregateSnoozedCount += scan.snoozedCount;
+    aggregateHandledCount += handledCapped.length;
+    teamSections.push({
+      team_slug: m.team_slug,
+      team_id: m.team_id ?? null,
+      display_name: m.display_name ?? m.team_slug,
+      actions: actionsCapped,
+      handled_recent: handledCapped,
+    });
+  }
+
+  // Leader views: prefer the explicit list in teams.json (it carries
+  // display names); fall back to directory scan for any leftover dirs
+  // the user has but didn't register in teams.json. Per P3 v2 §1, we
+  // also "Read /leader-views/ if present" — so unregistered views still
+  // surface, just without a friendly display name.
+  const leaderSections: TriageLeaderSection[] = [];
+  const seenViewSlugs = new Set<string>();
+  for (const v of teamsJson!.leader_views) {
+    const scan = readLeaderViewScope(root, v.view_slug, handledCutoffMs);
+    if (scan === null) continue;
+    if (scan.truncated) aggregateTruncated = true;
+    aggregateOpenCount += scan.openTotal;
+    aggregateSnoozedCount += scan.snoozedCount;
+    aggregateHandledCount += scan.handledCapped.length;
+    leaderSections.push({
+      view_slug: v.view_slug,
+      view_id: v.view_id ?? null,
+      display_name: v.display_name ?? v.view_slug,
+      actions: scan.actionsCapped,
+      handled_recent: scan.handledCapped,
+    });
+    seenViewSlugs.add(v.view_slug);
+  }
+  // Directory-scan fallback for any leader-view dirs not listed in
+  // teams.json. Caps at MAX_LEADER_VIEWS total combined.
+  //
+  // Sort the entries before iterating so the *which dirs we keep* decision
+  // (when total > MAX_LEADER_VIEWS) is deterministic across filesystems —
+  // `readdirSync` order is unspecified (inode order on ext4 / HFS+,
+  // alphabetical on btrfs / APFS), and unrelated runs over the same data
+  // shouldn't surface different views.
+  if (leaderSections.length < MAX_LEADER_VIEWS) {
+    const leaderViewsRoot = join(root, "leader-views");
+    let dirEntries: string[];
     try {
-      parsed = parseActionFile(filePath);
-      try {
-        fileMtime = new Date(statSync(filePath).mtimeMs).toISOString();
-      } catch {
-        fileMtime = null;
-      }
+      dirEntries = readdirSync(leaderViewsRoot).slice().sort();
     } catch {
-      // Skip malformed files; never crash the whole render.
-      continue;
+      dirEntries = [];
     }
-    const fm = parsed.frontmatter;
-    if (!fm.id) continue;
-
-    if (fm.status === "open" || fm.status === "snoozed") {
-      if (fm.status === "snoozed") snoozedCount++;
-      const why = parsed.why_matters;
-      const fitRaw = parsed.personalization_fit;
-      open.push({
-        id: fm.id,
-        title: deriveTitle(fm, why),
-        summary: truncate(firstParagraph(why), MAX_SUMMARY_CHARS),
-        priority: asPriority(fm.priority),
-        status: asActionStatus(fm.status),
-        reason_class: fm.reason_class || "",
-        due_by: fm.due_by || null,
-        snoozed_until: fm.snoozed_until || null,
-        source: fm.source || null,
-        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
-        suggested_actions: fm.suggested_actions.slice(
-          0,
-          MAX_SUGGESTED_ACTIONS,
-        ),
-        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
-        personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
-        created_at: fm.created_at || null,
-        updated_at: fileMtime,
-      });
-      continue;
-    }
-    if (fm.status === "done" || fm.status === "dismissed") {
-      const handledAt =
-        fm.status === "done" ? fm.completed_at : fm.dismissed_at;
-      if (!handledAt) continue;
-      const t = new Date(handledAt).getTime();
-      if (!Number.isFinite(t) || t < handledCutoffMs) continue;
-      handled.push({
-        id: fm.id,
-        title: deriveTitle(fm, parsed.why_matters),
-        priority: asPriority(fm.priority),
-        status: asHandledStatus(fm.status),
-        handled_at: handledAt,
-        outcome: null, // outcome history lives in body; v1 omits.
+    for (const name of dirEntries) {
+      if (leaderSections.length >= MAX_LEADER_VIEWS) break;
+      if (!SLUG_RE.test(name)) continue;
+      if (seenViewSlugs.has(name)) continue;
+      const scan = readLeaderViewScope(root, name, handledCutoffMs);
+      if (scan === null) continue;
+      if (scan.truncated) aggregateTruncated = true;
+      aggregateOpenCount += scan.openTotal;
+      aggregateSnoozedCount += scan.snoozedCount;
+      aggregateHandledCount += scan.handledCapped.length;
+      leaderSections.push({
+        view_slug: name,
+        view_id: null,
+        display_name: name,
+        actions: scan.actionsCapped,
+        handled_recent: scan.handledCapped,
       });
     }
   }
 
-  // Sort: open first by priority then due date asc; handled by handled_at desc.
-  open.sort((a, b) => {
-    const pa = PRIORITY_RANK[a.priority] ?? 99;
-    const pb = PRIORITY_RANK[b.priority] ?? 99;
-    if (pa !== pb) return pa - pb;
-    return (a.due_by ?? "z").localeCompare(b.due_by ?? "z");
-  });
-  handled.sort((a, b) =>
-    a.handled_at < b.handled_at ? 1 : a.handled_at > b.handled_at ? -1 : 0,
-  );
+  // last_updated_at picks the most-recent _index.md mtime across every
+  // scope so the UI's "Updated X ago" line reflects the actual freshest
+  // signal in the user's data, not just the personal index. Falls back
+  // to now() when no _index.md exists anywhere.
+  const lastUpdatedAt =
+    pickLatestIso(
+      indexLastUpdated(personalActionsDir),
+      ...teamsJson!.memberships.map((m) =>
+        indexLastUpdated(join(root, "teams", m.team_slug, "actions")),
+      ),
+      ...leaderSections.map((s) =>
+        indexLastUpdated(join(root, "leader-views", s.view_slug, "actions")),
+      ),
+    ) || new Date().toISOString();
 
-  const truncated = open.length > limit;
-  const openCapped = truncated ? open.slice(0, limit) : open;
-  const handledCapped = handled.slice(0, MAX_HANDLED_RECENT);
-
-  const lastUpdatedAt = indexLastUpdated(actionsDir) || new Date().toISOString();
-  const bootstrapMode = open.length === 0 && handled.length === 0;
+  // bootstrap_mode is true iff every scope is empty.
+  const anyContent =
+    personalScan.open.length > 0 ||
+    personalScan.handled.length > 0 ||
+    teamSections.some(
+      (t) => t.actions.length > 0 || t.handled_recent.length > 0,
+    ) ||
+    leaderSections.some(
+      (v) => v.actions.length > 0 || v.handled_recent.length > 0,
+    );
+  const bootstrapMode = !anyContent;
 
   const payload: TriageStructuredContent = {
-    actions: openCapped,
-    handled_recent: handledCapped,
+    // Legacy keys: personal scope only, so an older bundle that doesn't
+    // know about teams still renders a sensible personal-only view.
+    actions: personalActionsCapped,
+    handled_recent: personalHandledCapped,
     counts: {
-      open: open.filter((a) => a.status === "open").length,
-      snoozed: snoozedCount,
-      handled_recent: handledCapped.length,
-      truncated,
+      open: aggregateOpenCount,
+      snoozed: aggregateSnoozedCount,
+      handled_recent: aggregateHandledCount,
+      truncated: aggregateTruncated,
     },
     last_updated_at: lastUpdatedAt,
     bootstrap_mode: bootstrapMode,
+    // Team-mode keys.
+    schema_version: 2,
+    personal: {
+      actions: personalActionsCapped,
+      handled_recent: personalHandledCapped,
+    },
+    teams: teamSections,
+    leader_views: leaderSections,
   };
 
+  const summaryLines: string[] = [
+    `${personalActionsCapped.length} personal`,
+  ];
+  if (teamSections.length > 0) {
+    const teamOpen = teamSections.reduce((n, t) => n + t.actions.length, 0);
+    summaryLines.push(`${teamOpen} across ${teamSections.length} team(s)`);
+  }
+  if (leaderSections.length > 0) {
+    const leaderOpen = leaderSections.reduce(
+      (n, v) => n + v.actions.length,
+      0,
+    );
+    summaryLines.push(`${leaderOpen} across ${leaderSections.length} leader view(s)`);
+  }
   return {
     structuredContent: payload,
     content: [
       {
         type: "text",
         text: bootstrapMode
-          ? "Triage rendered. No items yet — bootstrap mode."
-          : `Triage rendered. ${openCapped.length} open, ${handledCapped.length} recently handled.`,
+          ? "Triage rendered (team mode). No items yet — bootstrap mode."
+          : `Triage rendered (team mode). ${summaryLines.join(", ")}.`,
       },
     ],
     _meta: {
@@ -425,6 +837,60 @@ export async function handleTriageView(
       "ui/resourceUri": TRIAGE_RESOURCE_URI,
     },
   };
+}
+
+function readLeaderViewScope(
+  root: string,
+  view_slug: string,
+  handledCutoffMs: number,
+): {
+  actionsCapped: TriageActionRow[];
+  handledCapped: TriageHandledRow[];
+  truncated: boolean;
+  openTotal: number;
+  snoozedCount: number;
+} | null {
+  if (!SLUG_RE.test(view_slug)) return null;
+  const dir = join(root, "leader-views", view_slug, "actions");
+  let dirStat: ReturnType<typeof statSync>;
+  try {
+    dirStat = statSync(dir);
+  } catch {
+    return null;
+  }
+  if (!dirStat.isDirectory()) return null;
+  // Leader-view rows are not team-scoped (`team_slug` stays absent on
+  // these rows). The view-slug shows up in the section header instead.
+  const scan = processActionsDir(dir, handledCutoffMs, null);
+  sortOpen(scan.open);
+  sortHandled(scan.handled);
+  const truncated = scan.open.length > DEFAULT_LIMIT;
+  const actionsCapped = truncated
+    ? scan.open.slice(0, DEFAULT_LIMIT)
+    : scan.open;
+  const handledCapped = scan.handled.slice(0, MAX_HANDLED_RECENT);
+  return {
+    actionsCapped,
+    handledCapped,
+    truncated,
+    openTotal: scan.open.filter((a) => a.status === "open").length,
+    snoozedCount: scan.snoozedCount,
+  };
+}
+
+function pickLatestIso(...candidates: string[]): string {
+  let best = "";
+  let bestT = -Infinity;
+  for (const c of candidates) {
+    if (!c) continue;
+    const t = Date.parse(c);
+    if (!Number.isFinite(t)) continue;
+    if (t > bestT) {
+      bestT = t;
+      best = c;
+    }
+  }
+  return best;
 }
 
 function structuredError(
