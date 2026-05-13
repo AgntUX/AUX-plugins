@@ -50,7 +50,12 @@ export function readSchemaLock() {
  * Throws when the lock exists but is malformed.
  */
 export function readSchemaLockAt(lockPath) {
-  if (!lockPath || !existsSync(lockPath)) {
+  // The early-null branch is the leader-view pass-through path: scope.mjs
+  // returns no schema dir for leader-view writes (P7), so callers pass
+  // null here. Bail before touching the cache so the null key never
+  // pollutes the map.
+  if (!lockPath) return null;
+  if (!existsSync(lockPath)) {
     cacheByPath.delete(lockPath);
     return null;
   }
