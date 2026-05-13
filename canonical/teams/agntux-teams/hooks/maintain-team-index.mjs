@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PostToolUse: maintain per-team _index.md, _sources.json, and the
-// trigger_key_index map under
+// idempotency-index maps under
 //   <agntux project root>/teams/{team-slug}/{entities,actions}/...
 // AND under
 //   <agntux project root>/leader-views/{view-slug}/actions/...
@@ -8,12 +8,16 @@
 // Path-filtered: exits silently for changes outside teams/ + leader-views/.
 // Deterministic — regex parsing, no LLM. Mirrors agntux-core's
 // maintain-index.mjs structure but per-team-scoped, plus the
-// trigger_key_index extension P9 introduces.
+// trigger_key_index extension P9 introduces for team actions and the
+// triggered_by_rule_hash_index extension P7 introduces for leader-view
+// actions.
 //
 // What this hook owns (relative to the team / view's data root):
 //   - entities/_index.md (per-subtype, plus the rollup at entities/_index.md)
 //   - entities/_sources.json (cross-entity index)
-//   - actions/_index.md including the `trigger_key_index:` frontmatter map
+//   - actions/_index.md including:
+//       - team-actions scope:  `trigger_key_index:` map (P9)
+//       - view-actions scope:  `triggered_by_rule_hash_index:` map (P7)
 //
 // What it does NOT touch:
 //   - any data/ file (schema, config, instructions, members, cursors, audit)
@@ -35,6 +39,7 @@ import { fileURLToPath } from "node:url";
 import { parseFrontmatter } from "./lib/frontmatter.mjs";
 import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
 import { computeTriggerKey, resolveTriggerInputs } from "./lib/trigger-key.mjs";
+import { computeRuleHash, resolveRuleHashInputs } from "./lib/rule-hash.mjs";
 
 // Resolved lazily on each call so the test seam (`_setAgntuxRootForTesting`)
 // in agntux-root.mjs works without re-importing this module.
@@ -214,12 +219,17 @@ function emitEntityLine(slug, summary) {
   return `- [[${slug}]] — ${summary}`;
 }
 
-function emitActionLine(id, fm, summary) {
-  const sigils = [
-    `@status:${fm.status ?? "unknown"}`,
-    `@reason:${fm.reason_class ?? "unknown"}`,
-  ];
-  if (fm.trigger_key) sigils.push(`@trigger:${fm.trigger_key}`);
+function emitActionLine(id, fm, summary, scope) {
+  const sigils = [`@status:${fm.status ?? "unknown"}`];
+  if (scope === "view") {
+    sigils.push(`@rule:${fm.triggered_by_rule ?? "unknown"}`);
+    if (fm.triggered_by_rule_hash) {
+      sigils.push(`@rule_hash:${fm.triggered_by_rule_hash}`);
+    }
+  } else {
+    sigils.push(`@reason:${fm.reason_class ?? "unknown"}`);
+    if (fm.trigger_key) sigils.push(`@trigger:${fm.trigger_key}`);
+  }
   return `- [[${id}]] — ${sigils.join(" ")} — ${summary}`;
 }
 
@@ -412,14 +422,22 @@ function updateTeamSourcesJson(filePath, fm, entitiesRoot, teamSlug) {
   renameSync(tmp, sourcesPath);
 }
 
-// Rebuild the actions/_index.md with the trigger_key_index map per P9.
+// Rebuild the actions/_index.md.
+//
+// For team-actions: emits a `trigger_key_index:` frontmatter map (P9).
+// For view-actions (leader-views/{slug}/actions/): emits a
+//   `triggered_by_rule_hash_index:` frontmatter map (P7) — leader-view
+//   actions are keyed by their rule fire, not by a (team, reason_class,
+//   entity) tuple, so the index is structurally different.
+//
+// Both maps follow the same shape — key → list of file basenames; >1 entry
+// signals a duplicate the de-conflict pass merges on the next cycle.
 function rebuildActionsIndex(actionsRoot, scope, slug) {
   if (!existsSync(actionsRoot)) return;
   const indexPath = join(actionsRoot, "_index.md");
   const lines = [];
-  // trigger_key_index maps trigger_key → list of file basenames (>1 entry
-  // signals a duplicate the de-conflict pass merges on the next cycle).
   const triggerKeyIndex = {};
+  const ruleHashIndex = {};
 
   const entries = [];
   for (const dirent of readdirSync(actionsRoot, { withFileTypes: true })) {
@@ -437,37 +455,66 @@ function rebuildActionsIndex(actionsRoot, scope, slug) {
     }
     if (!actionFm || !actionFm.status) continue;
 
-    // trigger_key: prefer the file's frontmatter value (validator hook
-    // ensures it's the canonical hash), fall back to recomputing from
-    // resolveTriggerInputs (defensive — covers stale files).
-    let triggerKey =
-      typeof actionFm.trigger_key === "string" ? actionFm.trigger_key : null;
-    if (!triggerKey) {
-      const inputs = resolveTriggerInputs(actionFm);
-      if (inputs) {
-        try {
-          triggerKey = computeTriggerKey(
-            inputs.teamSlug,
-            inputs.reasonClass,
-            inputs.entityIdOrSourceRef,
-          );
-        } catch {
-          triggerKey = null;
+    if (scope === "view") {
+      // Leader-view idempotency key: triggered_by_rule_hash.
+      // Prefer the file's frontmatter value (validator hook ensures it's
+      // the canonical hash); fall back to recomputing from
+      // resolveRuleHashInputs (defensive — covers stale files).
+      let ruleHash =
+        typeof actionFm.triggered_by_rule_hash === "string"
+          ? actionFm.triggered_by_rule_hash
+          : null;
+      if (!ruleHash) {
+        const inputs = resolveRuleHashInputs(actionFm);
+        if (inputs) {
+          try {
+            ruleHash = computeRuleHash(inputs.ruleSlug, inputs.triggerInputs);
+          } catch {
+            ruleHash = null;
+          }
         }
       }
-    }
-    // Exclude `status: superseded` rows from the trigger_key_index so the
-    // de-conflict pass doesn't re-fire on already-merged duplicates.
-    if (triggerKey && actionFm.status !== "superseded") {
-      if (!triggerKeyIndex[triggerKey]) triggerKeyIndex[triggerKey] = [];
-      triggerKeyIndex[triggerKey].push(dirent.name);
+      // Exclude `status: superseded` / `status: resolved` rows from the
+      // index so the leader-view pass doesn't re-fire on closed items.
+      if (
+        ruleHash &&
+        actionFm.status !== "superseded" &&
+        actionFm.status !== "resolved"
+      ) {
+        if (!ruleHashIndex[ruleHash]) ruleHashIndex[ruleHash] = [];
+        ruleHashIndex[ruleHash].push(dirent.name);
+      }
+    } else {
+      // Team-action idempotency key: trigger_key (P9).
+      let triggerKey =
+        typeof actionFm.trigger_key === "string" ? actionFm.trigger_key : null;
+      if (!triggerKey) {
+        const inputs = resolveTriggerInputs(actionFm);
+        if (inputs) {
+          try {
+            triggerKey = computeTriggerKey(
+              inputs.teamSlug,
+              inputs.reasonClass,
+              inputs.entityIdOrSourceRef,
+            );
+          } catch {
+            triggerKey = null;
+          }
+        }
+      }
+      // Exclude `status: superseded` rows from the trigger_key_index so the
+      // de-conflict pass doesn't re-fire on already-merged duplicates.
+      if (triggerKey && actionFm.status !== "superseded") {
+        if (!triggerKeyIndex[triggerKey]) triggerKeyIndex[triggerKey] = [];
+        triggerKeyIndex[triggerKey].push(dirent.name);
+      }
     }
 
     const summary = deriveSummary(raw, "Why this matters");
     entries.push({
       id,
       fm: actionFm,
-      line: emitActionLine(id, actionFm, summary),
+      line: emitActionLine(id, actionFm, summary, scope),
     });
   }
 
@@ -480,9 +527,12 @@ function rebuildActionsIndex(actionsRoot, scope, slug) {
   });
   for (const e of entries) lines.push(e.line);
 
-  // Sort each trigger_key_index list deterministically.
+  // Sort each index list deterministically.
   for (const key of Object.keys(triggerKeyIndex)) {
     triggerKeyIndex[key].sort();
+  }
+  for (const key of Object.keys(ruleHashIndex)) {
+    ruleHashIndex[key].sort();
   }
 
   const indexFm = {
@@ -490,10 +540,14 @@ function rebuildActionsIndex(actionsRoot, scope, slug) {
     scope: scope === "team" ? "team-actions" : "view-actions",
     parent: scope === "team" ? `teams/${slug}/actions` : `leader-views/${slug}/actions`,
     entry_count: entries.length,
-    trigger_key_index: triggerKeyIndex,
   };
-  if (scope === "team") indexFm.team_slug = slug;
-  if (scope === "view") indexFm.view_slug = slug;
+  if (scope === "team") {
+    indexFm.team_slug = slug;
+    indexFm.trigger_key_index = triggerKeyIndex;
+  } else {
+    indexFm.view_slug = slug;
+    indexFm.triggered_by_rule_hash_index = ruleHashIndex;
+  }
 
   writeIndexAtomic(indexPath, indexFm, lines.join("\n"));
 }

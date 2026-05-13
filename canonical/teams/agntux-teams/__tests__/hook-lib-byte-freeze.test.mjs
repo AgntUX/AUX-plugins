@@ -31,6 +31,12 @@ describe("hooks/lib/ byte-freeze invariant", () => {
     expect(plugin).toBe(canonical);
   });
 
+  it("rule-hash.mjs matches canonical/hooks/lib/rule-hash.mjs verbatim", () => {
+    const plugin = read(join(PLUGIN_HOOKS_LIB, "rule-hash.mjs"));
+    const canonical = read(join(CANONICAL_HOOKS_LIB, "rule-hash.mjs"));
+    expect(plugin).toBe(canonical);
+  });
+
   it("agntux-root.mjs matches canonical/hooks/lib/agntux-root.mjs verbatim", () => {
     const plugin = read(join(PLUGIN_HOOKS_LIB, "agntux-root.mjs"));
     const canonical = read(join(CANONICAL_HOOKS_LIB, "agntux-root.mjs"));

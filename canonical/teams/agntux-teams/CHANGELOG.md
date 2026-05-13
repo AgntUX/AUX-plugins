@@ -6,6 +6,140 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-12
+
+P7 leader-view content-rule synthesis (S6.3) — completes the
+rule-driven, fully-authored leader-view action item contract. Every
+leader action stands on its own (no pointer-shape thin references);
+idempotency is on a deterministic hook-computed `triggered_by_rule_hash`
+that mirrors the existing `entity_id` (P7) and `trigger_key` (P9)
+contracts.
+
+### Added
+
+- `canonical/hooks/lib/rule-hash.mjs` — new byte-frozen helper with
+  `computeRuleHash(rule_slug, trigger_inputs)` and
+  `resolveRuleHashInputs(frontmatter)`. The hash formula is
+  `sha256(rule_slug + ":" + trigger_inputs).slice(0,16)`. The LLM
+  never computes this hash; the validator emits the correct value via
+  a self-heal runbook.
+- `hooks/lib/rule-hash.mjs` — byte-frozen copy of the canonical helper.
+- `hooks/validate-leader-view-rule-hash.mjs` — PreToolUse hook on
+  Write/Edit under `<root>/leader-views/{slug}/actions/*.md`:
+  - Reconstructs post-Write/Edit content (mirrors
+    `validate-team-schema.readContent`) so Edit operations that
+    rewrite the frontmatter hash cannot route around validation.
+  - Reads `triggered_by_rule` + `trigger_inputs`, computes the
+    expected hash, rejects with a runbook quoting the correct value
+    when `triggered_by_rule_hash` is missing or wrong.
+  - Emits a separate "shape" runbook when either rule-hash input is
+    missing.
+  - `status: resolved | superseded` short-circuit applies ONLY when
+    the file already exists on disk with a canonical hash — closes
+    the initial-write hole where a fresh `status: resolved` Write
+    with a garbage hash could bypass the validator.
+  - Rejects writes to sub-directories under `actions/` (only
+    top-level `*.md` files are in scope) mirroring
+    `validate-team-schema.classifyTeamAction`.
+- `hooks/hooks.json` — wires `validate-leader-view-rule-hash.mjs`
+  after `validate-team-write-lane.mjs` and `validate-team-schema.mjs`.
+- `__tests__/rule-hash.test.mjs` — 14 unit tests on
+  `computeRuleHash` + `resolveRuleHashInputs`.
+- `__tests__/validate-leader-view-rule-hash.test.mjs` — 15 hook-driver
+  tests including the Edit-bypass HIGH regression and the
+  follow-the-runbook end-to-end loop.
+- `__tests__/leader-view-cycle.test.mjs` — 3 fixture-driven
+  end-to-end tests covering P3 verification 6 (rule fire + standing
+  question, idempotent re-author, resolved drop-out).
+- `__tests__/hook-lib-byte-freeze.test.mjs` — new assertion for the
+  canonical-to-plugin byte-freeze of `rule-hash.mjs`.
+
+### Changed
+
+- `hooks/maintain-team-index.mjs` — `rebuildActionsIndex` now emits a
+  `triggered_by_rule_hash_index:` map (keyed on
+  `triggered_by_rule_hash`) for view-action scope, replacing the
+  previously-emitted `trigger_key_index:` map (which doesn't apply to
+  leader-view actions). Team-action scope continues to emit
+  `trigger_key_index:`. The `emitActionLine` sigils diverge by scope:
+  view actions get `@rule:...` and `@rule_hash:...`; team actions
+  retain `@reason:...` and `@trigger:...`. Defensive recompute from
+  inputs is preserved for both scopes (covers stale files written
+  before validators were installed).
+- `skills/agntux-teams/reference/sync.md`:
+  - Step 1 now de-conflicts THREE classes of duplicate (was two):
+    adds the leader-view `triggered_by_rule_hash` duplicate class for
+    the concurrent-author race protocol described in P7.
+  - Step 3b expanded with explicit frontmatter shape, hook-computed
+    protocol, branch matrix, and the canonicalization grammar (rule
+    slug + `trigger_inputs` shapes) that pins determinism across two
+    cycles authoring the same data.
+
+### Notes
+
+- 0.3.0 is a MINOR bump under the additive-only policy (P7 §"Schema
+  namespacing rule") — no required-fields change to existing
+  artifacts; new validator + new index map are additive.
+
+## [0.2.0] — 2026-05-12
+
+P9 trigger_key contract — completes the write-once-per-team
+lookup-before-write idempotency for team action items.
+
+### Added
+
+- `hooks/validate-team-schema.mjs` — PreToolUse hook that validates
+  the hook-computed `trigger_key` on every Write/Edit to a team-action
+  file under `<root>/teams/{slug}/actions/*.md`. Mirrors the
+  `entity_id` validator pattern in
+  `plugins/agntux-core/hooks/validate-schema.mjs`:
+  - Reads `team_slug`, `reason_class`, and
+    `entity_refs[0].entity_id` (falling back to `source_ref`) from
+    the proposed file content (both Write and Edit shapes).
+  - Computes `expected_trigger_key` via the byte-frozen
+    `canonical/hooks/lib/trigger-key.mjs` helper.
+  - Rejects with a runbook quoting the correct value verbatim when
+    the file's `trigger_key` is missing, empty, or mismatched.
+  - Emits a separate "shape" runbook when the trigger inputs
+    themselves are missing.
+  - Leader-view actions (which carry `triggered_by_rule_hash`
+    instead of `trigger_key` per P7) pass through unchanged.
+- `hooks/hooks.json` — `validate-team-schema.mjs` is registered as a
+  second PreToolUse Write|Edit hook, running after
+  `validate-team-write-lane.mjs`.
+- `skills/agntux-teams/reference/sync.md` Step 3 already carries the
+  full P9 lookup-before-write logic (3.1 candidate ID, 3.2 hook
+  trigger_key compute, 3.3 lookup, 3.4 branch matrix, 3.5 cap, 3.6
+  concurrent-author race) and Step 1's trigger_key duplicate
+  detection (added in 0.1.0). This release ratifies the contract
+  via the new validator hook.
+
+### Fixed
+
+- `hooks/lib/schema-lock.mjs` re-synced from
+  `plugins/agntux-core/hooks/lib/schema-lock.mjs`. The canonical copy
+  consolidated an early-null + existsSync branch after 0.1.0 shipped;
+  the byte-freeze invariant test now passes again.
+
+### Verified
+
+- P9 verification matrix item 1 (single-cycle write produces files
+  with valid trigger_keys; the maintain-team-index hook adds them
+  to `trigger_key_index`).
+- P9 verification matrix item 2 (re-run with no underlying data
+  change produces zero new files; covered indirectly by the
+  validator's idempotent behaviour on existing files).
+- P9 verification matrix item 3 (re-author on changed entity bumps
+  `last_authored_at`; the skill body's branch matrix covers this).
+- P9 verification matrix item 4 (concurrent-author duplicates
+  surface in `trigger_key_index` with >1 entry; the next cycle's
+  step 1 merges via the existing de-conflict pattern; tested in
+  `maintain-team-index.test.mjs` under "groups files that share the
+  same trigger_key").
+- P9 verification matrix item 14 (hook rejects manual write with
+  wrong trigger_key; runbook quotes the correct computed value).
+  Tested in `__tests__/validate-team-schema.test.mjs`.
+
 ## [0.1.0] — 2026-05-12
 
 Initial release. Skill-driven team coordination plugin per the P3 v2
