@@ -87,6 +87,40 @@ MUST use the prefix.
 | `contributors` | array of objects | up to 8; `developer.github_handle` must NOT also appear here |
 | `proposed_schema` | object | **REQUIRED for any ingest plugin** — i.e. any plugin whose `requires_plugins` includes `agntux-core` (lint code E14). The consumer-repo linter (`scripts/lint-marketplace-metadata.ts` E14 rule, currently around line 271) still keys off the legacy `*-ingest` suffix as of 2026-05-07 — new `agntux-*` plugins are authoritative, but the linter does NOT currently fire E14 on them. **Provide `proposed_schema` for every new ingest plugin regardless** of the linter's current trigger; the runtime contract pipeline (`agntux-core`'s data-architect Mode B) reads it from `listing.yaml` directly and the lint trigger is on track to be re-keyed off `requires_plugins`. |
 
+### listing.yaml ↔ view-tools.manifest.json consistency rule
+
+The view-tool subtree emits `view-tool/dist/view-tools.manifest.json`
+at build time; its `view_tools[]` and `ui_bundles[]` arrays MUST be
+consistent with `marketplace/listing.yaml`'s `ux_components[]` (or
+`ui_components[]` — the linter accepts both spellings).
+
+The rule (enforced at build time by
+`view-tool/scripts/emit-manifest.mjs`; re-enforced at PR time by
+`invariant-checker` §5):
+
+For every `view_tools[i]` entry in the emitted manifest, there MUST
+exist a `ui_components[j]` entry in `listing.yaml` with:
+
+- `ui_components[j].view_tool === view_tools[i].name`
+- `ui_components[j].resource_uri === view_tools[i].mcp_app_meta.resourceUri`
+
+The reverse is also true: every `ui_components[j]` with non-null
+`view_tool` and `resource_uri` MUST have a matching `view_tools[i]`.
+
+Mismatch → `emit-manifest.mjs` exits non-zero and stage 7's
+view-tool-builder reports the failure. The fix is usually one of:
+
+- The developer renamed the view tool in `view-tool/src/{slug}-view.ts`
+  but didn't update `listing.yaml`. Update listing.yaml.
+- The developer added a new view tool but didn't add its
+  `ui_components[]` entry. Add it.
+- `manifest-author` reordered `ui_components[]` and dropped an entry.
+  Restore it.
+
+This rule lets the marketplace UI (which reads `listing.yaml`) and the
+remote MCP server (which reads the emitted manifest) stay in lockstep
+without runtime joins.
+
 ### Closed categories enum
 
 `productivity`, `communication`, `crm`, `project-management`,

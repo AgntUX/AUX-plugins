@@ -306,21 +306,171 @@ error, while the taxonomy stabilises across the plugin set. Promote to
 `error` after agntux-slack 8.0.0 / agntux-gmail 4.0.0 ship with the
 declaration in place.
 
-## Run all checks
+## 5. Source-plugin shape invariants
 
-A single Bash invocation that exits 0 when both gates pass:
+Source plugins (every plugin under `plugins/*` except `agntux-core`,
+`agntux-build`, and `plugin-toolkit`) ship under the view-only shape:
+no local `mcp-server/`, no `.mcp.json`, ONE compiled view-tool ESM
+module at `view-tool/dist/<slug>-view.js`, plus its sibling
+`view-tools.manifest.json` validated against the Zod schema in
+`@agntux/plugin-runtime`.
+
+These bash checks gate the PR — any failure here fails CI.
+
+### 5.1 No plugin-local `.mcp.json`
 
 ```bash
-# From repo root
-PLUGIN_SLUG={your-slug}
-(cd plugins/$PLUGIN_SLUG/hooks && shasum -a 256 -c ../../../canonical/hooks/checksums.txt 2>&1 | grep -vE '(lib/public-key.mjs|lib/agntux-plugins.mjs): FAILED' | grep FAILED && echo "BYTE-FREEZE FAIL" && exit 1) || true
-grep -q "\"slug\": \"$PLUGIN_SLUG\"" plugins/agntux-core/data/plugin-suggestions.json || echo "WARN: plugin-suggestions.json missing $PLUGIN_SLUG entry"
-grep -q "\"$PLUGIN_SLUG\"" plugins/agntux-core/hooks/lib/agntux-plugins.mjs || echo "WARN: AGNTUX_PLUGIN_SLUGS missing $PLUGIN_SLUG"
+# Source plugins must not register themselves locally with Claude Desktop.
+EXEMPT='agntux-core|agntux-build|plugin-toolkit'
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  if echo "$slug" | grep -qE "^($EXEMPT)$"; then continue; fi
+  if [ -f "$dir/.mcp.json" ]; then
+    echo "FAIL: source plugin $slug ships .mcp.json (must be deleted under the view-only shape)"
+    exit 1
+  fi
+done
 ```
 
-The first check is hard (CI fails if it fails); the latter two are
+### 5.2 No plugin-local `mcp-server/` directory
+
+```bash
+EXEMPT='agntux-core|agntux-build|plugin-toolkit'
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  if echo "$slug" | grep -qE "^($EXEMPT)$"; then continue; fi
+  if [ -d "$dir/mcp-server" ]; then
+    echo "FAIL: source plugin $slug ships mcp-server/ (must be deleted under the view-only shape)"
+    exit 1
+  fi
+done
+```
+
+### 5.3 Emitted manifest exists
+
+```bash
+# Every source plugin and agntux-core must emit view-tools.manifest.json.
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  case "$slug" in
+    agntux-build|plugin-toolkit) continue ;;
+  esac
+  manifest="$dir/view-tool/dist/view-tools.manifest.json"
+  if [ ! -f "$manifest" ]; then
+    echo "FAIL: $slug missing $manifest (run 'npm run build' in $dir/view-tool/)"
+    exit 1
+  fi
+done
+```
+
+### 5.4 Manifest validates against the Zod schema
+
+The follow-up `scripts/lint/lint-view-tools-manifest.ts` (tracked
+under sub-plan 5's "Follow-up tasks") imports
+`ViewToolsManifestSchema` from `@agntux/plugin-runtime` and validates
+each plugin's manifest. Until that lint lands, the cross-plugin
+vitest covers the same ground.
+
+### 5.5 `view_tools[].name` plugin-slug-prefixed
+
+```bash
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  case "$slug" in
+    agntux-build|plugin-toolkit) continue ;;
+  esac
+  manifest="$dir/view-tool/dist/view-tools.manifest.json"
+  [ -f "$manifest" ] || continue
+  slug_snake=$(echo "$slug" | tr '-' '_')
+  bad=$(jq -r --arg p "${slug_snake}_" '.view_tools[] | select(.name | startswith($p) | not) | .name' "$manifest")
+  if [ -n "$bad" ]; then
+    echo "FAIL: $slug has view_tools[].name not prefixed with ${slug_snake}_: $bad"
+    exit 1
+  fi
+done
+```
+
+### 5.6 Compiled `<slug>-view.js` contains no forbidden host imports
+
+Cites sub-plan 4 §"Trust model" — the in-process trust boundary
+collapses to "what `@agntux/plugin-runtime` gives the handler". A
+`from "node:"` / `from "process"` / `from "fs"` / `from "child_process"`
+import in the compiled output is a trust-model violation: esbuild's
+`--external:@agntux/plugin-runtime` must bundle every other dependency
+inline, so any of these strings surviving in the emitted JS means a
+non-runtime host import leaked through.
+
+```bash
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  case "$slug" in
+    agntux-build|plugin-toolkit) continue ;;
+  esac
+  js="$dir/view-tool/dist/$slug-view.js"
+  [ -f "$js" ] || continue
+  if grep -qE 'from "(node:|process|fs|child_process)"' "$js"; then
+    echo "FAIL: $slug compiled view-tool contains a forbidden host import (trust-model violation)"
+    grep -nE 'from "(node:|process|fs|child_process)"' "$js" | head -5
+    exit 1
+  fi
+done
+```
+
+## Run all checks
+
+A single Bash invocation that exits 0 when every gate passes:
+
+```bash
+# From repo root. Exits 0 only when all gates pass.
+set -e
+PLUGIN_SLUG="${1:-}"
+EXEMPT='agntux-core|agntux-build|plugin-toolkit'
+
+# §1. Hook byte-freeze (only if plugin ships hooks/)
+if [ -n "$PLUGIN_SLUG" ] && [ -d "plugins/$PLUGIN_SLUG/hooks" ]; then
+  (cd "plugins/$PLUGIN_SLUG/hooks" && shasum -a 256 -c ../../../canonical/hooks/checksums.txt 2>&1 \
+    | grep -vE '(lib/public-key.mjs|lib/agntux-plugins.mjs): FAILED' \
+    | grep FAILED && echo "BYTE-FREEZE FAIL" && exit 1) || true
+fi
+
+# §3.1–3.3 coordination (warnings only)
+[ -n "$PLUGIN_SLUG" ] && grep -q "\"slug\": \"$PLUGIN_SLUG\"" plugins/agntux-core/data/plugin-suggestions.json \
+  || echo "WARN: plugin-suggestions.json missing $PLUGIN_SLUG entry"
+[ -n "$PLUGIN_SLUG" ] && grep -q "\"$PLUGIN_SLUG\"" plugins/agntux-core/hooks/lib/agntux-plugins.mjs \
+  || echo "WARN: AGNTUX_PLUGIN_SLUGS missing $PLUGIN_SLUG"
+
+# §5 source-plugin shape invariants (hard)
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  if echo "$slug" | grep -qE "^($EXEMPT)$"; then continue; fi
+  # 5.1
+  [ -f "$dir/.mcp.json" ] && { echo "FAIL: $slug ships .mcp.json"; exit 1; }
+  # 5.2
+  [ -d "$dir/mcp-server" ] && { echo "FAIL: $slug ships mcp-server/"; exit 1; }
+done
+
+for dir in plugins/*/; do
+  slug=$(basename "$dir")
+  case "$slug" in agntux-build|plugin-toolkit) continue ;; esac
+  manifest="$dir/view-tool/dist/view-tools.manifest.json"
+  # 5.3
+  [ -f "$manifest" ] || { echo "FAIL: $slug missing $manifest"; exit 1; }
+  # 5.5
+  slug_snake=$(echo "$slug" | tr '-' '_')
+  bad=$(jq -r --arg p "${slug_snake}_" '.view_tools[] | select(.name | startswith($p) | not) | .name' "$manifest")
+  [ -n "$bad" ] && { echo "FAIL: $slug bad prefix: $bad"; exit 1; }
+  # 5.6
+  js="$dir/view-tool/dist/$slug-view.js"
+  [ -f "$js" ] && grep -qE 'from "(node:|process|fs|child_process)"' "$js" && { echo "FAIL: $slug compiled JS has forbidden host import (node:/process/fs/child_process)"; exit 1; }
+done
+
+echo "OK"
+```
+
+The §1 check is hard (CI fails if it fails); the §3 latter two are
 warnings (some plugins legitimately omit them, e.g. `plugin-toolkit`
-itself does not need a plugin-suggestions entry).
+itself does not need a plugin-suggestions entry). The §5 checks are
+all hard.
 
 ## Hand-offs
 

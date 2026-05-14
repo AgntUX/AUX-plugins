@@ -21,6 +21,7 @@
   },
   "workspaces": [
     "ui-handlers/triage/component",
-    "mcp-server"
+    "mcp-server",
+    "view-tool"
   ]
 }

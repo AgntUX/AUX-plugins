@@ -22,6 +22,8 @@ ui_components:
   - name: "triage"
     title: "Action item triage"
     purpose: "The primary inline UI. Priority-sorted open action items with snooze / dismiss / done buttons and per-item suggested-action buttons that route into source plugins."
+    view_tool: "agntux_core_triage_view"
+    resource_uri: "ui://agntux-core/triage"
 screenshot_order:
   - "01-chat.png"
   - "02-action-detail.png"

@@ -124,13 +124,14 @@ describe("agntux-build cold start", () => {
     expect(personaBody).toMatch(/bootstrap_window_days:/);
   });
 
-  it("ships all 8 internal specialist agents", () => {
+  it("ships all 9 internal specialist agents", () => {
     const agents = [
       "manifest-author.md",
       "ingest-prompt-author.md",
       "source-semantics-advisor.md",
       "draft-flow-author.md",
       "tests-author.md",
+      "view-tool-builder.md",
       "invariant-checker.md",
       "release-checker.md",
       "ui-handler-author.md",

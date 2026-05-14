@@ -123,6 +123,36 @@ describe("hooks shape (ingest variant)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Pass 2c: view-only plugin shape (P5)
+// ---------------------------------------------------------------------------
+
+describe("view-only shape", () => {
+  it("does not ship a local mcp-server/ directory", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "mcp-server"))).toBe(false);
+  });
+
+  it("does not ship a .mcp.json", () => {
+    expect(existsSync(join(PLUGIN_ROOT, ".mcp.json"))).toBe(false);
+  });
+
+  it("ships view-tool/src/agntux-slack-view.ts (multi-view source)", () => {
+    expect(
+      existsSync(join(PLUGIN_ROOT, "view-tool", "src", "agntux-slack-view.ts")),
+    ).toBe(true);
+  });
+
+  it("ships view-tool/package.json with the build script chain", () => {
+    const p = join(PLUGIN_ROOT, "view-tool", "package.json");
+    expect(existsSync(p)).toBe(true);
+    const pkg = JSON.parse(readFileSync(p, "utf-8")) as {
+      scripts?: Record<string, string>;
+    };
+    expect(pkg.scripts?.build).toBeTruthy();
+    expect(pkg.scripts!.build).toContain("emit-manifest");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Pass 2b: license-gate absence (Apache-2.0 regression guard)
 //
 // Plugins are Apache-2.0 and unconditionally free; no license gate of any
