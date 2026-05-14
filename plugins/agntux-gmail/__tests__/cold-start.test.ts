@@ -251,63 +251,38 @@ describe(`skills/${PLUGIN_SLUG}/SKILL.md`, () => {
 });
 
 // ---------------------------------------------------------------------------
-// MCP server
+// View-only plugin shape (P5)
 // ---------------------------------------------------------------------------
 
-describe("mcp-server", () => {
-  const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
-  const indexText = existsSync(indexPath) ? readFile(indexPath) : "";
-
-  it("index.ts exists and registers tools on CallToolRequestSchema", () => {
-    expect(existsSync(indexPath)).toBe(true);
-    expect(indexText).toContain("CallToolRequestSchema");
+describe("view-only shape", () => {
+  it("does not ship a local mcp-server/ directory", () => {
+    expect(existsSync(join(PLUGIN_ROOT, "mcp-server"))).toBe(false);
   });
 
-  it("does NOT reintroduce a license gate", () => {
-    // Plugins are Apache-2.0 and unconditionally free; the relicensing PR
-    // removed `@agntux/mcp-license` entirely. This regression guard catches
-    // any reintroduction.
-    expect(indexText).not.toContain("@agntux/mcp-license");
-    expect(indexText).not.toContain("createLicenseGate");
-    expect(indexText).not.toContain("requireValidLicense");
+  it("does not ship a .mcp.json", () => {
+    expect(existsSync(join(PLUGIN_ROOT, ".mcp.json"))).toBe(false);
   });
 
-  it("registers a single namespaced tool: agntux_gmail_compose_view", () => {
-    expect(indexText).toContain("agntux_gmail_compose_view");
+  it("ships view-tool/src/agntux-gmail-view.ts (single-view source)", () => {
+    expect(
+      existsSync(join(PLUGIN_ROOT, "view-tool", "src", "agntux-gmail-view.ts")),
+    ).toBe(true);
   });
 
-  it("compose-view tool reads gmail-namespaced compose payload from disk", () => {
-    const parsePath = join(PLUGIN_ROOT, "mcp-server", "src", "parse-action.ts");
-    const text = existsSync(parsePath) ? readFile(parsePath) : "";
-    expect(text).toContain("Compose payload (gmail)");
-    expect(text).toContain("Compose payload");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Compose UI handler
-// ---------------------------------------------------------------------------
-
-describe("compose UI handler", () => {
-  const handlerRoot = join(PLUGIN_ROOT, "ui-handlers", "compose", "component");
-  it("exists at ui-handlers/compose/component/", () => {
-    expect(existsSync(handlerRoot)).toBe(true);
-    expect(existsSync(join(handlerRoot, "package.json"))).toBe(true);
-    expect(existsSync(join(handlerRoot, "src", "App.tsx"))).toBe(true);
+  it("ships view-tool/package.json with the build script chain", () => {
+    const p = join(PLUGIN_ROOT, "view-tool", "package.json");
+    expect(existsSync(p)).toBe(true);
+    const pkg = JSON.parse(readFileSync(p, "utf-8")) as {
+      scripts?: Record<string, string>;
+    };
+    expect(pkg.scripts?.build).toBeTruthy();
+    expect(pkg.scripts!.build).toContain("emit-manifest");
   });
 
-  it("emits a Gmail Connector two-step envelope (no Slack-Connector references)", () => {
-    const envelopePath = join(
-      handlerRoot,
-      "src",
-      "lib",
-      "build-envelope.ts",
-    );
-    const text = existsSync(envelopePath) ? readFile(envelopePath) : "";
-    expect(text).toContain("Use the Gmail Connector");
-    expect(text).toContain("create_draft");
-    expect(text).toContain("two steps");
-    expect(text).toContain("authuser=");
-    expect(text).not.toContain("Use the Slack Connector");
+  it("compiled handler name is agntux-gmail-view.js per build script", () => {
+    const pkg = JSON.parse(
+      readFileSync(join(PLUGIN_ROOT, "view-tool", "package.json"), "utf-8"),
+    ) as { scripts?: Record<string, string> };
+    expect(pkg.scripts!.build).toContain("agntux-gmail-view.js");
   });
 });
