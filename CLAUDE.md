@@ -42,6 +42,51 @@ AgntUX/AUX-plugins/
 
 ---
 
+## Schema Evolution — Additive-Only Policy (P7)
+
+The on-disk schemas under `<agntux project root>/data/schema/` (personal)
+and `<agntux project root>/teams/{team-slug}/data/schema/` (per-team)
+evolve via **additive-only** semver bumps. Ratified in P7 of the AgntUX
+Teams master plan; load-bearing for every plugin in this repo that
+reads, writes, or validates entity/action files.
+
+The rules:
+
+- **MINOR** (`1.0.0 → 1.1.0`) — additive changes: new optional field,
+  new subtype, new action_class, **or promoting a previously-optional
+  field to required so long as legacy files self-heal via the
+  hook+runbook loop**. Existing files at the older version remain
+  valid (contract-ahead MINOR drift passes silently); the next touch
+  picks up the new shape additively.
+- **PATCH** (`1.1.0 → 1.1.1`) — no-surface clarifications. No data
+  impact.
+- **MAJOR** is **forbidden by policy.** Breaking changes (removing a
+  required field, renaming, narrowing a type, dropping a subtype) MUST
+  be rewritten as additive deprecations at the authoring layer:
+  `/agntux schema` (personal) and `/agntux-teams onboard:team-lead`
+  (per-team) reject MAJOR proposals and offer the additive rewrite
+  (deprecate the old field; add a new one; consumers tolerate both
+  during the transition). Users never have to manually run a
+  migration; the on-disk corpus is never rewritten in bulk.
+
+The validator hook (`plugins/agntux-core/hooks/validate-schema.mjs`)
+enforces this at write time:
+
+- File ahead of contract by MINOR → reject + emit the bump runbook
+  (Edit operations the agent executes to advance the contract + lock,
+  then retry).
+- Contract ahead of file by MINOR → pass silently (legacy file shape).
+- MAJOR drift either direction → reject. (Should never appear in
+  practice because the authoring layer guards against it; the
+  hook-level rejection is a backstop.)
+- PATCH drift either direction → pass silently.
+
+Hook-computed identifiers like `entity_id` follow the same self-heal
+shape: the hook rejects writes with missing or wrong values and bakes
+the correct value into the rejection runbook. **The LLM never computes
+hashes** — see `canonical/hooks/lib/entity-id.mjs` for the canonical
+helper, byte-frozen into every plugin's `hooks/lib/` that needs it.
+
 ## License — Apache 2.0
 
 All plugins and shared packages are licensed under the **Apache License

@@ -1,0 +1,6 @@
+PLACEHOLDER: `/agntux-teams status` chat output screenshot.
+
+agntux-teams is a skill-driven plugin with no UI handlers, so screenshots
+are of the skill's chat output rather than an iframe. Replace with a real
+PNG before public release. Stubbed as a `.placeholder` so the build doesn't
+attempt to embed a fake binary.

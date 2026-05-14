@@ -1,7 +1,7 @@
 ---
 type: schema-index
 scope: entities
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 updated_at: {{generated_at}}
 ---
 

@@ -19,6 +19,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, basename, sep } from "node:path";
 import { resolveAgntuxRoot } from "./lib/agntux-root.mjs";
+import { resolveScope } from "./lib/scope.mjs";
 
 const AGNTUX_ROOT = resolveAgntuxRoot();
 const ENTITIES_ROOT = AGNTUX_ROOT ? join(AGNTUX_ROOT, "entities") : null;
@@ -49,10 +50,15 @@ function pass() {
 }
 
 function inEntityScope(filePath) {
-  if (typeof filePath !== "string") return false;
-  if (!ENTITIES_ROOT) return false;
-  if (basename(filePath) === "_index.md") return false;
-  return filePath.startsWith(ENTITIES_ROOT + sep);
+  // P7 broadens the entity-shape lint to cover team-scoped entities too:
+  // <root>/entities/{subtype}/*.md AND <root>/teams/{slug}/entities/{subtype}/*.md.
+  // The deprecated-section rules apply identically regardless of scope —
+  // the lift pass that authors team copies is supposed to honour the same
+  // body-section conventions as the source-plugin lift.
+  if (!AGNTUX_ROOT) return false;
+  const scope = resolveScope(filePath, AGNTUX_ROOT);
+  if (!scope) return false;
+  return scope.role === "entity";
 }
 
 function readPostWriteContent(ctx) {

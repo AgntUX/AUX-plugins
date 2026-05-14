@@ -1,0 +1,10 @@
+PLACEHOLDER: replace with a 512x512 PNG icon before shipping.
+
+This file is a textual placeholder so the marketplace directory carries the
+right shape without committing a binary stub. The renderer at
+app/lib/teams/renderer.ts copies this directory verbatim into each org's
+private marketplace repo; a real icon.png is required before
+`/agntux-teams` is enabled in any org's settings.
+
+For internal-test orgs, the renderer may substitute a default AgntUX-Teams
+icon shipped under app/public/teams/agntux-teams-default-icon.png.
