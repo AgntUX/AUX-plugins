@@ -38,6 +38,21 @@ interface MarketplacePlugin {
   homepage: string;
   keywords: string[];
   category: string;
+  /**
+   * Optional plugin-kind discriminator. Present and equal to
+   * `"remote-view-only"` for source plugins that ship only a remote view tool
+   * (no local MCP server, no `mcp-server/` directory). Signals the host not to
+   * attempt launching a local MCP server for these plugins — the remote MCP
+   * server in `app/` serves their view tools from S3-backed storage. Absent
+   * for local-server plugins (agntux-core, agntux-build, plugin-toolkit) so
+   * the host keeps using its existing local-launch path. Hybrid plugins
+   * (agntux-core ships both a local mcp-server/ and a view-tool/) intentionally
+   * omit `kind`: their local server still serves local tools, and their remote
+   * view tool is registered through the same plugin-registry path as a side
+   * effect — no host-side discriminator needed. See Phase 7 of the master plan
+   * and Shared contract §8.
+   */
+  kind?: "remote-view-only";
 }
 
 interface MarketplaceJson {
@@ -98,6 +113,14 @@ function regenerate(): void {
       );
     }
 
+    // P7 plugin-kind discriminator. A source plugin is one whose directory
+    // contains no `mcp-server/` subdirectory (i.e. it ships only a remote
+    // view tool). Hybrid plugins (have BOTH mcp-server/ and view-tool/, e.g.
+    // agntux-core) and pure local-server plugins (agntux-build, plugin-toolkit)
+    // omit `kind` — the host treats them as local. Same predicate as
+    // `scripts/build-plugin.mjs`; keep them in sync if you change one.
+    const hasMcpServer = isDirectory(path.join(pluginDir, "mcp-server"));
+
     const entry: MarketplacePlugin = {
       name: pluginJson.name ?? slug,
       source: `./plugins/${slug}`,
@@ -105,6 +128,9 @@ function regenerate(): void {
       keywords: listingYaml.keywords ?? [],
       category: listingYaml.categories?.[0] ?? "meta",
     };
+    if (!hasMcpServer) {
+      entry.kind = "remote-view-only";
+    }
 
     plugins.push(entry);
   }

@@ -148,15 +148,33 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   mismatches.
 - **Screenshots are listing collateral, NOT functional UI.** Real UI bundles are
   served from S3 with signed URLs (P2 §11).
-- **`dist/` and `out/` are tracked artifacts, not source.** The host clones
-  this repo and launches `mcp-server/dist/index.js` directly with no install
-  step, so the compiled JS and embedded UI bundles must already be in the
-  repo. CI rebuilds them on push to `main` via `build-plugins.yml` and
-  commits the regenerated tree back. **Do not hand-edit** any file under
-  `plugins/*/mcp-server/dist/`, `plugins/*/ui-handlers/*/component/out/`,
+- **`dist/` and `out/` are tracked artifacts, not source.** Plugins ship
+  compiled output in the repo so consumers get a runnable plugin at the
+  pinned SHA with no host-side install step. The tracked set depends on the
+  plugin's kind (predicate: presence-of-`mcp-server/`-directory; same one
+  used by `scripts/build-plugin.mjs`, `scripts/regenerate-marketplace-json.ts`,
+  and `.github/workflows/build-plugins.yml`):
+  - **Local-server plugins** (have `mcp-server/`, e.g. `agntux-build`,
+    `plugin-toolkit`) track `plugins/*/mcp-server/dist/` plus
+    `plugins/*/ui-handlers/*/component/out/` for the embedded UI bundles.
+    The Claude Code host launches `mcp-server/dist/index.js` directly.
+  - **Source plugins** (no `mcp-server/`; have `view-tool/` only, e.g.
+    `agntux-slack`, `agntux-gmail`) track `plugins/*/view-tool/dist/` —
+    `<slug>-view.js`, `view-tools.manifest.json`, and
+    `ui-resources/*.html`. These are served by the remote MCP server in
+    `app/` via the plugin registry; no local launch happens. Their
+    `marketplace.json` entry carries `kind: "remote-view-only"` so the
+    host knows to skip local-launch for them.
+  - **Hybrid plugins** (have both, e.g. `agntux-core`) track both sets.
+  - `packages/*/dist/` is also tracked for shared workspace packages.
+
+  CI (`build-plugins.yml`) rebuilds the appropriate set per plugin on push
+  to `main` and commits the regenerated tree back. **Do not hand-edit** any
+  file under `plugins/*/mcp-server/dist/`,
+  `plugins/*/ui-handlers/*/component/out/`, `plugins/*/view-tool/dist/`,
   or `packages/*/dist/` — your edit will be overwritten on the next merge.
-  Edit the source under `src/` and run `npm run build` from the plugin root
-  (or `/dev-plugin {slug}`) to regenerate.
+  Edit the source under `src/` and run `node scripts/build-plugin.mjs
+  {slug}` (or `/dev-plugin {slug}` for local-server plugins) to regenerate.
 - **We do NOT use `@modelcontextprotocol/ext-apps` (the official MCP Apps
   SDK).** Servers depend only on core `@modelcontextprotocol/sdk` and
   hand-roll the Apps surface (`_meta.ui.resourceUri` on tools, `ui://...`
