@@ -28,10 +28,42 @@ export interface ActionFrontmatter {
     done_by_user_id: string | null;
     done_at: string | null;
 }
+export interface ComposePayloadThreadContext {
+    thread_id: string;
+    subject: string;
+    parent_message_id: string;
+    parent_author_real_name: string;
+    parent_author_email: string;
+    parent_excerpt: string;
+    last_message_id: string;
+    last_author_real_name: string;
+    last_author_email: string;
+    last_excerpt: string;
+    total_messages: number;
+    participants: {
+        real_name: string;
+        email: string;
+    }[];
+}
+export interface ComposePayloadOnDisk {
+    drafted_body: string;
+    personalization_signals: string[];
+    thread_context: ComposePayloadThreadContext;
+    recipients: {
+        to: string[];
+        cc: string[];
+        bcc: string[];
+    };
+    reply_to_message_id: string;
+    gmail_thread_url: string | null;
+    account_index: number | null;
+}
 export interface ParsedAction {
     frontmatter: ActionFrontmatter;
     why_matters: string;
     personalization_fit: string;
+    compose_payload: ComposePayloadOnDisk | null;
+    email_context: string;
 }
 /** Shape of a single on-disk action file (frontmatter + body sections). */
 export type ActionFile = ParsedAction;
@@ -40,6 +72,13 @@ export declare function parseFrontmatter(text: string): {
     body: string;
 };
 export declare function extractSection(body: string, header: string): string;
+export declare function extractFencedYaml(body: string, header: string): string | null;
+/**
+ * Parse the gmail `## Compose payload` (or `## Compose payload (gmail)`)
+ * body section into a typed object. Returns null when the section is
+ * absent or the fenced YAML is malformed/empty.
+ */
+export declare function parseComposePayload(body: string): ComposePayloadOnDisk | null;
 /**
  * Parse an action file from a Buffer or string body. Replaces the legacy
  * `parseActionFile(path)` from agntux-core/mcp-server — the caller is now
