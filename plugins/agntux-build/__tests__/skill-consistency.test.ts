@@ -120,6 +120,13 @@ describe("skill ↔ references consistency", () => {
     expect(skillBody).toMatch(/disable-model-invocation:\s*true/);
   });
 
+  it("07-build.md advertises 7 internal specialists", () => {
+    const body = readFileSync(join(REF_DIR, "07-build.md"), "utf-8");
+    expect(body).toMatch(/seven internal specialists/i);
+    expect(body).toMatch(/Building\.\.\. \(1\/7\)/);
+    expect(body).toMatch(/Building\.\.\. \(7\/7\)/);
+  });
+
   it("SKILL.md routing table stays 1:1 with file numbers", () => {
     // The routing table claims stage N loads references/NN-*.md.
     // Spot-check a few rows.

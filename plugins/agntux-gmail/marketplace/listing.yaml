@@ -34,6 +34,8 @@ ui_components:
   - name: "compose"
     title: "Gmail reply composer"
     purpose: "Draft replies inline with editable to/cc/bcc/subject/body, prior-conversation context, and personalization signals. Save creates a Gmail draft and opens it in a new tab for review-and-send."
+    view_tool: "agntux_gmail_compose_view"
+    resource_uri: "ui://agntux-gmail/compose"
 screenshot_order:
   - "00-sync-status.png"
   - "01-action-detail.png"
