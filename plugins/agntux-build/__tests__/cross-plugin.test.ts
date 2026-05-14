@@ -84,3 +84,55 @@ describe("cross-plugin: view-only shape", () => {
     });
   }
 });
+
+// =============================================================================
+// Cross-plugin: compiled view-tool ESM modules conform to the FROZEN
+// ViewToolContext contract.
+//
+// Treat ViewToolContext as a contract, not as a structure to iterate. We
+// dynamic-import each plugin's compiled `view-tool/dist/<slug>-view.js`
+// (including agntux-core, which is exempt from the no-mcp-server rule but
+// still ships a view-tool subtree under P5) and assert:
+//
+//   1. The default export is a `ViewToolModule` shape — `{ viewTools }` with
+//      a non-empty array.
+//   2. Every entry exposes `descriptor` (object) + `handle` (function).
+//   3. Every descriptor name is plugin-slug-prefixed.
+//
+// Soft-skipped when the dist tree is missing (fresh clone before build).
+// =============================================================================
+
+describe("cross-plugin: compiled module ↔ ViewToolContext contract", () => {
+  const SLUGS = ["agntux-core", "agntux-slack", "agntux-gmail"];
+
+  for (const slug of SLUGS) {
+    it(`${slug}: default export is { viewTools: ViewTool[] } with valid descriptors`, async () => {
+      const root = join(PLUGINS_ROOT, slug);
+      const compiled = join(root, "view-tool", "dist", `${slug}-view.js`);
+      if (!existsSync(compiled)) {
+        // Build hasn't run locally — CI's build-plugins.yml regenerates it.
+        return;
+      }
+      const mod = await import(compiled);
+      const exported = mod.default;
+      expect(exported, `${slug} default export missing`).toBeTruthy();
+      expect(Array.isArray(exported.viewTools)).toBe(true);
+      expect(exported.viewTools.length).toBeGreaterThan(0);
+
+      const slugSnake = slug.replace(/-/g, "_");
+      for (const vt of exported.viewTools) {
+        expect(typeof vt.handle).toBe("function");
+        expect(vt.descriptor).toBeTruthy();
+        expect(typeof vt.descriptor.name).toBe("string");
+        expect(vt.descriptor.name.startsWith(`${slugSnake}_`)).toBe(true);
+        expect(typeof vt.descriptor.description).toBe("string");
+        expect(vt.descriptor.inputSchema).toBeTruthy();
+        expect(vt.descriptor.outputSchema).toBeTruthy();
+        expect(typeof vt.descriptor.ui_resource_uri).toBe("string");
+        expect(vt.descriptor.ui_resource_uri).toMatch(
+          /^ui:\/\/[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/,
+        );
+      }
+    });
+  }
+});
