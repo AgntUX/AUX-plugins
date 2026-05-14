@@ -22,7 +22,7 @@
  * preserve the user's place in the list when an action resolves the card.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AgntuxLogo,
   Spinner,
@@ -54,14 +54,23 @@ const PRIORITY_FILTER_VALUES = ['all', 'high', 'medium', 'low'] as const;
 type PriorityFilter = (typeof PRIORITY_FILTER_VALUES)[number];
 
 // 'created' was added in v6.0.0 to support the new "Most recently created"
-// dropdown option (replaces the priority↔due toggle).
-const SORT_VALUES = ['priority', 'due', 'created'] as const;
+// dropdown option (replaces the priority↔due toggle). P9 (9.3.0) added
+// 'team-then-priority' + 'due-then-priority' for the team-mode triage view.
+const SORT_VALUES = [
+  'priority',
+  'due',
+  'created',
+  'team-then-priority',
+  'due-then-priority',
+] as const;
 type SortKey = (typeof SORT_VALUES)[number];
 
 const SORT_LABELS: Record<SortKey, string> = {
   priority: 'Priority',
   due: 'Due date',
   created: 'Most recently created',
+  'team-then-priority': 'Team, then priority',
+  'due-then-priority': 'Due date, then priority',
 };
 
 const DISMISS_OUTCOMES = [
@@ -120,6 +129,31 @@ interface Action {
   // and the new sort dropdown can offer "Most recently created".
   created_at: string | null;
   updated_at: string | null;
+  // Optional team-aware fields (9.2.0 / P3 v2 §1). Present on rows that
+  // came from a team or leader-view scope; absent on personal rows so the
+  // solo render path stays byte-identical to 9.0.0.
+  team_slug?: string;
+  team_id?: string;
+  source_team?: string;
+  member_relevance_class?: string;
+  // P9 (9.3.0): the row's relevance-class list for strict-intersection
+  // filter. Empty array on personal items. Path of the action file
+  // relative to AgntUX root — load-bearing for `set_triage_pref` and
+  // for keying snooze/dismiss state in `prefs.triage_state`.
+  relevance_classes?: string[];
+  relative_path?: string;
+  // Team-wide mark-done attribution (P9). Visible in the UI's "Recently
+  // handled" section as "Done by Alice".
+  done_by_user_slug?: string;
+  done_by_user_id?: string;
+  done_at?: string;
+  // Scope the row is being rendered IN. Differs from `team_slug` for
+  // leader-view rows where the source is a team but the rendering scope
+  // is the leader view. The mutator tools route on this pair, not on
+  // the row's `team_slug`. Set by parsePayload from the section's
+  // section-kind, not from frontmatter.
+  scope_kind?: 'personal' | 'team' | 'leader';
+  scope_slug?: string;
 }
 
 interface HandledAction {
@@ -138,13 +172,87 @@ interface Counts {
   truncated: boolean;
 }
 
+interface TeamSection {
+  team_slug: string;
+  team_id: string | null;
+  display_name: string;
+  actions: Action[];
+  handled_recent: HandledAction[];
+  // P9 (9.3.0): the current member's onboarding-time relevance picks
+  // for this team. Empty array when not set yet — UI shows the
+  // "Set your relevance picks…" empty state.
+  member_relevance_classes: string[];
+}
+
+// P9 triage-prefs (9.3.0): user-controlled UI state read from
+// `<root>/.agntux/triage-prefs.json` and surfaced server-side on the
+// payload. The UI mirrors this into local state for snappy interactions
+// and writes back via the agntux_core_save_triage_prefs /
+// agntux_core_set_triage_pref tools.
+interface TriagePrefs {
+  schema_version: 2;
+  team_filters: Record<string, 'shown' | 'hidden'>;
+  view_filters: Record<string, 'shown' | 'hidden'>;
+  relevance_class_filters: Record<string, string[]>;
+  sort: SortKey;
+  show_done: boolean;
+  show_snoozed: boolean;
+  show_dismissed: boolean;
+  triage_state: Record<
+    string,
+    {
+      snoozed_until: string | null;
+      dismissed_at: string | null;
+    }
+  >;
+}
+
+const EMPTY_PREFS: TriagePrefs = {
+  schema_version: 2,
+  team_filters: {},
+  view_filters: {},
+  relevance_class_filters: {},
+  sort: 'priority',
+  show_done: false,
+  show_snoozed: false,
+  show_dismissed: false,
+  triage_state: {},
+};
+
+interface LeaderSection {
+  view_slug: string;
+  view_id: string | null;
+  display_name: string;
+  actions: Action[];
+  handled_recent: HandledAction[];
+}
+
 interface TriageData {
+  // In team mode, this is the personal-scope subset (decorated as
+  // `scope_kind: 'personal'`); in solo mode, it is the only list and the
+  // shape is byte-identical to 9.0.0. The legacy field name is preserved
+  // so older callers and tests keep working.
   actions: Action[];
   handled_recent: HandledAction[];
   counts: Counts;
   last_updated_at: string;
   bootstrap_mode: boolean;
   error: ErrorKind | null;
+  // Team mode flips when the payload carries `personal` / `teams[]` /
+  // `leader_views[]` keys (schema_version === 2). When false, all
+  // team-mode UI is hidden and rendering is identical to 9.0.0.
+  team_mode: boolean;
+  teams: TeamSection[];
+  leader_views: LeaderSection[];
+  // P9 (9.3.0): user-controlled UI state. Default v2 shape when
+  // absent (solo mode or fresh team mode without a saved prefs file).
+  triage_prefs: TriagePrefs;
+  // The current user's identity, when established (set by agntux-teams
+  // during member onboarding). Null in solo mode and during the
+  // pre-onboarding window. The UI passes these as `user_slug` /
+  // `user_id` on mark-done so the team-wide audit fields get written.
+  self_user_slug: string | null;
+  self_user_id: string | null;
 }
 
 interface WidgetUiState {
@@ -152,6 +260,12 @@ interface WidgetUiState {
   sort: SortKey;
   hide_done: boolean;
   handled_expanded: boolean;
+  // Team-mode filter chips: slugs hidden in the current member's view.
+  // Mirrors the data the save_triage_prefs tool writes to
+  // `<root>/.agntux/triage-prefs.json`. Solo users have these empty
+  // arrays and the chips never render.
+  muted_team_slugs: string[];
+  muted_view_slugs: string[];
 }
 
 const DEFAULT_WIDGET_STATE: WidgetUiState = {
@@ -159,6 +273,8 @@ const DEFAULT_WIDGET_STATE: WidgetUiState = {
   sort: 'priority',
   hide_done: false,
   handled_expanded: false,
+  muted_team_slugs: [],
+  muted_view_slugs: [],
 };
 
 // =============================================================================
@@ -204,7 +320,7 @@ function normalizeSuggestedAction(raw: unknown): SuggestedAction {
 
 function normalizeAction(raw: unknown): Action {
   const r = safeObject(raw);
-  return {
+  const out: Action = {
     id: safeString(r.id),
     title: safeString(r.title),
     summary: safeString(r.summary),
@@ -225,6 +341,102 @@ function normalizeAction(raw: unknown): Action {
     personalization_fit_excerpt: safeString(r.personalization_fit_excerpt),
     created_at: typeof r.created_at === 'string' ? r.created_at : null,
     updated_at: typeof r.updated_at === 'string' ? r.updated_at : null,
+  };
+  // Optional team-aware fields: only attach when the source string has
+  // actual content so a solo-mode payload (which never sets them) parses
+  // into an object with the exact same keys as 9.0.0.
+  if (typeof r.team_slug === 'string' && r.team_slug.length > 0) {
+    out.team_slug = r.team_slug;
+  }
+  if (typeof r.team_id === 'string' && r.team_id.length > 0) {
+    out.team_id = r.team_id;
+  }
+  if (typeof r.source_team === 'string' && r.source_team.length > 0) {
+    out.source_team = r.source_team;
+  }
+  if (
+    typeof r.member_relevance_class === 'string' &&
+    r.member_relevance_class.length > 0
+  ) {
+    out.member_relevance_class = r.member_relevance_class;
+  }
+  // P9 (9.3.0): per-row strict-intersection inputs and team-wide audit
+  // fields. Conditionally attached so solo rows (which never set them
+  // server-side) parse into an object with the exact same keys as 9.0.0.
+  const rc = safeArray<unknown>(r.relevance_classes)
+    .map((c) => safeString(c))
+    .filter(Boolean);
+  if (rc.length > 0) out.relevance_classes = rc;
+  if (typeof r.relative_path === 'string' && r.relative_path.length > 0) {
+    out.relative_path = r.relative_path;
+  }
+  if (typeof r.done_by_user_slug === 'string' && r.done_by_user_slug.length > 0) {
+    out.done_by_user_slug = r.done_by_user_slug;
+  }
+  if (typeof r.done_by_user_id === 'string' && r.done_by_user_id.length > 0) {
+    out.done_by_user_id = r.done_by_user_id;
+  }
+  if (typeof r.done_at === 'string' && r.done_at.length > 0) {
+    out.done_at = r.done_at;
+  }
+  return out;
+}
+
+function decorateActions(
+  actions: Action[],
+  scope_kind: 'personal' | 'team' | 'leader',
+  scope_slug: string,
+): Action[] {
+  // Threads the rendering scope onto each row so the mutation handlers
+  // can read `scope_kind` / `scope_slug` directly without re-deriving
+  // from `team_slug` (which is absent on leader-view rows). The Action
+  // shape is preserved across the JSON boundary; this only adds in-memory
+  // fields the component owns.
+  return actions.map((a) => ({ ...a, scope_kind, scope_slug }));
+}
+
+function normalizeTeamSection(raw: unknown): TeamSection | null {
+  const r = safeObject(raw);
+  const team_slug = safeString(r.team_slug);
+  if (!team_slug) return null;
+  return {
+    team_slug,
+    team_id: typeof r.team_id === 'string' ? r.team_id : null,
+    display_name: safeString(r.display_name) || team_slug,
+    actions: decorateActions(
+      safeArray<unknown>(r.actions)
+        .map(normalizeAction)
+        .filter((a) => a.id),
+      'team',
+      team_slug,
+    ),
+    handled_recent: safeArray<unknown>(r.handled_recent)
+      .map(normalizeHandled)
+      .filter((h) => h.id),
+    member_relevance_classes: safeArray<unknown>(r.member_relevance_classes)
+      .map((c) => safeString(c))
+      .filter(Boolean),
+  };
+}
+
+function normalizeLeaderSection(raw: unknown): LeaderSection | null {
+  const r = safeObject(raw);
+  const view_slug = safeString(r.view_slug);
+  if (!view_slug) return null;
+  return {
+    view_slug,
+    view_id: typeof r.view_id === 'string' ? r.view_id : null,
+    display_name: safeString(r.display_name) || view_slug,
+    actions: decorateActions(
+      safeArray<unknown>(r.actions)
+        .map(normalizeAction)
+        .filter((a) => a.id),
+      'leader',
+      view_slug,
+    ),
+    handled_recent: safeArray<unknown>(r.handled_recent)
+      .map(normalizeHandled)
+      .filter((h) => h.id),
   };
 }
 
@@ -249,13 +461,55 @@ function parsePayload(toolOutput?: Record<string, unknown>): TriageData {
     (ERROR_KINDS as readonly string[]).includes(payload.error)
       ? (payload.error as ErrorKind)
       : null;
-  return {
-    actions: safeArray<unknown>(payload.actions)
+
+  // Detect team mode. The server emits `schema_version: 2` plus a
+  // `personal` object and `teams` / `leader_views` arrays when team
+  // mode is active. We treat any of those signals as a positive
+  // detection so a forward-compatible server (3 → 4 etc.) still
+  // routes to the new render path. The legacy `actions` field stays
+  // populated as personal-only in team mode for backward compat with
+  // older bundles, so we read `personal` first and fall back to
+  // `actions` when only the legacy shape is present.
+  const teams: TeamSection[] = safeArray<unknown>(payload.teams)
+    .map(normalizeTeamSection)
+    .filter((s): s is TeamSection => s !== null);
+  const leader_views: LeaderSection[] = safeArray<unknown>(payload.leader_views)
+    .map(normalizeLeaderSection)
+    .filter((s): s is LeaderSection => s !== null);
+
+  const schemaVersion = safeNumber(payload.schema_version);
+  const team_mode =
+    schemaVersion >= 2 || teams.length > 0 || leader_views.length > 0;
+
+  let personalActions: Action[];
+  let personalHandled: HandledAction[];
+  if (team_mode && payload.personal && typeof payload.personal === 'object') {
+    const personal = safeObject(payload.personal);
+    personalActions = safeArray<unknown>(personal.actions)
       .map(normalizeAction)
-      .filter((a) => a.id),
-    handled_recent: safeArray<unknown>(payload.handled_recent)
+      .filter((a) => a.id);
+    personalHandled = safeArray<unknown>(personal.handled_recent)
       .map(normalizeHandled)
-      .filter((h) => h.id),
+      .filter((h) => h.id);
+  } else {
+    personalActions = safeArray<unknown>(payload.actions)
+      .map(normalizeAction)
+      .filter((a) => a.id);
+    personalHandled = safeArray<unknown>(payload.handled_recent)
+      .map(normalizeHandled)
+      .filter((h) => h.id);
+  }
+  // Only decorate with `scope_kind: 'personal'` when team mode is
+  // active; in solo mode we want the Action objects unchanged so
+  // mutation handlers take the legacy code path without ever looking
+  // at `scope_kind`.
+  if (team_mode) {
+    personalActions = decorateActions(personalActions, 'personal', '');
+  }
+
+  return {
+    actions: personalActions,
+    handled_recent: personalHandled,
     counts: {
       open: safeNumber(counts.open),
       snoozed: safeNumber(counts.snoozed),
@@ -269,6 +523,61 @@ function parsePayload(toolOutput?: Record<string, unknown>): TriageData {
     // onboarded but no ingest plugin has fired yet.
     bootstrap_mode: safeBoolean(payload.bootstrap_mode, false),
     error,
+    team_mode,
+    teams,
+    leader_views,
+    triage_prefs: normalizeTriagePrefs(payload.triage_prefs),
+    self_user_slug:
+      typeof payload.self_user_slug === 'string' && payload.self_user_slug.length > 0
+        ? payload.self_user_slug
+        : null,
+    self_user_id:
+      typeof payload.self_user_id === 'string' && payload.self_user_id.length > 0
+        ? payload.self_user_id
+        : null,
+  };
+}
+
+function normalizeTriagePrefs(raw: unknown): TriagePrefs {
+  const r = safeObject(raw);
+  // Defensive read: every field falls back to its v2 default. The server
+  // emits the full v2 shape in team mode and omits the key entirely in
+  // solo mode (handled below by EMPTY_PREFS).
+  if (!raw) return { ...EMPTY_PREFS };
+  const team_filters: Record<string, 'shown' | 'hidden'> = {};
+  for (const [k, v] of Object.entries(safeObject(r.team_filters))) {
+    if (v === 'shown' || v === 'hidden') team_filters[k] = v;
+  }
+  const view_filters: Record<string, 'shown' | 'hidden'> = {};
+  for (const [k, v] of Object.entries(safeObject(r.view_filters))) {
+    if (v === 'shown' || v === 'hidden') view_filters[k] = v;
+  }
+  const relevance_class_filters: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(safeObject(r.relevance_class_filters))) {
+    relevance_class_filters[k] = safeArray<unknown>(v)
+      .map((s) => safeString(s))
+      .filter(Boolean);
+  }
+  const triage_state: TriagePrefs['triage_state'] = {};
+  for (const [k, v] of Object.entries(safeObject(r.triage_state))) {
+    const entry = safeObject(v);
+    triage_state[k] = {
+      snoozed_until:
+        typeof entry.snoozed_until === 'string' ? entry.snoozed_until : null,
+      dismissed_at:
+        typeof entry.dismissed_at === 'string' ? entry.dismissed_at : null,
+    };
+  }
+  return {
+    schema_version: 2,
+    team_filters,
+    view_filters,
+    relevance_class_filters,
+    sort: safeEnum(r.sort, SORT_VALUES, 'priority'),
+    show_done: safeBoolean(r.show_done, false),
+    show_snoozed: safeBoolean(r.show_snoozed, false),
+    show_dismissed: safeBoolean(r.show_dismissed, false),
+    triage_state,
   };
 }
 
@@ -286,6 +595,12 @@ function readWidgetState(raw: Record<string, unknown>): WidgetUiState {
     sort: safeEnum(raw.sort, SORT_VALUES, 'priority'),
     hide_done: safeBoolean(raw.hide_done, false),
     handled_expanded: safeBoolean(raw.handled_expanded, false),
+    muted_team_slugs: safeArray<unknown>(raw.muted_team_slugs)
+      .map((v) => safeString(v))
+      .filter(Boolean),
+    muted_view_slugs: safeArray<unknown>(raw.muted_view_slugs)
+      .map((v) => safeString(v))
+      .filter(Boolean),
   };
 }
 
@@ -476,6 +791,21 @@ function EntityBadge({ entity }: { entity: string }) {
     >
       {subtype && <span className="text-slate-400">{subtype}</span>}
       {slug}
+    </span>
+  );
+}
+
+function TeamChip({ label }: { label: string }) {
+  // Subtle indigo so it reads as "scope label" alongside the priority/reason
+  // pills without competing for attention. The team-name chip is the
+  // primary visual signal that this row is team-scoped, not personal.
+  return (
+    <span
+      className="inline-flex items-center rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[0.6875rem] font-medium text-indigo-700"
+      data-testid={`team-chip-${label}`}
+      title={`Team scope: ${label}`}
+    >
+      {label}
     </span>
   );
 }
@@ -1120,16 +1450,39 @@ function ActionCard({
     else onExpand(action.id, kind);
   };
 
+  // Team-aware visuals (P3 v2 §1):
+  //   - team-name chip: surfaced when the row carries a `team_slug`. Solo
+  //     rows (no team_slug) render without the chip — byte-identical UX.
+  //   - left-edge ribbon: when `member_relevance_class` is set, a vertical
+  //     accent bar sits inside the card edge so the user can scan a long
+  //     list and pick out the categories they care about. Implemented as
+  //     an absolutely-positioned span so the card's existing flex layout
+  //     isn't disrupted; falls back to no-ribbon for rows without the
+  //     field. Card adds `relative` + `pl-3.5` only when the ribbon
+  //     renders so the solo card layout stays unchanged.
+  const hasRibbon = !!action.member_relevance_class;
+  const cardClass = hasRibbon
+    ? 'relative flex flex-col gap-2 rounded-md border border-border bg-card p-3 pl-3.5 shadow-sm'
+    : 'flex flex-col gap-2 rounded-md border border-border bg-card p-3 shadow-sm';
   return (
     <article
-      className="flex flex-col gap-2 rounded-md border border-border bg-card p-3 shadow-sm"
+      className={cardClass}
       role="listitem"
       aria-labelledby={titleId}
       data-testid={`action-card-${action.id}`}
     >
+      {hasRibbon && (
+        <span
+          aria-hidden="true"
+          data-testid={`relevance-ribbon-${action.id}`}
+          title={`Relevance: ${action.member_relevance_class}`}
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md bg-indigo-400"
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <PriorityPill priority={action.priority} />
         <ReasonBadge reasonClass={action.reason_class} />
+        {action.team_slug && <TeamChip label={action.team_slug} />}
         {action.due_by && <ChipDue iso={action.due_by} locale={locale} />}
         {action.status === 'snoozed' && action.snoozed_until && (
           <span className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[0.6875rem] text-muted-foreground">
@@ -1461,6 +1814,163 @@ function ActionsIndexMissing({
 }
 
 // =============================================================================
+// P9 prefs helpers
+// =============================================================================
+
+// Merge fresh server-side prefs over the local state, preserving any
+// keys the user has touched this session (tracked by the dirty set).
+// Without this, a slow MCP roundtrip could let a stale server snapshot
+// reset a fresh toggle. Each dirty key is restored from the local
+// mirror onto the server-merged base.
+function mergeServerPrefs(
+  local: TriagePrefs,
+  server: TriagePrefs,
+  dirty: Set<string>,
+): TriagePrefs {
+  const base: TriagePrefs = {
+    schema_version: 2,
+    team_filters: { ...server.team_filters },
+    view_filters: { ...server.view_filters },
+    relevance_class_filters: { ...server.relevance_class_filters },
+    sort: server.sort,
+    show_done: server.show_done,
+    show_snoozed: server.show_snoozed,
+    show_dismissed: server.show_dismissed,
+    triage_state: { ...server.triage_state },
+  };
+  for (const key of dirty) {
+    if (key === 'sort') base.sort = local.sort;
+    else if (key === 'show_done') base.show_done = local.show_done;
+    else if (key === 'show_snoozed') base.show_snoozed = local.show_snoozed;
+    else if (key === 'show_dismissed') base.show_dismissed = local.show_dismissed;
+    else if (key.startsWith('team_filters:')) {
+      const slug = key.slice('team_filters:'.length);
+      if (local.team_filters[slug] !== undefined) {
+        base.team_filters[slug] = local.team_filters[slug];
+      } else {
+        delete base.team_filters[slug];
+      }
+    } else if (key.startsWith('view_filters:')) {
+      const slug = key.slice('view_filters:'.length);
+      if (local.view_filters[slug] !== undefined) {
+        base.view_filters[slug] = local.view_filters[slug];
+      } else {
+        delete base.view_filters[slug];
+      }
+    } else if (key.startsWith('relevance_class_filters:')) {
+      const slug = key.slice('relevance_class_filters:'.length);
+      if (local.relevance_class_filters[slug] !== undefined) {
+        base.relevance_class_filters[slug] = local.relevance_class_filters[slug];
+      } else {
+        delete base.relevance_class_filters[slug];
+      }
+    } else if (key.startsWith('triage_state:')) {
+      const path = key.slice('triage_state:'.length);
+      if (local.triage_state[path] !== undefined) {
+        base.triage_state[path] = local.triage_state[path];
+      } else {
+        delete base.triage_state[path];
+      }
+    }
+  }
+  return base;
+}
+
+// Read the effective snooze / dismiss for a row, preferring the prefs
+// entry over the action-frontmatter fields. Per P9, prefs.triage_state
+// is the new authority on personal preferences; the action-frontmatter
+// `snoozed_until` / `dismissed_at` fields are deprecated in 1.2.0 but
+// kept readable for legacy files during the 90-day transition window.
+function effectivePersonalState(
+  action: Action,
+  prefs: TriagePrefs,
+): { snoozed_until: string | null; dismissed_at: string | null } {
+  const path = action.relative_path;
+  const fromPrefs = path ? prefs.triage_state[path] : undefined;
+  if (fromPrefs) return fromPrefs;
+  // Legacy fallback: frontmatter fields. ONLY the personal scope wrote
+  // these historically. Team-scoped action files MUST NOT influence one
+  // member's view of a team item — a hand-edited team-scoped action with
+  // `snoozed_until` on its frontmatter would otherwise leak as a personal
+  // snooze. Gate the fallback to personal scope (or solo, where
+  // scope_kind is undefined and the legacy field is the only signal).
+  if (action.scope_kind && action.scope_kind !== 'personal') {
+    return { snoozed_until: null, dismissed_at: null };
+  }
+  return {
+    snoozed_until: action.snoozed_until,
+    dismissed_at: null,
+  };
+}
+
+// Strict-intersection filter for team-scope rows. Renders an item iff
+// member.relevance_classes ∩ item.relevance_classes ≠ ∅, AND it's not
+// snoozed (or "Show snoozed" toggled), AND it's not dismissed (or
+// "Show dismissed" toggled), AND status is open (or "Show done"
+// toggled — but the row list here is open-only by definition; the
+// done items live in handled_recent).
+//
+// Selected filters: when the user has narrowed their relevance picks
+// via the chips inside the section (`prefs.relevance_class_filters`),
+// that array further narrows the intersection. Empty selected →
+// the user wants all their picks.
+function passesStrictIntersection(
+  itemClasses: string[],
+  selectedClasses: string[],
+  memberClasses: string[],
+): boolean {
+  // No member picks AND no explicit chip narrowing → fall through to
+  // "show all". This is the pre-onboarding compatibility path: a
+  // user who hasn't run member-onboarding for this team still sees
+  // every team item alongside the "Set your relevance picks…" CTA.
+  // Once they've picked something, the strict filter kicks in.
+  if (memberClasses.length === 0 && selectedClasses.length === 0) return true;
+  // The active filter set is `selectedClasses` when the user has
+  // narrowed via chips; otherwise the member's onboarding picks.
+  const effective = selectedClasses.length > 0 ? selectedClasses : memberClasses;
+  // If the active filter is empty (user un-checked every chip),
+  // nothing matches.
+  if (effective.length === 0) return false;
+  // No item classes on the row → defensively show. Older items
+  // (pre-9.3.0) lack `relevance_classes`; hiding them would surprise
+  // users. The explicit narrowing only filters rows that DO declare
+  // classes.
+  if (itemClasses.length === 0) return true;
+  for (const c of itemClasses) {
+    if (effective.includes(c)) return true;
+  }
+  return false;
+}
+
+// Now() in milliseconds; pulled out as a helper so tests can pin it
+// without monkey-patching globalThis.Date inside the component.
+function nowMs(): number {
+  return Date.now();
+}
+
+// Synthesize the action's `relative_path` from (scope_kind, scope_slug, id)
+// when an older mcp-server didn't emit it. Returns null for solo-mode
+// personal rows (which lack scope_kind entirely) so the caller can fall
+// back to the legacy frontmatter-snooze tool — that path is safe for
+// solo because the personal action file is private to the user.
+function synthesizeRelativePath(
+  action: Action | undefined,
+  id: string,
+): string | null {
+  if (!action) return null;
+  if (action.scope_kind === 'team' && action.scope_slug) {
+    return `teams/${action.scope_slug}/actions/${id}.md`;
+  }
+  if (action.scope_kind === 'leader' && action.scope_slug) {
+    return `leader-views/${action.scope_slug}/actions/${id}.md`;
+  }
+  if (action.scope_kind === 'personal') {
+    return `actions/${id}.md`;
+  }
+  return null;
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -1487,6 +1997,55 @@ export function MainComponent(props: MainComponentProps) {
   // ones if the same id resolves twice in quick succession.
   const feedbackTimersRef = useRef(new Map<string, number>());
 
+  // P9: local mirror of `data.triage_prefs` for snappy UI updates. On
+  // every payload refresh the mirror seeds from the server-side state;
+  // user toggles update the mirror optimistically and fire the
+  // agntux_core_save_triage_prefs MCP tool in parallel. The mirror
+  // lives in component state (not widgetState) because it can be
+  // recomputed from the next render's `data.triage_prefs` — no need to
+  // persist it through an iframe remount.
+  const [prefs, setPrefs] = useState<TriagePrefs>(() => data.triage_prefs);
+  // Track which prefs keys the user has touched this session so a slow
+  // tool call doesn't blow away a fresh toggle when the next payload
+  // arrives. Keys: 'team_filters:{slug}', 'view_filters:{slug}',
+  // 'relevance_class_filters:{slug}', 'sort', 'show_done',
+  // 'show_snoozed', 'show_dismissed', 'triage_state:{path}'.
+  const dirtyPrefsRef = useRef(new Set<string>());
+
+  // Re-seed local prefs from the server-side state when the payload
+  // refreshes, but preserve any keys the user has touched this session.
+  // A naive `setPrefs(data.triage_prefs)` would clobber a toggle the
+  // user made before the save_triage_prefs roundtrip completed.
+  useEffect(() => {
+    setPrefs((cur) => mergeServerPrefs(cur, data.triage_prefs, dirtyPrefsRef.current));
+  }, [data.triage_prefs]);
+
+  // After a successful save roundtrip, drop the matching dirty flags so
+  // a subsequent cross-device update can win the next merge. Without
+  // this, the dirty set grows monotonically and `mergeServerPrefs`
+  // would keep favoring the local mirror over server state from
+  // another machine until iframe remount.
+  const clearDirtyAfter = useCallback(
+    (promise: unknown, ...keys: string[]): void => {
+      if (
+        promise &&
+        typeof (promise as { then?: unknown }).then === 'function'
+      ) {
+        (promise as Promise<unknown>).then(
+          () => {
+            for (const k of keys) dirtyPrefsRef.current.delete(k);
+          },
+          () => {
+            // Leave the dirty flags set on failure so the next refresh
+            // keeps the optimistic value. The user's next interaction
+            // (or a retry of the same toggle) will reconverge.
+          },
+        );
+      }
+    },
+    [],
+  );
+
   // Optimistic-hide set: ids the user has just resolved client-side. Plain
   // useState (not widgetState) — should not survive an iframe remount or
   // persist across host re-invokes. Reconciled per-id against fresh
@@ -1500,7 +2059,16 @@ export function MainComponent(props: MainComponentProps) {
   useEffect(() => {
     setOptimisticallyHidden((prev) => {
       if (prev.size === 0) return prev;
-      const stillOpen = new Set(data.actions.map((a) => a.id));
+      // In team mode every scope contributes open ids; in solo mode this is
+      // exactly the personal list. The reconciliation rule is unchanged
+      // ("keep ids the server still considers open; drop ids the server has
+      // moved to handled / removed"), but we widen the "still open" set so
+      // a team-scoped mutation reconciles too.
+      const stillOpen = new Set<string>();
+      for (const a of data.actions) stillOpen.add(a.id);
+      for (const t of data.teams) for (const a of t.actions) stillOpen.add(a.id);
+      for (const v of data.leader_views)
+        for (const a of v.actions) stillOpen.add(a.id);
       let changed = false;
       const next = new Set<string>();
       for (const id of prev) {
@@ -1512,7 +2080,7 @@ export function MainComponent(props: MainComponentProps) {
       }
       return changed ? next : prev;
     });
-  }, [data.actions, data.handled_recent]);
+  }, [data.actions, data.handled_recent, data.teams, data.leader_views]);
 
   const hideOptimistically = useCallback((id: string) => {
     setOptimisticallyHidden((s) => {
@@ -1598,34 +2166,179 @@ export function MainComponent(props: MainComponentProps) {
     [data.handled_recent, optimisticallyHidden],
   );
 
-  // Filter + sort.
-  const filtered = useMemo(() => {
-    const filteredByPriority =
-      ui.priority_filter === 'all'
-        ? visibleActions
-        : visibleActions.filter((a) => a.priority === ui.priority_filter);
-    const filteredByDone = ui.hide_done
-      ? filteredByPriority.filter((a) => a.status !== 'snoozed' || true)
-      : filteredByPriority; // hide_done currently affects handled list, retained for future
-    const sorted = [...filteredByDone].sort((a, b) => {
-      if (ui.sort === 'priority') {
-        const cmp = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
-        if (cmp !== 0) return cmp;
+  // Filter + sort helper. Pulled out of the original `filtered` memo so
+  // each section in team mode can apply the same priority filter + sort
+  // independently to its own action list. Solo mode still drives the
+  // existing `filtered` memo below.
+  //
+  // P9 (9.3.0): also honors `prefs.show_snoozed` / `prefs.show_dismissed`
+  // for personal preference filtering. Items with prefs.triage_state
+  // snooze in the future are hidden unless `show_snoozed` is on; items
+  // with a `dismissed_at` are hidden unless `show_dismissed` is on.
+  // Sort honors prefs.sort over the legacy widgetState.sort.
+  const sortKey: SortKey = prefs.sort;
+  const now = nowMs();
+  const applyFilterSort = useCallback(
+    (actions: Action[]): Action[] => {
+      const filteredByPriority =
+        ui.priority_filter === 'all'
+          ? actions
+          : actions.filter((a) => a.priority === ui.priority_filter);
+      const filteredByPrefs = filteredByPriority.filter((a) => {
+        const state = effectivePersonalState(a, prefs);
+        if (state.dismissed_at) {
+          return prefs.show_dismissed;
+        }
+        const snoozedUntilMs = state.snoozed_until
+          ? Date.parse(state.snoozed_until)
+          : NaN;
+        if (Number.isFinite(snoozedUntilMs) && snoozedUntilMs > now) {
+          return prefs.show_snoozed;
+        }
+        return true;
+      });
+      const sorted = [...filteredByPrefs].sort((a, b) => {
+        if (sortKey === 'priority') {
+          const cmp = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+          if (cmp !== 0) return cmp;
+          return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
+        }
+        if (sortKey === 'created') {
+          const at = a.created_at ? Date.parse(a.created_at) : NaN;
+          const bt = b.created_at ? Date.parse(b.created_at) : NaN;
+          const av = Number.isFinite(at) ? (at as number) : -Infinity;
+          const bv = Number.isFinite(bt) ? (bt as number) : -Infinity;
+          return bv - av;
+        }
+        if (sortKey === 'team-then-priority') {
+          const tcmp = (a.team_slug ?? '').localeCompare(b.team_slug ?? '');
+          if (tcmp !== 0) return tcmp;
+          return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+        }
+        if (sortKey === 'due-then-priority') {
+          const dcmp = (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
+          if (dcmp !== 0) return dcmp;
+          return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+        }
         return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
-      }
-      if (ui.sort === 'created') {
-        // Most recently created first; null/missing values sort last.
-        const at = a.created_at ? Date.parse(a.created_at) : NaN;
-        const bt = b.created_at ? Date.parse(b.created_at) : NaN;
-        const av = Number.isFinite(at) ? (at as number) : -Infinity;
-        const bv = Number.isFinite(bt) ? (bt as number) : -Infinity;
-        return bv - av;
-      }
-      // 'due'
-      return (a.due_by ?? 'z').localeCompare(b.due_by ?? 'z');
-    });
-    return sorted;
-  }, [visibleActions, ui.priority_filter, ui.hide_done, ui.sort]);
+      });
+      return sorted;
+    },
+    [
+      ui.priority_filter,
+      prefs,
+      sortKey,
+      now,
+    ],
+  );
+
+  // Solo path: `filtered` is the existing single list rendered under the
+  // header. Stays defined in team mode too — the legacy `actions` field
+  // carries personal-only data so this list is "My items" by definition.
+  const filtered = useMemo(
+    () => applyFilterSort(visibleActions),
+    [visibleActions, applyFilterSort],
+  );
+
+  // Team-mode section lists. In solo mode these arrays stay empty and
+  // every team-aware branch in the JSX collapses to nothing, leaving
+  // the solo render exactly as it was in 9.0.0.
+  //
+  // P9 (9.3.0): apply strict-intersection filter (member's onboarding
+  // picks ∩ item's relevance_classes, narrowed by any explicit chip
+  // selection in `prefs.relevance_class_filters[teamSlug]`).
+  // Team-filter prefs (`prefs.team_filters[slug] === 'hidden'`) hide a
+  // section entirely. Legacy `ui.muted_team_slugs` is also honored for
+  // back-compat with widgetState-only callers.
+  const teamSectionLists = useMemo(() => {
+    if (!data.team_mode) return [] as Array<{
+      team_slug: string;
+      display_name: string;
+      visible: Action[];
+      hasAny: boolean;
+      hasMatchingButFiltered: boolean;
+      member_relevance_classes: string[];
+      selected_relevance_classes: string[];
+      no_relevance_picks: boolean;
+    }>;
+    return data.teams
+      .filter((t) => {
+        if (ui.muted_team_slugs.includes(t.team_slug)) return false;
+        if (prefs.team_filters[t.team_slug] === 'hidden') return false;
+        return true;
+      })
+      .map((t) => {
+        const visibleTeamActions = t.actions.filter(
+          (a) => !optimisticallyHidden.has(a.id),
+        );
+        const memberClasses = t.member_relevance_classes;
+        // Selected: user's explicit chip narrowing (defaults to member's full picks)
+        const selectedClasses =
+          prefs.relevance_class_filters[t.team_slug] ?? memberClasses;
+        const intersected = visibleTeamActions.filter((a) =>
+          passesStrictIntersection(
+            a.relevance_classes ?? [],
+            selectedClasses,
+            memberClasses,
+          ),
+        );
+        const visible = applyFilterSort(intersected);
+        return {
+          team_slug: t.team_slug,
+          display_name: t.display_name,
+          visible,
+          hasAny: t.actions.length > 0,
+          // hasMatchingButFiltered surfaces "Nothing matches this filter"
+          // when the intersection has items but priority/show-toggle drops them.
+          hasMatchingButFiltered:
+            intersected.length > 0 && visible.length === 0,
+          member_relevance_classes: memberClasses,
+          selected_relevance_classes: selectedClasses,
+          no_relevance_picks: memberClasses.length === 0,
+        };
+      });
+  }, [
+    data.team_mode,
+    data.teams,
+    ui.muted_team_slugs,
+    prefs.team_filters,
+    prefs.relevance_class_filters,
+    optimisticallyHidden,
+    applyFilterSort,
+  ]);
+
+  const leaderSectionLists = useMemo(() => {
+    if (!data.team_mode) return [] as Array<{
+      view_slug: string;
+      display_name: string;
+      visible: Action[];
+      hasAny: boolean;
+    }>;
+    return data.leader_views
+      .filter((v) => {
+        if (ui.muted_view_slugs.includes(v.view_slug)) return false;
+        if (prefs.view_filters[v.view_slug] === 'hidden') return false;
+        return true;
+      })
+      .map((v) => {
+        const visibleViewActions = v.actions.filter(
+          (a) => !optimisticallyHidden.has(a.id),
+        );
+        return {
+          view_slug: v.view_slug,
+          display_name: v.display_name,
+          visible: applyFilterSort(visibleViewActions),
+          hasAny: v.actions.length > 0,
+        };
+      });
+  }, [
+    data.team_mode,
+    data.leader_views,
+    ui.muted_view_slugs,
+    prefs.view_filters,
+    optimisticallyHidden,
+    applyFilterSort,
+  ]);
 
   // Counts per priority filter chip. Excludes ids with active feedback —
   // a row showing "✓ Marked done" is no longer actionable, so counting it
@@ -1654,9 +2367,15 @@ export function MainComponent(props: MainComponentProps) {
 
   const setSort = useCallback(
     (next: SortKey) => {
+      dirtyPrefsRef.current.add('sort');
+      setPrefs((p) => ({ ...p, sort: next }));
       setWidgetState((prev) => ({ ...prev, sort: next }));
+      clearDirtyAfter(
+        callTool('agntux_core_save_triage_prefs', { sort: next }),
+        'sort',
+      );
     },
-    [setWidgetState],
+    [setWidgetState, callTool, clearDirtyAfter],
   );
 
   const setHandledExpanded = useCallback(
@@ -1664,6 +2383,129 @@ export function MainComponent(props: MainComponentProps) {
       setWidgetState((prev) => ({ ...prev, handled_expanded: next }));
     },
     [setWidgetState],
+  );
+
+  // Toggle a team's visibility. Two-step persistence (P9 / 9.3.0):
+  //   1. Optimistically patch the local prefs mirror so the UI updates
+  //      synchronously. The dirty-set entry keeps the toggle through
+  //      the MCP roundtrip without a flicker if a fresh payload
+  //      arrives mid-call.
+  //   2. Fire `agntux_core_save_triage_prefs` so the on-disk
+  //      `triage-prefs.json` reflects the user's choice. The MCP call
+  //      is fire-and-forget; the UI never blocks on it.
+  //   3. Keep the legacy `widgetState.muted_team_slugs` in sync so
+  //      existing tests and pre-9.3.0 host code that reads widgetState
+  //      directly still see the same array. New code reads from
+  //      `prefs.team_filters` directly.
+  const toggleTeamMuted = useCallback(
+    (team_slug: string) => {
+      const wasHidden = prefs.team_filters[team_slug] === 'hidden';
+      const nextState: 'shown' | 'hidden' = wasHidden ? 'shown' : 'hidden';
+      const nextMuted = wasHidden
+        ? ui.muted_team_slugs.filter((s) => s !== team_slug)
+        : Array.from(new Set([...ui.muted_team_slugs, team_slug]));
+      dirtyPrefsRef.current.add(`team_filters:${team_slug}`);
+      setPrefs((p) => ({
+        ...p,
+        team_filters: { ...p.team_filters, [team_slug]: nextState },
+      }));
+      setWidgetState((prev) => ({ ...prev, muted_team_slugs: nextMuted }));
+      clearDirtyAfter(
+        callTool('agntux_core_save_triage_prefs', {
+          muted_team_slugs: nextMuted,
+          muted_view_slugs: ui.muted_view_slugs,
+          team_filters: { [team_slug]: nextState },
+        }),
+        `team_filters:${team_slug}`,
+      );
+    },
+    [
+      prefs.team_filters,
+      ui.muted_team_slugs,
+      ui.muted_view_slugs,
+      setWidgetState,
+      callTool,
+      clearDirtyAfter,
+    ],
+  );
+
+  const toggleViewMuted = useCallback(
+    (view_slug: string) => {
+      const wasHidden = prefs.view_filters[view_slug] === 'hidden';
+      const nextState: 'shown' | 'hidden' = wasHidden ? 'shown' : 'hidden';
+      const nextMuted = wasHidden
+        ? ui.muted_view_slugs.filter((s) => s !== view_slug)
+        : Array.from(new Set([...ui.muted_view_slugs, view_slug]));
+      dirtyPrefsRef.current.add(`view_filters:${view_slug}`);
+      setPrefs((p) => ({
+        ...p,
+        view_filters: { ...p.view_filters, [view_slug]: nextState },
+      }));
+      setWidgetState((prev) => ({ ...prev, muted_view_slugs: nextMuted }));
+      clearDirtyAfter(
+        callTool('agntux_core_save_triage_prefs', {
+          muted_team_slugs: ui.muted_team_slugs,
+          muted_view_slugs: nextMuted,
+          view_filters: { [view_slug]: nextState },
+        }),
+        `view_filters:${view_slug}`,
+      );
+    },
+    [
+      prefs.view_filters,
+      ui.muted_team_slugs,
+      ui.muted_view_slugs,
+      setWidgetState,
+      callTool,
+      clearDirtyAfter,
+    ],
+  );
+
+  // P9: toggle a relevance-class chip inside a team section. UI-only
+  // refinement; this does NOT modify the member's `members/{user_slug}.md`
+  // file (that's the onboarding-time authority — UI toggles are session
+  // refinements). Persists to prefs.relevance_class_filters[teamSlug].
+  // Default selected set is the member's full picks until the user
+  // explicitly narrows it.
+  const toggleRelevanceClassFilter = useCallback(
+    (team_slug: string, relevance_class: string) => {
+      const fallback =
+        data.teams.find((t) => t.team_slug === team_slug)?.member_relevance_classes ?? [];
+      const currentSelected =
+        prefs.relevance_class_filters[team_slug] ?? fallback;
+      const nextSelected = currentSelected.includes(relevance_class)
+        ? currentSelected.filter((c) => c !== relevance_class)
+        : [...currentSelected, relevance_class];
+      dirtyPrefsRef.current.add(`relevance_class_filters:${team_slug}`);
+      setPrefs((p) => ({
+        ...p,
+        relevance_class_filters: {
+          ...p.relevance_class_filters,
+          [team_slug]: nextSelected,
+        },
+      }));
+      clearDirtyAfter(
+        callTool('agntux_core_save_triage_prefs', {
+          relevance_class_filters: { [team_slug]: nextSelected },
+        }),
+        `relevance_class_filters:${team_slug}`,
+      );
+    },
+    [prefs.relevance_class_filters, data.teams, callTool, clearDirtyAfter],
+  );
+
+  // P9: show-done / show-snoozed / show-dismissed toggles.
+  const togglePrefsBoolean = useCallback(
+    (key: 'show_done' | 'show_snoozed' | 'show_dismissed') => {
+      const nextVal = !prefs[key];
+      dirtyPrefsRef.current.add(key);
+      setPrefs((p) => ({ ...p, [key]: nextVal }));
+      clearDirtyAfter(
+        callTool('agntux_core_save_triage_prefs', { [key]: nextVal }),
+        key,
+      );
+    },
+    [prefs, callTool, clearDirtyAfter],
   );
 
   const handleExpand = useCallback((id: string, kind: ExpandedKind) => {
@@ -1701,6 +2543,7 @@ export function MainComponent(props: MainComponentProps) {
     [callTool],
   );
 
+
   // Terminal-action handlers: on success, show feedback in the row's slot
   // and collapse any inline panel. We deliberately do NOT call
   // hideOptimistically here — that would remove the row from `filtered`
@@ -1708,33 +2551,145 @@ export function MainComponent(props: MainComponentProps) {
   // orphan-feedback path) instead of the slot. hideOptimistically fires
   // when the feedback fades, in expireFeedback.
 
-  const handleDone = useCallback(
-    (id: string) => {
-      const action = data.actions.find((a) => a.id === id);
-      void runMutation(
-        id,
-        'agntux_core_set_status',
-        { id, status: 'done' },
-        () => {
-          setExpanded((cur) => (cur && cur.id === id ? null : cur));
-          showFeedback(id, {
-            kind: 'done',
-            title: action?.title ?? '',
-            message: 'Marked done',
-          });
-        },
-      );
+  // Look up an action across every scope. Team-mode actions live in
+  // `data.teams[].actions` / `data.leader_views[].actions`; the legacy
+  // `data.actions` carries only personal in team mode. We search all
+  // scopes so handlers triggered by id (the suggested-action regex
+  // path) still find the row regardless of scope.
+  const findActionAcrossScopes = useCallback(
+    (id: string): Action | undefined => {
+      const personal = data.actions.find((a) => a.id === id);
+      if (personal) return personal;
+      for (const t of data.teams) {
+        const m = t.actions.find((a) => a.id === id);
+        if (m) return m;
+      }
+      for (const v of data.leader_views) {
+        const m = v.actions.find((a) => a.id === id);
+        if (m) return m;
+      }
+      return undefined;
     },
-    [data.actions, runMutation, showFeedback],
+    [data.actions, data.teams, data.leader_views],
   );
 
+  // Decorate mutator-tool args with team_slug / view_slug when the action
+  // belongs to a non-personal scope. In solo mode (or for personal rows
+  // in team mode), no extra keys are added, so the tool call shape is
+  // byte-identical to 9.0.0.
+  const scopeArgs = useCallback(
+    (action: Action | undefined): Record<string, string> => {
+      if (!action || !action.scope_kind || action.scope_kind === 'personal') {
+        return {};
+      }
+      if (action.scope_kind === 'team' && action.scope_slug) {
+        return { team_slug: action.scope_slug };
+      }
+      if (action.scope_kind === 'leader' && action.scope_slug) {
+        return { view_slug: action.scope_slug };
+      }
+      return {};
+    },
+    [],
+  );
+
+  // Mark-done writes status to the action file. For team / leader-view
+  // scopes, includes user_slug + user_id so the team-wide
+  // `done_by_user_slug` / `done_by_user_id` / `done_at` fields are
+  // written and visible to every member after sync. Personal mark-done
+  // remains a byte-identical call (no user_* args).
+  const handleDone = useCallback(
+    (id: string) => {
+      const action = findActionAcrossScopes(id);
+      const scope = scopeArgs(action);
+      const args: Record<string, unknown> = {
+        id,
+        status: 'done',
+        ...scope,
+      };
+      const isTeamOrLeader = 'team_slug' in scope || 'view_slug' in scope;
+      if (isTeamOrLeader) {
+        if (data.self_user_slug) args.user_slug = data.self_user_slug;
+        if (data.self_user_id) args.user_id = data.self_user_id;
+      }
+      void runMutation(id, 'agntux_core_set_status', args, () => {
+        setExpanded((cur) => (cur && cur.id === id ? null : cur));
+        showFeedback(id, {
+          kind: 'done',
+          title: action?.title ?? '',
+          message: 'Marked done',
+        });
+      });
+    },
+    [
+      findActionAcrossScopes,
+      runMutation,
+      showFeedback,
+      scopeArgs,
+      data.self_user_slug,
+      data.self_user_id,
+    ],
+  );
+
+  // Snooze + dismiss in P9: write to triage-prefs.json (per-path
+  // personal state) instead of the action file's frontmatter. This is
+  // the migration described in personal schema 1.2.0 — the action
+  // file's `snoozed_until` / `dismissed_at` fields are deprecated,
+  // and team-scoped items don't have those fields at all (snooze /
+  // dismiss are personal even for team rows). When `relative_path`
+  // is absent on the row (legacy solo bundle), fall back to the old
+  // frontmatter tools so the user still gets a working snooze /
+  // dismiss.
   const handleSnoozeSubmit = useCallback(
     (id: string, untilISO: string) => {
-      const action = data.actions.find((a) => a.id === id);
+      const action = findActionAcrossScopes(id);
+      // Prefer the server-emitted `relative_path`; synthesize one from
+      // (scope_kind, scope_slug, id) when an older mcp-server didn't
+      // emit it. Critical: never fall through to the legacy
+      // frontmatter snooze for team / leader scopes — that would
+      // leak the snooze to every other member of the team after sync.
+      // The legacy frontmatter path is reserved for personal-scope
+      // solo bundles that emit rows without `relative_path` (pre-9.3.0).
+      const path =
+        action?.relative_path ?? synthesizeRelativePath(action, id);
+      if (path) {
+        // Optimistically patch the local prefs so the row hides
+        // immediately, then save to the on-disk prefs file.
+        dirtyPrefsRef.current.add(`triage_state:${path}`);
+        setPrefs((p) => ({
+          ...p,
+          triage_state: {
+            ...p.triage_state,
+            [path]: {
+              snoozed_until: untilISO,
+              dismissed_at: p.triage_state[path]?.dismissed_at ?? null,
+            },
+          },
+        }));
+        void runMutation(
+          id,
+          'agntux_core_set_triage_pref',
+          { path, snoozed_until: untilISO },
+          () => {
+            // Server now reflects the snooze; the dirty flag is no
+            // longer needed to protect the optimistic value.
+            dirtyPrefsRef.current.delete(`triage_state:${path}`);
+            setExpanded((cur) => (cur && cur.id === id ? null : cur));
+            const formatted = formatDueDate(untilISO, locale);
+            showFeedback(id, {
+              kind: 'snoozed',
+              title: action?.title ?? '',
+              message: formatted ? `Snoozed until ${formatted}` : 'Snoozed',
+            });
+          },
+        );
+        return;
+      }
+      // Legacy path: no relative_path → use the old frontmatter snooze.
       void runMutation(
         id,
         'agntux_core_snooze',
-        { id, until: untilISO },
+        { id, until: untilISO, ...scopeArgs(action) },
         () => {
           setExpanded((cur) => (cur && cur.id === id ? null : cur));
           const formatted = formatDueDate(untilISO, locale);
@@ -1746,13 +2701,70 @@ export function MainComponent(props: MainComponentProps) {
         },
       );
     },
-    [data.actions, runMutation, showFeedback, locale],
+    [findActionAcrossScopes, runMutation, showFeedback, scopeArgs, locale],
   );
 
   const handleDismissSubmit = useCallback(
     (id: string, outcome: string, note: string) => {
-      const action = data.actions.find((a) => a.id === id);
-      const args: Record<string, unknown> = { id, outcome };
+      const action = findActionAcrossScopes(id);
+      // Synthesize the path for team / leader scope when the older
+      // mcp-server didn't emit `relative_path`. See handleSnoozeSubmit
+      // for the rationale — keeps the personal-only dismiss semantic
+      // intact for team-scoped rows.
+      const path =
+        action?.relative_path ?? synthesizeRelativePath(action, id);
+      if (path) {
+        // Personal dismiss → prefs only. The action file is untouched
+        // so other team members still see the item.
+        const dismissedAt = new Date().toISOString();
+        dirtyPrefsRef.current.add(`triage_state:${path}`);
+        setPrefs((p) => ({
+          ...p,
+          triage_state: {
+            ...p.triage_state,
+            [path]: {
+              snoozed_until: p.triage_state[path]?.snoozed_until ?? null,
+              dismissed_at: dismissedAt,
+            },
+          },
+        }));
+        void runMutation(
+          id,
+          'agntux_core_set_triage_pref',
+          { path, dismissed_at: dismissedAt },
+          () => {
+            dirtyPrefsRef.current.delete(`triage_state:${path}`);
+            setExpanded((cur) => (cur && cur.id === id ? null : cur));
+            showFeedback(id, {
+              kind: 'dismissed',
+              title: action?.title ?? '',
+              message: 'Dismissed',
+            });
+          },
+        );
+        // outcome + note are P5-era pattern-feedback signals that
+        // belong on the action file body. We surface them by also
+        // calling the legacy dismiss tool, but with a no-op status
+        // transition — the body append remains useful even when the
+        // primary state lives in prefs. The legacy call is
+        // fire-and-forget; UI feedback comes from the prefs path.
+        if (outcome) {
+          const args: Record<string, unknown> = {
+            id,
+            outcome,
+            ...scopeArgs(action),
+          };
+          if (note) args.outcome_note = note;
+          void callTool('agntux_core_dismiss', args);
+        }
+        return;
+      }
+      // Legacy path: no relative_path → use the old frontmatter dismiss.
+      const args: Record<string, unknown> = {
+        id,
+        outcome,
+        ...scopeArgs(action),
+      };
       if (note) args.outcome_note = note;
       void runMutation(id, 'agntux_core_dismiss', args, () => {
         setExpanded((cur) => (cur && cur.id === id ? null : cur));
@@ -1763,7 +2775,7 @@ export function MainComponent(props: MainComponentProps) {
         });
       });
     },
-    [data.actions, runMutation, showFeedback],
+    [findActionAcrossScopes, runMutation, showFeedback, scopeArgs, callTool],
   );
 
   const handleDoSomethingElseSubmit = useCallback(
@@ -1900,10 +2912,49 @@ export function MainComponent(props: MainComponentProps) {
   // Feedback ids that no longer correspond to a previously-visible row
   // (rare — e.g., the action was already gone before feedback fired) are
   // appended after the visible items so the user still sees them.
-  const filteredIds = new Set(filtered.map((a) => a.id));
+  //
+  // In team mode every section's render goes through the same path: each
+  // section's `visible` list is walked, IDs that have feedback show a
+  // FeedbackRow in their slot, the rest render an ActionCard. Orphan
+  // feedback (a successful mutation whose id we can't find in any list)
+  // surfaces once at the bottom of the entire body, not per-section, so
+  // the user sees it even if the row's underlying scope has disappeared.
+  const allRenderedIds = new Set<string>(filtered.map((a) => a.id));
+  for (const s of teamSectionLists)
+    for (const a of s.visible) allRenderedIds.add(a.id);
+  for (const s of leaderSectionLists)
+    for (const a of s.visible) allRenderedIds.add(a.id);
   const orphanFeedbackIds = Object.keys(feedback).filter(
-    (id) => !filteredIds.has(id),
+    (id) => !allRenderedIds.has(id),
   );
+
+  // Single source of truth for rendering an action card or its feedback
+  // row. Used by every section in team mode and by the legacy single
+  // list in solo mode.
+  const renderActionOrFeedback = (a: Action) => {
+    const fb = feedback[a.id];
+    if (fb) return <FeedbackRow key={a.id} id={a.id} state={fb} />;
+    const expandedKind =
+      expanded && expanded.id === a.id ? expanded.kind : null;
+    return (
+      <ActionCard
+        key={a.id}
+        action={a}
+        pending={pendingId === a.id}
+        rowError={rowErrors[a.id] ?? null}
+        expandedKind={expandedKind}
+        onSuggested={handleSuggested}
+        onExpand={handleExpand}
+        onCollapse={handleCollapse}
+        onDone={handleDone}
+        onSnoozeSubmit={handleSnoozeSubmit}
+        onDismissSubmit={handleDismissSubmit}
+        onDoSomethingElseSubmit={handleDoSomethingElseSubmit}
+        onStopRaising={handleStopRaising}
+        locale={locale}
+      />
+    );
+  };
 
   return (
     <div
@@ -1968,7 +3019,7 @@ export function MainComponent(props: MainComponentProps) {
               <span className="sr-only">Sort actions by</span>
               Sort
               <select
-                value={ui.sort}
+                value={prefs.sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 className="rounded-full border border-border bg-card px-2.5 py-1 text-xs text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="sort-select"
@@ -1982,43 +3033,192 @@ export function MainComponent(props: MainComponentProps) {
               </select>
             </label>
           </div>
+          {data.team_mode && (data.teams.length > 0 || data.leader_views.length > 0) && (
+            <div
+              className="flex flex-wrap items-center gap-2"
+              role="group"
+              aria-label="Show or hide team and leader-view sections"
+              data-testid="team-filter-bar"
+            >
+              <span className="text-[0.6875rem] uppercase tracking-wider text-slate-400">
+                Scopes
+              </span>
+              {data.teams.map((t) => (
+                <MuteChip
+                  key={`team-${t.team_slug}`}
+                  label={t.display_name}
+                  visible={!ui.muted_team_slugs.includes(t.team_slug)}
+                  onClick={() => toggleTeamMuted(t.team_slug)}
+                  testId={`team-mute-${t.team_slug}`}
+                />
+              ))}
+              {data.leader_views.map((v) => (
+                <MuteChip
+                  key={`view-${v.view_slug}`}
+                  label={v.display_name}
+                  visible={!ui.muted_view_slugs.includes(v.view_slug)}
+                  onClick={() => toggleViewMuted(v.view_slug)}
+                  testId={`view-mute-${v.view_slug}`}
+                />
+              ))}
+            </div>
+          )}
         </header>
         <div
           className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-3 pb-6"
           role="list"
           aria-label="Open action items"
         >
-          {filtered.length === 0 &&
-            data.actions.length > 0 &&
-            Object.keys(feedback).length === 0 && (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                Nothing matches this filter.
-              </p>
-            )}
-          {filtered.map((a) => {
-            const fb = feedback[a.id];
-            if (fb) return <FeedbackRow key={a.id} id={a.id} state={fb} />;
-            const expandedKind =
-              expanded && expanded.id === a.id ? expanded.kind : null;
-            return (
-              <ActionCard
-                key={a.id}
-                action={a}
-                pending={pendingId === a.id}
-                rowError={rowErrors[a.id] ?? null}
-                expandedKind={expandedKind}
-                onSuggested={handleSuggested}
-                onExpand={handleExpand}
-                onCollapse={handleCollapse}
-                onDone={handleDone}
-                onSnoozeSubmit={handleSnoozeSubmit}
-                onDismissSubmit={handleDismissSubmit}
-                onDoSomethingElseSubmit={handleDoSomethingElseSubmit}
-                onStopRaising={handleStopRaising}
-                locale={locale}
+          {data.team_mode ? (
+            <>
+              {/* "My items" section. Always rendered in team mode, even
+                  empty, so the user has a stable landmark for personal
+                  items in the layout. */}
+              <SectionHeader
+                title="My items"
+                testId="section-header-personal"
+                count={filtered.length}
               />
-            );
-          })}
+              {filtered.length === 0 && data.actions.length === 0 && (
+                <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                  No personal items yet.
+                </p>
+              )}
+              {filtered.length === 0 &&
+                data.actions.length > 0 &&
+                Object.keys(feedback).length === 0 && (
+                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                    Nothing matches this filter.
+                  </p>
+                )}
+              {filtered.map(renderActionOrFeedback)}
+              {teamSectionLists.map((s) => (
+                <Fragment key={`team-section-${s.team_slug}`}>
+                  <SectionHeader
+                    title={s.display_name}
+                    testId={`section-header-team-${s.team_slug}`}
+                    count={s.visible.length}
+                  />
+                  {/* P9: relevance-class filter chips inside each team
+                      section, pre-selected from the member's onboarding
+                      picks. Hidden when the member has no picks (the
+                      empty state below covers that case). Toggling a
+                      chip does NOT modify the member file — it's a
+                      session refinement persisted in
+                      prefs.relevance_class_filters[teamSlug]. */}
+                  {s.member_relevance_classes.length > 0 && (
+                    <div
+                      className="flex flex-wrap items-center gap-2 px-1"
+                      role="group"
+                      aria-label={`Relevance classes for ${s.display_name}`}
+                      data-testid={`relevance-filter-bar-${s.team_slug}`}
+                    >
+                      <span className="text-[0.6875rem] uppercase tracking-wider text-slate-400">
+                        Classes
+                      </span>
+                      {s.member_relevance_classes.map((c) => (
+                        <RelevanceClassChip
+                          key={`${s.team_slug}-rc-${c}`}
+                          label={c}
+                          pressed={s.selected_relevance_classes.includes(c)}
+                          onClick={() =>
+                            toggleRelevanceClassFilter(s.team_slug, c)
+                          }
+                          testId={`relevance-chip-${s.team_slug}-${c}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {/* P9: "Set your relevance picks" CTA when the
+                      member hasn't onboarded for this team yet. The CTA
+                      shows BEFORE the item list so the user sees it
+                      without scrolling past their items. */}
+                  {s.no_relevance_picks && (
+                    <p
+                      className="px-2 py-3 text-center text-xs text-muted-foreground"
+                      data-testid={`empty-no-picks-${s.team_slug}`}
+                    >
+                      Set your relevance picks for {s.display_name} in{' '}
+                      <code className="text-foreground">
+                        /agntux-teams onboard:member {s.team_slug}
+                      </code>
+                      .
+                    </p>
+                  )}
+                  {s.visible.length === 0 && (
+                    <p
+                      className="px-2 py-3 text-center text-xs text-muted-foreground"
+                      data-testid={`empty-team-${s.team_slug}`}
+                    >
+                      {s.hasMatchingButFiltered
+                        ? 'Nothing matches this filter.'
+                        : s.hasAny
+                        ? `All caught up for ${s.display_name}.`
+                        : 'No items for this team yet.'}
+                    </p>
+                  )}
+                  {s.visible.map(renderActionOrFeedback)}
+                </Fragment>
+              ))}
+              {leaderSectionLists.map((s) => (
+                <Fragment key={`leader-section-${s.view_slug}`}>
+                  <SectionHeader
+                    title={s.display_name}
+                    testId={`section-header-leader-${s.view_slug}`}
+                    count={s.visible.length}
+                  />
+                  {s.visible.length === 0 && (
+                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                      {s.hasAny
+                        ? 'Nothing matches this filter.'
+                        : 'No items for this leader view yet.'}
+                    </p>
+                  )}
+                  {s.visible.map(renderActionOrFeedback)}
+                </Fragment>
+              ))}
+              {/* P9: bottom "Show done / snoozed / dismissed" toggles —
+                  surface the items the strict-intersection filter is
+                  hiding. The toggles persist to prefs.show_done /
+                  prefs.show_snoozed / prefs.show_dismissed. */}
+              <div
+                className="mt-2 flex flex-wrap items-center justify-center gap-3 border-t border-dashed border-border pt-3 text-xs text-muted-foreground"
+                role="group"
+                aria-label="Visibility toggles"
+                data-testid="show-toggles-bar"
+              >
+                <ShowToggle
+                  label="Show done"
+                  pressed={prefs.show_done}
+                  onClick={() => togglePrefsBoolean('show_done')}
+                  testId="toggle-show-done"
+                />
+                <ShowToggle
+                  label="Show snoozed"
+                  pressed={prefs.show_snoozed}
+                  onClick={() => togglePrefsBoolean('show_snoozed')}
+                  testId="toggle-show-snoozed"
+                />
+                <ShowToggle
+                  label="Show dismissed"
+                  pressed={prefs.show_dismissed}
+                  onClick={() => togglePrefsBoolean('show_dismissed')}
+                  testId="toggle-show-dismissed"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {filtered.length === 0 &&
+                data.actions.length > 0 &&
+                Object.keys(feedback).length === 0 && (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                    Nothing matches this filter.
+                  </p>
+                )}
+              {filtered.map(renderActionOrFeedback)}
+            </>
+          )}
           {orphanFeedbackIds.map((id) => (
             <FeedbackRow
               key={`orphan-${id}`}
@@ -2046,7 +3246,133 @@ export function MainComponent(props: MainComponentProps) {
   );
 }
 
+// Mute-chip for a team or leader-view. Pressed === visible (default);
+// un-pressed === muted (excluded from the rendered list). Mirrors the
+// data-direction of the priority filter chips so the visual language is
+// consistent across the header (pressed = active filter). The
+// `aria-pressed` semantics are flipped relative to the priority chips —
+// "is this section currently shown?" — so screen readers describe state,
+// not intent.
+function MuteChip({
+  label,
+  visible,
+  onClick,
+  testId,
+}: {
+  label: string;
+  visible: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={visible}
+      onClick={onClick}
+      className={
+        visible
+          ? 'rounded-full border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-800 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          : 'rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground line-through hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      }
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
+// Section header used inside the team-mode body to group action cards
+// under "My items" / each team / each leader view. Solo mode never
+// renders this — the legacy single-list layout is preserved unchanged.
+function SectionHeader({
+  title,
+  testId,
+  count,
+}: {
+  title: string;
+  testId: string;
+  count: number;
+}) {
+  return (
+    <div
+      className="-mb-1 mt-1 flex items-baseline justify-between border-b border-dashed border-border px-1 pb-1"
+      data-testid={testId}
+    >
+      <h3 className="text-[0.8125rem] font-semibold uppercase tracking-wider text-foreground">
+        {title}
+      </h3>
+      <span className="text-[0.6875rem] text-slate-400">
+        {count} {count === 1 ? 'item' : 'items'}
+      </span>
+    </div>
+  );
+}
+
 function FilterChip({
+  label,
+  pressed,
+  onClick,
+  testId,
+}: {
+  label: string;
+  pressed: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={
+        pressed
+          ? 'rounded-full border border-foreground bg-foreground px-2.5 py-1 text-xs text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          : 'rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      }
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
+// P9 (9.3.0): relevance-class chip inside a team section. Pressed
+// means "this class is in the selected set"; the strict-intersection
+// filter renders an item iff its `relevance_classes` intersects the
+// selected set. Press-toggle adds / removes the class from the
+// selection; it does NOT modify the member's onboarding file.
+function RelevanceClassChip({
+  label,
+  pressed,
+  onClick,
+  testId,
+}: {
+  label: string;
+  pressed: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={
+        pressed
+          ? 'rounded-full border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-[0.6875rem] text-indigo-800 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          : 'rounded-full border border-border bg-card px-2 py-0.5 text-[0.6875rem] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+      }
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
+// P9: "Show done / snoozed / dismissed" toggles at the bottom of the
+// team-mode body. Single-state buttons — pressed reveals the hidden
+// category. Aria-pressed describes the toggle state.
+function ShowToggle({
   label,
   pressed,
   onClick,

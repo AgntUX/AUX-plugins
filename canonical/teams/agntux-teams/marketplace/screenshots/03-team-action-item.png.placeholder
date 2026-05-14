@@ -1,0 +1,5 @@
+PLACEHOLDER: rendered team action item in the agntux-core triage UI.
+
+The triage UI itself ships with public agntux-core (Apache-2.0); this
+screenshot shows how an agntux-teams-authored action item renders when
+team mode is active. Replace with a real PNG before public release.

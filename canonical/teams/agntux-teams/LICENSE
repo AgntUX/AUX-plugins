@@ -1,0 +1,47 @@
+AgntUX Teams — Proprietary License (V1, stub)
+
+Copyright (c) AgntUX, Inc. All rights reserved.
+
+This plugin (the "Software") is part of the AgntUX Teams product. It is
+licensed, not sold. Access to and use of the Software is conditional on a
+valid AgntUX Teams subscription, as evidenced by a signed license JWT
+written into `<agntux project root>/.agntux/teams.json` and refreshed by
+the AgntUX Teams desktop app.
+
+Subject to the terms of an active AgntUX Teams subscription, AgntUX grants
+the subscribing organization a non-exclusive, non-transferable,
+non-sublicensable license to install and use the Software on machines
+operated by the subscribing organization's authorized users, solely for
+the organization's internal business purposes.
+
+You MAY NOT, without written permission from AgntUX:
+
+  1. Copy, redistribute, sublicense, sell, or otherwise transfer the
+     Software or any portion of it to any third party.
+  2. Modify, adapt, translate, or create derivative works of the Software,
+     except as expressly permitted under your subscription agreement.
+  3. Reverse engineer, decompile, or disassemble the Software, except to
+     the extent applicable law expressly permits despite this limitation.
+  4. Remove, obscure, or alter any copyright, trademark, or other
+     proprietary notices contained in the Software.
+  5. Use the Software to provide services to third parties (e.g., as a
+     service bureau or hosted offering) without a separate written
+     agreement from AgntUX.
+
+The Software interoperates with public AgntUX plugins (e.g., agntux-core,
+agntux-build) that are licensed separately under Apache License 2.0. Those
+plugins remain under their own license terms; this license governs only
+the agntux-teams plugin.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This is a V1 stub. Final license terms are subject to legal review and
+may be updated before general availability of AgntUX Teams.
+
+Contact: legal@agntux.ai

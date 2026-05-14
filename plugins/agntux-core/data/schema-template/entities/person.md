@@ -1,7 +1,7 @@
 ---
 type: schema-subtype
 subtype: person
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 updated_at: {{generated_at}}
 ---
 
@@ -17,6 +17,9 @@ Individuals the user interacts with: colleagues, customers, contacts, candidates
 - `subtype` — literal string `person`.
 - `aliases` — array of strings. The canonical display name MUST appear in `aliases`. Other variations (nicknames, full names, email-local-parts) MAY appear. Empty array allowed only when the slug is the canonical name verbatim.
 - `sources` — map. Keys are source slugs (`gmail`, `slack`, `notes`, etc.); values are scalar IDs or arrays of IDs (per P3 §3.1). Reserved key `email_domains` excluded from `_sources.json` indexing.
+- `source` — slug of the writing connector (e.g. `agntux-slack`, `agntux-gmail`, `agntux-core` for onboarding-authored entities). Promoted to required in `schema_version 1.1.0` (P7).
+- `source_ref` — stable natural key chosen by the source connector. Slack: `workspace:user_id`. Gmail: a normalized account/contact id. Onboarding: a kebab-cased identifier the architect picks. Promoted to required in `schema_version 1.1.0` (P7).
+- `entity_id` — deterministic 16-hex-char identifier the validator hook computes from `source + ":" + source_ref`. **The LLM never computes this value** — the validator rejects writes with missing or wrong `entity_id` and bakes the correct value into the rejection runbook. Promoted to required in `schema_version 1.1.0` (P7).
 - `created_at` — date-only `YYYY-MM-DD` (when this entity first appeared in the store).
 - `updated_at` — date-only `YYYY-MM-DD` (last write).
 - `last_active` — date-only `YYYY-MM-DD` (last time the entity was referenced in source data).

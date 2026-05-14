@@ -6,6 +6,252 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.3.0] — 2026-05-12
+
+P9 personalization + triage. Adds per-team / per-member relevance
+filtering, a team-wide mark-done attribution surface, and the personal
+snooze + dismiss migration into a single triage-prefs.json file.
+Schema bumps: personal action schema 1.1.0 → 1.2.0 (deprecates
+`snoozed_until` / `dismissed_at` on personal frontmatter — readers
+tolerate them on legacy files, new writers go to triage-prefs.json);
+triage-prefs schema 1 → 2 (new shape). Solo-mode payload remains
+byte-identical to 9.1.0 when `<root>/.agntux/teams.json` is absent.
+
+### Added
+
+- `agntux_core_set_status`: optional `user_slug` and `user_id`
+  arguments. When status flips to `done` on a team or leader-view
+  scope, the tool writes `done_by_user_slug`, `done_by_user_id`, and
+  `done_at` to the action file's frontmatter. After P5 sync, every
+  team member's triage UI sees who closed the item and when. On
+  personal scope these args are ignored; on re-open / dismiss /
+  snooze the attribution fields are cleared. The `user_slug` arg is
+  validated against the strict lowercase-alphanumeric-with-dashes
+  pattern; `user_id` is accepted as an opaque string up to 128 chars.
+- `agntux_core_save_triage_prefs`: v2 schema with `team_filters`,
+  `view_filters`, `relevance_class_filters`, `sort`, and `show_done`
+  / `show_snoozed` / `show_dismissed` toggles. Patch-style merge —
+  callers can patch a single key without re-sending the whole state.
+  The legacy `muted_team_slugs` / `muted_view_slugs` arrays remain
+  accepted and round-trip into the new map for backward compat with
+  older bundles.
+- `agntux_core_set_triage_pref`: new MCP tool. Writes per-path
+  snooze / dismiss state to `triage-prefs.json`'s `triage_state` map.
+  Path is validated against the strict `actions/*.md`,
+  `teams/{slug}/actions/*.md`, or `leader-views/{slug}/actions/*.md`
+  pattern before write. Passing `null` for both `snoozed_until` and
+  `dismissed_at` removes the entry.
+- `agntux_core_triage_view`: in team mode, the payload gains
+  `triage_prefs` (the v2 prefs JSON), `self_user_slug` /
+  `self_user_id` (read from `teams.json`), and per-team
+  `member_relevance_classes[]` (read from
+  `<root>/teams/{slug}/data/members/{self_user_slug}.md`). Rows gain
+  `relevance_classes[]`, `relative_path`, and team-wide done
+  attribution fields (`done_by_user_slug`, `done_by_user_id`,
+  `done_at`). All additions are gated on team mode being active —
+  solo payload stays byte-identical to 9.1.0.
+- Triage UI: per-team relevance-class filter chips inside each team
+  section (pre-selected from the member's onboarding picks). Chip
+  toggles persist to `prefs.relevance_class_filters[teamSlug]` —
+  they do NOT modify the member file. Strict-intersection filter
+  (`member.relevance_classes ∩ item.relevance_classes ≠ ∅`)
+  determines which items render; falls through to "show all" when
+  the member hasn't onboarded for the team yet (pre-onboarding
+  compatibility — the "Set your relevance picks for {Team}" CTA
+  surfaces alongside the items in this case).
+- Triage UI: bottom toggle bar — "Show done", "Show snoozed",
+  "Show dismissed". Reveal items the personal-prefs filter is
+  hiding. Each toggle persists to its own boolean in
+  `triage-prefs.json`.
+- Triage UI: sort dropdown gains "Team, then priority" and "Due
+  date, then priority" options. Sort persists to `prefs.sort`.
+- Triage UI: snooze and dismiss buttons on every row now write to
+  `triage-prefs.json` (per-path, personal) via the new
+  `agntux_core_set_triage_pref` tool. Team-scoped action files stay
+  untouched, so Alice's dismissal of a team item does not affect
+  Bob's view. Mark-done remains an action-file mutation
+  (team-wide for team scope, personal for personal scope).
+- Triage UI: per-team empty-state copy "All caught up for {Team}."
+  when the strict-intersection filter empties an originally
+  non-empty section.
+
+### Changed
+
+- MCP server `PLUGIN_VERSION` bumped 9.2.0 → 9.3.0 to match the
+  plugin manifest.
+- `data/schema-template/actions/_index.md`: bumped 1.1.0 → 1.2.0.
+  `snoozed_until` and `dismissed_at` on personal action frontmatter
+  are marked deprecated (still readable; new writes go to
+  triage-prefs.json). The "schema_version history" section was
+  added to document the 1.0.0 → 1.1.0 → 1.2.0 lineage. New required-
+  conditional fields documented for team and leader-view scopes:
+  `done_by_user_slug`, `done_by_user_id`, `done_at`.
+
+### Notes
+
+- **Solo behavior is byte-identical to 9.1.0.** With no
+  `<root>/.agntux/teams.json`, the triage_view payload, mutator-tool
+  behavior, and on-disk artifacts are exactly as they were in
+  9.1.0. Verified by the byte-identical regression tests in
+  `mcp-server/__tests__/triage-view.test.ts` and the solo render
+  guards in `ui-handlers/triage/component/src/__tests__/components/`.
+- **Migration of legacy frontmatter snooze / dismiss.** Personal
+  schema 1.2.0 ships with `snoozed_until` and `dismissed_at` marked
+  deprecated. Readers prefer the prefs value when both signals are
+  present. A maintenance pass to lift remaining frontmatter values
+  into triage-prefs.json and drop the deprecated fields is
+  scheduled for 90 days post-1.2.0 — out of scope for this release.
+- **Pre-onboarding fallback.** A member who hasn't run
+  `/agntux-teams onboard:member {team-slug}` has no
+  `relevance_classes` in their member file (or the file is absent).
+  The triage UI shows ALL team items in that case alongside the
+  "Set your relevance picks…" CTA so the user can act on items
+  immediately while being prompted to onboard.
+
+## [9.2.0] — 2026-05-12
+
+Team-aware additions (P3 v2 §1, sub-plan S3.2). Adds team-mode awareness to
+the public `agntux-core` plugin, gated entirely on the presence of
+`<root>/.agntux/teams.json`. Solo behavior is byte-identical to 9.1.0
+when the gate file is absent — the gate is purely additive and there is
+no license check, no nag, and no behavioral drift in the solo path.
+
+### Added
+
+- `agntux_core_triage_view`: when `<root>/.agntux/teams.json` exists and
+  carries at least one membership or leader-view, the payload gains
+  `schema_version: 2` plus three structured sections — `personal`,
+  `teams[]`, `leader_views[]` — alongside the existing top-level keys
+  (kept populated as personal-only for backward compat with older
+  bundle versions). Each section carries its own `actions[]` and
+  `handled_recent[]` arrays, independently capped at 30 / 10.
+- `agntux_core_triage_view`: action rows from a team scope are
+  decorated with optional `team_slug`, `team_id`, `source_team`, and
+  `member_relevance_class` fields read from frontmatter (or inferred
+  from the scope's parent directory). These fields are entirely
+  omitted from personal rows so the solo payload stays
+  byte-identical.
+- `agntux_core_snooze` / `agntux_core_dismiss` / `agntux_core_set_status`:
+  optional `team_slug` and `view_slug` arguments. When set, the mutator
+  routes to `<root>/teams/{team_slug}/actions/` or
+  `<root>/leader-views/{view_slug}/actions/` instead of personal.
+  Mutually exclusive. Slugs and ids are validated against strict
+  patterns before joining into the path; the resolved path is
+  re-checked against the canonical `dir + id.md` shape so any
+  traversal that slipped past the regex still rejects.
+- `agntux_core_save_triage_prefs`: new MCP tool. Writes
+  `<root>/.agntux/triage-prefs.json` (filter state — muted team /
+  view slugs). Called by the triage UI when the user toggles a team
+  filter chip; not user-facing. P9 will extend this file's shape.
+- `data/schema-template/actions/_index.md`: documents four new
+  optional action-frontmatter fields (`team_id`, `team_slug`,
+  `source_team`, `member_relevance_class`). Additive against
+  `schema_version 1.1.0`; existing validators accept them because
+  the lock declares them as optional.
+- Triage UI: when the payload carries `teams[]` or `leader_views[]`,
+  renders up to three stacked sections (My items / Team items /
+  Leader views) with mute chips above the list for each team and
+  leader view. Each team-scoped row carries a small team-name chip;
+  rows with `member_relevance_class` set get a left-edge ribbon.
+  Filter state persists to `triage-prefs.json` via the new tool.
+
+### Changed
+
+- MCP server `PLUGIN_VERSION` bumped from 9.1.0 → 9.2.0 to match the
+  plugin manifest.
+- `triage_view`: `last_updated_at` now picks the most-recent
+  `_index.md` mtime across every scope (personal + teams +
+  leader-views) when team mode is active, so the UI's "Updated
+  X ago" reflects the freshest signal in any scope. Solo behavior
+  unchanged — still reads the personal `_index.md` only.
+
+### Notes
+
+- **Solo behavior is byte-identical to 9.1.0.** With no
+  `<root>/.agntux/teams.json`, the triage_view payload,
+  mutator-tool behavior, and on-disk artifacts are exactly as they
+  were in 9.1.0. Verified by the `solo-byte-identical` regression
+  test in `mcp-server/__tests__/triage-view.test.ts`.
+- **No license gate.** The team-aware code paths in this Apache-2.0
+  plugin do not check `license_jwt`. The license gate lives in the
+  proprietary `agntux-teams` plugin's preflight and in the web-app
+  backend per P11. Users assembling a `teams.json` by hand can run the
+  team UI unconditionally.
+
+## [9.1.0] — 2026-05-12
+
+P7 schema additions (sub-plan S3.1). Promotes three frontmatter fields to
+required on every entity file and one field on every action file at
+`schema_version 1.1.0`, all hook-enforced. The change is additive and
+self-heals via the existing PreToolUse runbook loop — no one-shot
+migration is involved, and the `agntux-teams` plugin's gate is still
+inert in the public marketplace tree, so the team-aware code paths
+remain dormant until that plugin's per-Org renderer lands.
+
+### Added
+
+- `canonical/hooks/lib/entity-id.mjs` — new helper exporting
+  `computeEntityId(source, sourceRef)` and `isWellFormedEntityId(value)`.
+  `entity_id = sha256(source + ":" + source_ref).slice(0, 16)`. A
+  byte-frozen copy lives at `plugins/agntux-core/hooks/lib/entity-id.mjs`;
+  S3.4's `canonical/teams/agntux-teams/hooks/lib/` carries the same
+  helper. A vitest pin asserts the canonical / agntux-core pair stays
+  byte-identical.
+- `plugins/agntux-core/hooks/lib/scope.mjs` — path-scope resolver that
+  classifies a write as personal / team / leader-view, plus
+  `schemaDirForScope` for the team-aware lock lookup.
+- `hooks/lib/schema-lock.mjs` — `readSchemaLockAt(lockPath)` reads any
+  scope's lock with per-path TTL caching; the legacy `readSchemaLock()`
+  remains and delegates to the personal lock path.
+- `validate-schema.mjs` — entity files now require `entity_id`, `source`,
+  and `source_ref`; action files now require `entity_refs`. The hook
+  computes the expected `entity_id` from `source` + `source_ref` and
+  emits a rejection runbook quoting the correct value when the field
+  is missing or wrong. **The LLM never computes the hash** — the
+  runbook is the only way the correct value reaches the file. Team-
+  scope writes (`<root>/teams/{slug}/entities/...` and
+  `.../actions/...`) validate against the team's own
+  `data/schema/schema.lock.json`.
+- `validate-write-lane.mjs` — when `agntux-teams` holds the active
+  ingest lock, the hook now permits writes under
+  `<root>/teams/{slug}/entities/...`, `<root>/teams/{slug}/actions/...`,
+  and `<root>/leader-views/{slug}/actions/...`. Source plugins remain
+  team-unaware: a write to those subtrees by `agntux-slack`,
+  `agntux-gmail`, or any other source plugin still rejects with the
+  team-lane runbook. Leader-views have no entities subtree (P7) — even
+  `agntux-teams` cannot write `<root>/leader-views/{slug}/entities/...`.
+- `validate-contract.mjs` — recognises team-scope contract files at
+  `<root>/teams/{slug}/data/schema/contracts/*.md` and reads the
+  scope-correct lock for the reason_class-enum membership check.
+- `lint-entity-shape.mjs` — broadened to lint team-scope entity files
+  too (the deprecated `## Recent Activity` → `## Recent signals`
+  guidance applies regardless of scope).
+- `data/schema-template/schema.md` — bumped to `schema_version 1.1.0`
+  with an additive-only versioning policy documented inline (no MAJOR
+  bumps, ever — schemas evolve via the hook+runbook self-heal loop).
+- `data/schema-template/entities/{person,company,project,topic}.md`,
+  `entities/_index.md`, `actions/_index.md` — schema_version bumped
+  to `1.1.0`; new required fields documented.
+- `__tests__/entity-id.test.mjs` — unit tests for the helper plus a
+  byte-freeze pin against the canonical copy.
+- `__tests__/validate-schema.test.mjs` — new coverage for entity_id
+  missing / wrong / correct trio, team-scope lock validation, and
+  pre-bootstrap team passthrough.
+- `__tests__/validate-write-lane.test.mjs` — new coverage for
+  agntux-teams permitted lanes, source-plugin rejection against
+  team subtrees, and the leader-views-have-no-entities invariant.
+
+### Notes
+
+- **Solo behaviour unchanged on existing 1.0.0 corpora.** Files at
+  `schema_version: "1.0.0"` are accepted as-is (contract-ahead MINOR
+  drift passes silently). The next write to any such entity surfaces
+  the runbook and the file picks up the new shape additively.
+- **No MAJOR bumps.** P7 ratifies the additive-only schema policy; the
+  authoring flow rewrites breaking proposals as additive deprecations
+  before they reach the validator. Users never have to manually run a
+  migration.
+
 ## [9.0.0] — 2026-05-08
 
 Open source. The plugin relicenses from Elastic License v2 (ELv2) to

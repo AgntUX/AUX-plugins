@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-team-write-lane.mjs" },
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-team-schema.mjs" },
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-leader-view-rule-hash.mjs" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/maintain-team-index.mjs" }
+        ]
+      }
+    ]
+  }
+}
