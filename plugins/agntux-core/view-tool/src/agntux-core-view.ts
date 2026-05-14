@@ -345,7 +345,10 @@ const triageView: ViewTool<Record<string, unknown>, TriagePayload> = {
       additionalProperties: true,
     },
     ui_resource_uri: TRIAGE_RESOURCE_URI,
-    data_paths: [{ pattern: "actions/{id}.md", scope: "personal" }],
+    // NOTE: `data_paths` lives in the manifest layer per ViewToolDescriptor's
+    // contract (see context.ts). emit-manifest.mjs supplies the canonical
+    // personal-actions default at build time, so it is NOT carried on the
+    // runtime descriptor.
   },
   handle: handleTriageView,
 };
