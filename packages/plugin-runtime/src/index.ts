@@ -30,12 +30,16 @@ export { mergeScope, ViewToolFsError } from "./context.js";
 export type {
   ActionFile,
   ActionFrontmatter,
+  ComposePayloadOnDisk,
+  ComposePayloadThreadContext,
   ParsedAction,
   SuggestedActionRow,
 } from "./parse-action.js";
 export {
+  extractFencedYaml,
   extractSection,
   parseActionFile,
+  parseComposePayload,
   parseFrontmatter,
 } from "./parse-action.js";
 
