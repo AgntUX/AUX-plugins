@@ -1,42 +1,15 @@
 // =============================================================================
-// ui-resources.ts — serves the UI bundle for `ui://triage` from the
-// build-time-embedded base64 string. No S3, no signed URLs, no on-disk cache.
+// ui-resources.ts — local-mcp-server-side UI resource registry.
 //
-// The embed pipeline:
-//   1. component/ builds via Vite into component/out/index.html (single-file).
-//   2. mcp-server's `tsc` step emits dist/ui-resources/triage.js with the
-//      `__EMBED__triage__INDEX_HTML__` placeholder still present.
-//   3. scripts/embed-bundle.mjs walks dist/ and substitutes the placeholder
-//      with the base64 of component/out/index.html.
-//   4. scripts/check-bundle-sync.mjs is the CI guard that re-runs the embed
-//      check and fails the build if the embed is stale.
+// P5 view-only shape: triage_view moved to `view-tool/dist/agntux-core-view.js`
+// and its UI bundle is served by the remote MCP server registry from the
+// view-tool's emitted manifest. The local stdio mcp-server (this file) no
+// longer ships any UI bundles — the surviving local tools (snooze, dismiss,
+// set-status, save_triage_prefs, set_triage_pref) are pure mutators.
 //
-// At runtime the host calls `resources/read` with the URI; we look it up in
-// `UI_BUNDLES`, decode, attach `_meta.ui.csp` + `_meta.license`, and return.
-// Errors are STRUCTURED (per P2a §4) — we never throw from this path so the
-// host can render a graceful failure rather than an unhandled exception.
+// The handler is kept as a structured-error stub so the host gets a clean
+// "no UI resources here" response if anything still hits this surface.
 // =============================================================================
-
-import { buildCSP } from "./csp.js";
-import {
-  triageBundleBase64Placeholder,
-  triageBundleDescriptor,
-  TRIAGE_RESOURCE_URI,
-} from "./ui-resources/triage.js";
-
-interface UiBundle {
-  uri: string;
-  mimeType: string;
-  base64: string;
-}
-
-const UI_BUNDLES: Record<string, UiBundle> = {
-  [TRIAGE_RESOURCE_URI]: {
-    uri: triageBundleDescriptor.uri,
-    mimeType: triageBundleDescriptor.mimeType,
-    base64: triageBundleBase64Placeholder,
-  },
-};
 
 interface ResourceContents {
   uri: string;
@@ -57,77 +30,24 @@ interface StructuredError {
 export async function handleUIResource(
   uri: string,
 ): Promise<ResourceResponse | StructuredError> {
-  const bundle = UI_BUNDLES[uri];
-  if (!bundle) {
-    return {
-      isError: true,
-      contents: [{ type: "text", text: `Unknown UI resource: ${uri}` }],
-    };
-  }
-
-  // Decode the embedded base64. If the embed step has never run, the
-  // "base64" string is the literal placeholder; decoding it produces garbage,
-  // and the iframe will fail to render. Detect that case and return a
-  // structured error rather than letting the iframe render gibberish.
-  if (bundle.base64.startsWith("__EMBED__")) {
-    return {
-      isError: true,
-      contents: [
-        {
-          type: "text",
-          text:
-            `UI bundle for ${uri} is not embedded. Build the component ` +
-            `(npm run build in ui-handlers/triage/component/) and rebuild ` +
-            `the MCP server (npm run build in mcp-server/).`,
-        },
-      ],
-    };
-  }
-
-  let html: string;
-  try {
-    html = Buffer.from(bundle.base64, "base64").toString("utf8");
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      isError: true,
-      contents: [
-        {
-          type: "text",
-          text: `Failed to decode UI bundle for ${uri}: ${message}`,
-        },
-      ],
-    };
-  }
-
-  const csp = buildCSP();
-
   return {
+    isError: true,
     contents: [
       {
-        uri,
-        mimeType: bundle.mimeType,
-        text: html,
-        _meta: {
-          "openai/widgetCSP": csp,
-          ui: {
-            prefersBorder: true,
-            csp: {
-              connectDomains: [],
-              resourceDomains: ["data:", "blob:"],
-              frameDomains: [],
-              baseUriDomains: [],
-            },
-          },
-        },
+        type: "text",
+        text:
+          `Unknown UI resource: ${uri}. P5 view-only shape: the agntux-core ` +
+          `local MCP server no longer serves UI bundles. Triage UI is served ` +
+          `by the remote registry from view-tool/dist/ui-resources/triage.html.`,
       },
     ],
   };
 }
 
-// Exported for tests + ListResources handler in index.ts.
-export const UI_RESOURCE_LIST = Object.values(UI_BUNDLES).map((b) => ({
-  uri: b.uri,
-  name: "Action item triage view",
-  mimeType: b.mimeType,
-}));
+// Exported for ListResources handler in index.ts. The local mcp-server
+// advertises ZERO UI resources under the view-only shape.
+export const UI_RESOURCE_LIST: Array<{
+  uri: string;
+  name: string;
+  mimeType: string;
+}> = [];

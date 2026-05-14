@@ -1,7 +1,7 @@
 # Stage 7 — build the plugin
 
 This is the heaviest internal stage and the lightest user-facing
-one. You dispatch six internal specialists in sequence. The user
+one. You dispatch seven internal specialists in sequence. The user
 sees one "building..." line and then a summary of what was
 generated.
 
@@ -31,10 +31,18 @@ In order:
    under `__tests__/`: cold-start, cursor-map (when non-trivial),
    thread-association (when threads), draft-flow (write-capable),
    render-reproducibility (mirrors lint pass 8). No LLM at test time.
-6. **`invariant-checker`** — runs the three pre-flight gates:
+6. **`view-tool-builder`** — runs the view-tool/ build pipeline
+   (vite → tsc/esbuild → emit-manifest), validates the emitted
+   view-tools.manifest.json against the Zod schema from
+   @agntux/plugin-runtime, asserts plugin-slug prefixing on every
+   view_tools[].name. Falls back to direct-esbuild re-build on
+   architectural-crash hosts per §3 below.
+7. **`invariant-checker`** — runs the four pre-flight gates:
    skill-render reproducibility (lint pass 8), agntux-core
-   coordination (no changes here for net-new), and hooks byte-freeze
-   (N/A — source plugins ship no hooks).
+   coordination (no changes here for net-new), hooks byte-freeze
+   (N/A — source plugins ship no hooks), and source-plugin shape
+   invariants (no `mcp-server/`, no `.mcp.json`, manifest emitted,
+   prefix-asserted, no forbidden host imports).
 
 ## Where the build runs
 
@@ -87,7 +95,7 @@ in the user-facing status line.
    sees the actual cause.
 
 You don't need to mention any of this in chat. The user's view stays
-"Building... (N/6) {step}".
+"Building... (N/7) {step}".
 
 ## Confirmation gate
 
@@ -104,20 +112,21 @@ Before any of the specialists run, confirm with the user:
 >
 > Sound good? Just say yes and I'll start.
 
-Wait for explicit yes. Then dispatch the six specialists in order.
+Wait for explicit yes. Then dispatch the seven specialists in order.
 
 ## What the user sees during the build
 
 A single status line that updates per specialist completion:
 
-> Building... (1/6) metadata
-> Building... (2/6) sync flow
-> Building... (3/6) refresh strategy
-> Building... (4/6) action buttons
-> Building... (5/6) tests
-> Building... (6/6) shape checks
+> Building... (1/7) metadata
+> Building... (2/7) sync flow
+> Building... (3/7) refresh strategy
+> Building... (4/7) action buttons
+> Building... (5/7) tests
+> Building... (6/7) view tool
+> Building... (7/7) shape checks
 
-When all six are done, summarise in plain language:
+When all seven are done, summarise in plain language:
 
 > Done. Here's what's in `agntux-{slug}` v0.1.0:
 >
@@ -137,7 +146,7 @@ Then load [`08-headless-test.md`](08-headless-test.md) automatically
 Each specialist returns `{success: bool, error?: string,
 artefacts: string[]}`. On failure, **do not pause for the user**.
 Re-dispatch the specialist with the error attached as feedback.
-The user sees the same status line (`Building... (N/6) {step}`)
+The user sees the same status line (`Building... (N/7) {step}`)
 with no failure narration.
 
 If the same specialist fails twice on the same step, dispatch a
@@ -160,7 +169,7 @@ traceback for maintainers.
   ...,
   "build_status": "success",
   "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-linear",
-  "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "draft-flow", "tests", "invariant-checker"],
+  "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "draft-flow", "tests", "view-tool-builder", "invariant-checker"],
   "build_completed_at": "2026-05-08T..."
 }
 ```
@@ -173,5 +182,9 @@ traceback for maintainers.
 - Don't dispatch in parallel — the specialists have implicit
   ordering (manifest-author writes the plugin slug; ingest-prompt-
   author needs that slug to render the skill tree). Sequential.
+  view-tool-builder must run AFTER ui-handler-author has produced
+  view-tool/src/*.ts (typically via the manifest-author +
+  draft-flow-author chain), and BEFORE invariant-checker which
+  asserts the build output shape.
 - Don't skip the invariant check — even if the user is in a hurry,
   the check is fast and catches mid-build drift.

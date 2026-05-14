@@ -258,20 +258,21 @@ describe("agntux-core skills directory structure", () => {
   });
 });
 
-describe("UI handler routing surface (post de-fork — descriptors own it)", () => {
+describe("UI handler routing surface (P5 view-only shape — descriptors own it)", () => {
+  // P5 moved the triage_view descriptor + handler to the view-tool/ subtree.
   // The legacy `agents/ui-handlers/{triage,entity-browser}.md` operational
   // manifests are gone — every field they carried (verb_phrases, view_tool,
   // resource_uri, structured_content_schema, follow_up_intents,
   // degraded_states) now lives on the view tool's descriptor in
-  // `mcp-server/src/tools/triage-view.ts`. The tests below assert the
+  // `view-tool/src/agntux-core-view.ts`. The tests below assert the
   // surface alignment lives there now.
-  const triageViewPath = join(PLUGIN_ROOT, "mcp-server", "src", "tools", "triage-view.ts");
+  const triageViewPath = join(PLUGIN_ROOT, "view-tool", "src", "agntux-core-view.ts");
 
   it("the entire agents/ directory is gone (no other agents survive in agntux-core)", () => {
     expect(existsSync(join(PLUGIN_ROOT, "agents"))).toBe(false);
   });
 
-  it("triage-view tool source exists at mcp-server/src/tools/triage-view.ts", () => {
+  it("triage-view tool source exists at view-tool/src/agntux-core-view.ts (P5 view-only shape)", () => {
     expect(existsSync(triageViewPath)).toBe(true);
   });
 
@@ -280,15 +281,14 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
     expect(src).toContain('name: "agntux_core_triage_view"');
   });
 
-  it("triage-view advertises ui://triage as the resource URI in both _meta.ui and _meta['ui/resourceUri']", () => {
+  it("triage-view advertises ui://agntux-core/triage as the resource URI (P5 plugin-namespaced)", () => {
     const src = readFileSync(triageViewPath, "utf-8");
-    expect(src).toContain('TRIAGE_RESOURCE_URI = "ui://triage"');
-    expect(src).toMatch(/ui:\s*\{\s*resourceUri:\s*TRIAGE_RESOURCE_URI/);
-    expect(src).toMatch(/"ui\/resourceUri":\s*TRIAGE_RESOURCE_URI/);
+    expect(src).toContain('TRIAGE_RESOURCE_URI = "ui://agntux-core/triage"');
+    expect(src).toMatch(/ui_resource_uri:\s*TRIAGE_RESOURCE_URI/);
   });
 
   it("triage-view description carries the user-facing trigger phrases inline (the host's tool selector matches against this)", () => {
-    const src = readToolSource(triageViewPath);
+    const src = readFileSync(triageViewPath, "utf-8");
     // The 8.0.0 consolidation keeps the interactive triage UI on the
     // tool's description-matched routing — the user types a phrase, the
     // host invokes the tool directly. No `/agntux-triage` slash command
@@ -309,7 +309,7 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
 
   it("triage-view inputSchema is empty (zero-arg call site — host invokes with `{}`)", () => {
     const src = readFileSync(triageViewPath, "utf-8");
-    const inputSchemaMatch = src.match(/inputSchema:\s*\{[\s\S]*?required:\s*\[[^\]]*\],?\s*\}/);
+    const inputSchemaMatch = src.match(/inputSchema:\s*\{[\s\S]*?required:\s*\[[^\]]*\],?[\s\S]*?\}/);
     expect(inputSchemaMatch).toBeTruthy();
     const block = inputSchemaMatch![0];
     expect(block).toContain("properties: {}");
@@ -318,7 +318,7 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
     // from the input surface — they remain server-side as DEFAULT_*
     // constants.
     expect(block).not.toContain("view_handled_days");
-    expect(block).not.toContain("limit");
+    expect(block).not.toMatch(/limit:\s*\{/);
   });
 
   it("triage-view structured-error envelope declares the canonical degraded-state codes", () => {
@@ -331,6 +331,20 @@ describe("UI handler routing surface (post de-fork — descriptors own it)", () 
   it("triage-view does not declare a license_paused error code (Apache-2.0)", () => {
     const src = readFileSync(triageViewPath, "utf-8");
     expect(src).not.toContain("license_paused");
+  });
+
+  it("local mcp-server does NOT register agntux_core_triage_view (P5 view-only)", () => {
+    // triage_view is loaded by the remote MCP server registry from
+    // view-tool/dist/agntux-core-view.js — not by the local stdio server.
+    // We grep for the registration shape, not bare token mentions (the
+    // file's comments still document the migration).
+    const indexPath = join(PLUGIN_ROOT, "mcp-server", "src", "index.ts");
+    const text = readFileSync(indexPath, "utf-8");
+    // The TOOLS object must not register the view tool.
+    expect(text).not.toMatch(/agntux_core_triage_view:\s*\{/);
+    // The legacy imports must be gone.
+    expect(text).not.toMatch(/import\s*\{[^}]*triageViewTool/);
+    expect(text).not.toMatch(/import\s*\{[^}]*handleTriageView/);
   });
 
   it("agntux-core mcp-server source does not reintroduce a license gate", () => {
