@@ -7,4 +7,6 @@ node_modules/
 dist/
 !plugins/*/mcp-server/dist/
 !plugins/*/ui-handlers/*/component/out/
+!plugins/*/view-tool/dist/
+!plugins/*/view-tool/dist/ui-resources/
 !packages/*/dist/

@@ -55,12 +55,33 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Stage every tracked-but-previously-ignored build output. We add
-          # the plugin and packages roots and let .gitignore decide which
-          # files inside them are eligible — this is robust to plugins that
-          # don't have an mcp-server/ or have no UI handlers (the explicit
-          # globbed pathspec form errored out when a glob matched nothing).
-          git add plugins packages
+          # Per-plugin-kind commit set (P7). The predicate is the same one
+          # used by scripts/build-plugin.mjs and
+          # scripts/regenerate-marketplace-json.ts: presence of mcp-server/.
+          #
+          # - Local-server plugins (mcp-server/) commit mcp-server/dist/
+          #   plus any ui-handlers/*/component/out/ that feeds the embed.
+          # - Source plugins (no mcp-server/, must have view-tool/) commit
+          #   view-tool/dist/<slug>-view.js, view-tools.manifest.json, and
+          #   ui-resources/*.html.
+          # - agntux-core ships both, so its job stages both sets.
+          #
+          # Each `git add` is wrapped so a missing path (e.g. a plugin with
+          # no ui-handlers/) does not abort the loop; .gitignore still
+          # filters non-tracked files within each path.
+          for plugin_dir in plugins/*/; do
+            slug="$(basename "$plugin_dir")"
+            if [ -d "${plugin_dir}mcp-server" ]; then
+              echo "[$slug] local-server kind — staging mcp-server/dist + ui-handlers component out"
+              git add "${plugin_dir}mcp-server/dist" 2>/dev/null || true
+              git add "${plugin_dir}ui-handlers" 2>/dev/null || true
+            fi
+            if [ -d "${plugin_dir}view-tool" ]; then
+              echo "[$slug] source/hybrid kind — staging view-tool/dist"
+              git add "${plugin_dir}view-tool/dist" 2>/dev/null || true
+            fi
+          done
+          git add packages 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No build artifact changes to commit."
           else
