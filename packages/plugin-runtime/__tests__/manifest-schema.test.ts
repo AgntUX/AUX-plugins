@@ -63,6 +63,23 @@ describe("ViewToolsManifestSchema — invalid cases", () => {
     expect(ViewToolsManifestSchema.safeParse(m).success).toBe(false);
   });
 
+  it("rejects handler_module containing a `..` path segment that passes the regex", () => {
+    const m = happyManifest();
+    // This path satisfies HandlerModuleRegex (anchored to view-tool/dist/,
+    // ends in .js, only chars from [\w./-]) but contains a `..` segment
+    // that escapes the view-tool/dist/ root. The refine() guard must catch
+    // it.
+    m.handler_module = "view-tool/dist/../../etc/passwd.js";
+    expect(ViewToolsManifestSchema.safeParse(m).success).toBe(false);
+  });
+
+  it("rejects html_path containing a `..` path segment that passes the regex", () => {
+    const m = happyManifest();
+    m.ui_bundles[0]!.html_path =
+      "view-tool/dist/ui-resources/../../etc/passwd.html";
+    expect(ViewToolsManifestSchema.safeParse(m).success).toBe(false);
+  });
+
   it("rejects view_tool without a matching ui_bundle", () => {
     const m = happyManifest();
     m.view_tools[0]!.mcp_app_meta.resourceUri = "ui://agntux-core/orphan";
