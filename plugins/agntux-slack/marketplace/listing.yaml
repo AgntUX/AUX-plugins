@@ -34,9 +34,13 @@ ui_components:
   - name: "compose"
     title: "Slack reply composer"
     purpose: "Draft replies inline with thread context, editable body, and mode tabs (Send / Schedule / Save draft). Personalization signals visible. Send button commits the action."
+    view_tool: "agntux_slack_compose_view"
+    resource_uri: "ui://agntux-slack/compose"
   - name: "canvas"
     title: "Slack canvas summariser"
     purpose: "Summarize threads to Slack canvases inline. Edit title, TL;DR, decisions, open questions, and participants. Create button posts the canvas to the thread."
+    view_tool: "agntux_slack_canvas_view"
+    resource_uri: "ui://agntux-slack/canvas"
 screenshot_order:
   - "00-sync-status.png"
   - "01-action-detail.png"

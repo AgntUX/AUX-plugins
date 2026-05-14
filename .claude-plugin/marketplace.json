@@ -45,7 +45,8 @@
         "threads",
         "action-items"
       ],
-      "category": "communication"
+      "category": "communication",
+      "kind": "remote-view-only"
     },
     {
       "name": "agntux-slack",
@@ -58,7 +59,8 @@
         "mentions",
         "action-items"
       ],
-      "category": "communication"
+      "category": "communication",
+      "kind": "remote-view-only"
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-09T01:21:44.877Z",
+  "generated_at": "2026-05-14T14:44:23.537Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a system AgntUX doesn't yet support.",
@@ -65,7 +65,9 @@
         {
           "name": "triage",
           "title": "Action item triage",
-          "purpose": "The primary inline UI. Priority-sorted open action items with snooze / dismiss / done buttons and per-item suggested-action buttons that route into source plugins."
+          "purpose": "The primary inline UI. Priority-sorted open action items with snooze / dismiss / done buttons and per-item suggested-action buttons that route into source plugins.",
+          "view_tool": "agntux_core_triage_view",
+          "resource_uri": "ui://agntux-core/triage"
         }
       ],
       "screenshot_order": [
@@ -121,7 +123,9 @@
         {
           "name": "compose",
           "title": "Gmail reply composer",
-          "purpose": "Draft replies inline with editable to/cc/bcc/subject/body, prior-conversation context, and personalization signals. Save creates a Gmail draft and opens it in a new tab for review-and-send."
+          "purpose": "Draft replies inline with editable to/cc/bcc/subject/body, prior-conversation context, and personalization signals. Save creates a Gmail draft and opens it in a new tab for review-and-send.",
+          "view_tool": "agntux_gmail_compose_view",
+          "resource_uri": "ui://agntux-gmail/compose"
         }
       ],
       "screenshot_order": [
@@ -280,12 +284,16 @@
         {
           "name": "compose",
           "title": "Slack reply composer",
-          "purpose": "Draft replies inline with thread context, editable body, and mode tabs (Send / Schedule / Save draft). Personalization signals visible. Send button commits the action."
+          "purpose": "Draft replies inline with thread context, editable body, and mode tabs (Send / Schedule / Save draft). Personalization signals visible. Send button commits the action.",
+          "view_tool": "agntux_slack_compose_view",
+          "resource_uri": "ui://agntux-slack/compose"
         },
         {
           "name": "canvas",
           "title": "Slack canvas summariser",
-          "purpose": "Summarize threads to Slack canvases inline. Edit title, TL;DR, decisions, open questions, and participants. Create button posts the canvas to the thread."
+          "purpose": "Summarize threads to Slack canvases inline. Edit title, TL;DR, decisions, open questions, and participants. Create button posts the canvas to the thread.",
+          "view_tool": "agntux_slack_canvas_view",
+          "resource_uri": "ui://agntux-slack/canvas"
         }
       ],
       "screenshot_order": [
