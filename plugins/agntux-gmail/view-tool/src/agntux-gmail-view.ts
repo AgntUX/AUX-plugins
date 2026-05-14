@@ -207,7 +207,9 @@ const composeView: ViewTool<ComposeArgs, ComposePayload> = {
       additionalProperties: true,
     },
     ui_resource_uri: COMPOSE_RESOURCE_URI,
-    data_paths: [{ pattern: "actions/{id}.md", scope: "personal" }],
+    // data_paths intentionally omitted — emit-manifest.mjs supplies the
+    // personal `actions/{id}.md` default and ViewToolDescriptor's contract
+    // (see context.ts) keeps data_paths in the manifest layer.
   },
   handle: handleCompose,
 };
