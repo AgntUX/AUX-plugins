@@ -37,6 +37,9 @@ export interface ActionFrontmatter {
   completed_at: string | null;
   dismissed_at: string | null;
   created_at: string | null;
+  // P5 Decision 13: triage-view orders open rows by frontmatter.updated_at.
+  // Optional; absent on legacy files that pre-date the field.
+  updated_at: string | null;
   // Optional team-aware fields (P3 v2 §1). Present on team-scoped action
   // items; absent on personal action items. Parsed best-effort: an empty
   // string here is normalized to null so triage-view can use a uniform
@@ -80,6 +83,7 @@ const FALLBACK_FRONTMATTER: ActionFrontmatter = {
   completed_at: null,
   dismissed_at: null,
   created_at: null,
+  updated_at: null,
   team_id: null,
   team_slug: null,
   source_team: null,
@@ -175,6 +179,7 @@ export function parseFrontmatter(text: string): {
       completed_at: asStringOrNull(raw.completed_at),
       dismissed_at: asStringOrNull(raw.dismissed_at),
       created_at: asStringOrNull(raw.created_at),
+      updated_at: asStringOrNull(raw.updated_at),
       team_id: asNonEmptyStringOrNull(raw.team_id),
       team_slug: asNonEmptyStringOrNull(raw.team_slug),
       source_team: asNonEmptyStringOrNull(raw.source_team),
