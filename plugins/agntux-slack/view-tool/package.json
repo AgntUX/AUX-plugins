@@ -1,0 +1,29 @@
+{
+  "name": "@agntux-build/agntux-slack-view-tool",
+  "version": "0.1.0",
+  "description": "View-tool library module for agntux-slack. Loaded server-side by the remote MCP registry; not invoked locally.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json && esbuild src/agntux-slack-view.ts --bundle --platform=node --format=esm --outfile=dist/agntux-slack-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agntux/plugin-runtime": "file:../../../packages/plugin-runtime"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "esbuild": "^0.23.0",
+    "js-yaml": "^4.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.0",
+    "vitest": "^1.6.0"
+  }
+}
