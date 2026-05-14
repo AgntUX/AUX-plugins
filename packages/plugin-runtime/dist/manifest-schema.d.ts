@@ -82,11 +82,14 @@ export declare const ViewToolSchema: z.ZodObject<{
         scope: "personal" | "team" | "leader-view";
     }[];
 }>;
+export declare const NoParentSegment: RegExp;
 export declare const HandlerModuleRegex: RegExp;
 export declare const HtmlPathRegex: RegExp;
+export declare const HandlerModulePath: z.ZodEffects<z.ZodString, string, string>;
+export declare const HtmlPath: z.ZodEffects<z.ZodString, string, string>;
 export declare const UiBundleSchema: z.ZodObject<{
     uri: z.ZodString;
-    html_path: z.ZodString;
+    html_path: z.ZodEffects<z.ZodString, string, string>;
     csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
     permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
 }, "strip", z.ZodTypeAny, {
@@ -103,7 +106,7 @@ export declare const UiBundleSchema: z.ZodObject<{
 export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
     plugin_slug: z.ZodString;
     plugin_version: z.ZodString;
-    handler_module: z.ZodString;
+    handler_module: z.ZodEffects<z.ZodString, string, string>;
     view_tools: z.ZodArray<z.ZodObject<{
         name: z.ZodString;
         description: z.ZodString;
@@ -163,7 +166,7 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
     }>, "many">;
     ui_bundles: z.ZodArray<z.ZodObject<{
         uri: z.ZodString;
-        html_path: z.ZodString;
+        html_path: z.ZodEffects<z.ZodString, string, string>;
         csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
         permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
     }, "strip", z.ZodTypeAny, {
