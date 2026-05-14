@@ -47,11 +47,29 @@ export const ViewToolSchema = z.object({
 // Decision B: ONE compiled module per plugin. `handler_module` is the path
 // to that ESM file relative to the plugin root; it exports
 // `default: { viewTools: ViewTool[] }`.
+//
+// Path-traversal guard: the character class `[\w./-]+` allows `.` so a
+// literal `..` segment would otherwise slip through. We forbid any path
+// containing a `..` segment (boundary-anchored) to keep handler_module
+// rooted under view-tool/dist/. Same guard applies to HtmlPathRegex.
+export const NoParentSegment = /(^|\/)\.\.(\/|$)/;
 export const HandlerModuleRegex = /^view-tool\/dist\/[\w./-]+\.js$/;
 export const HtmlPathRegex = /^view-tool\/dist\/ui-resources\/[\w./-]+\.html$/;
+export const HandlerModulePath = z
+    .string()
+    .regex(HandlerModuleRegex)
+    .refine((p) => !NoParentSegment.test(p), {
+    message: "handler_module must not contain '..' path segments",
+});
+export const HtmlPath = z
+    .string()
+    .regex(HtmlPathRegex)
+    .refine((p) => !NoParentSegment.test(p), {
+    message: "html_path must not contain '..' path segments",
+});
 export const UiBundleSchema = z.object({
     uri: z.string().regex(UiResourceUriRegex),
-    html_path: z.string().regex(HtmlPathRegex),
+    html_path: HtmlPath,
     csp: z.record(z.unknown()),
     permissions: z.record(z.unknown()),
 });
@@ -61,7 +79,7 @@ export const ViewToolsManifestSchema = z
     // AUX-plugins is kebab-case; the github fetch layer translates.
     plugin_slug: z.string().regex(/^[a-z][a-z0-9_]*$/),
     plugin_version: z.string().min(1),
-    handler_module: z.string().regex(HandlerModuleRegex),
+    handler_module: HandlerModulePath,
     view_tools: z.array(ViewToolSchema).min(1),
     ui_bundles: z.array(UiBundleSchema).min(1),
 })
