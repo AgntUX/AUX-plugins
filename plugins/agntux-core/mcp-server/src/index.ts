@@ -13,7 +13,6 @@ import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
 import { snoozeTool } from "./tools/snooze.js";
 import { dismissTool } from "./tools/dismiss.js";
 import { setStatusTool } from "./tools/set-status.js";
-import { triageViewTool, handleTriageView } from "./tools/triage-view.js";
 import { triagePrefsTool, setTriagePrefTool } from "./tools/triage-prefs.js";
 
 const PLUGIN_NAME = "agntux-core";
@@ -48,10 +47,10 @@ const server = new Server(
 //     component-supplied and effectively free. Team-mode (P3 v2) callers
 //     pass an optional `team_slug` or `view_slug` to route the mutation
 //     to the matching team / leader-view actions/ directory.
-//   - agntux_core_triage_view — invoked by the host's agent loop in response
-//     to `/agntux triage-digest` (or any of the routed verb phrases). Returns the
-//     structuredContent payload for ui://triage. Solo output is byte-identical
-//     to the prior release when `<root>/.agntux/teams.json` is absent.
+//   - agntux_core_triage_view — MOVED to view-tool/dist/agntux-core-view.js
+//     under the P5 view-only shape. The remote MCP server registry loads
+//     the compiled view-tool module and multiplexes triage_view alongside
+//     view tools from other plugins. No longer registered locally.
 //   - agntux_core_save_triage_prefs — invoked by the triage component when
 //     the user toggles a team / leader-view filter chip, a relevance-class
 //     chip, the sort dropdown, or the show-done/snoozed/dismissed toggles.
@@ -68,13 +67,6 @@ const TOOLS = {
   agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
   agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
   agntux_core_set_status: { ...setStatusTool, handler: setStatusTool.handler },
-  agntux_core_triage_view: {
-    description: triageViewTool.description,
-    inputSchema: triageViewTool.inputSchema,
-    outputSchema: triageViewTool.outputSchema,
-    _meta: triageViewTool._meta,
-    handler: handleTriageView,
-  },
   agntux_core_save_triage_prefs: {
     ...triagePrefsTool,
     handler: triagePrefsTool.handler,

@@ -81,10 +81,16 @@ if (argv._.length === 0 && !argv.all) {
 // so core must build before slack — which alphabetical order guarantees.
 // If a future plugin introduces a non-alphabetical dependency we'll need
 // to topologically sort instead.
+//
+// --all picks up every plugin that ships either a `mcp-server/` (local-
+// server kind) or a `view-tool/` (source/remote-view-only kind, post P7).
+// agntux-core ships both and so runs both pipelines below.
 const slugs = (
   argv.all
-    ? readdirSync(PLUGINS_DIR).filter((d) =>
-        existsSync(join(PLUGINS_DIR, d, "mcp-server")),
+    ? readdirSync(PLUGINS_DIR).filter(
+        (d) =>
+          existsSync(join(PLUGINS_DIR, d, "mcp-server")) ||
+          existsSync(join(PLUGINS_DIR, d, "view-tool")),
       )
     : argv._
 ).slice().sort();
@@ -154,45 +160,85 @@ async function buildPlugin(slug, pluginDir, skipInstall) {
   // unaffected.
   renderSyncSkillIfPresent(slug, pluginDir);
 
-  const components = discoverComponents(pluginDir);
-  log(
-    `[${slug}] discovered ${components.length} UI component(s): ${
-      components.map((c) => c.uiName).join(", ") || "(none)"
-    }`,
-  );
-
-  // Component build (each ui-handler's component/ has its own package.json).
-  for (const c of components) {
-    log(`[${slug}/${c.uiName}] building component`);
-    if (memberInstall) {
-      runOrFail("npm", ["install", "--no-audit", "--no-fund"], c.componentDir);
-    }
-    // C4 — Try Vite first, fall back to esbuild on architectural crashes
-    // (aarch64 Linux is the canonical SIGBUS host). The locale-stubs
-    // problem (canonical use-translation.ts static-imports 11 locales)
-    // is solved at the template level: the canonical scaffold ships all
-    // 11 locale files (10 are en-US copies awaiting real translations).
-    // Customised use-translation hooks in shipped plugins import only
-    // the locales they ship — no runtime stubbing required.
-    await runComponentBuildWithFallback(slug, c);
-    if (!existsSync(join(c.componentDir, "out", "index.html"))) {
-      fail(
-        `[${slug}/${c.uiName}] build did not produce out/index.html — check the component's vite config.`,
-      );
-    }
-  }
-
-  // MCP server build (tsc + embed-bundle.mjs picks up component/out/index.html).
+  // P7 routing predicate — pick build pipeline(s) by directory presence:
+  //   - mcp-server/  → local-server kind → tsc + embed-bundle, check:bundle-sync
+  //   - view-tool/   → source kind (remote-view-only) → vite + tsc + esbuild + emit-manifest
+  // agntux-core has both, so it runs BOTH pipelines. plugin-toolkit and
+  // agntux-build ship mcp-server/ only and skip the view-tool branch. New
+  // source plugins (agntux-slack, agntux-gmail post-Phase-5) ship view-tool/
+  // only and skip the legacy ui-handlers + mcp-server branch.
   const mcpServerDir = join(pluginDir, "mcp-server");
-  if (existsSync(mcpServerDir)) {
+  const viewToolDir = join(pluginDir, "view-tool");
+  const hasMcpServer = existsSync(mcpServerDir);
+  const hasViewTool = existsSync(viewToolDir);
+
+  if (hasMcpServer) {
+    // Legacy ui-handlers components only feed the mcp-server embed; skip
+    // them for view-tool-only plugins where they would be both absent and
+    // unused.
+    const components = discoverComponents(pluginDir);
+    log(
+      `[${slug}] discovered ${components.length} UI component(s): ${
+        components.map((c) => c.uiName).join(", ") || "(none)"
+      }`,
+    );
+
+    // Component build (each ui-handler's component/ has its own package.json).
+    for (const c of components) {
+      log(`[${slug}/${c.uiName}] building component`);
+      if (memberInstall) {
+        runOrFail("npm", ["install", "--no-audit", "--no-fund"], c.componentDir);
+      }
+      // C4 — Try Vite first, fall back to esbuild on architectural crashes
+      // (aarch64 Linux is the canonical SIGBUS host). The locale-stubs
+      // problem (canonical use-translation.ts static-imports 11 locales)
+      // is solved at the template level: the canonical scaffold ships all
+      // 11 locale files (10 are en-US copies awaiting real translations).
+      // Customised use-translation hooks in shipped plugins import only
+      // the locales they ship — no runtime stubbing required.
+      await runComponentBuildWithFallback(slug, c);
+      if (!existsSync(join(c.componentDir, "out", "index.html"))) {
+        fail(
+          `[${slug}/${c.uiName}] build did not produce out/index.html — check the component's vite config.`,
+        );
+      }
+    }
+
+    // MCP server build (tsc + embed-bundle.mjs picks up component/out/index.html).
     log(`[${slug}] building mcp-server (tsc + embed-bundle)`);
     if (memberInstall) {
       runOrFail("npm", ["install", "--no-audit", "--no-fund"], mcpServerDir);
     }
     runOrFail("npm", ["run", "build"], mcpServerDir);
-    runOrFail("npm", ["run", "check:bundle-sync"], mcpServerDir);
-  } else {
-    log(`[${slug}] no mcp-server/ — skipping server build`);
+    // check:bundle-sync is opt-in: plugins that embed a UI bundle ship the
+    // script (agntux-core, agntux-slack/legacy); plugins without an
+    // embedded UI (agntux-build) omit it. Skip when absent rather than
+    // failing.
+    if (hasMcpServerScript(mcpServerDir, "check:bundle-sync")) {
+      runOrFail("npm", ["run", "check:bundle-sync"], mcpServerDir);
+    } else {
+      log(`[${slug}] mcp-server has no check:bundle-sync script — skipping`);
+    }
+  }
+
+  if (hasViewTool) {
+    // P7 view-tool pipeline. The plugin's view-tool/package.json owns the
+    // command chain (vite → tsc → esbuild → emit-manifest); we just
+    // invoke `npm run build` inside it and trust the package.json. Skip
+    // check:bundle-sync — there is no embedded UI bundle (the remote
+    // registry fetches ui-resources/*.html from GitHub directly).
+    log(`[${slug}] building view-tool (vite + tsc + esbuild + emit-manifest)`);
+    if (memberInstall) {
+      runOrFail("npm", ["install", "--no-audit", "--no-fund"], viewToolDir);
+    }
+    runOrFail("npm", ["run", "build"], viewToolDir);
+  }
+
+  if (!hasMcpServer && !hasViewTool) {
+    fail(
+      `[${slug}] no mcp-server/ and no view-tool/ — nothing to build. ` +
+        `Add one of those directories or remove the plugin from plugins/.`,
+    );
   }
 }
 
@@ -207,6 +253,13 @@ function servePlugins(slugs, portArg) {
 function serveSingle(slug, portArg) {
   const mcpServerDir = join(PLUGINS_DIR, slug, "mcp-server");
   const entry = join(mcpServerDir, "dist", "index.js");
+  if (!existsSync(mcpServerDir)) {
+    fail(
+      `[${slug}] has no mcp-server/ — this is a source/remote-view-only plugin; ` +
+        `there is no local server to launch. Use the plugin-toolkit-test ` +
+        `render-view-tool subcommand instead (see docs/specs/render-view-tool.md).`,
+    );
+  }
   if (!existsSync(entry)) {
     fail(`[${slug}] mcp-server/dist/index.js missing — build must have failed.`);
   }
@@ -248,6 +301,13 @@ function serveMany(slugs) {
   for (const slug of slugs) {
     const mcpServerDir = join(PLUGINS_DIR, slug, "mcp-server");
     const entry = join(mcpServerDir, "dist", "index.js");
+    if (!existsSync(mcpServerDir)) {
+      fail(
+        `[${slug}] has no mcp-server/ — source/remote-view-only plugins cannot ` +
+          `be --served. Either drop ${slug} from this --serve run or use the ` +
+          `plugin-toolkit-test render-view-tool subcommand for it.`,
+      );
+    }
     if (!existsSync(entry)) {
       fail(`[${slug}] mcp-server/dist/index.js missing — build must have failed.`);
     }
@@ -497,6 +557,17 @@ function renderSyncSkillIfPresent(slug, pluginDir) {
   } catch (e) {
     const msg = e instanceof RenderSkillError ? e.message : String(e);
     fail(`[${slug}] render-skill failed: ${msg}`);
+  }
+}
+
+function hasMcpServerScript(mcpServerDir, scriptName) {
+  const pkgPath = join(mcpServerDir, "package.json");
+  if (!existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    return Boolean(pkg.scripts && pkg.scripts[scriptName]);
+  } catch {
+    return false;
   }
 }
 
