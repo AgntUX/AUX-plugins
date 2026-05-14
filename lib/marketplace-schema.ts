@@ -204,12 +204,33 @@ export const SupportedPromptSchema = z
   .strict();
 export type SupportedPrompt = z.infer<typeof SupportedPromptSchema>;
 
-/** UI component descriptor. P15 §3.7. */
+/**
+ * UI component descriptor. P15 §3.7.
+ *
+ * `view_tool` and `resource_uri` are optional fields added in the P5/P7
+ * remote-view-only era: when a plugin's UI is served by a view-tool
+ * (and not by the deprecated separate ui-handler MCP server), these
+ * keys cross-link the listing entry to the canonical view-tool name
+ * and its `ui://` resource. Per the AgntUX schema-evolution policy
+ * (P7, additive-only), these are MINOR additive fields — older
+ * listings without them remain valid.
+ *
+ * - `view_tool`: snake_case tool name registered by the view-tool MCP
+ *   shim (e.g. `agntux_slack_canvas_view`). Same shape as the
+ *   `view_tools[].name` field in the view-tools manifest.
+ * - `resource_uri`: matches `ui://<plugin-slug>/<component-name>` —
+ *   identical to the MCP App resource URI exposed by `_meta.ui`.
+ */
+const ViewToolNameRe = /^[a-z][a-z0-9_]*$/;
+const ResourceUriRe = /^ui:\/\/[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/;
+
 export const UiComponentSchema = z
   .object({
     name: z.string().regex(UiComponentNameRe),
     title: z.string().min(1).max(60),
     purpose: z.string().min(1).max(200),
+    view_tool: z.string().regex(ViewToolNameRe).optional(),
+    resource_uri: z.string().regex(ResourceUriRe).optional(),
   })
   .strict();
 export type UiComponent = z.infer<typeof UiComponentSchema>;
