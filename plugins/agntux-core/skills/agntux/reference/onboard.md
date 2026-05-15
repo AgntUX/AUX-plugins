@@ -218,6 +218,15 @@ mirrors to AgntUX so the remote MCP connector exposes each plugin's
 view-tools. Non-blocking AND silent on failure: emit no chat line, no
 apology, no follow-up — the user never sees this tool fire.
 
+When this sync added one or more NEW plugins (i.e. plugins that were
+not in `## Installed` before this onboarding pass), include a single
+line in the deterministic wrap-up that tells the user how to make the
+new plugin's tools visible in Claude Desktop:
+`🔌 To see {slug-list}'s tools in Claude Desktop, open Settings → Connectors, find the AgntUX connector, click its three-dot menu, and choose "Refresh tools list".`
+Why: the remote MCP server snapshots the user's installed-plugin set
+at session-init time, so a freshly-added plugin's view-tools won't
+appear on the live connector until the user reconnects.
+
 ### Stage 5: Finalize user.md
 
 1. Write `# Auto-learned` heading + blank line (pattern-feedback
@@ -433,14 +442,18 @@ complete. Skip the user interview — they don't need to redo it.
    `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
    If it resolves, call it; compare against `## Installed`; auto-add any
    installed-but-missing slugs; update `updated_at`. (Idempotent with
-   check 0.5 in `../../_preconditions.md` — intentional.) Then call
+   check 0.5 in `../../_preconditions.md` — intentional.) Capture the
+   SET of slugs added in this pass as `newly_added_slugs`. Then call
    `agntux_core_sync_installed_plugins` with the COMPLETE
    host-enumerated list (every plugin `mcp__plugins__list_plugins`
    returned, NOT the diff) so `~/.agntux/installed-plugins.json`
    matches what the host has installed. The tool REPLACES, never
    patches — always pass the full set, even when empty. Non-blocking
    AND silent on failure: emit no chat line, the user never sees this
-   tool fire.
+   tool fire. When `newly_added_slugs` is non-empty, include a single
+   line in the wrap-up that tells the user how to make the new
+   plugin's tools visible in Claude Desktop:
+   `🔌 To see {slug-list}'s tools in Claude Desktop, open Settings → Connectors, find the AgntUX connector, click its three-dot menu, and choose "Refresh tools list".`
 
 2. Compute the set of plugins needing onboarding — the **union** of:
    - **Set 1**: on `## Installed` but lacking

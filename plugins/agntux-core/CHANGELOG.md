@@ -25,6 +25,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   Test seam: `AGNTUX_HOME_OVERRIDE` redirects the writes during unit
   tests without depending on HOME env-var overrides (vitest's runtime
   ignores HOME for `os.homedir()`).
+- Skill nudge — whenever the plugin-reconciliation pass adds a new
+  slug to `## Installed` (i.e. the host installed a plugin since the
+  last `/agntux-*` invocation), the skill now emits a one-line
+  instruction telling the user how to surface the new plugin's
+  view-tools on the AgntUX connector in Claude Desktop:
+  *Settings → Connectors → AgntUX → three-dot menu → "Refresh tools
+  list"*. Required because the remote MCP server snapshots the
+  installed-plugin set at session-init time; a freshly-added plugin's
+  tools only appear after a connector refresh.
 
 ## [9.3.0] — 2026-05-12
 
