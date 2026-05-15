@@ -157,6 +157,15 @@ in the template's README (`{{plugin-slug-kebab}}`, `{{plugin-slug-snake}}`,
 `{{ui-name}}`, `{{view-tool-name}}`, `{{ui-name-pascal}}`,
 `{{view-tool-description}}`, `{{ui-display-name}}`).
 
+**Two placeholder spellings.** File **contents** use `{{ui-name}}` (etc.).
+On-disk **filenames** in the template tree use `__ui-name__` instead —
+the brace form is rejected by Claude Desktop's plugin-zip upload
+validator, so the template ships filesystem-safe filenames. When you
+copy the template you must substitute BOTH spellings to the real
+ui-name value: rename `__ui-name__-view.ts` → `<ui-name>-view.ts` and
+each `fixtures/__ui-name__-*.json` → `fixtures/<ui-name>-*.json`,
+then run the standard `{{…}}` substitution on file contents.
+
 For multi-view plugins (e.g. agntux-slack with compose + canvas), add
 additional `ViewTool` objects to the `viewTools` array in the SAME
 `<slug>-view.ts` file and add additional entries to `vite.config.ts`'s
