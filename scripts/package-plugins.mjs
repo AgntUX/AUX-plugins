@@ -77,8 +77,11 @@ const EXCLUDE_PATTERNS = [
   "package-lock.json",
   ".DS_Store",
   "*/.DS_Store",
-  "*/src/*",
-  "src/*",
+  // src/ is intentionally kept — the per-plugin total is < 1 MB across the
+  // whole marketplace, and excluding it would also strip canonical scaffold
+  // templates under `canonical/ui-handlers/_template/{view-tool,component}/src/`,
+  // which the ui-handler-author agent reads at plugin-scaffold time. Plugin
+  // authors don't lose much from the dist/ + src/ duplication.
   ".git/*",
   "*/.git/*",
   ".omc",

@@ -31,6 +31,7 @@ npm run test -w plugins/{{plugin-slug-kebab}}
 
 ## Fixtures
 
-`fixtures.json` and `fixtures/{{ui-name}}-*.json` carry inputs the Phase 7
+`fixtures.json` and `fixtures/__ui-name__-*.json` (renamed to
+`<ui-name>-*.json` by the scaffolder) carry inputs the Phase 7
 render-view-tool harness consumes. Author them so the harness can render
 every interesting payload shape (single, multi, empty, error envelope).

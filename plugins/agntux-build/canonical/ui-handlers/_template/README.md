@@ -11,7 +11,7 @@ do NOT ship a local `mcp-server/` or `.mcp.json`.
 _template/
   view-tool/                    # NEW — compiled into the library module
     src/
-      {{ui-name}}-view.ts       # ViewTool descriptor + handler
+      __ui-name__-view.ts       # ViewTool descriptor + handler
       ui-resource.tsx           # React iframe entry
     scripts/
       emit-manifest.mjs         # Emits view-tools.manifest.json
@@ -28,7 +28,7 @@ _template/
         apps-react/             # MIT-inlined hooks (DO NOT MOVE)
     ...
   fixtures.json                 # Phase 7 render-view-tool harness inputs
-  fixtures/{{ui-name}}-*.json
+  fixtures/__ui-name__-*.json
   TESTING.md
   README.md (this file)
 ```
@@ -44,6 +44,15 @@ _template/
 | `{{ui-display-name}}`          | `Slack Compose`                      |
 | `{{view-tool-name}}`           | `agntux_slack_compose_view`          |
 | `{{view-tool-description}}`    | `Open the Slack compose modal…`      |
+
+**Filename placeholder convention.** File **contents** use `{{ui-name}}`
+(and the other `{{…}}` placeholders above). On-disk **filenames** in the
+template tree use `__ui-name__` instead — `{` and `}` are rejected by
+Claude Desktop's plugin-zip upload validator, so the template ships the
+filesystem-safe variant. The scaffolder substitutes BOTH spellings to the
+real value when copying templates into a new plugin (e.g.
+`__ui-name__-view.ts` → `compose-view.ts`, and `{{ui-name}}` inside the
+file → `compose`).
 
 ## Build pipeline
 
