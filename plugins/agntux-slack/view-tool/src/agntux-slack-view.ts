@@ -5,6 +5,13 @@
 // Loaded server-side by the remote MCP registry; reads action files from
 // ctx.fs (S3-backed in production, local-fs in the developer iteration
 // loop). No node:fs imports — handler talks to ctx.fs only.
+//
+// The slack on-disk YAML shape is plugin-specific and does NOT match
+// @agntux/plugin-runtime's gmail-shaped `ComposePayloadOnDisk`. The
+// runtime's `parseComposePayload` is gmail-only by design (see its
+// JSDoc). So we re-extract the slack `## Compose payload` and
+// `## Canvas payload` body sections directly via `extractFencedYaml`
+// + js-yaml, with slack-specific types defined locally.
 // =============================================================================
 
 import {
@@ -12,8 +19,10 @@ import {
   type ViewToolContext,
   type ViewToolModule,
   ViewToolFsError,
-  parseActionFile,
+  extractFencedYaml,
+  parseFrontmatter,
 } from "@agntux/plugin-runtime";
+import yaml from "js-yaml";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
 
@@ -35,7 +44,62 @@ const MAX_OPEN_QUESTIONS = 8;
 const MAX_QUESTION_CHARS = 200;
 const MAX_FOLLOWUP_CHARS = 200;
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Slack on-disk YAML shapes ────────────────────────────────────────────────
+
+interface SlackChannel {
+  id: string;
+  name: string;
+  is_dm: boolean;
+}
+
+interface SlackMessagePreview {
+  ts: string;
+  author: string;
+  body_excerpt: string;
+}
+
+interface SlackThreadContext {
+  parent_ts: string;
+  parent_author_real_name: string;
+  parent_excerpt: string;
+  last_reply_ts: string | null;
+  last_reply_author_real_name: string | null;
+  last_reply_excerpt: string | null;
+  total_replies: number;
+  participants: string[];
+  messages_preview: SlackMessagePreview[];
+}
+
+interface SlackComposePayloadOnDisk {
+  channel: SlackChannel;
+  thread_context: SlackThreadContext;
+  drafted_body: string;
+  personalization_signals: string[];
+  slack_permalink: string | null;
+}
+
+interface SlackCanvasThread {
+  parent_ts: string;
+  total_replies: number;
+  participants: string[];
+}
+
+interface SlackCanvasDraft {
+  title: string;
+  tldr: string;
+  decisions: string[];
+  open_questions: string[];
+  participants: string[];
+}
+
+interface SlackCanvasPayloadOnDisk {
+  channel: { id: string; name: string };
+  thread: SlackCanvasThread;
+  drafted_canvas: SlackCanvasDraft;
+  proposed_followup_message: string | null;
+}
+
+// ── Wire shapes returned to the iframe ───────────────────────────────────────
 
 type InitialVerb = "draft" | "schedule" | "save_draft";
 
@@ -46,7 +110,7 @@ interface ComposeArgs {
 interface ComposePayloadOk {
   action_id: string;
   initial_verb: InitialVerb;
-  channel: { id: string; name: string; is_dm: boolean };
+  channel: SlackChannel;
   thread: {
     parent_ts: string;
     parent_author_real_name: string;
@@ -57,7 +121,7 @@ interface ComposePayloadOk {
     total_replies: number;
     participants: string[];
   };
-  messages_preview: Array<{ ts: string; author: string; body_excerpt: string }>;
+  messages_preview: SlackMessagePreview[];
   messages_truncated: boolean;
   drafted_body: string;
   personalization_signals: string[];
@@ -81,31 +145,18 @@ interface CanvasArgs {
 interface CanvasPayloadOk {
   action_id: string;
   channel: { id: string; name: string };
-  thread: {
-    parent_ts: string;
-    total_replies: number;
-    participants: string[];
-  };
-  drafted_canvas: {
-    title: string;
-    tldr: string;
-    decisions: string[];
-    open_questions: string[];
-    participants: string[];
-  };
+  thread: SlackCanvasThread;
+  drafted_canvas: SlackCanvasDraft;
   proposed_followup_message: string;
 }
 
 interface CanvasPayloadErr {
-  error:
-    | "action_not_found"
-    | "action_already_handled"
-    | "canvas_payload_missing";
+  error: "action_not_found" | "action_already_handled" | "canvas_payload_missing";
 }
 
 type CanvasPayload = CanvasPayloadOk | CanvasPayloadErr;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Coercion helpers ─────────────────────────────────────────────────────────
 
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
@@ -116,6 +167,122 @@ function truncate(s: string, max: number): string {
 
 function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
+}
+
+function asStringOrNull(v: unknown): string | null {
+  return typeof v === "string" ? v : null;
+}
+
+function asNumber(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function asBool(v: unknown, fallback = false): boolean {
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function asStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+}
+
+function asRecord(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
+}
+
+function asSlackChannel(v: unknown): SlackChannel {
+  const r = asRecord(v);
+  return {
+    id: asString(r.id),
+    name: asString(r.name),
+    is_dm: asBool(r.is_dm),
+  };
+}
+
+function asMessagesPreview(v: unknown): SlackMessagePreview[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((row): SlackMessagePreview | null => {
+      if (!row || typeof row !== "object") return null;
+      const r = row as Record<string, unknown>;
+      return {
+        ts: asString(r.ts),
+        author: asString(r.author),
+        body_excerpt: asString(r.body_excerpt),
+      };
+    })
+    .filter((m): m is SlackMessagePreview => m !== null);
+}
+
+function asSlackThreadContext(v: unknown): SlackThreadContext {
+  const r = asRecord(v);
+  return {
+    parent_ts: asString(r.parent_ts),
+    parent_author_real_name: asString(r.parent_author_real_name),
+    parent_excerpt: asString(r.parent_excerpt),
+    last_reply_ts: asStringOrNull(r.last_reply_ts),
+    last_reply_author_real_name: asStringOrNull(r.last_reply_author_real_name),
+    last_reply_excerpt: asStringOrNull(r.last_reply_excerpt),
+    total_replies: asNumber(r.total_replies),
+    participants: asStringArray(r.participants),
+    messages_preview: asMessagesPreview(r.messages_preview),
+  };
+}
+
+function parseSlackComposePayload(body: string): SlackComposePayloadOnDisk | null {
+  const yamlBody = extractFencedYaml(body, "Compose payload");
+  if (yamlBody == null) return null;
+  let raw: unknown;
+  try {
+    raw = yaml.load(yamlBody);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  return {
+    channel: asSlackChannel(r.channel),
+    thread_context: asSlackThreadContext(r.thread_context),
+    drafted_body: asString(r.drafted_body),
+    personalization_signals: asStringArray(r.personalization_signals),
+    slack_permalink: asStringOrNull(r.slack_permalink),
+  };
+}
+
+function parseSlackCanvasPayload(body: string): SlackCanvasPayloadOnDisk | null {
+  const yamlBody = extractFencedYaml(body, "Canvas payload");
+  if (yamlBody == null) return null;
+  let raw: unknown;
+  try {
+    raw = yaml.load(yamlBody);
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const channelR = asRecord(r.channel);
+  const threadR = asRecord(r.thread);
+  const draftR = asRecord(r.drafted_canvas);
+  return {
+    channel: {
+      id: asString(channelR.id),
+      name: asString(channelR.name),
+    },
+    thread: {
+      parent_ts: asString(threadR.parent_ts),
+      total_replies: asNumber(threadR.total_replies),
+      participants: asStringArray(threadR.participants),
+    },
+    drafted_canvas: {
+      title: asString(draftR.title),
+      tldr: asString(draftR.tldr),
+      decisions: asStringArray(draftR.decisions),
+      open_questions: asStringArray(draftR.open_questions),
+      participants: asStringArray(draftR.participants),
+    },
+    proposed_followup_message: asStringOrNull(r.proposed_followup_message),
+  };
 }
 
 function isActionAlreadyHandled(
@@ -130,6 +297,22 @@ function isActionAlreadyHandled(
   return false;
 }
 
+async function readActionFile(
+  ctx: ViewToolContext,
+  actionId: string,
+): Promise<string | "not-found" | "error"> {
+  const path = `actions/${actionId}.md`;
+  try {
+    const buf = await ctx.fs.readFile(path);
+    return buf.toString("utf8");
+  } catch (err) {
+    if (err instanceof ViewToolFsError && err.code === "not-found") {
+      return "not-found";
+    }
+    throw err;
+  }
+}
+
 // ── compose_view handler ─────────────────────────────────────────────────────
 
 async function handleCompose(
@@ -140,74 +323,48 @@ async function handleCompose(
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
     return { structuredContent: { error: "action_not_found" } };
   }
-  const path = `actions/${actionId}.md`;
-  let buf: Buffer;
-  try {
-    buf = await ctx.fs.readFile(path);
-  } catch (err) {
-    if (err instanceof ViewToolFsError && err.code === "not-found") {
-      return { structuredContent: { error: "action_not_found" } };
-    }
-    throw err;
-  }
-  let parsed;
-  try {
-    parsed = parseActionFile(buf.toString("utf8"));
-  } catch {
+  const text = await readActionFile(ctx, actionId);
+  if (text === "not-found" || text === "error") {
     return { structuredContent: { error: "action_not_found" } };
   }
-  const fm = parsed.frontmatter;
-  if (isActionAlreadyHandled(fm.status, fm.snoozed_until)) {
+  const { frontmatter, body } = parseFrontmatter(text);
+  if (isActionAlreadyHandled(frontmatter.status, frontmatter.snoozed_until)) {
     return { structuredContent: { error: "action_already_handled" } };
   }
-  const onDisk = parsed.compose_payload;
+  const onDisk = parseSlackComposePayload(body);
   if (!onDisk) {
     return { structuredContent: { error: "compose_payload_missing" } };
   }
   const personalizationSignals = onDisk.personalization_signals
     .slice(0, MAX_PERSONALIZATION_SIGNALS)
-    .filter((s): s is string => typeof s === "string")
     .map((s) => truncate(s, MAX_SIGNAL_CHARS));
-  const rawMessages = onDisk.thread_context.messages_preview ?? [];
-  const messagesPreview = rawMessages
+  const messagesPreview = onDisk.thread_context.messages_preview
     .slice(0, MAX_MESSAGES_PREVIEW)
     .map((m) => ({
-      ts: asString(m.ts),
-      author: asString(m.author),
-      body_excerpt: truncate(asString(m.body_excerpt), MAX_MESSAGE_EXCERPT_CHARS),
+      ts: m.ts,
+      author: m.author,
+      body_excerpt: truncate(m.body_excerpt, MAX_MESSAGE_EXCERPT_CHARS),
     }));
   const payload: ComposePayloadOk = {
     action_id: actionId,
     initial_verb: "draft",
-    channel: {
-      id: onDisk.channel.id,
-      name: onDisk.channel.name,
-      is_dm: onDisk.channel.is_dm,
-    },
+    channel: onDisk.channel,
     thread: {
       parent_ts: onDisk.thread_context.parent_ts,
       parent_author_real_name: onDisk.thread_context.parent_author_real_name,
-      parent_excerpt: truncate(
-        onDisk.thread_context.parent_excerpt,
-        MAX_EXCERPT_CHARS,
-      ),
+      parent_excerpt: truncate(onDisk.thread_context.parent_excerpt, MAX_EXCERPT_CHARS),
       last_reply_ts: onDisk.thread_context.last_reply_ts,
       last_reply_author_real_name:
         onDisk.thread_context.last_reply_author_real_name,
       last_reply_excerpt: onDisk.thread_context.last_reply_excerpt
-        ? truncate(
-            onDisk.thread_context.last_reply_excerpt,
-            MAX_EXCERPT_CHARS,
-          )
+        ? truncate(onDisk.thread_context.last_reply_excerpt, MAX_EXCERPT_CHARS)
         : null,
       total_replies: onDisk.thread_context.total_replies,
-      participants: onDisk.thread_context.participants.slice(
-        0,
-        MAX_PARTICIPANTS,
-      ),
+      participants: onDisk.thread_context.participants.slice(0, MAX_PARTICIPANTS),
     },
     messages_preview: messagesPreview,
-    messages_truncated: rawMessages.length > MAX_MESSAGES_PREVIEW,
+    messages_truncated:
+      onDisk.thread_context.messages_preview.length > MAX_MESSAGES_PREVIEW,
     drafted_body: truncate(onDisk.drafted_body, MAX_DRAFTED_BODY_CHARS),
     personalization_signals: personalizationSignals,
     proposed_send_time: null,
@@ -226,36 +383,21 @@ async function handleCanvas(
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
     return { structuredContent: { error: "action_not_found" } };
   }
-  const path = `actions/${actionId}.md`;
-  let buf: Buffer;
-  try {
-    buf = await ctx.fs.readFile(path);
-  } catch (err) {
-    if (err instanceof ViewToolFsError && err.code === "not-found") {
-      return { structuredContent: { error: "action_not_found" } };
-    }
-    throw err;
-  }
-  let parsed;
-  try {
-    parsed = parseActionFile(buf.toString("utf8"));
-  } catch {
+  const text = await readActionFile(ctx, actionId);
+  if (text === "not-found" || text === "error") {
     return { structuredContent: { error: "action_not_found" } };
   }
-  const fm = parsed.frontmatter;
-  if (isActionAlreadyHandled(fm.status, fm.snoozed_until)) {
+  const { frontmatter, body } = parseFrontmatter(text);
+  if (isActionAlreadyHandled(frontmatter.status, frontmatter.snoozed_until)) {
     return { structuredContent: { error: "action_already_handled" } };
   }
-  const onDisk = parsed.canvas_payload;
+  const onDisk = parseSlackCanvasPayload(body);
   if (!onDisk) {
     return { structuredContent: { error: "canvas_payload_missing" } };
   }
   const payload: CanvasPayloadOk = {
     action_id: actionId,
-    channel: {
-      id: onDisk.channel.id,
-      name: onDisk.channel.name,
-    },
+    channel: onDisk.channel,
     thread: {
       parent_ts: onDisk.thread.parent_ts,
       total_replies: onDisk.thread.total_replies,
@@ -281,6 +423,11 @@ async function handleCanvas(
 }
 
 // ── Descriptors ──────────────────────────────────────────────────────────────
+//
+// `data_paths` is intentionally omitted: emit-manifest.mjs defaults to
+// `[{ pattern: "actions/{id}.md", scope: "personal" }]` when the descriptor
+// doesn't ship one, which is exactly what slack needs. The ViewToolDescriptor
+// runtime type doesn't declare data_paths (it's a manifest-layer field).
 
 const composeView: ViewTool<ComposeArgs, ComposePayload> = {
   descriptor: {
@@ -303,7 +450,6 @@ const composeView: ViewTool<ComposeArgs, ComposePayload> = {
       additionalProperties: true,
     },
     ui_resource_uri: COMPOSE_RESOURCE_URI,
-    data_paths: [{ pattern: "actions/{id}.md", scope: "personal" }],
   },
   handle: handleCompose,
 };
@@ -328,7 +474,6 @@ const canvasView: ViewTool<CanvasArgs, CanvasPayload> = {
       additionalProperties: true,
     },
     ui_resource_uri: CANVAS_RESOURCE_URI,
-    data_paths: [{ pattern: "actions/{id}.md", scope: "personal" }],
   },
   handle: handleCanvas,
 };
