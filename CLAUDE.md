@@ -375,6 +375,7 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/rollback {slug}` | Step through the rollback runbook |
 | `/review-pr [PR#]` | Apply the PR review checklist |
 | `/dev-plugin {slug}` | Build a plugin's components + mcp-server and run it in HTTP_MODE for local testing |
+| `/package-plugins {slug}\|--all` | Build and produce `.zip` archives in `dist-zips/` for manual upload to Claude Desktop (fallback when the marketplace UI is broken) |
 
 ## Authoring tools
 

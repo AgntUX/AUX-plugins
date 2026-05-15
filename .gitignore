@@ -1,6 +1,7 @@
 node_modules/
 .DS_Store
 .omc/
+dist-zips/
 # Ignore dist by default, but track built plugin & shared-package outputs.
 # CI builds these on push to main and commits them back so users get
 # runnable plugins on a fresh `/plugin install` (no host-side build step).
