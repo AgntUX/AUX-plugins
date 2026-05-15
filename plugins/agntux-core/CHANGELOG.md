@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `agntux_core_sync_installed_plugins`: new MCP tool. Writes
+  `~/.agntux/installed-plugins.json` atomically (tmp + rename) with a
+  `{schema_version: 1, generated_at, plugins[]}` envelope. Each plugin
+  entry carries `{slug, marketplace, version?, source_sha?}`. The skill
+  calls this tool whenever it enumerates Claude's installed plugins
+  (preconditions §0.5 + onboard Stage 4.6 + re-entry reconciliation),
+  passing the COMPLETE list so the file mirrors the host's current
+  state — the writer replaces, never patches. agntux-core is now the
+  canonical reader of Claude's local install state: the agntux-teams
+  daemon watches `~/.agntux/installed-plugins.json` with chokidar and
+  POSTs the snapshot to AgntUX, so the remote MCP connector surfaces
+  view-tools for each installed plugin. Anthropic format changes only
+  ever touch this one tool. Home-scope file (not project-scope) — the
+  daemon and the user's install set are per-user, not per-project.
+  Test seam: `AGNTUX_HOME_OVERRIDE` redirects the writes during unit
+  tests without depending on HOME env-var overrides (vitest's runtime
+  ignores HOME for `os.homedir()`).
+
 ## [9.3.0] — 2026-05-12
 
 P9 personalization + triage. Adds per-team / per-member relevance

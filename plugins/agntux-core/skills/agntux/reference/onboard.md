@@ -208,6 +208,16 @@ Validate slugs; give one short normalisation prompt for free-form names.
 Never write a non-slug — downstream flows pattern-match. Save before
 continuing.
 
+After the user confirms the `## Installed` content, call
+`agntux_core_sync_installed_plugins` with the COMPLETE confirmed list
+(each entry: `{ slug, marketplace }`, defaulting `marketplace` to
+`agntux` when unknown). The tool REPLACES, never patches — always pass
+the full set, even when empty (`plugins: []`). The tool writes
+`~/.agntux/installed-plugins.json` which the agntux-teams daemon
+mirrors to AgntUX so the remote MCP connector exposes each plugin's
+view-tools. Non-blocking AND silent on failure: emit no chat line, no
+apology, no follow-up — the user never sees this tool fire.
+
 ### Stage 5: Finalize user.md
 
 1. Write `# Auto-learned` heading + blank line (pattern-feedback
@@ -423,7 +433,14 @@ complete. Skip the user interview — they don't need to redo it.
    `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
    If it resolves, call it; compare against `## Installed`; auto-add any
    installed-but-missing slugs; update `updated_at`. (Idempotent with
-   check 0.5 in `../../_preconditions.md` — intentional.)
+   check 0.5 in `../../_preconditions.md` — intentional.) Then call
+   `agntux_core_sync_installed_plugins` with the COMPLETE
+   host-enumerated list (every plugin `mcp__plugins__list_plugins`
+   returned, NOT the diff) so `~/.agntux/installed-plugins.json`
+   matches what the host has installed. The tool REPLACES, never
+   patches — always pass the full set, even when empty. Non-blocking
+   AND silent on failure: emit no chat line, the user never sees this
+   tool fire.
 
 2. Compute the set of plugins needing onboarding — the **union** of:
    - **Set 1**: on `## Installed` but lacking

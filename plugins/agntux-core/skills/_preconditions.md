@@ -53,6 +53,16 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
   list. This is a mechanical sync — `## Installed` is no longer the source of
   truth. The `data/instructions/{slug}.md` files and the host's plugin list
   jointly are. Update frontmatter `updated_at`.
+- **Sync to `~/.agntux/installed-plugins.json`** — call
+  `agntux_core_sync_installed_plugins` with the COMPLETE host-enumerated
+  list (every plugin returned by `mcp__plugins__list_plugins`, NOT the
+  diff added to `## Installed`). Pass an empty `plugins: []` when the
+  host returns zero — the tool REPLACES, never patches. The agntux-teams
+  daemon watches this file and POSTs the snapshot to AgntUX so the
+  remote MCP connector surfaces each installed plugin's view-tools.
+  Non-blocking AND silent on failure: if the tool fails (e.g.
+  agntux-core's MCP server isn't connected), emit no chat line, no
+  apology, no follow-up — the user never sees this tool fire.
 - **Detect newly-onboarded plugins** — installed plugins that lack a
   `data/instructions/{slug}.md` file (or whose file has `status: draft`).
 - **If running `/agntux onboard`**: hand the newly-detected set to Mode A-bis
