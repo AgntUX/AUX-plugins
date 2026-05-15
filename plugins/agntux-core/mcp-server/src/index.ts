@@ -14,6 +14,7 @@ import { snoozeTool } from "./tools/snooze.js";
 import { dismissTool } from "./tools/dismiss.js";
 import { setStatusTool } from "./tools/set-status.js";
 import { triagePrefsTool, setTriagePrefTool } from "./tools/triage-prefs.js";
+import { syncInstalledPluginsTool } from "./tools/sync-installed-plugins.js";
 
 const PLUGIN_NAME = "agntux-core";
 const PLUGIN_VERSION = "9.3.0";
@@ -63,6 +64,17 @@ const server = new Server(
 //     row. Writes the entry to `triage_state[<relative_path>]` in
 //     triage-prefs.json. Personal: the action file itself is untouched
 //     so the team's view of the item is unchanged. NOT user-facing.
+//   - agntux_core_sync_installed_plugins — invoked by the agntux-core
+//     skill after it enumerates Claude's installed plugins via
+//     `mcp__plugins__list_plugins`. Writes
+//     `~/.agntux/installed-plugins.json` atomically. The agntux-teams
+//     daemon watches that file with chokidar and POSTs the snapshot to
+//     `/api/me/plugins`; the server uses the per-user install ledger to
+//     decide which plugins' view-tools to expose on the remote MCP
+//     connector. agntux-core is the canonical reader of Claude's local
+//     install state — daemon and server only ever read our small,
+//     stable schema, so Anthropic format changes touch one file in our
+//     tree.
 const TOOLS = {
   agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
   agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
@@ -74,6 +86,10 @@ const TOOLS = {
   agntux_core_set_triage_pref: {
     ...setTriagePrefTool,
     handler: setTriagePrefTool.handler,
+  },
+  agntux_core_sync_installed_plugins: {
+    ...syncInstalledPluginsTool,
+    handler: syncInstalledPluginsTool.handler,
   },
 } as const;
 
