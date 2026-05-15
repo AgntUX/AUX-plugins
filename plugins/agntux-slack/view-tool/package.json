@@ -11,14 +11,15 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@agntux/plugin-runtime": "file:../../../packages/plugin-runtime"
+    "@agntux/plugin-runtime": "file:../../../packages/plugin-runtime",
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "esbuild": "^0.23.0",
-    "js-yaml": "^4.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.4.0",
