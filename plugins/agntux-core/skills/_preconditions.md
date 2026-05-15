@@ -52,7 +52,8 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
 - **Auto-update `## Installed`** to add any installed plugins missing from the
   list. This is a mechanical sync — `## Installed` is no longer the source of
   truth. The `data/instructions/{slug}.md` files and the host's plugin list
-  jointly are. Update frontmatter `updated_at`.
+  jointly are. Update frontmatter `updated_at`. Capture the SET of slugs
+  added in this pass — call it `newly_added_slugs` — you'll use it below.
 - **Sync to `~/.agntux/installed-plugins.json`** — call
   `agntux_core_sync_installed_plugins` with the COMPLETE host-enumerated
   list (every plugin returned by `mcp__plugins__list_plugins`, NOT the
@@ -63,6 +64,17 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
   Non-blocking AND silent on failure: if the tool fails (e.g.
   agntux-core's MCP server isn't connected), emit no chat line, no
   apology, no follow-up — the user never sees this tool fire.
+- **Nudge the user to refresh the AgntUX connector** — when
+  `newly_added_slugs` is non-empty, emit one line at the top of the
+  response:
+  `🔌 New plugin(s) added to AgntUX ({slug-list}). To see their tools in Claude Desktop, open Settings → Connectors, find the AgntUX connector, click its three-dot menu, and choose "Refresh tools list".`
+  Why: the remote MCP server snapshots the user's installed-plugin set
+  at session-init time, so a freshly-added plugin's view-tools won't
+  appear on the live connector until the user reconnects. Without this
+  nudge users assume the plugin "doesn't work" and re-run onboarding.
+  Emit this BEFORE the `/agntux onboard` nudge below. Skip when
+  `newly_added_slugs` is empty — re-running a command shouldn't spam
+  the user with a refresh prompt every time.
 - **Detect newly-onboarded plugins** — installed plugins that lack a
   `data/instructions/{slug}.md` file (or whose file has `status: draft`).
 - **If running `/agntux onboard`**: hand the newly-detected set to Mode A-bis
