@@ -27,6 +27,19 @@
  */
 import { promises as fs, readFileSync, statSync, readdirSync, } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+// Public-plugin invariant (P3 + P11 cross-plugin contract): the
+// `agntux-build` MCP server reads `license_jwt` as an OPAQUE Bearer
+// pass-through only. No JWT decode, no claim inspection, no
+// subscription_status / exp / tier checks at the LLM layer. The
+// `agntux-teams` skill body owns the freshness gate (`_lib.md` preflight,
+// per P11 §"Validation in agntux-teams preflight") and the backend owns
+// the hard-gate Ed25519 verify at
+// `/api/teams/{org_slug}/marketplace/publish`. Any client-side claim
+// decode here would (a) re-introduce the "free for individuals" footgun
+// the cross-plugin contract exists to prevent and (b) trip the
+// regression sweep in
+// `canonical/teams/agntux-teams/__tests__/license-preflight.test.mjs`
+// ("agntux-build's mcp-server src never decodes JWT claims").
 const DEFAULT_API_BASE = "https://app.agntux.ai";
 const MAX_FILES = 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -163,6 +176,12 @@ export async function publishToTeam(input, opts = {}) {
     try {
         validateInput(input);
         const licenseJwt = await readLicenseJwt(input.agntux_root);
+        // No client-side JWT decoding — the public-plugin invariant
+        // (documented above on `TeamsJson`) keeps `license_jwt` opaque here.
+        // Stale / lapsed JWTs are caught upstream by `agntux-teams`'
+        // `_lib.md` preflight (LLM-layer soft-gate) and downstream by the
+        // backend's Ed25519 verify (hard-gate). The fast-fail UX is the
+        // skill-layer preflight, not this tool.
         const files = buildManifest(input.plugin_dir);
         const apiBase = opts.apiBase ?? process.env.AGNTUX_API_URL ?? DEFAULT_API_BASE;
         const url = `${apiBase.replace(/\/+$/, "")}/api/teams/${encodeURIComponent(input.org_slug)}/marketplace/publish`;

@@ -1,0 +1,146 @@
+{
+  "plugin_slug": "agntux_slack",
+  "plugin_version": "8.0.0",
+  "handler_module": "view-tool/dist/agntux-slack-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_slack_compose_view",
+      "description": "Open the Slack reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "initial_verb": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-slack/compose",
+        "csp": {
+          "default_src": [
+            "'self'"
+          ],
+          "style_src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        },
+        "permissions": {
+          "allowFollowUp": true,
+          "allowFormSubmit": true
+        }
+      }
+    },
+    {
+      "name": "agntux_slack_canvas_view",
+      "description": "Open the Slack canvas summariser for an action. Pass action_id; the handler reads the action file's `## Canvas payload` body section.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-slack/canvas",
+        "csp": {
+          "default_src": [
+            "'self'"
+          ],
+          "style_src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        },
+        "permissions": {
+          "allowFollowUp": true,
+          "allowFormSubmit": true
+        }
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-slack/compose",
+      "html_path": "view-tool/dist/ui-resources/compose.html",
+      "csp": {
+        "default_src": [
+          "'self'"
+        ],
+        "style_src": [
+          "'self'",
+          "'unsafe-inline'"
+        ]
+      },
+      "permissions": {
+        "allowFollowUp": true,
+        "allowFormSubmit": true
+      }
+    },
+    {
+      "uri": "ui://agntux-slack/canvas",
+      "html_path": "view-tool/dist/ui-resources/canvas.html",
+      "csp": {
+        "default_src": [
+          "'self'"
+        ],
+        "style_src": [
+          "'self'",
+          "'unsafe-inline'"
+        ]
+      },
+      "permissions": {
+        "allowFollowUp": true,
+        "allowFormSubmit": true
+      }
+    }
+  ]
+}

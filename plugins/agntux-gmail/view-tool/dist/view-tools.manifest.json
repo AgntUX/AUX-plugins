@@ -1,0 +1,76 @@
+{
+  "plugin_slug": "agntux_gmail",
+  "plugin_version": "4.0.0",
+  "handler_module": "view-tool/dist/agntux-gmail-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_gmail_compose_view",
+      "description": "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-gmail/compose",
+        "csp": {
+          "default_src": [
+            "'self'"
+          ],
+          "style_src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        },
+        "permissions": {
+          "allowFollowUp": true,
+          "allowFormSubmit": true
+        }
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-gmail/compose",
+      "html_path": "view-tool/dist/ui-resources/compose.html",
+      "csp": {
+        "default_src": [
+          "'self'"
+        ],
+        "style_src": [
+          "'self'",
+          "'unsafe-inline'"
+        ]
+      },
+      "permissions": {
+        "allowFollowUp": true,
+        "allowFormSubmit": true
+      }
+    }
+  ]
+}

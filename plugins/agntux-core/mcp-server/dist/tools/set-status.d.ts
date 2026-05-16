@@ -33,6 +33,14 @@ export declare const setStatusTool: {
                 type: string;
                 description: string;
             };
+            user_slug: {
+                type: string;
+                description: string;
+            };
+            user_id: {
+                type: string;
+                description: string;
+            };
         };
         required: string[];
     };
