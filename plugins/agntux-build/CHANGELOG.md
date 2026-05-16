@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-16
+
+Republish at fresh tag. No source changes — pairs with the agntux/app
+remote MCP loader's pin-resolver requirement that `agntux-build@${version}`
+tags point at a commit containing the rebuilt `mcp-server/dist/` tree.
+
 ## [0.2.0] — 2026-05-12
 
 Adds team-aware Stage 0 detection + Stage 12 team-publish path

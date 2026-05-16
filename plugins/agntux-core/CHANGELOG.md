@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.4.0] — 2026-05-16
+
+Promotes the `agntux_core_sync_installed_plugins` tool + connector-refresh
+nudge from the prior `[Unreleased]` queue to a tagged release. Required
+to align the published `agntux-core@9.4.0` tag with the rebuilt
+`mcp-server/dist/` + `view-tool/dist/` artifacts the remote MCP loader
+fetches; the previous `9.3.0` tag pre-dated those dist commits and so
+resolved to a tree without the view-tools manifest.
+
 ### Added
 
 - `agntux_core_sync_installed_plugins`: new MCP tool. Writes
