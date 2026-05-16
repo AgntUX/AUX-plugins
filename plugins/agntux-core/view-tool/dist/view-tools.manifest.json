@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_core",
-  "plugin_version": "9.3.0",
+  "plugin_version": "9.4.0",
   "handler_module": "view-tool/dist/agntux-core-view.js",
   "view_tools": [
     {
