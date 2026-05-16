@@ -1,0 +1,82 @@
+{
+  "plugin_slug": "agntux_core",
+  "plugin_version": "9.3.0",
+  "handler_module": "view-tool/dist/agntux-core-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_core_triage_view",
+      "description": "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "array"
+          },
+          "handled_recent": {
+            "type": "array"
+          },
+          "counts": {
+            "type": "object"
+          },
+          "last_updated_at": {
+            "type": "string"
+          },
+          "bootstrap_mode": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-core/triage",
+        "csp": {
+          "default_src": [
+            "'self'"
+          ],
+          "style_src": [
+            "'self'",
+            "'unsafe-inline'"
+          ]
+        },
+        "permissions": {
+          "allowFollowUp": true,
+          "allowFormSubmit": true
+        }
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-core/triage",
+      "html_path": "view-tool/dist/ui-resources/triage.html",
+      "csp": {
+        "default_src": [
+          "'self'"
+        ],
+        "style_src": [
+          "'self'",
+          "'unsafe-inline'"
+        ]
+      },
+      "permissions": {
+        "allowFollowUp": true,
+        "allowFormSubmit": true
+      }
+    }
+  ]
+}

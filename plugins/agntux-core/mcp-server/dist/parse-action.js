@@ -27,6 +27,10 @@ const FALLBACK_FRONTMATTER = {
     team_slug: null,
     source_team: null,
     member_relevance_class: null,
+    relevance_classes: [],
+    done_by_user_slug: null,
+    done_by_user_id: null,
+    done_at: null,
 };
 function asString(v, fallback = "") {
     return typeof v === "string" ? v : fallback;
@@ -120,6 +124,10 @@ export function parseFrontmatter(text) {
             team_slug: asNonEmptyStringOrNull(raw.team_slug),
             source_team: asNonEmptyStringOrNull(raw.source_team),
             member_relevance_class: asNonEmptyStringOrNull(raw.member_relevance_class),
+            relevance_classes: asStringArray(raw.relevance_classes),
+            done_by_user_slug: asNonEmptyStringOrNull(raw.done_by_user_slug),
+            done_by_user_id: asNonEmptyStringOrNull(raw.done_by_user_id),
+            done_at: asNonEmptyStringOrNull(raw.done_at),
         },
         body,
     };

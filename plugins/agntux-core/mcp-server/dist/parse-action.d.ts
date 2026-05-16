@@ -22,6 +22,10 @@ export interface ActionFrontmatter {
     team_slug: string | null;
     source_team: string | null;
     member_relevance_class: string | null;
+    relevance_classes: string[];
+    done_by_user_slug: string | null;
+    done_by_user_id: string | null;
+    done_at: string | null;
 }
 export interface ParsedAction {
     frontmatter: ActionFrontmatter;

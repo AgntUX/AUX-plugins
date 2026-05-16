@@ -15,9 +15,9 @@ interface StructuredError {
     }>;
 }
 export declare function handleUIResource(uri: string): Promise<ResourceResponse | StructuredError>;
-export declare const UI_RESOURCE_LIST: {
+export declare const UI_RESOURCE_LIST: Array<{
     uri: string;
     name: string;
     mimeType: string;
-}[];
+}>;
 export {};
