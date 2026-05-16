@@ -208,6 +208,27 @@ function packageOne(slug) {
         `Claude Desktop will reject it`,
     );
   }
+  // Defensive scan: same check pass9 runs against the source tree. Catches
+  // any forbidden-char path that slipped past the linter (e.g. produced by
+  // a build step rather than checked in). Mirrors lint pass9 E20.
+  // Pattern: { } : ? * < > | " or control chars 0x00–0x1F.
+  // eslint-disable-next-line no-control-regex
+  const forbiddenInZip = /[{}:?*<>|"\x00-\x1f]/;
+  const badPaths = text
+    .split("\n")
+    .map((line) => {
+      const m = line.match(/^\s*\d+\s+\S+\s+\S+\s+(.+)$/);
+      return m ? m[1] : null;
+    })
+    .filter((p) => p && forbiddenInZip.test(p));
+  if (badPaths.length > 0) {
+    throw new Error(
+      `zip contains ${badPaths.length} path(s) with characters that fail ` +
+        `Claude Desktop's upload validator (one of { } : ? * < > | " or control chars). ` +
+        `First offender: ${badPaths[0]}. ` +
+        `Run \`npm run lint:marketplace\` for the full list.`,
+    );
+  }
 
   const size = statSync(zipPath).size;
   if (size > MAX_ZIP_BYTES) {
