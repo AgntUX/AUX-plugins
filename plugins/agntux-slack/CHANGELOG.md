@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.1] — 2026-05-16
+
+Republish at fresh tag. No source changes — pairs with the agntux/app
+remote MCP loader's pin-resolver requirement that `agntux-slack@${version}`
+tags point at a commit containing the rebuilt `view-tool/dist/` bundle.
+
 ## [8.0.0] — 2026-05-08
 
 Open source. The plugin relicenses from Elastic License v2 (ELv2) to

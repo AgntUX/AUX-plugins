@@ -6,6 +6,12 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.0.1] — 2026-05-16
+
+Republish at fresh tag. No source changes — pairs with the agntux/app
+remote MCP loader's pin-resolver requirement that `agntux-gmail@${version}`
+tags point at a commit containing the rebuilt `view-tool/dist/` bundle.
+
 ## [4.0.0] — 2026-05-08
 
 Open source. The plugin relicenses from Elastic License v2 (ELv2) to
