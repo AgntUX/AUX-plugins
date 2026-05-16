@@ -275,6 +275,27 @@ npm run lint:marketplace -- --plugin agntux-slack    # Lint one plugin
 
 The linter is the same script CI runs. Local-passing means CI-passing.
 
+Passes that catch user-visible breakage (not exhaustive):
+
+| Pass | Codes | What it catches |
+|---|---|---|
+| 1 | E01 | Required files (`plugin.json`, `LICENSE`, `README.md`, `CHANGELOG.md`, listing) |
+| 2 | E02–E12 | listing.yaml schema, version-CHANGELOG match, plugin.json shape |
+| 3 | — | Icon dimensions, screenshot dimensions / size |
+| 4 | — | README/CHANGELOG shape |
+| 7 | E13 | No third-party MCP calls from view tools |
+| 8 | — | Sync-skill render drift + skill line-budget |
+| 9 | E20–E22 | **Zip-upload safety**: forbidden filename chars (`{ } : ? * < > \| "` + control chars), reserved plugin-name prefixes (`claude-`, `anthropic-`), non-ASCII filenames (warning) |
+
+Pass 9 catches the Claude Desktop upload rules at PR time so plugins don't
+make it to the upload UI just to be rejected there. The same scan runs
+defensively in `scripts/package-plugins.mjs` so a synthesised zip can't
+ship a bad path either. If you need a placeholder in a scaffold-template
+filename, use the `__placeholder__` convention (see
+`plugins/agntux-build/canonical/ui-handlers/_template/README.md`) — file
+**contents** can still use `{{placeholder}}` since those aren't
+zip-validated.
+
 ---
 
 ## Local Plugin Development

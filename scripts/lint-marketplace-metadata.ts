@@ -23,6 +23,7 @@ import {
   pass7CanonicalHandlers,
 } from "./lint/lint-no-third-party-in-views.js";
 import { pass8SkillRender } from "./lint/lint-skill-render.js";
+import { pass9ZipUploadSafe } from "./lint/lint-zip-upload-safe.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -636,6 +637,10 @@ export function lintPlugin(
   // skills/sync/SKILL.md) plus always-on cross-plugin skill-quality
   // invariants (line budgets, chain-depth).
   pass8SkillRender(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 9 — zip-upload-safety. Catches forbidden filename chars,
+  // reserved plugin-name prefixes, and non-ASCII paths that fail
+  // Claude Desktop's manual plugin-upload validator.
+  pass9ZipUploadSafe(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 
