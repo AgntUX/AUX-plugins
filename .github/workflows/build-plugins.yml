@@ -88,3 +88,44 @@ jobs:
             git commit -m "chore: rebuild plugin artifacts [skip ci]"
             git push origin main
           fi
+
+      - name: Tag new plugin versions
+        # Push a `${slug}@${plugin.json.version}` tag for any plugin whose
+        # current version doesn't yet have one. The remote MCP server's
+        # pin-resolver (`lib/teams/pin-resolver.ts`) expects exactly this
+        # tag shape, so this is the canonical "publish" event for a
+        # plugin version. Idempotent: existing tags are never modified,
+        # and re-runs on the same SHA after the version has already been
+        # tagged are no-ops.
+        #
+        # Runs after the artifact-commit step so tags point at the SHA
+        # that includes the freshly-built `dist/` outputs the host fetches.
+        run: |
+          git fetch --tags --quiet origin
+          new_tags=()
+          for plugin_dir in plugins/*/; do
+            slug="$(basename "$plugin_dir")"
+            manifest="${plugin_dir}.claude-plugin/plugin.json"
+            if [ ! -f "$manifest" ]; then
+              echo "[$slug] no .claude-plugin/plugin.json — skipping"
+              continue
+            fi
+            version="$(node -p "require('./$manifest').version || ''" 2>/dev/null)"
+            if [ -z "$version" ]; then
+              echo "[$slug] plugin.json has no version field — skipping"
+              continue
+            fi
+            tag="${slug}@${version}"
+            if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+              echo "[$slug] tag ${tag} already exists — skipping"
+              continue
+            fi
+            echo "[$slug] tagging HEAD as ${tag}"
+            git tag "${tag}" HEAD
+            new_tags+=("refs/tags/${tag}")
+          done
+          if [ "${#new_tags[@]}" -gt 0 ]; then
+            git push origin "${new_tags[@]}"
+          else
+            echo "No new version tags to push."
+          fi
