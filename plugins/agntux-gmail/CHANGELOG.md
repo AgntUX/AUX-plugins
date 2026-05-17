@@ -6,6 +6,25 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.0.4] — 2026-05-17
+
+### Fixed
+
+- Compose view iframe now renders. The iframe entry at
+  `view-tool/src/compose-ui.tsx` was listening for
+  `data.type === "tool-result"` postMessage events — a shape that
+  **never matches** the MCP Apps protocol, which uses JSON-RPC 2.0
+  envelopes (`ui/notifications/tool-result`). 4.0.4 wires the
+  canonical `SimpleMcpApp` wrapper (vendored at
+  `view-tool/src/lib/apps-client/`) which performs the `ui/initialize`
+  handshake and dispatches `ui/notifications/tool-result` to
+  `ontoolresult`. See agntux-core/CHANGELOG.md → 9.5.4 for the full
+  bug-class rationale; the same fix applied here.
+
+  Re-upload `dist-zips/agntux-gmail-4.0.4.zip` to Claude Desktop to
+  pick up the fix locally; remote hosts pick it up automatically on
+  the next `agntux-gmail@4.0.4` tag fetch.
+
 ## [4.0.3] — 2026-05-16
 
 ### Fixed

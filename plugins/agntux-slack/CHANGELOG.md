@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.4] — 2026-05-17
+
+### Fixed
+
+- Compose and canvas view iframes now render. Both iframe entries
+  (`view-tool/src/compose-ui.tsx` and `view-tool/src/canvas-ui.tsx`)
+  were listening for `data.type === "tool-result"` postMessage events
+  — a shape that **never matches** the MCP Apps protocol, which uses
+  JSON-RPC 2.0 envelopes (`ui/notifications/tool-result`). 8.0.4
+  wires the canonical `SimpleMcpApp` wrapper (vendored at
+  `view-tool/src/lib/apps-client/`) which performs the `ui/initialize`
+  handshake and dispatches `ui/notifications/tool-result` to
+  `ontoolresult`. See agntux-core/CHANGELOG.md → 9.5.4 for the full
+  bug-class rationale; the same fix applied here.
+
+  Re-upload `dist-zips/agntux-slack-8.0.4.zip` to Claude Desktop to
+  pick up the fix locally; remote hosts pick it up automatically on
+  the next `agntux-slack@8.0.4` tag fetch.
+
 ## [8.0.3] — 2026-05-16
 
 ### Fixed

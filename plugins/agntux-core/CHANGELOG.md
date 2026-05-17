@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.4] — 2026-05-17
+
+### Fixed
+
+- Triage view iframe now renders. The view-tool's iframe entry at
+  `view-tool/src/triage-ui.tsx` was listening for
+  `data.type === "tool-result"` postMessage events — a shape that
+  **never matches** the MCP Apps protocol, which uses JSON-RPC 2.0
+  envelopes (`{ jsonrpc: "2.0", method: "ui/notifications/tool-result",
+  params }`) per the spec at
+  `ext-apps/specification/2026-01-26/apps.mdx` (line 413). The host
+  delivered the structuredContent correctly, the bare listener
+  ignored it, the iframe stayed on "Loading…" indefinitely, and the
+  host fell back to chat-rendering the JSON. 9.5.4 wires the
+  canonical `SimpleMcpApp` wrapper (vendored at
+  `view-tool/src/lib/apps-client/`) which performs the `ui/initialize`
+  handshake and dispatches `ui/notifications/tool-result` to
+  `ontoolresult`. Same bug class existed in agntux-slack and
+  agntux-gmail's compose/canvas iframes and was fixed simultaneously
+  in those plugins' 8.0.4 / 4.0.4 releases; the canonical scaffold in
+  agntux-build 0.2.3 ships the corrected pattern so new plugins
+  inherit the fix.
+
+  Re-upload `dist-zips/agntux-core-9.5.4.zip` to Claude Desktop to
+  pick up the fix locally; remote hosts pick it up automatically on
+  the next `agntux-core@9.5.4` tag fetch.
+
 ## [9.5.3] — 2026-05-17
 
 ### Fixed

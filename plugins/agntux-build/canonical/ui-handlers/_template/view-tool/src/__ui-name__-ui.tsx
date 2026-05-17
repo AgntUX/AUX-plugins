@@ -6,12 +6,20 @@
 // serves the HTML at the resource URI declared on the view-tool descriptor;
 // the iframe loads it and listens for structuredContent over postMessage.
 //
-// Imports apps-client/apps-react via path-relative paths into the SIBLING
-// component/ subtree (sub-plan 4 carve-out: those MIT-inlined hooks stay in
-// the iframe bundle, NOT in @agntux/plugin-runtime).
+// ── MCP Apps protocol ──────────────────────────────────────────────────────
+//
+// Wires the canonical SimpleMcpApp wrapper from ./lib/apps-client/ to
+// receive `ui/notifications/tool-result` per the MCP Apps spec
+// (`ext-apps/specification/2026-01-26/apps.mdx`). Iframes that listen for
+// a bare `data.type === "tool-result"` message will NEVER receive the
+// tool result — the host sends a JSON-RPC 2.0 envelope, not a plain event.
+// Always use SimpleMcpApp (or apps-react's useToolResult) to receive
+// host-to-iframe messages. See agntux-core/CHANGELOG.md → 9.5.4 for the
+// bug class this wrapper exists to prevent.
 // =============================================================================
 
-import { useToolResult } from "../../component/src/lib/apps-react";
+import { createRoot } from "react-dom/client";
+import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 
 interface {{ui-name-pascal}}Payload {
   action_id: string;
@@ -19,13 +27,37 @@ interface {{ui-name-pascal}}Payload {
   body: string;
 }
 
-export function {{ui-name-pascal}}View(): JSX.Element {
-  const result = useToolResult<{{ui-name-pascal}}Payload>();
-  if (!result) return <div className="p-4">Loading…</div>;
+type Payload = {{ui-name-pascal}}Payload | { error: string } | null;
+
+function {{ui-name-pascal}}View({ payload }: { payload: Payload }): JSX.Element {
+  if (!payload) return <div className="p-4">Loading…</div>;
+  if ("error" in payload) {
+    return <div className="p-4">Error: {payload.error}</div>;
+  }
   return (
     <div className="p-4">
-      <h1 className="text-lg font-semibold">{result.title}</h1>
-      <pre className="whitespace-pre-wrap">{result.body}</pre>
+      <h1 className="text-lg font-semibold">{payload.title}</h1>
+      <pre className="whitespace-pre-wrap mt-2">{payload.body}</pre>
     </div>
   );
 }
+
+const root = createRoot(document.getElementById("root")!);
+let currentPayload: Payload = null;
+root.render(<{{ui-name-pascal}}View payload={currentPayload} />);
+
+const app = new SimpleMcpApp({
+  name: "{{plugin-slug-kebab}}-{{ui-name}}-view",
+  version: "1.0.0",
+});
+
+app.ontoolresult = (params) => {
+  const sc = (params as { structuredContent?: unknown } | undefined)
+    ?.structuredContent;
+  currentPayload = (sc ?? null) as Payload;
+  root.render(<{{ui-name-pascal}}View payload={currentPayload} />);
+};
+
+void app.connect().catch((err: unknown) => {
+  console.error("[{{ui-name}}-view] SimpleMcpApp.connect failed:", err);
+});
