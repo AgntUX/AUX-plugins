@@ -666,9 +666,9 @@ export function lintPlugin(
   pass11ViewToolPayloadGuard(pluginSlug, pluginDir, opts.repoRoot, findings);
   // Pass 12 — every vendored copy of simple-mcp-app.ts / constants.ts
   // under view-tool/src/lib/apps-client/ (plus the canonical _template
-  // locations) MUST be byte-identical to the canonical at
-  // plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/.
-  // Drift here re-introduces the 9.5.4 iframe-protocol bug silently.
+  // location) MUST be byte-identical to the canonical at
+  // plugins/agntux-core/view-tool/src/lib/apps-client/. Drift here
+  // re-introduces the 9.5.4 iframe-protocol bug silently.
   pass12AppsClientDrift(pluginSlug, pluginDir, opts.repoRoot, findings);
   // Pass 13 — every view-tool whose source uses className= MUST emit
   // an HTML resource that contains a non-empty inline <style> block.

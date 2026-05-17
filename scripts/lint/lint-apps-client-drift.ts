@@ -4,13 +4,11 @@
  * canonical source.
  *
  * Why this exists: 9.5.4 fixed the iframe protocol bug by vendoring
- * `SimpleMcpApp` (the JSON-RPC 2.0 over postMessage wrapper) from the
- * canonical at `plugins/agntux-core/ui-handlers/triage/component/src/
- * lib/apps-client/` into each plugin's `view-tool/src/lib/apps-client/`
- * (3 plugins) plus the canonical _template's view-tool subtree (1 copy
- * for new-plugin scaffolding). That's 4 vendored copies on top of the
- * 2 component-side copies (agntux-core triage + _template component) —
- * 6 total file pairs that must stay in lockstep.
+ * `SimpleMcpApp` (the JSON-RPC 2.0 over postMessage wrapper) into each
+ * plugin's `view-tool/src/lib/apps-client/`. 9.6.0 re-anchored the
+ * canonical to live AT `plugins/agntux-core/view-tool/src/lib/apps-client/`
+ * — the same place every other plugin vendors from. Every other vendored
+ * copy in the repo MUST hash-match this canonical.
  *
  * If a future bugfix lands in one copy and not the others, the
  * iframe-protocol regression we just fixed comes back silently — the
@@ -19,16 +17,16 @@
  *
  * This pass walks every plugin and computes sha256 over
  * `view-tool/src/lib/apps-client/{simple-mcp-app,constants}.ts` plus the
- * canonical at `plugins/agntux-core/ui-handlers/triage/component/src/
- * lib/apps-client/{simple-mcp-app,constants}.ts`, plus the two
- * canonical _template paths. Every hash must match.
+ * canonical at `plugins/agntux-core/view-tool/src/lib/apps-client/
+ * {simple-mcp-app,constants}.ts`, plus the canonical _template path.
+ * Every hash must match.
  *
  * Findings:
  *
  *   E26 (error) — Vendored apps-client copy drift
  *     The file's sha256 differs from the canonical at
- *     `plugins/agntux-core/ui-handlers/triage/component/src/lib/
- *     apps-client/`. Re-copy from there or update the canonical first.
+ *     `plugins/agntux-core/view-tool/src/lib/apps-client/`. Re-copy
+ *     from there or update the canonical first.
  *
  *   E27 (warning) — Vendored apps-client copy missing
  *     The plugin ships `view-tool/` but is missing one of the required
@@ -36,13 +34,16 @@
  *     subtree layout.
  *
  * Scope:
- *   - Canonical source: `plugins/agntux-core/ui-handlers/triage/
- *     component/src/lib/apps-client/`. NEVER linted (it IS the source).
- *   - Plugins with `view-tool/`: must have both files at
- *     `view-tool/src/lib/apps-client/` and they must hash-match.
- *   - The two paths inside `plugins/agntux-build/canonical/ui-handlers/
- *     _template/`: both must hash-match (they're shipped to scaffolded
- *     plugins).
+ *   - Canonical source: `plugins/agntux-core/view-tool/src/lib/
+ *     apps-client/`. agntux-core's own view-tool/ subtree IS that
+ *     canonical; the plugin-local check is skipped for agntux-core to
+ *     avoid self-reporting.
+ *   - Plugins with `view-tool/` (other than agntux-core): must have
+ *     both files at `view-tool/src/lib/apps-client/` and they must
+ *     hash-match.
+ *   - The canonical scaffold template path inside
+ *     `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/`
+ *     must hash-match (it's shipped to scaffolded plugins).
  *   - Plugins without `view-tool/` are skipped.
  */
 
@@ -65,12 +66,19 @@ export interface Finding {
 const REQUIRED_FILES = ["simple-mcp-app.ts", "constants.ts"] as const;
 
 /**
- * The canonical apps-client lives in agntux-core's triage component
- * subtree (the original vendor target, pre-9.5.4). Every other copy in
- * the repo MUST hash-match this one.
+ * The canonical apps-client lives in agntux-core's view-tool subtree as
+ * of 9.6.0. (Pre-9.6.0 it lived at ui-handlers/triage/component/src/...
+ * but the rich-UI restoration collapsed the two trees into one.) Every
+ * other vendored copy in the repo MUST hash-match this one.
  */
 const CANONICAL_REL =
-  "plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client";
+  "plugins/agntux-core/view-tool/src/lib/apps-client";
+
+/**
+ * Plugin slug that OWNS the canonical (skipped for the plugin-local
+ * check to avoid self-reporting a hash mismatch against itself).
+ */
+const CANONICAL_OWNER = "agntux-core";
 
 /**
  * Additional vendored-copy locations the lint pass checks beyond each
@@ -86,11 +94,6 @@ const EXTRA_COPIES: ReadonlyArray<{
     plugin: "agntux-build",
     relPath:
       "plugins/agntux-build/canonical/ui-handlers/_template/view-tool/src/lib/apps-client",
-  },
-  {
-    plugin: "agntux-build",
-    relPath:
-      "plugins/agntux-build/canonical/ui-handlers/_template/component/src/lib/apps-client",
   },
 ];
 
@@ -127,7 +130,9 @@ export function pass12AppsClientDrift(
     fs.existsSync(viewToolDir) && fs.statSync(viewToolDir).isDirectory();
 
   // Plugin-local check: view-tool/src/lib/apps-client/{file}.
-  if (hasViewTool) {
+  // Skip the canonical owner — it IS the source; comparing it to itself
+  // is meaningless and would just add noise to lint output.
+  if (hasViewTool && pluginSlug !== CANONICAL_OWNER) {
     const vendoredDir = path.join(viewToolDir, "src", "lib", "apps-client");
     for (const name of REQUIRED_FILES) {
       const filePath = path.join(vendoredDir, name);

@@ -6,6 +6,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.6.0] — 2026-05-17
+
+### Added
+
+- **Rich triage iframe restored.** The interactive React surface the
+  P5 architecture migration accidentally collapsed into a 142-line
+  placeholder is now back. The iframe renders the full
+  `MainComponent` from the canonical apps-react / apps-client tree
+  with theme + safe-area integration, streaming partial-input
+  handling, and the host-provided CSS variables — the same UI the
+  pre-P5 `ui-handlers/triage/component/` shipped. Architectural
+  delivery path is unchanged (view-tool emits one inlined HTML
+  resource served from the remote MCP registry); only the React tree
+  inside the iframe is now the rich one.
+- Vendored `@agntux/ui-primitives` + `jose` dependencies into the
+  view-tool package so the restored rich UI's imports resolve.
+- Component-level vitest tests (`view-tool/src/__tests__/`) for
+  the restored apps-client + main-component surfaces. Coexists
+  with the existing `view-tool/__tests__/payload-shape.test.ts`
+  regression guard.
+
+### Changed
+
+- Re-anchored marketplace lint pass 12 (`scripts/lint/lint-apps-client-drift.ts`).
+  The canonical apps-client now lives at
+  `plugins/agntux-core/view-tool/src/lib/apps-client/`; every other
+  plugin's vendored copy still has to hash-match. The agntux-core
+  plugin-local check is skipped to avoid self-reporting. The
+  `EXTRA_COPIES` set drops the obsolete `_template/component/`
+  path; only `_template/view-tool/` ships to scaffolded plugins.
+
+### Removed
+
+- Deleted `plugins/agntux-core/ui-handlers/triage/`. The rich UI
+  source now lives at `plugins/agntux-core/view-tool/src/` only —
+  one source of truth. The old subtree was a redundant pre-P5
+  staging area that the P5 migration left behind.
+
 ## [9.5.7] — 2026-05-17
 
 ### Fixed

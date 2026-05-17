@@ -20,7 +20,6 @@
     "vitest": "^1.6.0"
   },
   "workspaces": [
-    "ui-handlers/triage/component",
     "mcp-server",
     "view-tool"
   ]
