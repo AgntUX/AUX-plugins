@@ -12,18 +12,100 @@ export declare const DataPathSchema: z.ZodObject<{
     scope: "personal" | "team" | "leader-view";
 }>;
 export declare const UiResourceUriRegex: RegExp;
+export declare const McpUiCspSchema: z.ZodObject<{
+    connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strict", z.ZodTypeAny, {
+    connectDomains?: string[] | undefined;
+    resourceDomains?: string[] | undefined;
+    frameDomains?: string[] | undefined;
+    baseUriDomains?: string[] | undefined;
+}, {
+    connectDomains?: string[] | undefined;
+    resourceDomains?: string[] | undefined;
+    frameDomains?: string[] | undefined;
+    baseUriDomains?: string[] | undefined;
+}>;
+export declare const McpUiPermissionsSchema: z.ZodObject<{
+    camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+    microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+    geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+    clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+}, "strict", z.ZodTypeAny, {
+    camera?: {} | undefined;
+    microphone?: {} | undefined;
+    geolocation?: {} | undefined;
+    clipboardWrite?: {} | undefined;
+}, {
+    camera?: {} | undefined;
+    microphone?: {} | undefined;
+    geolocation?: {} | undefined;
+    clipboardWrite?: {} | undefined;
+}>;
 export declare const McpAppMetaSchema: z.ZodObject<{
     resourceUri: z.ZodString;
-    csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-    permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+    csp: z.ZodObject<{
+        connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, "strict", z.ZodTypeAny, {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    }, {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    }>;
+    permissions: z.ZodObject<{
+        camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+    }, "strict", z.ZodTypeAny, {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    }, {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    }>;
 }, "strip", z.ZodTypeAny, {
     resourceUri: string;
-    csp: Record<string, unknown>;
-    permissions: Record<string, unknown>;
+    csp: {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    };
+    permissions: {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    };
 }, {
     resourceUri: string;
-    csp: Record<string, unknown>;
-    permissions: Record<string, unknown>;
+    csp: {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    };
+    permissions: {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    };
 }>;
 export declare const ViewToolSchema: z.ZodObject<{
     name: z.ZodString;
@@ -32,16 +114,66 @@ export declare const ViewToolSchema: z.ZodObject<{
     outputSchema: z.ZodRecord<z.ZodString, z.ZodUnknown>;
     mcp_app_meta: z.ZodObject<{
         resourceUri: z.ZodString;
-        csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-        permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+        csp: z.ZodObject<{
+            connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, "strict", z.ZodTypeAny, {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        }, {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        }>;
+        permissions: z.ZodObject<{
+            camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        }, "strict", z.ZodTypeAny, {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        }, {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        }>;
     }, "strip", z.ZodTypeAny, {
         resourceUri: string;
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
     }, {
         resourceUri: string;
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
     }>;
     data_paths: z.ZodArray<z.ZodObject<{
         pattern: z.ZodString;
@@ -60,8 +192,18 @@ export declare const ViewToolSchema: z.ZodObject<{
     outputSchema: Record<string, unknown>;
     mcp_app_meta: {
         resourceUri: string;
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
     };
     data_paths: {
         pattern: string;
@@ -74,8 +216,18 @@ export declare const ViewToolSchema: z.ZodObject<{
     outputSchema: Record<string, unknown>;
     mcp_app_meta: {
         resourceUri: string;
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
     };
     data_paths: {
         pattern: string;
@@ -90,16 +242,66 @@ export declare const HtmlPath: z.ZodEffects<z.ZodString, string, string>;
 export declare const UiBundleSchema: z.ZodObject<{
     uri: z.ZodString;
     html_path: z.ZodEffects<z.ZodString, string, string>;
-    csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-    permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+    csp: z.ZodObject<{
+        connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, "strict", z.ZodTypeAny, {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    }, {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    }>;
+    permissions: z.ZodObject<{
+        camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+    }, "strict", z.ZodTypeAny, {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    }, {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    }>;
 }, "strip", z.ZodTypeAny, {
-    csp: Record<string, unknown>;
-    permissions: Record<string, unknown>;
+    csp: {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    };
+    permissions: {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    };
     uri: string;
     html_path: string;
 }, {
-    csp: Record<string, unknown>;
-    permissions: Record<string, unknown>;
+    csp: {
+        connectDomains?: string[] | undefined;
+        resourceDomains?: string[] | undefined;
+        frameDomains?: string[] | undefined;
+        baseUriDomains?: string[] | undefined;
+    };
+    permissions: {
+        camera?: {} | undefined;
+        microphone?: {} | undefined;
+        geolocation?: {} | undefined;
+        clipboardWrite?: {} | undefined;
+    };
     uri: string;
     html_path: string;
 }>;
@@ -114,16 +316,66 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: z.ZodRecord<z.ZodString, z.ZodUnknown>;
         mcp_app_meta: z.ZodObject<{
             resourceUri: z.ZodString;
-            csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-            permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+            csp: z.ZodObject<{
+                connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+                resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+                frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+                baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, "strict", z.ZodTypeAny, {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            }, {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            }>;
+            permissions: z.ZodObject<{
+                camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+                microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+                geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+                clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            }, "strict", z.ZodTypeAny, {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            }, {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            }>;
         }, "strip", z.ZodTypeAny, {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         }, {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         }>;
         data_paths: z.ZodArray<z.ZodObject<{
             pattern: z.ZodString;
@@ -142,8 +394,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -156,8 +418,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -167,16 +439,66 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
     ui_bundles: z.ZodArray<z.ZodObject<{
         uri: z.ZodString;
         html_path: z.ZodEffects<z.ZodString, string, string>;
-        csp: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-        permissions: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+        csp: z.ZodObject<{
+            connectDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            resourceDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            frameDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            baseUriDomains: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, "strict", z.ZodTypeAny, {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        }, {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        }>;
+        permissions: z.ZodObject<{
+            camera: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            microphone: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            geolocation: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+            clipboardWrite: z.ZodOptional<z.ZodObject<{}, "strict", z.ZodTypeAny, {}, {}>>;
+        }, "strict", z.ZodTypeAny, {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        }, {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        }>;
     }, "strip", z.ZodTypeAny, {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }, {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }>, "many">;
@@ -191,8 +513,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -200,8 +532,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         }[];
     }[];
     ui_bundles: {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }[];
@@ -216,8 +558,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -225,8 +577,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         }[];
     }[];
     ui_bundles: {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }[];
@@ -241,8 +603,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -250,8 +622,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         }[];
     }[];
     ui_bundles: {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }[];
@@ -266,8 +648,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         outputSchema: Record<string, unknown>;
         mcp_app_meta: {
             resourceUri: string;
-            csp: Record<string, unknown>;
-            permissions: Record<string, unknown>;
+            csp: {
+                connectDomains?: string[] | undefined;
+                resourceDomains?: string[] | undefined;
+                frameDomains?: string[] | undefined;
+                baseUriDomains?: string[] | undefined;
+            };
+            permissions: {
+                camera?: {} | undefined;
+                microphone?: {} | undefined;
+                geolocation?: {} | undefined;
+                clipboardWrite?: {} | undefined;
+            };
         };
         data_paths: {
             pattern: string;
@@ -275,8 +667,18 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         }[];
     }[];
     ui_bundles: {
-        csp: Record<string, unknown>;
-        permissions: Record<string, unknown>;
+        csp: {
+            connectDomains?: string[] | undefined;
+            resourceDomains?: string[] | undefined;
+            frameDomains?: string[] | undefined;
+            baseUriDomains?: string[] | undefined;
+        };
+        permissions: {
+            camera?: {} | undefined;
+            microphone?: {} | undefined;
+            geolocation?: {} | undefined;
+            clipboardWrite?: {} | undefined;
+        };
         uri: string;
         html_path: string;
     }[];
@@ -284,5 +686,7 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
 export type ViewToolsManifest = z.infer<typeof ViewToolsManifestSchema>;
 export type DataPath = z.infer<typeof DataPathSchema>;
 export type McpAppMeta = z.infer<typeof McpAppMetaSchema>;
+export type McpUiCsp = z.infer<typeof McpUiCspSchema>;
+export type McpUiPermissions = z.infer<typeof McpUiPermissionsSchema>;
 export type ViewToolEntry = z.infer<typeof ViewToolSchema>;
 export type UiBundleEntry = z.infer<typeof UiBundleSchema>;

@@ -97,21 +97,31 @@ for (const vt of viewTools) {
 //    the ui_resource_uri (after the last `/`).
 const uiBundles = [];
 const viewToolEntries = [];
+// MCP Apps spec (specification/2026-01-26/apps.mdx, §_meta.ui.csp):
+//   The host BUILDS the CSP header from these four domain lists; it
+//   already injects `'self' 'unsafe-inline'` for script-src and style-src
+//   so the inlined vite-plugin-singlefile <script type="module"> bundle
+//   runs without the plugin having to opt in to unsafe-inline. The keys
+//   below are the ONLY four the spec recognises — anything else fails
+//   the host's resource validator with "Unsupported UI resource content
+//   format" (which is exactly the regression that shipped before P15
+//   pass 10 + this fix).
+//
+// Empty arrays = no external origins (our bundles are fully inlined; no
+// fetch/XHR, no remote scripts/styles, no nested iframes). If a future
+// plugin needs e.g. a tile server, override via `mcp-app-meta.yaml` or
+// listing.yaml's ux_components[].csp.
 const DEFAULT_CSP = {
-  // `script_src` must allow `'unsafe-inline'` because vite-plugin-singlefile
-  // inlines the UI bundle as `<script type="module">…</script>` directly in
-  // the HTML. Under default-src 'self' alone (which is the script-src
-  // fallback when script-src is absent), the host's CSP enforcer blocks
-  // every inline <script>, the iframe renders an empty <div id="root">,
-  // and the UI silently fails. `style_src` already carries 'unsafe-inline'
-  // for the same reason (Vite inlines styles). `default_src 'self'`
-  // restricts everything else (img/connect/font/etc.) — fonts are inlined
-  // via data: URIs by the bundle so no font-src override is needed.
-  default_src: ["'self'"],
-  script_src: ["'self'", "'unsafe-inline'"],
-  style_src: ["'self'", "'unsafe-inline'"],
+  connectDomains: [],
+  resourceDomains: [],
+  frameDomains: [],
+  baseUriDomains: [],
 };
-const DEFAULT_PERMISSIONS = { allowFollowUp: true, allowFormSubmit: true };
+// Spec keys: camera / microphone / geolocation / clipboardWrite (each `{}`).
+// We don't request any sandbox permissions — `{}` is the canonical empty
+// shape. The strict Zod schema in @agntux/plugin-runtime rejects legacy
+// `allowFollowUp` / `allowFormSubmit` style keys at build time.
+const DEFAULT_PERMISSIONS = {};
 const sidecarPath = resolve(VIEW_TOOL_ROOT, "mcp-app-meta.yaml");
 const sidecar = existsSync(sidecarPath)
   ? (yaml.load(readFileSync(sidecarPath, "utf8")) ?? {})

@@ -49,6 +49,8 @@ export {
 export type {
   DataPath,
   McpAppMeta,
+  McpUiCsp,
+  McpUiPermissions,
   Scope,
   UiBundleEntry,
   ViewToolEntry,
@@ -59,6 +61,8 @@ export {
   HandlerModuleRegex,
   HtmlPathRegex,
   McpAppMetaSchema,
+  McpUiCspSchema,
+  McpUiPermissionsSchema,
   ScopeSchema,
   UiBundleSchema,
   UiResourceUriRegex,

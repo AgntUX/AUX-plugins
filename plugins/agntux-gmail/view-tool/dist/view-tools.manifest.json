@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_gmail",
-  "plugin_version": "4.0.2",
+  "plugin_version": "4.0.3",
   "handler_module": "view-tool/dist/agntux-gmail-view.js",
   "view_tools": [
     {
@@ -39,22 +39,12 @@
       "mcp_app_meta": {
         "resourceUri": "ui://agntux-gmail/compose",
         "csp": {
-          "default_src": [
-            "'self'"
-          ],
-          "script_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ],
-          "style_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ]
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
         },
-        "permissions": {
-          "allowFollowUp": true,
-          "allowFormSubmit": true
-        }
+        "permissions": {}
       }
     }
   ],
@@ -63,22 +53,12 @@
       "uri": "ui://agntux-gmail/compose",
       "html_path": "view-tool/dist/ui-resources/compose.html",
       "csp": {
-        "default_src": [
-          "'self'"
-        ],
-        "script_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-        "style_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ]
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
       },
-      "permissions": {
-        "allowFollowUp": true,
-        "allowFormSubmit": true
-      }
+      "permissions": {}
     }
   ]
 }
