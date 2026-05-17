@@ -42,6 +42,7 @@
  *     the first non-whitespace token.
  */
 
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -188,5 +189,142 @@ export function pass10ViewToolBundles(
         `output.entryFileNames override. See plugins/agntux-core/view-tool/ ` +
         `for the canonical shape.`,
     });
+  }
+}
+
+/**
+ * Pass 10 zip variant (E24): the same classifier, applied to any
+ * `dist-zips/{slug}-*.zip` produced by `scripts/package-plugins.mjs`.
+ *
+ * Pass 10's source-tree scan catches a freshly-built dist with bad bytes.
+ * But a zip can still ship a stale dist if a user ran `package-plugins.mjs
+ * --skip-build` (or rebuilt the zip from a tree that pre-dates the
+ * vite.config.ts fix) — and Claude Desktop reads the zip, not the source
+ * tree. This pass closes that gap: when `dist-zips/` is present, every
+ * matching zip's `view-tool/dist/ui-resources/*.html` entry is classified
+ * the same way as the source-tree files.
+ *
+ * Silently skipped when:
+ *   - `dist-zips/` doesn't exist (no packaging has happened — fine).
+ *   - No zip filename starts with `{slug}-` (this plugin wasn't packaged
+ *     in this checkout — fine).
+ *   - A zip contains no `view-tool/dist/ui-resources/*.html` entries (the
+ *     plugin doesn't ship a view-tool — fine; happens for mcp-only plugins
+ *     like agntux-build).
+ *
+ * Implementation: shells out to `unzip` (already a hard dependency of
+ * `package-plugins.mjs` and validated up front there). `unzip -Z1` lists
+ * filenames; `unzip -p` extracts a single entry to stdout. We only need
+ * the first HEAD_BYTES, but `unzip -p` always writes the whole entry —
+ * cap stdout via maxBuffer at 5 MB (single-file UI bundles run ~140 KB).
+ */
+export function pass10ViewToolBundlesInZip(
+  pluginSlug: string,
+  repoRoot: string,
+  findings: Finding[],
+): void {
+  const zipDir = path.join(repoRoot, "dist-zips");
+  if (!fs.existsSync(zipDir)) return;
+
+  // Match `{slug}-{semver}.zip` exactly. The trailing dash followed by a
+  // digit is what distinguishes `agntux-core-9.5.0.zip` from
+  // `agntux-core-bonus-1.0.0.zip` when linting `agntux-core` — package-
+  // plugins.mjs always emits `{slug}-{version}.zip`, and every plugin
+  // version starts with a digit (semver). Without this constraint, a
+  // longer-slug plugin's zip would be (incorrectly) classified under
+  // every shorter-slug plugin's lint row.
+  const prefix = `${pluginSlug}-`;
+  let zipNames: string[];
+  try {
+    zipNames = fs
+      .readdirSync(zipDir)
+      .filter(
+        (f) =>
+          f.startsWith(prefix) &&
+          f.endsWith(".zip") &&
+          /^\d/.test(f.slice(prefix.length)),
+      );
+  } catch {
+    return;
+  }
+  if (zipNames.length === 0) return;
+
+  const rel = (p: string): string => path.relative(repoRoot, p);
+
+  for (const zipName of zipNames) {
+    const zipPath = path.join(zipDir, zipName);
+    const relZip = rel(zipPath);
+
+    // List entries under view-tool/dist/ui-resources/. `unzip -Z1` is
+    // zipinfo's filenames-only output; the trailing arg is a file pattern
+    // (shell glob) honored by unzip. If the zip has no matching entries,
+    // unzip exits non-zero with "caution: filename not matched" — treat
+    // that as a clean skip, not a failure.
+    const list = spawnSync(
+      "unzip",
+      ["-Z1", zipPath, "view-tool/dist/ui-resources/*.html"],
+      { encoding: "utf8" },
+    );
+    if (list.error || typeof list.stdout !== "string") continue;
+    const entries = list.stdout
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(
+        (s) =>
+          s.length > 0 &&
+          s.startsWith("view-tool/dist/ui-resources/") &&
+          s.endsWith(".html") &&
+          // Top level of ui-resources only — same scope as the source pass.
+          s.split("/").length === 4,
+      );
+    if (entries.length === 0) continue;
+
+    for (const entry of entries) {
+      const extract = spawnSync("unzip", ["-p", zipPath, entry], {
+        maxBuffer: 5 * 1024 * 1024,
+      });
+      if (extract.status !== 0 || !Buffer.isBuffer(extract.stdout)) continue;
+
+      const buf = extract.stdout;
+      const head = buf.subarray(0, HEAD_BYTES).toString("utf8");
+      const entryName = entry.slice("view-tool/dist/ui-resources/".length);
+
+      if (head.length === 0) {
+        findings.push({
+          code: "E24",
+          severity: "error",
+          plugin: pluginSlug,
+          file: relZip,
+          message:
+            `${zipName} ships an empty ${entry}. Rebuild the zip via ` +
+            `node scripts/package-plugins.mjs ${pluginSlug} (without ` +
+            `--skip-build) so the view-tool bundle is regenerated.`,
+        });
+        continue;
+      }
+
+      const verdict = classify(stripPrefix(head));
+      if (verdict === "html") continue;
+
+      const snippet = head.slice(0, 80).replace(/\s+/g, " ").trim();
+      findings.push({
+        code: "E24",
+        severity: "error",
+        plugin: pluginSlug,
+        file: relZip,
+        message:
+          `${zipName} ships a stale ${entry} — the entry inside the zip ` +
+          `starts with ${verdict === "js" ? "a JavaScript bundle" : "non-HTML content"} ` +
+          `("${snippet}…") but ships with mimeType "text/html". ` +
+          `Compliant MCP App hosts (Claude Cowork, MCPJam) reject this with ` +
+          `"Unsupported UI resource content format". The source-tree ` +
+          `view-tool/dist/ may be current but this zip was built from an ` +
+          `older dist (e.g. --skip-build).\n` +
+          `Fix: rebuild the zip with the current dist: ` +
+          `node scripts/package-plugins.mjs ${pluginSlug} (omit --skip-build). ` +
+          `Then re-upload the regenerated dist-zips/${zipName} to Claude ` +
+          `Desktop — the cached upload won't refresh on its own.`,
+      });
+    }
   }
 }

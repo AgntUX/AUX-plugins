@@ -8,10 +8,14 @@
  * — and asserts findings the way the lint runner would.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { pass10ViewToolBundles } from "../lint-view-tool-bundles.js";
+import {
+  pass10ViewToolBundles,
+  pass10ViewToolBundlesInZip,
+} from "../lint-view-tool-bundles.js";
 import type { Finding } from "../lint-view-tool-bundles.js";
 
 function mkTmpPlugin(slug: string): { repoRoot: string; pluginDir: string } {
@@ -299,6 +303,173 @@ describe("pass10ViewToolBundles", () => {
       tmp.repoRoot,
       findings,
     );
+    expect(findings).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pass10ViewToolBundlesInZip (E24)
+// ---------------------------------------------------------------------------
+
+// Build a zip under <repoRoot>/dist-zips/<name>.zip that contains the
+// given map of entry-paths → bodies. The shape mirrors what
+// scripts/package-plugins.mjs ships: paths are relative to the plugin
+// root (e.g. `view-tool/dist/ui-resources/foo.html`).
+function mkZipPlugin(slug: string): { repoRoot: string } {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), `lint10z-${slug}-`));
+  fs.mkdirSync(path.join(repoRoot, "dist-zips"), { recursive: true });
+  return { repoRoot };
+}
+
+function writeZip(
+  repoRoot: string,
+  zipBasename: string,
+  entries: Record<string, string>,
+): string {
+  // Stage the entries in a temp dir, then `zip -r` them into the target.
+  // Relying on the system `zip` is consistent with package-plugins.mjs.
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), `lint10z-stage-`));
+  for (const [entryPath, body] of Object.entries(entries)) {
+    const full = path.join(stage, entryPath);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, body, "utf8");
+  }
+  const zipPath = path.join(repoRoot, "dist-zips", zipBasename);
+  const r = spawnSync("zip", ["-rq", zipPath, "."], { cwd: stage });
+  fs.rmSync(stage, { recursive: true, force: true });
+  if (r.status !== 0) {
+    throw new Error(`test zip authoring failed (exit ${r.status})`);
+  }
+  return zipPath;
+}
+
+describe("pass10ViewToolBundlesInZip", () => {
+  let tmp: { repoRoot: string } | null = null;
+
+  beforeEach(() => {
+    tmp = null;
+  });
+
+  afterEach(() => {
+    if (tmp) fs.rmSync(tmp.repoRoot, { recursive: true, force: true });
+  });
+
+  it("skips silently when dist-zips/ does not exist", () => {
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), `lint10z-empty-`));
+    tmp = { repoRoot };
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("any-plugin", repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("skips silently when no zip matches the slug", () => {
+    tmp = mkZipPlugin("other-plugin");
+    writeZip(tmp.repoRoot, "unrelated-1.0.0.zip", {
+      "view-tool/dist/ui-resources/foo.html": "<!doctype html><html></html>",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("my-plugin", tmp.repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("skips silently when the matching zip has no view-tool entries", () => {
+    tmp = mkZipPlugin("mcp-only");
+    writeZip(tmp.repoRoot, "mcp-only-1.0.0.zip", {
+      ".claude-plugin/plugin.json": "{}",
+      "mcp-server/dist/index.js": "console.log('hi')",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("mcp-only", tmp.repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("passes when the zipped bundle starts with <!doctype html>", () => {
+    tmp = mkZipPlugin("good-zip");
+    writeZip(tmp.repoRoot, "good-zip-1.0.0.zip", {
+      "view-tool/dist/ui-resources/triage.html":
+        "<!doctype html>\n<html><body><div id='root'></div></body></html>",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("good-zip", tmp.repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("flags E24 when the zipped bundle is a JS module renamed to .html", () => {
+    tmp = mkZipPlugin("stale-zip");
+    // The exact opener that triggered the user-visible regression.
+    const jsBody =
+      `var Bi={exports:{}},br={};` +
+      `/**\n * @license React\n */` +
+      "x".repeat(2048);
+    writeZip(tmp.repoRoot, "stale-zip-9.5.0.zip", {
+      "view-tool/dist/ui-resources/triage.html": jsBody,
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("stale-zip", tmp.repoRoot, findings);
+    expect(findings).toHaveLength(1);
+    const f = findings[0];
+    expect(f.code).toBe("E24");
+    expect(f.severity).toBe("error");
+    expect(f.plugin).toBe("stale-zip");
+    expect(f.file).toMatch(/dist-zips\/stale-zip-9\.5\.0\.zip$/);
+    expect(f.message).toMatch(/JavaScript bundle/);
+    expect(f.message).toMatch(/Unsupported UI resource content format/);
+    expect(f.message).toMatch(/package-plugins\.mjs stale-zip/);
+    expect(f.message).toMatch(/re-upload/);
+  });
+
+  it("flags E24 for every bad entry in a multi-bundle zip", () => {
+    tmp = mkZipPlugin("multi-bad");
+    writeZip(tmp.repoRoot, "multi-bad-2.0.0.zip", {
+      "view-tool/dist/ui-resources/compose.html": "var x=1;",
+      "view-tool/dist/ui-resources/canvas.html": "(function(){})();",
+      // A real-HTML sibling — must NOT be flagged.
+      "view-tool/dist/ui-resources/ok.html": "<!doctype html><html></html>",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("multi-bad", tmp.repoRoot, findings);
+    expect(findings).toHaveLength(2);
+    const flagged = findings.map((f) => f.message).join("\n");
+    expect(flagged).toMatch(/compose\.html/);
+    expect(flagged).toMatch(/canvas\.html/);
+    expect(flagged).not.toMatch(/ok\.html/);
+    for (const f of findings) expect(f.code).toBe("E24");
+  });
+
+  it("flags every matching zip across multiple versioned builds", () => {
+    // Same slug, two versions side-by-side in dist-zips/. Both bad.
+    tmp = mkZipPlugin("dual-version");
+    writeZip(tmp.repoRoot, "dual-version-1.0.0.zip", {
+      "view-tool/dist/ui-resources/triage.html": "var x=1;",
+    });
+    writeZip(tmp.repoRoot, "dual-version-1.0.1.zip", {
+      "view-tool/dist/ui-resources/triage.html": "const x=1;",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("dual-version", tmp.repoRoot, findings);
+    expect(findings).toHaveLength(2);
+    const files = new Set(findings.map((f) => f.file));
+    expect(files.size).toBe(2);
+  });
+
+  it("does not falsely match a different plugin whose slug is a prefix", () => {
+    // `agntux-core-bonus-1.0.0.zip` must NOT be classified under
+    // `agntux-core`. The slug-prefix match additionally requires that the
+    // first char after `{slug}-` is a digit (start of the semver), which
+    // disambiguates against a longer-slug plugin's zip.
+    tmp = mkZipPlugin("prefix-collision");
+    writeZip(tmp.repoRoot, "agntux-core-bonus-1.0.0.zip", {
+      "view-tool/dist/ui-resources/triage.html": "var x=1;",
+    });
+    // Also put a real agntux-core zip alongside to prove the matcher still
+    // catches the legitimate one.
+    writeZip(tmp.repoRoot, "agntux-core-9.5.0.zip", {
+      "view-tool/dist/ui-resources/triage.html": "<!doctype html><html></html>",
+    });
+    const findings: Finding[] = [];
+    pass10ViewToolBundlesInZip("agntux-core", tmp.repoRoot, findings);
+    // Zero findings: the bonus zip belongs to a different plugin row, and
+    // the real agntux-core zip is healthy.
     expect(findings).toEqual([]);
   });
 });

@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.1] — 2026-05-16
+
+### Fixed
+
+- Triage view tool no longer ships a JavaScript module renamed to
+  `triage.html`. The previous `view-tool/vite.config.ts` pointed
+  `rollupOptions.input` directly at the `.tsx` source and relied on
+  `output.entryFileNames: "[name].html"` as a renamer.
+  `vite-plugin-singlefile` only inlines the bundle INTO an HTML
+  document when the rollup input is itself HTML — given a `.tsx`
+  entry, Rollup just emitted a JS module with an `.html` extension.
+  The MCP App view-tool registered the file with
+  `mimeType: "text/html"`; Claude Cowork and MCPJam rejected the
+  resource with "Unsupported UI resource content format" because the
+  body started with `var Bi={exports:{}}` instead of
+  `<!doctype html>`. The build-layer fix landed in `ea050c8d` (May
+  16). This release exists to give the host a fresh version string
+  so cached `dist-zips/agntux-core-*.zip` uploads invalidate.
+
+Re-upload `dist-zips/agntux-core-9.5.1.zip` to Claude Desktop to
+pick up the corrected `view-tool/dist/ui-resources/triage.html`
+(a real `<!doctype html>` document with the bundle inlined).
+
 ## [9.5.0] — 2026-05-16
 
 ### Changed
