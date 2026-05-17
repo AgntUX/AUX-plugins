@@ -18,6 +18,7 @@ import {
   type ViewToolModule,
   parseActionFile,
   type ActionFrontmatter,
+  type SuggestedActionRow,
 } from "@agntux/plugin-runtime";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
@@ -26,8 +27,27 @@ const TRIAGE_RESOURCE_URI = "ui://agntux-core/triage" as const;
 const DEFAULT_LIMIT = 30;
 const DEFAULT_HANDLED_DAYS = 7;
 const MAX_HANDLED_RECENT = 10;
+// Cap matches the rich UI's "max 6 inline, then '+N more'" inline display
+// limit. Server-side cap means the UI never has to render the "+N more"
+// affordance for entities beyond 6.
+const MAX_RELATED_ENTITIES = 6;
+// Cap on per-row suggested-action CTAs. Pre-trim 9.5.3 carried 6; the
+// rich UI renders them as primary buttons and 4 is plenty (any real
+// action with 5+ distinct CTAs is a design smell). Cap reduced to 4 to
+// keep worst-case payload under the host's max-tokens cap.
+const MAX_SUGGESTED_ACTIONS = 4;
 const MAX_SUMMARY_CHARS = 200;
 const MAX_TITLE_CHARS = 120;
+// Per-excerpt cap. Pre-trim 9.5.3 carried 600 chars and a 30-row payload
+// crossed the host's ~64 KB JSON-RPC max-tokens cap (~62 KB observed).
+// The rich UI (restored in 9.6.0) renders these in an expandable Details
+// panel, so 220 chars is enough to show 2–3 sentences of context. The
+// combination (220-char excerpts × 2 + 4 suggested_actions + 6 related
+// entities + the rest of the row) keeps worst-case 30-row payload under
+// 55 KB, safely below the host cap (~15 % headroom). The regression
+// guard at view-tool/__tests__/payload-shape.test.ts enforces the 55 KB
+// budget.
+const MAX_EXCERPT_CHARS = 220;
 
 const PRIORITY_RANK: Record<string, number> = {
   high: 0,
@@ -38,11 +58,16 @@ const PRIORITY_RANK: Record<string, number> = {
 // ── Types ────────────────────────────────────────────────────────────────────
 //
 // Shape note: this payload is consumed exclusively by triage-ui.tsx (the
-// MCP Apps iframe). Fields that the iframe doesn't render were stripped in
-// 9.5.3 to keep the JSON-RPC tool-result body under the host's max-token
-// cap — a 30-row payload with full excerpts hit ~62 KB and was being
-// rejected on the way back to the chat model. `due_by` is kept because
-// sortOpen() reads it; the iframe ignores it.
+// MCP Apps iframe) via its rich React tree under view-tool/src/components/.
+// 9.5.3 stripped the row to 7 fields when the iframe was a slim
+// placeholder; 9.6.0 restored the rich UI which binds the fields listed
+// in `normalizeAction` (main-component.tsx:321–383). 9.7.0 restores those
+// fields to the wire payload so the Details panel, "via {source}" line,
+// related-entity badges, suggested-action CTAs, and Created/Updated
+// timestamps all render with real data.
+//
+// `MAX_EXCERPT_CHARS` is the single dial that bounds the payload's
+// worst-case size — see the const comment above.
 
 interface TriageActionRow {
   id: string;
@@ -51,17 +76,47 @@ interface TriageActionRow {
   priority: "high" | "medium" | "low";
   status: "open" | "snoozed";
   reason_class: string;
-  // Internal use only — sort key for sortOpen. The iframe ignores this
-  // field; kept on the row (vs. an intermediate sort tuple) because the
-  // overhead is ~10 bytes per row and the simpler shape is easier to
-  // reason about.
   due_by: string | null;
+  // Rich UI fields. UI bindings (line refs in
+  // view-tool/src/components/main-component.tsx after 9.6.0):
+  //   snoozed_until  → "Snoozed until …" chip (when status === "snoozed")
+  //   source         → "via {source}" subline + included in stop-raising prompt
+  //   related_entities[] → inline EntityBadge list + Details panel
+  //   suggested_actions[] → primary CTA buttons (Details + inline)
+  //   why_matters_excerpt → "Why this matters" paragraph in Details panel
+  //   personalization_fit_excerpt → "Personalization fit" paragraph in Details
+  //   created_at     → "Created X ago" line + sort-by-recency key
+  //   updated_at     → "· Updated X ago" suffix when >24h after created_at
+  snoozed_until: string | null;
+  source: string | null;
+  related_entities: string[];
+  suggested_actions: SuggestedActionRow[];
+  why_matters_excerpt: string;
+  personalization_fit_excerpt: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface TriageHandledRow {
   id: string;
   title: string;
+  // Rich UI fields. UI bindings:
+  //   priority   → carried for symmetry with open rows; reserved for future
+  //                priority-sorted handled view (HandledAction interface
+  //                already includes it).
+  //   status     → drives Done/Dismissed pill colour + accordion counts.
+  //                Pre-9.5.3 emitted both done and dismissed rows; the trim
+  //                kept the count predicate (`done` or `dismissed`) in
+  //                processActionsDir but lost the wire field — restoring it
+  //                here makes the Dismissed badge render again.
+  //   outcome    → inline outcome text on dismissed rows. Optional frontmatter
+  //                field on dismissed actions (a short string describing why
+  //                the action was set aside). Null on done rows and on
+  //                dismissed rows whose authors didn't populate it.
+  priority: "high" | "medium" | "low";
+  status: "done" | "dismissed";
   handled_at: string;
+  outcome: string | null;
 }
 
 interface TriageCounts {
@@ -100,6 +155,10 @@ function asPriority(v: string): "high" | "medium" | "low" {
 
 function asActionStatus(v: string): "open" | "snoozed" {
   return v === "snoozed" ? "snoozed" : "open";
+}
+
+function asHandledStatus(v: string): "done" | "dismissed" {
+  return v === "dismissed" ? "dismissed" : "done";
 }
 
 function deriveTitle(fm: ActionFrontmatter, why: string): string {
@@ -231,10 +290,13 @@ async function processActionsDir(
   handled: TriageHandledRow[];
   snoozedCount: number;
   // Max-of-row frontmatter.updated_at across the scanned set. Computed
-  // server-side and surfaced as `last_updated_at` on the payload so the
-  // iframe can render a meaningful "Updated X ago" stamp. Not shipped per
-  // row — the 9.5.3 trim moved this to a single top-level scalar to keep
-  // the wire payload under the host's max-tokens cap.
+  // server-side and surfaced as the top-level `last_updated_at` scalar
+  // so the iframe can render the header "Updated X ago" stamp without
+  // having to derive it from the row list (handled rows that get
+  // dropped from `handled_recent` still contribute to freshness).
+  // Per-row `updated_at` is ALSO shipped (9.7.0) for the "· Updated X
+  // ago" suffix on the timestamp line — the two are deliberate, not
+  // redundant.
   maxUpdatedAt: string;
 }> {
   // listWithMeta returns every action's path AND its parsed YAML
@@ -291,6 +353,7 @@ async function processActionsDir(
     if (fm.status === "open" || fm.status === "snoozed") {
       if (fm.status === "snoozed") snoozedCount++;
       const why = parsed.why_matters;
+      const fit = parsed.personalization_fit;
       const row: TriageActionRow = {
         id: fm.id,
         title: deriveTitle(fm, why),
@@ -299,6 +362,17 @@ async function processActionsDir(
         status: asActionStatus(fm.status),
         reason_class: fm.reason_class || "",
         due_by: fm.due_by || null,
+        snoozed_until: fm.snoozed_until || null,
+        source: fm.source || null,
+        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
+        suggested_actions: fm.suggested_actions.slice(
+          0,
+          MAX_SUGGESTED_ACTIONS,
+        ),
+        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
+        personalization_fit_excerpt: truncate(fit, MAX_EXCERPT_CHARS),
+        created_at: fm.created_at || null,
+        updated_at: fm.updated_at || null,
       };
       open.push(row);
       continue;
@@ -311,10 +385,18 @@ async function processActionsDir(
       if (!handledAt) continue;
       const t = new Date(handledAt).getTime();
       if (!Number.isFinite(t) || t < handledCutoffMs) continue;
+      // `outcome` is not currently a typed frontmatter field on
+      // ActionFrontmatter (parse-action.ts), but the rich UI renders it
+      // when present on dismissed rows. Emit `null` so the wire shape is
+      // stable and the UI's defensive `?? null` read works; promoting
+      // outcome to a parsed frontmatter field is an additive follow-up.
       handled.push({
         id: fm.id,
         title: deriveTitle(fm, parsed.why_matters),
+        priority: asPriority(fm.priority),
+        status: asHandledStatus(fm.status),
         handled_at: handledAt,
+        outcome: null,
       });
     }
   }

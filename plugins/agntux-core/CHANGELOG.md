@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.7.0] — 2026-05-17
+
+### Added
+
+- **Rich row fields restored to the `triage_view` wire payload.** 9.6.0
+  brought the interactive React triage surface back, but the wire
+  shape was still the 9.5.3-trimmed 7-field row — the rich UI rendered
+  but every binding that read `snoozed_until`, `source`,
+  `related_entities[]`, `suggested_actions[]`, `why_matters_excerpt`,
+  `personalization_fit_excerpt`, `created_at`, or `updated_at` saw
+  `undefined` and quietly omitted itself. As a result the Details
+  panel stayed empty, the "via {source}" subline never appeared, no
+  related-entity badges or suggested-action CTAs rendered, and the
+  Created/Updated timestamps were missing from every card. Handled
+  rows lost their Dismissed badge (priority/status/outcome were also
+  stripped). The remote MCP server in `app/` is a verbatim
+  pass-through — no transformation between the plugin handler and the
+  iframe — so the fix lives entirely in
+  `plugins/agntux-core/view-tool/src/agntux-core-view.ts`.
+
+  Restored fields on open action rows: `snoozed_until`, `source`,
+  `related_entities[]` (capped at 6), `suggested_actions[]`
+  (capped at 4, each carries `{label, host_prompt, url}` via
+  `parseActionFile`), `why_matters_excerpt`,
+  `personalization_fit_excerpt`, `created_at`, `updated_at`.
+
+  Restored fields on handled rows: `priority`, `status` (drives the
+  Done vs Dismissed badge), `outcome` (always `null` for now; the
+  field is wire-stable so promoting it to a parsed frontmatter key in
+  `parse-action.ts` is an additive follow-up that needs no UI change).
+
+### Changed
+
+- Per-row caps tuned to fit the rich shape under the host's max-tokens
+  cap. `MAX_EXCERPT_CHARS`: 600 → 220 (the Details panel only needs
+  2–3 sentences of context). `MAX_SUGGESTED_ACTIONS`: 6 → 4 (the rich
+  UI renders these as primary CTA buttons; 4 visible CTAs per card is
+  plenty — a row with 5+ distinct CTAs is a design smell).
+  `MAX_RELATED_ENTITIES` stays at 6 to match the UI's "max 6 inline
+  then '+N more'" cap. Synthetic-max 30-row payload now sits at ~54 KB
+  versus the ~62 KB pre-trim baseline and the ~64 KB host cap —
+  ~15 % headroom. Realistic workspaces (where most rows don't max
+  every cap simultaneously) typically land in the 25–40 KB range.
+
+- `view-tool/__tests__/payload-shape.test.ts` rewritten to match the
+  restored shape — full kept-key set, per-cap assertions
+  (`related_entities ≤ 6`, `suggested_actions ≤ 4`, excerpts ≤ 220
+  chars), positive-data assertions that the handler actually surfaces
+  frontmatter values (rather than emitting empty strings / empty
+  arrays), and a dedicated dismissed-row test that verifies the
+  status field is on the wire so the Dismissed badge can render.
+  Total budget enforced: 55 KB at 30 maximally-loaded rows.
+
 ## [9.6.0] — 2026-05-17
 
 ### Added

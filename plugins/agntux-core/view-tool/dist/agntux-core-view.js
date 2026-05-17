@@ -6,8 +6,11 @@ var TRIAGE_RESOURCE_URI = "ui://agntux-core/triage";
 var DEFAULT_LIMIT = 30;
 var DEFAULT_HANDLED_DAYS = 7;
 var MAX_HANDLED_RECENT = 10;
+var MAX_RELATED_ENTITIES = 6;
+var MAX_SUGGESTED_ACTIONS = 4;
 var MAX_SUMMARY_CHARS = 200;
 var MAX_TITLE_CHARS = 120;
+var MAX_EXCERPT_CHARS = 220;
 var PRIORITY_RANK = {
   high: 0,
   medium: 1,
@@ -24,6 +27,9 @@ function asPriority(v) {
 }
 function asActionStatus(v) {
   return v === "snoozed" ? "snoozed" : "open";
+}
+function asHandledStatus(v) {
+  return v === "dismissed" ? "dismissed" : "done";
 }
 function deriveTitle(fm, why) {
   if (fm.reason_detail) {
@@ -106,6 +112,7 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
     if (fm.status === "open" || fm.status === "snoozed") {
       if (fm.status === "snoozed") snoozedCount++;
       const why = parsed.why_matters;
+      const fit = parsed.personalization_fit;
       const row = {
         id: fm.id,
         title: deriveTitle(fm, why),
@@ -113,7 +120,18 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
         priority: asPriority(fm.priority),
         status: asActionStatus(fm.status),
         reason_class: fm.reason_class || "",
-        due_by: fm.due_by || null
+        due_by: fm.due_by || null,
+        snoozed_until: fm.snoozed_until || null,
+        source: fm.source || null,
+        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
+        suggested_actions: fm.suggested_actions.slice(
+          0,
+          MAX_SUGGESTED_ACTIONS
+        ),
+        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
+        personalization_fit_excerpt: truncate(fit, MAX_EXCERPT_CHARS),
+        created_at: fm.created_at || null,
+        updated_at: fm.updated_at || null
       };
       open.push(row);
       continue;
@@ -126,7 +144,10 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
       handled.push({
         id: fm.id,
         title: deriveTitle(fm, parsed.why_matters),
-        handled_at: handledAt
+        priority: asPriority(fm.priority),
+        status: asHandledStatus(fm.status),
+        handled_at: handledAt,
+        outcome: null
       });
     }
   }
