@@ -6,6 +6,20 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.0.5] — 2026-05-17
+
+### Added
+
+- Compose view iframe renders an explicit "Couldn't reach the host"
+  error when `SimpleMcpApp.connect()` fails instead of staying on
+  "Loading…" indefinitely. Same fix as agntux-core 9.5.6.
+
+### Fixed
+
+- `SimpleMcpApp` no longer spams the iframe console with verbose
+  per-message logs on every host postMessage. Gated behind
+  `window.__MCP_APPS_DEBUG__`. Vendored copy synced from canonical.
+
 ## [4.0.4] — 2026-05-17
 
 ### Fixed

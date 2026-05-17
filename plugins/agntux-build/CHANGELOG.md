@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-05-17
+
+### Added
+
+- Marketplace linter pass 12 (E26 error / E27 warning) enforces
+  byte-equality across every vendored copy of
+  `simple-mcp-app.ts` and `constants.ts`. Catches the
+  silent-regression class where a future bugfix lands in one of the
+  six vendored copies but not the others — the affected plugin's
+  iframe would silently fail to render while the others work fine.
+  Canonical source pinned at
+  `plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/`;
+  every other copy (3 view-tool/ vendors + 2 _template paths) must
+  hash-match.
+- Canonical view-tool scaffold at
+  `canonical/ui-handlers/_template/view-tool/src/__ui-name__-ui.tsx`
+  renders a `connect_error` state on `SimpleMcpApp.connect()`
+  failure instead of leaving the iframe on "Loading…" forever. New
+  plugins scaffolded from the template inherit this UX.
+
+### Fixed
+
+- `SimpleMcpApp` (vendored in both `_template/component/` and
+  `_template/view-tool/`) gates verbose `[SimpleMcpApp] incoming
+  message:` logs behind `window.__MCP_APPS_DEBUG__`. Reduces console
+  noise to zero on a healthy iframe.
+
 ## [0.2.3] — 2026-05-17
 
 ### Fixed

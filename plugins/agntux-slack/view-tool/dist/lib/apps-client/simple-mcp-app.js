@@ -64,7 +64,12 @@ export class SimpleMcpApp {
         this._listener = (event) => {
             if (event.source !== window.parent)
                 return;
-            console.log('[SimpleMcpApp] incoming message:', event.data);
+            // Verbose host-message log gated behind a window flag — useful during
+            // initial-fix diagnosis (9.5.4 / 9.5.5), spammy in production. Set
+            // `window.__MCP_APPS_DEBUG__ = true` from the iframe entry to enable.
+            if (window.__MCP_APPS_DEBUG__) {
+                console.log('[SimpleMcpApp] incoming message:', event.data);
+            }
             const data = event.data;
             if (!data ||
                 typeof data !== 'object' ||

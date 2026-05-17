@@ -29,6 +29,7 @@ import {
   pass10ViewToolBundlesInZip,
 } from "./lint/lint-view-tool-bundles.js";
 import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.js";
+import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -662,6 +663,12 @@ export function lintPlugin(
   // existing plugins without the test (agntux-slack, agntux-gmail)
   // don't break CI; promote to error once every plugin has it.
   pass11ViewToolPayloadGuard(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 12 — every vendored copy of simple-mcp-app.ts / constants.ts
+  // under view-tool/src/lib/apps-client/ (plus the canonical _template
+  // locations) MUST be byte-identical to the canonical at
+  // plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/.
+  // Drift here re-introduces the 9.5.4 iframe-protocol bug silently.
+  pass12AppsClientDrift(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

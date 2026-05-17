@@ -15,6 +15,9 @@ import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 function ComposeView({ payload }) {
     if (!payload)
         return _jsx("div", { className: "p-4", children: "Loading\u2026" });
+    if ("connect_error" in payload) {
+        return (_jsxs("div", { className: "p-4", children: [_jsx("p", { className: "font-semibold", children: "Couldn't reach the host." }), _jsx("p", { className: "text-sm opacity-70 mt-1", children: payload.connect_error })] }));
+    }
     if ("error" in payload) {
         return _jsxs("div", { className: "p-4", children: ["Error: ", payload.error] });
     }
@@ -34,6 +37,9 @@ app.ontoolresult = (params) => {
     root.render(_jsx(ComposeView, { payload: currentPayload }));
 };
 void app.connect().catch((err) => {
-    console.error("[compose-view] SimpleMcpApp.connect failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[compose-view] SimpleMcpApp.connect failed:", msg);
+    currentPayload = { connect_error: msg };
+    root.render(_jsx(ComposeView, { payload: currentPayload }));
 });
 //# sourceMappingURL=compose-ui.js.map

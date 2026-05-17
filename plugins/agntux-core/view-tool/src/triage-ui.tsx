@@ -45,10 +45,25 @@ interface TriagePayloadOk {
   bootstrap_mode: boolean;
 }
 
-type TriagePayload = TriagePayloadOk | { error: string } | null;
+type TriagePayload =
+  | TriagePayloadOk
+  | { error: string }
+  | { connect_error: string }
+  | null;
 
 function TriageView({ payload }: { payload: TriagePayload }): JSX.Element {
   if (!payload) return <div className="p-4">Loading…</div>;
+  if ("connect_error" in payload) {
+    return (
+      <div className="p-4">
+        <p className="font-semibold">Couldn't reach the host.</p>
+        <p className="text-sm opacity-70 mt-1">{payload.connect_error}</p>
+        <p className="text-sm mt-2">
+          Refresh the iframe or re-invoke <code>/agntux triage-digest</code>.
+        </p>
+      </div>
+    );
+  }
   if ("error" in payload) {
     return (
       <div className="p-4">
@@ -116,9 +131,11 @@ app.ontoolresult = (params) => {
 };
 
 void app.connect().catch((err: unknown) => {
-  // Connection failure is the host's problem — we render Loading… so the
-  // user sees something rather than a blank iframe. Re-thrown errors here
-  // would surface in the host's iframe-error reporter (if any) but
-  // otherwise have no recourse.
-  console.error("[triage-view] SimpleMcpApp.connect failed:", err);
+  // 9.5.6: don't leave the iframe stuck on "Loading…" if the host
+  // handshake fails. Render an error state with the message so the user
+  // knows it's a connect failure (not a slow-loading payload).
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error("[triage-view] SimpleMcpApp.connect failed:", msg);
+  currentPayload = { connect_error: msg };
+  root.render(<TriageView payload={currentPayload} />);
 });
