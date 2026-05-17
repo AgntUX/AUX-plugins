@@ -97,6 +97,34 @@ in the user-facing status line.
 You don't need to mention any of this in chat. The user's view stays
 "Building... (N/7) {step}".
 
+### View-tool bundle shape — HTML-entry rule
+
+The view-tool build emits self-contained iframe bundles at
+`view-tool/dist/ui-resources/{ui-name}.html`. Each file is registered
+with the MCP App protocol as `mimeType: "text/html"`, so its body
+MUST be a real HTML document, not a JavaScript module renamed to
+`.html`. Compliant hosts (Claude Cowork, MCPJam) reject the latter
+with "Unsupported UI resource content format".
+
+The canonical scaffold gets this right by pointing Vite's
+`rollupOptions.input` at a real HTML file next to `vite.config.ts`
+(e.g. `{{ui-name}}.html`) which imports the `.tsx` entry via
+`<script type="module">`. `vite-plugin-singlefile` then inlines the
+JS bundle into that HTML and emits a valid self-contained document.
+
+What goes wrong if you instead point `input` directly at the `.tsx`
+and override `output.entryFileNames: "[name].html"`: Rollup just
+renames the JS module to `.html` and the host rejects it. The
+marketplace linter's pass 10 catches this at PR time by reading
+the first bytes of every shipped bundle and refusing anything
+that doesn't begin with `<!doctype`/`<html>`.
+
+If the view-tool-builder specialist regenerates `vite.config.ts`,
+keep the input pointing at an HTML entry and add/keep the sibling
+HTML next to it. The canonical template at
+`canonical/ui-handlers/_template/view-tool/{__ui-name__.html,vite.config.ts}`
+shows the shape.
+
 ## Confirmation gate
 
 Before any of the specialists run, confirm with the user:

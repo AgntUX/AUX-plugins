@@ -42,6 +42,10 @@
           "default_src": [
             "'self'"
           ],
+          "script_src": [
+            "'self'",
+            "'unsafe-inline'"
+          ],
           "style_src": [
             "'self'",
             "'unsafe-inline'"
@@ -61,6 +65,10 @@
       "csp": {
         "default_src": [
           "'self'"
+        ],
+        "script_src": [
+          "'self'",
+          "'unsafe-inline'"
         ],
         "style_src": [
           "'self'",
