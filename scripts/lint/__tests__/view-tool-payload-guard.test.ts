@@ -172,4 +172,40 @@ it("alt", () => {
     );
     expect(findings).toEqual([]);
   });
+
+  it("emits E24 (warning) when view-tool path exists as a regular file, not a directory", () => {
+    // The isDirectory() guard at line 103 of the lint pass should treat a
+    // regular file named `view-tool` the same as no view-tool directory.
+    tmp = mkTmpPlugin("file-not-dir", { withViewTool: false });
+    // Write a regular file at the view-tool path instead of a directory.
+    fs.writeFileSync(path.join(tmp.pluginDir, "view-tool"), "oops", "utf8");
+    const findings: Finding[] = [];
+    pass11ViewToolPayloadGuard(
+      "file-not-dir",
+      tmp.pluginDir,
+      tmp.repoRoot,
+      findings,
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("emits E24 (warning) when the test file exists but cannot be read", () => {
+    // Exercises the readFileSync try/catch error path (lines 128-138).
+    tmp = mkTmpPlugin("unreadable-test");
+    const dir = path.join(tmp.pluginDir, "view-tool", "__tests__");
+    fs.mkdirSync(dir, { recursive: true });
+    // Create a directory where the file is expected — readFileSync throws EISDIR.
+    fs.mkdirSync(path.join(dir, "payload-shape.test.ts"));
+    const findings: Finding[] = [];
+    pass11ViewToolPayloadGuard(
+      "unreadable-test",
+      tmp.pluginDir,
+      tmp.repoRoot,
+      findings,
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("E24");
+    expect(findings[0]?.severity).toBe("warning");
+    expect(findings[0]?.message).toMatch(/Could not read/);
+  });
 });

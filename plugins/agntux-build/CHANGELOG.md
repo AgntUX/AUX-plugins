@@ -11,17 +11,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - Canonical view-tool scaffold now ships
-  `__tests__/payload-shape.test.ts` — a regression-guard test that
-  asserts `structuredContent` stays under a byte budget and the row
-  keys exactly match the iframe's rendered set. Catches the agntux-core
-  9.5.3 bug class (a saturated `triage_view` workspace shipping ~62 KB
-  per call and getting rejected by the host's max-tokens cap before
-  reaching the chat model). Scaffolded plugins inherit the test
-  automatically; authors customise `KEPT_KEYS` and
-  `PAYLOAD_BUDGET_BYTES` per their handler shape.
+  `__tests__/payload-shape.test.ts` — a starter regression-guard
+  test that asserts `structuredContent` stays under a byte budget
+  and the row keys exactly match the iframe's rendered set. Targets
+  the agntux-core 9.5.3 bug class (a saturated `triage_view`
+  workspace shipping ~62 KB per call and getting rejected by the
+  host's max-tokens cap before reaching the chat model). The
+  scaffolded test is intentionally a **template** — its size-budget
+  assertion exercises a long `title` payload (the field the canonical
+  handler actually forwards through `parsed.frontmatter.title`) but
+  the in-fixture `body` does NOT inflate the wire payload because
+  the canonical handler's `parsed.body ?? ""` resolves to `""` (the
+  `ParsedAction` interface has no `body` field — pre-existing
+  template shape that authors fix when they wire up their real
+  handler). Scaffold authors MUST update `KEPT_KEYS`,
+  `PAYLOAD_BUDGET_BYTES`, and the heavy-payload fixture to match
+  their plugin's actual structuredContent shape; the canonical comment
+  block in the test file walks through the customisation points.
 - Canonical `__ui-name__-view.ts` carries a new "Payload-shape rule"
   comment block pointing at the regression-guard test and the
   agntux-core CHANGELOG entry that motivates it.
+- `skills/build/references/07-build.md` updates the `tests-author`
+  specialist's contract: for any plugin that ships `view-tool/`,
+  generate the payload-shape test from the canonical scaffold and
+  tune the tunables to the plugin's actual shape (rather than
+  copying the template verbatim).
 - Marketplace linter pass 11 (E24/E25, warning-severity) flags any
   plugin that ships `view-tool/` without a payload-shape test, or
   with a test that lacks a byte-size assertion. Warning rather than

@@ -130,6 +130,18 @@ const viewTool = mod.viewTools[0]!;
 
 describe("{{view-tool-name}} payload-shape regression guard", () => {
   it("returns a payload under the byte budget for a max-loaded happy path", async () => {
+    // NOTE (template authors): `makeActionFile` seeds `title` in the YAML
+    // frontmatter and `body` as the markdown prose below the `---` fence.
+    // The handler reads `parsed.frontmatter.title` for the `title` field.
+    // If your handler exposes a `body` field via `parseActionFile`, note
+    // that `ParsedAction` does NOT expose the raw markdown body directly
+    // (it exposes named sections like `why_matters`). The template handler
+    // uses `parsed.body ?? ""` which resolves to `""` because `parsed.body`
+    // is not part of the `ParsedAction` interface. This means the heavy
+    // `heavyBody` below does NOT inflate the wire payload in the template
+    // handler — the size guard here catches saturation from `title` (which
+    // IS forwarded). When you customise the handler to forward the right
+    // fields, update this fixture to exercise your actual heavy paths.
     const heavyTitle = "T".repeat(2000); // exercise long-string path
     const heavyBody = "B".repeat(8000);
     const files = {
@@ -149,6 +161,10 @@ describe("{{view-tool-name}} payload-shape regression guard", () => {
     // Size guard — the regression this test exists to catch.
     const payloadBytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
     expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+
+    // Sanity-check that the heavy title was actually forwarded (so the size
+    // guard is exercising a non-trivial payload, not an empty object).
+    expect((sc as Record<string, unknown>).title).toBe(heavyTitle);
   });
 
   it("returns structuredContent with exactly the iframe-rendered keys", async () => {

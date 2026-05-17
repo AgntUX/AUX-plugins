@@ -31,6 +31,16 @@ In order:
    under `__tests__/`: cold-start, cursor-map (when non-trivial),
    thread-association (when threads), draft-flow (write-capable),
    render-reproducibility (mirrors lint pass 8). No LLM at test time.
+   For UI-bearing plugins (anything that ships `view-tool/`), also
+   generates `view-tool/__tests__/payload-shape.test.ts` from the
+   canonical scaffold at
+   `canonical/ui-handlers/_template/view-tool/__tests__/payload-shape.test.ts`
+   — a byte-budget + frozen-keyset regression guard required by lint
+   pass 11 (E24/E25). Tunes `KEPT_KEYS` and `PAYLOAD_BUDGET_BYTES`
+   to the plugin's actual structuredContent shape, then substitutes
+   `{{ui-name}}` / `{{view-tool-name}}` like every other content
+   placeholder. See plugins/agntux-core/CHANGELOG.md → 9.5.3 for the
+   bug class this guard catches.
 6. **`view-tool-builder`** — runs the view-tool/ build pipeline
    (vite → tsc/esbuild → emit-manifest), validates the emitted
    view-tools.manifest.json against the Zod schema from

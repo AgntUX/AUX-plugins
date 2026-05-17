@@ -59,6 +59,15 @@
  *     `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/`
  *     is NOT linted (it's not a real plugin's view-tool, the placeholder
  *     filenames would fail validation anyway).
+ *
+ * Convention coupling:
+ *   The `view-tool/` (singular) directory name is shared with lint pass
+ *   10 (`scripts/lint/lint-view-tool-bundles.ts`). If a future plugin
+ *   ever uses a different layout (e.g. `view-tools/` plural or a
+ *   renamed directory), both passes go silent for that plugin and the
+ *   payload-bloat / non-HTML regressions become un-guarded. Keep the
+ *   two passes' directory-name constants aligned and add a third
+ *   "expected layout" lint pass if the convention ever changes.
  */
 
 import * as fs from "node:fs";
