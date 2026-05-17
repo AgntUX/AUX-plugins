@@ -120,6 +120,18 @@ describe("scanToolsDir — passing fixture", () => {
     const violations = scanToolsDir(passingViewToolsDir, "test-plugin", fixturesDir);
     expect(violations).toHaveLength(0);
   });
+
+  // Regression: a third-party mcp__ reference inside a multi-line
+  // `description:` string (key on one line, body on the next) must be
+  // skipped as documentation. The per-line regex used to miss this and
+  // CI failed on agntux-core/sync-installed-plugins.ts.
+  it("skips third-party refs inside a multi-line description: string", () => {
+    const violations = scanToolsDir(passingViewToolsDir, "test-plugin", fixturesDir);
+    const multilineViolations = violations.filter((v) =>
+      v.file.includes("multiline-description"),
+    );
+    expect(multilineViolations).toHaveLength(0);
+  });
 });
 
 describe("scanToolsDir — failing fixtures", () => {

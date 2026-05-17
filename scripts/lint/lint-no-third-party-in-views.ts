@@ -98,35 +98,59 @@ export function scanToolsDir(
     }
 
     const lines = content.split("\n");
+
+    // Build a "code-only" view of the file where whole-line `//` comments
+    // and `*` JSDoc lines are blanked out to spaces (same length, so
+    // absolute offsets are preserved). Necessary because the description
+    // regex below would otherwise match the literal text "description:"
+    // inside a comment and treat a swath of unrelated code as the
+    // description body.
+    const codeLines = lines.map((line) => {
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
+        return " ".repeat(line.length);
+      }
+      return line;
+    });
+    const codeContent = codeLines.join("\n");
+
+    // Find every `description: "..."` (or '...' or `...`) quoted region in
+    // the whole file. Spans multi-line strings — `description:` may sit on
+    // one line and the opening quote on the next — by using `[\s\S]` instead
+    // of `.` inside the body. Skip is scoped to the quoted region itself,
+    // not the whole containing line, so a bad-faith author can't chain a
+    // benign `description: "x"` before a real third-party call to bypass.
+    const descriptionRegions: Array<[number, number]> = [];
+    const descRe = /description:\s*(["'`])((?:\\[\s\S]|(?!\1)[\s\S])*)\1/g;
+    let descMatch: RegExpExecArray | null;
+    while ((descMatch = descRe.exec(codeContent)) !== null) {
+      const quoteChar = descMatch[1];
+      const quoteIdx = descMatch[0].indexOf(quoteChar);
+      const contentStart = descMatch.index + quoteIdx + 1;
+      const contentEnd = contentStart + descMatch[2].length;
+      descriptionRegions.push([contentStart, contentEnd]);
+    }
+
+    // Absolute offset of the start of each line, so we can map per-line
+    // ref positions back to whole-file offsets and test against
+    // descriptionRegions. `+1` accounts for the trailing `\n` removed by
+    // split(). The last line may not have a trailing newline but we never
+    // index past it.
+    const lineOffsets: number[] = new Array(lines.length);
+    lineOffsets[0] = 0;
+    for (let i = 1; i < lines.length; i++) {
+      lineOffsets[i] = lineOffsets[i - 1] + lines[i - 1].length + 1;
+    }
+
     for (let i = 0; i < lines.length; i++) {
       // Skip comment lines — mcp__ references in comments are documentation
       // of what the HOST calls, not violations of the no-third-party rule.
-      const trimmed = lines[i].trimStart();
+      const line = lines[i];
+      const trimmed = line.trimStart();
       if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
 
-      // Skip mcp__ references that appear *inside* a `description:` quoted
-      // string value — these are tool descriptor documentation strings that
-      // name the source MCP tool the host calls, not actual calls from the
-      // view tool. We must scope the skip to the quoted region itself, not
-      // the whole line, otherwise a bad-faith author could chain a benign
-      // `description:` field before a real runtime call and bypass E13.
-      // Pattern: `description: "...mcp__source__tool..."` — the ref must
-      // be inside the matched quoted string, immediately following the
-      // `description:` key.
-      const line = lines[i];
       const refs = extractMcpReferences(line);
       if (refs.length === 0) continue;
-
-      // Find every `description: "..."` (or '...' or `...`) quoted region.
-      const descriptionRegions: Array<[number, number]> = [];
-      const descRe = /description:\s*(["'`])((?:\\.|(?!\1).)*)\1/g;
-      let descMatch: RegExpExecArray | null;
-      while ((descMatch = descRe.exec(line)) !== null) {
-        const quoteChar = descMatch[1];
-        const contentStart = descMatch.index + descMatch[0].indexOf(quoteChar) + 1;
-        const contentEnd = contentStart + descMatch[2].length;
-        descriptionRegions.push([contentStart, contentEnd]);
-      }
 
       // For each ref, walk every occurrence on the line. A ref is skipped
       // ONLY if every occurrence sits inside a description-quoted region.
@@ -140,8 +164,9 @@ export function scanToolsDir(
           const idx = line.indexOf(ref, searchFrom);
           if (idx === -1) break;
           foundAny = true;
+          const absIdx = lineOffsets[i] + idx;
           const inDesc = descriptionRegions.some(
-            ([s, e]) => idx >= s && idx < e,
+            ([s, e]) => absIdx >= s && absIdx < e,
           );
           if (!inDesc) {
             allInDescription = false;
