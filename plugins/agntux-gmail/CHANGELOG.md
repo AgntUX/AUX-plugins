@@ -6,6 +6,30 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-05-17
+
+### Added
+
+- **Rich compose iframe restored.** The interactive React surface
+  the P5 architecture migration accidentally collapsed into a
+  ~70-line slim placeholder is now back. The iframe renders the
+  full Gmail `MainComponent` (recipients fields, drafted-body
+  editor, email-context disclosure, send/save-to-drafts controls)
+  with theme + safe-area integration and streaming partial-input
+  handling — the same UI the pre-P5
+  `ui-handlers/compose/component/` shipped. Architectural delivery
+  path is unchanged (view-tool emits one inlined HTML resource,
+  ~213 kB, served from the remote MCP registry).
+- Vendored `@agntux/ui-primitives` + `jose` into the view-tool.
+
+### Changed
+
+- `view-tool/package.json`: `tsc` is now `--noEmit` (esbuild owns the
+  runtime bundle); build prefixed with `rm -rf dist &&` so stale
+  artifacts can't leak.
+- `view-tool/tsconfig.json`: `moduleResolution: Bundler` +
+  `allowImportingTsExtensions` for the rich-tree imports.
+
 ## [4.0.6] — 2026-05-17
 
 ### Fixed

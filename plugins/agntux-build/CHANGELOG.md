@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-17
+
+### Added
+
+- **Canonical scaffold restored to rich-UI shape.**
+  `canonical/ui-handlers/_template/view-tool/src/` now ships the
+  full pre-P5 React tree (App.tsx, components/, hooks/,
+  lib/apps-client/, lib/apps-react/, `__tests__/` with 113 tests
+  worth of patterns) plus 11 locale files at `view-tool/locales/`.
+  New plugins scaffolded from this template inherit the rich
+  surface, not a `Loading…` placeholder.
+- `view-tool/vitest.config.ts` template — jsdom env, registers
+  `src/__tests__/setup.tsx`, includes both `src/__tests__/**` and
+  the `__tests__/payload-shape.test.ts` regression guard.
+
+### Changed
+
+- **Marketplace lint pass 12 (`scripts/lint/lint-apps-client-drift.ts`)
+  now scans recursively.** Plugins with the rich shape that ship
+  per-UI vendored copies under
+  `view-tool/src/apps/{ui-name}/lib/apps-client/` get every copy
+  byte-equality-checked, not just the slim
+  `view-tool/src/lib/apps-client/` shape. Closes the gap where
+  agntux-slack's compose + canvas vendored copies would have been
+  invisible to the drift check.
+- Pass 12 `EXTRA_COPIES` drops the obsolete `_template/component/`
+  path; the post-P5 `_template/view-tool/` is the only template
+  surface.
+- Apps-client `config.ts` swaps `declare global { const X }` for
+  `var` so multi-UI plugins with two vendored apps-client copies
+  in the same tsconfig don't fail with TS2451 ("Cannot redeclare
+  block-scoped variable").
+
+### Removed
+
+- Deleted `canonical/ui-handlers/_template/component/`. The
+  post-P5 `_template/view-tool/` is now the single source of
+  truth for scaffolded plugins; the component/ stub was a
+  pre-rich-restore artifact.
+
 ## [0.2.4] — 2026-05-17
 
 ### Added

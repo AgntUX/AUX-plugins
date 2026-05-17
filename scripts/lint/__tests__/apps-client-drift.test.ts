@@ -161,6 +161,112 @@ describe("pass12AppsClientDrift", () => {
     expect(findings).toEqual([]);
   });
 
+  it("emits no findings for rich-shape view-tool with multiple per-UI apps-client copies (all byte-equal)", () => {
+    // Rich-restoration layout: view-tool/src/apps/{compose,canvas}/lib/apps-client/.
+    // Pass 12's recursive scan must find BOTH and byte-equal-check each.
+    env = setupRepo();
+    const pluginDir = path.join(env.repoRoot, "plugins", "rich-multi");
+    const canon = path.join(env.repoRoot, CANONICAL_REL);
+    for (const ui of ["compose", "canvas"]) {
+      const vendorDir = path.join(
+        pluginDir,
+        "view-tool",
+        "src",
+        "apps",
+        ui,
+        "lib",
+        "apps-client",
+      );
+      fs.mkdirSync(vendorDir, { recursive: true });
+      fs.copyFileSync(
+        path.join(canon, "simple-mcp-app.ts"),
+        path.join(vendorDir, "simple-mcp-app.ts"),
+      );
+      fs.copyFileSync(
+        path.join(canon, "constants.ts"),
+        path.join(vendorDir, "constants.ts"),
+      );
+    }
+    const findings: Finding[] = [];
+    pass12AppsClientDrift("rich-multi", pluginDir, env.repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("emits E26 for the drifted copy when ONE of multiple per-UI apps-client copies drifts", () => {
+    env = setupRepo();
+    const pluginDir = path.join(env.repoRoot, "plugins", "rich-drift");
+    const canon = path.join(env.repoRoot, CANONICAL_REL);
+    // compose: byte-equal
+    const composeDir = path.join(
+      pluginDir,
+      "view-tool/src/apps/compose/lib/apps-client",
+    );
+    fs.mkdirSync(composeDir, { recursive: true });
+    fs.copyFileSync(
+      path.join(canon, "simple-mcp-app.ts"),
+      path.join(composeDir, "simple-mcp-app.ts"),
+    );
+    fs.copyFileSync(
+      path.join(canon, "constants.ts"),
+      path.join(composeDir, "constants.ts"),
+    );
+    // canvas: drifted simple-mcp-app.ts
+    const canvasDir = path.join(
+      pluginDir,
+      "view-tool/src/apps/canvas/lib/apps-client",
+    );
+    fs.mkdirSync(canvasDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(canvasDir, "simple-mcp-app.ts"),
+      "// drift in canvas\n",
+    );
+    fs.copyFileSync(
+      path.join(canon, "constants.ts"),
+      path.join(canvasDir, "constants.ts"),
+    );
+    const findings: Finding[] = [];
+    pass12AppsClientDrift("rich-drift", pluginDir, env.repoRoot, findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("E26");
+    expect(findings[0]?.file).toMatch(/apps\/canvas\/lib\/apps-client/);
+  });
+
+  it("recursive scan ignores node_modules/ and dist/ apps-client trees", () => {
+    // If a transitive dependency happens to have a directory named
+    // `apps-client/` (e.g. ext-apps published packages, or a stale dist
+    // copy), the recursive scan must NOT lint it.
+    env = setupRepo();
+    const pluginDir = path.join(env.repoRoot, "plugins", "with-nm-noise");
+    // Real vendored copy: byte-equal.
+    const realDir = path.join(pluginDir, "view-tool/src/lib/apps-client");
+    fs.mkdirSync(realDir, { recursive: true });
+    const canon = path.join(env.repoRoot, CANONICAL_REL);
+    fs.copyFileSync(
+      path.join(canon, "simple-mcp-app.ts"),
+      path.join(realDir, "simple-mcp-app.ts"),
+    );
+    fs.copyFileSync(
+      path.join(canon, "constants.ts"),
+      path.join(realDir, "constants.ts"),
+    );
+    // Noise: a drifted apps-client tree inside node_modules/ and dist/.
+    for (const trash of ["node_modules/foo/apps-client", "dist/apps-client"]) {
+      const trashDir = path.join(pluginDir, "view-tool/src", trash);
+      fs.mkdirSync(trashDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(trashDir, "simple-mcp-app.ts"),
+        "// drift in transitive\n",
+      );
+      fs.writeFileSync(
+        path.join(trashDir, "constants.ts"),
+        "// drift in transitive\n",
+      );
+    }
+    const findings: Finding[] = [];
+    pass12AppsClientDrift("with-nm-noise", pluginDir, env.repoRoot, findings);
+    expect(findings).toEqual([]);
+  });
+
   it("checks agntux-build's canonical _template/view-tool apps-client copy", () => {
     env = setupRepo();
     // No view-tool/ at the plugin root (agntux-build doesn't ship one)
