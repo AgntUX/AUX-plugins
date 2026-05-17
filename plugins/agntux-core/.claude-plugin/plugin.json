@@ -1,6 +1,6 @@
 {
   "name": "agntux-core",
-  "version": "9.5.6",
+  "version": "9.5.7",
   "description": "The AgntUX orchestrator.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0"

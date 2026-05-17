@@ -18,6 +18,7 @@
 // bug class this wrapper exists to prevent.
 // =============================================================================
 
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 

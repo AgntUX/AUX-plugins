@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { resolve } from "node:path";
 
@@ -31,8 +32,14 @@ if (!entryName || !(entryName in ENTRIES)) {
   );
 }
 
+// tailwindcss() is required so the Tailwind utility classes in the
+// `*-ui.tsx` sources actually resolve to CSS. The iframe loads ONLY the
+// inlined HTML — external stylesheets are never fetched — so the CSS
+// pipeline must run in-process and have its output inlined alongside
+// the JS. Marketplace lint pass 13 (E28) enforces this. See
+// CHANGELOG.md → 8.0.6.
 export default defineConfig({
-  plugins: [react(), viteSingleFile()],
+  plugins: [react(), tailwindcss(), viteSingleFile()],
   build: {
     outDir: "dist/ui-resources",
     rollupOptions: {

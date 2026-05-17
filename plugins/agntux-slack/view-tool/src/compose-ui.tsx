@@ -13,6 +13,7 @@
 // the bug-class rationale; same fix applied here.
 // =============================================================================
 
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 

@@ -6,6 +6,28 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.0.6] — 2026-05-17
+
+### Fixed
+
+- Compose view iframe now renders with proper styling instead of an
+  unstyled-HTML "raw text dump." Tailwind utility classes on
+  `compose-ui.tsx` (`p-4`, `text-lg`, `font-semibold`,
+  `whitespace-pre-wrap`, …) were dead strings because the
+  `view-tool/` bundle had no CSS pipeline. The iframe loads only the
+  inlined HTML; external stylesheets are never fetched. Same fix
+  and bug class as agntux-core 9.5.7 — see that CHANGELOG entry for
+  full context.
+
+  4.0.6 wires `@tailwindcss/vite` v4 into `view-tool/vite.config.ts`,
+  adds `view-tool/src/globals.css`, and imports it from
+  `compose-ui.tsx`. The single-file Vite plugin inlines the
+  JIT-pruned Tailwind CSS into `compose.html` alongside the JS.
+
+  Re-upload `dist-zips/agntux-gmail-4.0.6.zip` to Claude Desktop to
+  pick up the fix locally; remote hosts pick it up automatically
+  on the next `agntux-gmail@4.0.6` tag fetch.
+
 ## [4.0.5] — 2026-05-17
 
 ### Added

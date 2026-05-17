@@ -20,6 +20,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 // ./lib/apps-client/ which performs the ui/initialize handshake and
 // dispatches notifications to the right handler.
 // =============================================================================
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 function TriageView({ payload }) {
@@ -34,7 +35,7 @@ function TriageView({ payload }) {
     if (payload.bootstrap_mode) {
         return (_jsx("div", { className: "p-4", children: _jsx("p", { children: "Triage is empty. Sync a source plugin to populate items." }) }));
     }
-    return (_jsxs("div", { className: "p-4", children: [_jsxs("h1", { className: "text-lg font-semibold", children: ["Triage \u2014 ", payload.counts.open, " open, ", payload.counts.snoozed, " snoozed"] }), _jsx("ul", { className: "mt-2 space-y-2", children: payload.actions.map((a) => (_jsxs("li", { className: "border-b py-2", children: [_jsx("div", { className: "font-medium", children: a.title }), _jsxs("div", { className: "text-sm opacity-70", children: [a.priority, " \u00B7 ", a.reason_class] }), _jsx("p", { className: "text-sm mt-1", children: a.summary })] }, a.id))) }), payload.handled_recent.length > 0 && (_jsxs(_Fragment, { children: [_jsx("h2", { className: "text-md font-semibold mt-4", children: "Recently handled" }), _jsx("ul", { className: "mt-2 space-y-1", children: payload.handled_recent.map((h) => (_jsxs("li", { className: "text-sm", children: [h.title, " ", _jsxs("span", { className: "opacity-50", children: ["\u2014 ", h.handled_at] })] }, h.id))) })] }))] }));
+    return (_jsxs("div", { className: "p-4", children: [_jsxs("h1", { className: "text-lg font-semibold", children: ["Triage \u2014 ", payload.counts.open, " open, ", payload.counts.snoozed, " snoozed"] }), _jsx("ul", { className: "mt-2 space-y-2", children: payload.actions.map((a) => (_jsxs("li", { className: "border-b py-2", children: [_jsx("div", { className: "font-medium", children: a.title }), _jsxs("div", { className: "text-sm opacity-70", children: [a.priority, " \u00B7 ", a.reason_class] }), _jsx("p", { className: "text-sm mt-1", children: a.summary })] }, a.id))) }), payload.handled_recent.length > 0 && (_jsxs(_Fragment, { children: [_jsx("h2", { className: "text-base font-semibold mt-4", children: "Recently handled" }), _jsx("ul", { className: "mt-2 space-y-1", children: payload.handled_recent.map((h) => (_jsxs("li", { className: "text-sm", children: [h.title, " ", _jsxs("span", { className: "opacity-50", children: ["\u2014 ", h.handled_at] })] }, h.id))) })] }))] }));
 }
 const root = createRoot(document.getElementById("root"));
 let currentPayload = null;

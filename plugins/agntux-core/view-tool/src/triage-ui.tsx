@@ -20,6 +20,7 @@
 // dispatches notifications to the right handler.
 // =============================================================================
 
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 
@@ -96,7 +97,7 @@ function TriageView({ payload }: { payload: TriagePayload }): JSX.Element {
       </ul>
       {payload.handled_recent.length > 0 && (
         <>
-          <h2 className="text-md font-semibold mt-4">Recently handled</h2>
+          <h2 className="text-base font-semibold mt-4">Recently handled</h2>
           <ul className="mt-2 space-y-1">
             {payload.handled_recent.map((h) => (
               <li key={h.id} className="text-sm">

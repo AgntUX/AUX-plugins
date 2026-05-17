@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.7] — 2026-05-17
+
+### Fixed
+
+- Triage iframe now renders with proper styling instead of an
+  unstyled-HTML "raw text dump." The React tree was rendering
+  correctly (h1, divs, p) but every Tailwind utility class
+  (`p-4`, `text-lg`, `font-semibold`, `border-b`, `space-y-2`, …)
+  on `triage-ui.tsx` was a dead string because the `view-tool/`
+  bundle had no CSS pipeline — `tailwindcss` was not a dependency,
+  `vite.config.ts` had no Tailwind plugin, and `triage-ui.tsx`
+  imported no stylesheet. The iframe loads only the inlined HTML;
+  external stylesheets are never fetched. Without CSS, the
+  browser flowed every `<div>` as a default block and the visual
+  result looked like a raw text dump.
+- 9.5.7 wires `@tailwindcss/vite` v4 into `view-tool/vite.config.ts`,
+  adds `view-tool/src/globals.css` (`@import "tailwindcss";`), and
+  imports it from `triage-ui.tsx`. The single-file Vite plugin now
+  inlines the JIT-pruned Tailwind CSS into `triage.html` alongside
+  the JS so the iframe renders with the intended styling.
+
+  Marketplace lint pass 13 (E28, warning) was added in the same
+  pass to prevent this regression class structurally: any view-tool
+  whose `*-ui.tsx` references `className=` MUST emit an HTML
+  resource with a non-empty inline `<style>` block. The same fix
+  shipped to `agntux-slack` 8.0.6 and `agntux-gmail` 4.0.6.
+
+  Re-upload `dist-zips/agntux-core-9.5.7.zip` to Claude Desktop to
+  pick up the fix locally; remote hosts pick it up automatically
+  on the next `agntux-core@9.5.7` tag fetch.
+
 ## [9.5.6] — 2026-05-17
 
 ### Added
