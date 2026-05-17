@@ -67,6 +67,26 @@ export interface ParsedAction {
 }
 /** Shape of a single on-disk action file (frontmatter + body sections). */
 export type ActionFile = ParsedAction;
+/**
+ * Plugin-agnostic YAML-frontmatter extraction.
+ *
+ * Unlike `parseFrontmatter` (which normalises to the agntux-core
+ * `ActionFrontmatter` shape), this helper returns the raw parsed YAML
+ * object so callers can index on arbitrary keys. Used by:
+ *
+ *   - The sync API's blob-upload write path, to populate the
+ *     `blob_metadata.metadata` jsonb column.
+ *   - The local-fs ViewToolContext's `listWithMeta`, to synthesize
+ *     metadata on the fly during dev iteration.
+ *
+ * Returns `null` when the file has no `---`-delimited frontmatter
+ * block, or when the YAML inside it can't be parsed. Returns `{}` only
+ * if the frontmatter block is genuinely empty (`---\n\n---\n`).
+ *
+ * The body of the file is intentionally NOT returned — callers that
+ * need both parts should use `parseFrontmatter`.
+ */
+export declare function extractFrontmatterMetadata(text: string): Record<string, unknown> | null;
 export declare function parseFrontmatter(text: string): {
     frontmatter: ActionFrontmatter;
     body: string;

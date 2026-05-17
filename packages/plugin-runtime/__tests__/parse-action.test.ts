@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractFrontmatterMetadata,
   extractSection,
   parseActionFile,
   parseFrontmatter,
@@ -137,5 +138,49 @@ Because B.
 text
 `;
     expect(extractSection(body, "A.B (C)")).toBe("text");
+  });
+});
+
+describe("extractFrontmatterMetadata", () => {
+  it("returns the raw parsed YAML object for a file with frontmatter", () => {
+    const text = `---
+status: open
+priority: high
+---
+body content
+`;
+    const result = extractFrontmatterMetadata(text);
+    expect(result).toEqual({ status: "open", priority: "high" });
+  });
+
+  it("returns null when the file has no frontmatter delimiter", () => {
+    expect(extractFrontmatterMetadata("just prose, no fences")).toBeNull();
+  });
+
+  it("returns null when the YAML block is not an object (array)", () => {
+    const text = `---
+- a
+- b
+---
+body`;
+    expect(extractFrontmatterMetadata(text)).toBeNull();
+  });
+
+  it("returns null when the YAML block is not an object (scalar)", () => {
+    const text = `---
+hello
+---
+body`;
+    expect(extractFrontmatterMetadata(text)).toBeNull();
+  });
+
+  it("returns null for malformed YAML rather than throwing", () => {
+    const text = `---
+: : : invalid yaml
+key: [unclosed
+---
+body`;
+    expect(() => extractFrontmatterMetadata(text)).not.toThrow();
+    expect(extractFrontmatterMetadata(text)).toBeNull();
   });
 });

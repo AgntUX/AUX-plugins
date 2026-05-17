@@ -13,5 +13,5 @@
 // surface and `src/context.ts` for the FROZEN ViewToolContext contract.
 // =============================================================================
 export { mergeScope, ViewToolFsError } from "./context.js";
-export { extractFencedYaml, extractSection, parseActionFile, parseComposePayload, parseFrontmatter, } from "./parse-action.js";
+export { extractFencedYaml, extractFrontmatterMetadata, extractSection, parseActionFile, parseComposePayload, parseFrontmatter, } from "./parse-action.js";
 export { DataPathSchema, HandlerModuleRegex, HtmlPathRegex, McpAppMetaSchema, ScopeSchema, UiBundleSchema, UiResourceUriRegex, ViewToolSchema, ViewToolsManifestSchema, } from "./manifest-schema.js";
