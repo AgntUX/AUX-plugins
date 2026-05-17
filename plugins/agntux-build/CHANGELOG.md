@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-05-17
+
+### Added
+
+- Canonical view-tool scaffold now ships
+  `__tests__/payload-shape.test.ts` — a regression-guard test that
+  asserts `structuredContent` stays under a byte budget and the row
+  keys exactly match the iframe's rendered set. Catches the agntux-core
+  9.5.3 bug class (a saturated `triage_view` workspace shipping ~62 KB
+  per call and getting rejected by the host's max-tokens cap before
+  reaching the chat model). Scaffolded plugins inherit the test
+  automatically; authors customise `KEPT_KEYS` and
+  `PAYLOAD_BUDGET_BYTES` per their handler shape.
+- Canonical `__ui-name__-view.ts` carries a new "Payload-shape rule"
+  comment block pointing at the regression-guard test and the
+  agntux-core CHANGELOG entry that motivates it.
+- Marketplace linter pass 11 (E24/E25, warning-severity) flags any
+  plugin that ships `view-tool/` without a payload-shape test, or
+  with a test that lacks a byte-size assertion. Warning rather than
+  error so existing plugins without the test (agntux-slack,
+  agntux-gmail) don't break CI; promote to error once every plugin
+  ships the file.
+
 ## [0.2.1] — 2026-05-16
 
 Republish at fresh tag. No source changes — pairs with the agntux/app

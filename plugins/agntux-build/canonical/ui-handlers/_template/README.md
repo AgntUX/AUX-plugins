@@ -18,6 +18,11 @@ _template/
                                 # lint pass 10 (E23) for the rationale.
     scripts/
       emit-manifest.mjs         # Emits view-tools.manifest.json
+    __tests__/
+      payload-shape.test.ts     # Required regression guard — asserts a
+                                # byte-budget + frozen key-set on the
+                                # structuredContent. Marketplace linter
+                                # pass 11 (E24/E25) checks for it.
     package.json
     tsconfig.json
     vite.config.ts

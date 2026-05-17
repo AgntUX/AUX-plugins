@@ -28,6 +28,7 @@ import {
   pass10ViewToolBundles,
   pass10ViewToolBundlesInZip,
 } from "./lint/lint-view-tool-bundles.js";
+import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -656,6 +657,11 @@ export function lintPlugin(
   // was packaged from an older tree (e.g. --skip-build, or a stale
   // checkout). Skipped silently when no dist-zips/ tree exists.
   pass10ViewToolBundlesInZip(pluginSlug, opts.repoRoot, findings);
+  // Pass 11 — every plugin that ships a view-tool/ MUST also ship a
+  // payload-shape regression-guard test. Warning-only for now so
+  // existing plugins without the test (agntux-slack, agntux-gmail)
+  // don't break CI; promote to error once every plugin has it.
+  pass11ViewToolPayloadGuard(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 
