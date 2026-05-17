@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_slack",
-  "plugin_version": "8.0.6",
+  "plugin_version": "8.1.0",
   "handler_module": "view-tool/dist/agntux-slack-view.js",
   "view_tools": [
     {
