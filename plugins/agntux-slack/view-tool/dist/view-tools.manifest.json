@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_slack",
-  "plugin_version": "8.0.2",
+  "plugin_version": "8.0.3",
   "handler_module": "view-tool/dist/agntux-slack-view.js",
   "view_tools": [
     {
@@ -42,22 +42,12 @@
       "mcp_app_meta": {
         "resourceUri": "ui://agntux-slack/compose",
         "csp": {
-          "default_src": [
-            "'self'"
-          ],
-          "script_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ],
-          "style_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ]
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
         },
-        "permissions": {
-          "allowFollowUp": true,
-          "allowFormSubmit": true
-        }
+        "permissions": {}
       }
     },
     {
@@ -96,22 +86,12 @@
       "mcp_app_meta": {
         "resourceUri": "ui://agntux-slack/canvas",
         "csp": {
-          "default_src": [
-            "'self'"
-          ],
-          "script_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ],
-          "style_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ]
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
         },
-        "permissions": {
-          "allowFollowUp": true,
-          "allowFormSubmit": true
-        }
+        "permissions": {}
       }
     }
   ],
@@ -120,43 +100,23 @@
       "uri": "ui://agntux-slack/compose",
       "html_path": "view-tool/dist/ui-resources/compose.html",
       "csp": {
-        "default_src": [
-          "'self'"
-        ],
-        "script_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-        "style_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ]
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
       },
-      "permissions": {
-        "allowFollowUp": true,
-        "allowFormSubmit": true
-      }
+      "permissions": {}
     },
     {
       "uri": "ui://agntux-slack/canvas",
       "html_path": "view-tool/dist/ui-resources/canvas.html",
       "csp": {
-        "default_src": [
-          "'self'"
-        ],
-        "script_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-        "style_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ]
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
       },
-      "permissions": {
-        "allowFollowUp": true,
-        "allowFormSubmit": true
-      }
+      "permissions": {}
     }
   ]
 }

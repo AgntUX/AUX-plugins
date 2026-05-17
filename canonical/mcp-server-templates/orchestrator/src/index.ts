@@ -24,17 +24,21 @@ const TOOLS = {
   pivot: pivotTool,
 };
 
+// mimeType MUST be `text/html;profile=mcp-app` per MCP Apps spec
+// (specification/2026-01-26/apps.mdx). Bare `text/html` causes strict hosts
+// to reject the resource on `resources/read` with "Unsupported UI resource
+// content format" — must match the value returned from ui-resources.ts.
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: [
     {
       uri: "ui://triage",
       name: "Action item triage view",
-      mimeType: "text/html",
+      mimeType: "text/html;profile=mcp-app",
     },
     {
       uri: "ui://entity-browser",
       name: "Entity browser",
-      mimeType: "text/html",
+      mimeType: "text/html;profile=mcp-app",
     },
   ],
 }));

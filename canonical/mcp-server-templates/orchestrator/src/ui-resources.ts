@@ -1,5 +1,4 @@
 import { fetchUIBundle, readRenderTokenFromLicense } from "./s3-fetch.js";
-import { buildCSP } from "./csp.js";
 
 const UI_PATHS: Record<string, string> = {
   "ui://triage": "triage/index.html",
@@ -44,21 +43,35 @@ export async function handleUIResource(uri: string): Promise<ResourceResponse | 
     };
   }
 
-  const csp = buildCSP();
-
   // Read render token from ~/.agntux/.license per P2a §4.
   // If the file is missing or malformed, returns undefined — the gate fails closed
   // with reason: "missing" (P2a §6.1). Do NOT throw.
   const license = readRenderTokenFromLicense();
 
+  // MCP Apps spec (specification/2026-01-26/apps.mdx):
+  //   mimeType MUST be `text/html;profile=mcp-app`; the host BUILDS the CSP
+  //   header from `_meta.ui.csp.{connectDomains,resourceDomains,frameDomains,
+  //   baseUriDomains}` (already injects 'self' 'unsafe-inline' for the
+  //   inlined <script type="module"> bundle). Any other shape — including
+  //   the legacy `_meta["openai/widgetCSP"]` string form or a raw
+  //   `script_src`/`style_src` object — fails strict hosts with
+  //   "Unsupported UI resource content format".
   return {
     contents: [
       {
         uri,
-        mimeType: "text/html",
+        mimeType: "text/html;profile=mcp-app",
         text: html,
         _meta: {
-          "openai/widgetCSP": csp,
+          ui: {
+            prefersBorder: true,
+            csp: {
+              connectDomains: [],
+              resourceDomains: [],
+              frameDomains: [],
+              baseUriDomains: [],
+            },
+          },
           ...(license ? { license } : {}),
         },
       },

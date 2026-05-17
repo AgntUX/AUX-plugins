@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_core",
-  "plugin_version": "9.5.1",
+  "plugin_version": "9.5.2",
   "handler_module": "view-tool/dist/agntux-core-view.js",
   "view_tools": [
     {
@@ -45,22 +45,12 @@
       "mcp_app_meta": {
         "resourceUri": "ui://agntux-core/triage",
         "csp": {
-          "default_src": [
-            "'self'"
-          ],
-          "script_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ],
-          "style_src": [
-            "'self'",
-            "'unsafe-inline'"
-          ]
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
         },
-        "permissions": {
-          "allowFollowUp": true,
-          "allowFormSubmit": true
-        }
+        "permissions": {}
       }
     }
   ],
@@ -69,22 +59,12 @@
       "uri": "ui://agntux-core/triage",
       "html_path": "view-tool/dist/ui-resources/triage.html",
       "csp": {
-        "default_src": [
-          "'self'"
-        ],
-        "script_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-        "style_src": [
-          "'self'",
-          "'unsafe-inline'"
-        ]
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
       },
-      "permissions": {
-        "allowFollowUp": true,
-        "allowFormSubmit": true
-      }
+      "permissions": {}
     }
   ]
 }

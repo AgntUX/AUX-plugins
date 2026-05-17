@@ -14,4 +14,4 @@
 // =============================================================================
 export { mergeScope, ViewToolFsError } from "./context.js";
 export { extractFencedYaml, extractFrontmatterMetadata, extractSection, parseActionFile, parseComposePayload, parseFrontmatter, } from "./parse-action.js";
-export { DataPathSchema, HandlerModuleRegex, HtmlPathRegex, McpAppMetaSchema, ScopeSchema, UiBundleSchema, UiResourceUriRegex, ViewToolSchema, ViewToolsManifestSchema, } from "./manifest-schema.js";
+export { DataPathSchema, HandlerModuleRegex, HtmlPathRegex, McpAppMetaSchema, McpUiCspSchema, McpUiPermissionsSchema, ScopeSchema, UiBundleSchema, UiResourceUriRegex, ViewToolSchema, ViewToolsManifestSchema, } from "./manifest-schema.js";

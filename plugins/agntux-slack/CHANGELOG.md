@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.3] — 2026-05-16
+
+### Fixed
+
+- Compose and canvas view tools' served `_meta.ui` envelopes now
+  match the MCP Apps spec
+  (`modelcontextprotocol/ext-apps/specification/2026-01-26/apps.mdx`).
+  8.0.2 fixed the HTML bundles themselves but the manifest still
+  emitted Web-CSP-directive keys (`default_src`, `script_src`,
+  `style_src`) under `_meta.ui.csp` and sandbox-iframe-style keys
+  (`allowFollowUp`, `allowFormSubmit`) under `_meta.ui.permissions` —
+  neither vocabulary is in the spec. Strict hosts (claude.ai,
+  Claude Desktop) rejected the resources with "Unsupported UI resource
+  content format" even though the bodies were valid HTML. The manifest
+  now emits the canonical four CSP domain lists (`connectDomains`,
+  `resourceDomains`, `frameDomains`, `baseUriDomains`, all empty
+  arrays because the bundles are fully inlined) and an empty
+  `permissions` object. `@agntux/plugin-runtime`'s manifest schema
+  was tightened so the regression is structurally impossible going
+  forward.
+
+  Re-upload `dist-zips/agntux-slack-8.0.3.zip` to Claude Desktop to
+  pick up the corrected manifest; remote hosts pick it up
+  automatically on the next `agntux-slack@8.0.3` tag fetch.
+
 ## [8.0.2] — 2026-05-16
 
 ### Fixed

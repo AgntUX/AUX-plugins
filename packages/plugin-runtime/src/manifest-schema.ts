@@ -33,12 +33,42 @@ export const DataPathSchema = z.object({
 // Both halves are lower-kebab; the leading letter must be a-z.
 export const UiResourceUriRegex = /^ui:\/\/[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/;
 
+// MCP Apps spec (specification/2026-01-26/apps.mdx, §_meta.ui):
+//   csp keys: connectDomains / resourceDomains / frameDomains / baseUriDomains
+//             (string[]) — the host BUILDS the CSP header from these.
+//   permission keys: camera / microphone / geolocation / clipboardWrite
+//             (each an empty object `{}`) — map to the iframe's `allow` attr.
+// Anything else is non-spec and a strict host (Claude desktop / claude.ai)
+// will reject the served envelope with "Unsupported UI resource content
+// format". Schema is .strict() so a typo or legacy `default_src`/
+// `allowFollowUp`-style key fails build-time Zod validation in
+// emit-manifest.mjs — making the regression structurally impossible.
+const DomainList = z.array(z.string()).optional();
+export const McpUiCspSchema = z
+  .object({
+    connectDomains: DomainList,
+    resourceDomains: DomainList,
+    frameDomains: DomainList,
+    baseUriDomains: DomainList,
+  })
+  .strict();
+
+const PermFlag = z.object({}).strict().optional();
+export const McpUiPermissionsSchema = z
+  .object({
+    camera: PermFlag,
+    microphone: PermFlag,
+    geolocation: PermFlag,
+    clipboardWrite: PermFlag,
+  })
+  .strict();
+
 // Decision D: mcp_app_meta is pre-joined at build time into each view_tools[]
 // entry so the runtime never has to walk `ui_bundles[]` to emit `_meta.ui`.
 export const McpAppMetaSchema = z.object({
   resourceUri: z.string().regex(UiResourceUriRegex),
-  csp: z.record(z.unknown()),
-  permissions: z.record(z.unknown()),
+  csp: McpUiCspSchema,
+  permissions: McpUiPermissionsSchema,
 });
 
 export const ViewToolSchema = z.object({
@@ -82,8 +112,8 @@ export const HtmlPath = z
 export const UiBundleSchema = z.object({
   uri: z.string().regex(UiResourceUriRegex),
   html_path: HtmlPath,
-  csp: z.record(z.unknown()),
-  permissions: z.record(z.unknown()),
+  csp: McpUiCspSchema,
+  permissions: McpUiPermissionsSchema,
 });
 
 export const ViewToolsManifestSchema = z
@@ -110,5 +140,7 @@ export const ViewToolsManifestSchema = z
 export type ViewToolsManifest = z.infer<typeof ViewToolsManifestSchema>;
 export type DataPath = z.infer<typeof DataPathSchema>;
 export type McpAppMeta = z.infer<typeof McpAppMetaSchema>;
+export type McpUiCsp = z.infer<typeof McpUiCspSchema>;
+export type McpUiPermissions = z.infer<typeof McpUiPermissionsSchema>;
 export type ViewToolEntry = z.infer<typeof ViewToolSchema>;
 export type UiBundleEntry = z.infer<typeof UiBundleSchema>;

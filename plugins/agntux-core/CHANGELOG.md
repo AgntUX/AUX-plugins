@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.2] — 2026-05-16
+
+### Fixed
+
+- Triage view tool's served `_meta.ui` envelope now matches the MCP
+  Apps spec
+  (`modelcontextprotocol/ext-apps/specification/2026-01-26/apps.mdx`).
+  9.5.1 fixed the HTML bundle itself but the manifest still emitted
+  Web-CSP-directive keys (`default_src`, `script_src`, `style_src`)
+  under `_meta.ui.csp` and sandbox-iframe-style keys
+  (`allowFollowUp`, `allowFormSubmit`) under `_meta.ui.permissions` —
+  neither vocabulary is in the spec. Strict hosts (claude.ai,
+  Claude Desktop) rejected the resource with "Unsupported UI resource
+  content format" even though the body was valid HTML. The manifest
+  now emits the canonical four CSP domain lists (`connectDomains`,
+  `resourceDomains`, `frameDomains`, `baseUriDomains`, all empty
+  arrays because the bundle is fully inlined) and an empty
+  `permissions` object. `@agntux/plugin-runtime`'s manifest schema
+  was tightened from `z.record(z.unknown())` to a `.strict()` shape
+  that rejects non-canonical keys at build time, so the regression
+  is structurally impossible going forward.
+
+  Re-upload `dist-zips/agntux-core-9.5.2.zip` to Claude Desktop to
+  pick up the corrected manifest; remote hosts pick it up
+  automatically on the next `agntux-core@9.5.2` tag fetch.
+
 ## [9.5.1] — 2026-05-16
 
 ### Fixed
