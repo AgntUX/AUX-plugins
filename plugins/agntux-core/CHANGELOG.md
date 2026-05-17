@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.6] — 2026-05-17
+
+### Added
+
+- Iframe shows an explicit "Couldn't reach the host" error when the
+  `SimpleMcpApp.connect()` handshake fails — previously the iframe
+  stayed on "Loading…" indefinitely on any connect-side failure
+  (handshake timeout, postMessage origin mismatch, JSON-RPC error).
+  The `TriagePayload` union gains a `{ connect_error: string }`
+  variant which the React tree renders with the underlying error
+  message so the user can distinguish "host is slow" from "host is
+  unreachable."
+
+### Fixed
+
+- `SimpleMcpApp` no longer spams the iframe console with
+  `[SimpleMcpApp] incoming message: …` on every host postMessage in
+  production. The log is now gated behind
+  `window.__MCP_APPS_DEBUG__`. Reduces console noise to zero on a
+  healthy iframe; the debug flag is still available for diagnosis.
+
 ## [9.5.5] — 2026-05-17
 
 ### Fixed

@@ -128,4 +128,77 @@ describe("isActionFilePath", () => {
       ),
     ).toBe(false);
   });
+
+  // ── Gap: timestamp formats that look similar but aren't YYYYMMDD-HHmm ──────
+
+  it("accepts a file whose stem ends with an ISO 8601 datetime (not a conflict copy)", () => {
+    // ISO 8601 timestamps like `2026-05-15T12:18` are NOT the daemon shape.
+    // The daemon uses `YYYYMMDD-HHmm` (no dashes inside the date part,
+    // hyphen separator between date and time). A filename with an ISO
+    // timestamp outside the conflict-copy parentheses must pass.
+    expect(
+      isActionFilePath("actions/note-2026-05-15T12:18.md"),
+    ).toBe(true);
+  });
+
+  it("rejects only when the YYYYMMDD-HHmm timestamp appears inside the conflict-copy parentheses", () => {
+    // Bare YYYYMMDD-HHmm in the stem (not inside parens with the trigger
+    // phrase) must still be accepted — user can name files however they like.
+    expect(isActionFilePath("actions/20260515-1218-standup.md")).toBe(true);
+  });
+
+  it("accepts conflict-copy-shaped timestamp but wrong trigger phrase (typo / user-authored)", () => {
+    // "conflicted-copy" (hyphen, not space) doesn't match the daemon phrase.
+    expect(
+      isActionFilePath(
+        "actions/note (Sam's conflicted-copy 20260315-1200).md",
+      ),
+    ).toBe(true);
+  });
+
+  // ── Gap: sanitized display names (daemon strips /[\\/:*?"<>|]/ from name) ──
+
+  it("rejects conflict copy whose display name was sanitized by the daemon", () => {
+    // Daemon replaces /[\\/:*?"<>|]/ with "" but NOT the apostrophe.
+    // A display name like `O'Brien` survives sanitization intact, so
+    // `O'Brien's conflicted copy YYYYMMDD-HHmm` matches the regex.
+    // Verify the predicate rejects that path.
+    expect(
+      isActionFilePath(
+        "actions/note (O'Brien's conflicted copy 20260315-1200).md",
+      ),
+    ).toBe(false);
+  });
+
+  // ── Gap: extension-less filename ─────────────────────────────────────────────
+
+  it("rejects extension-less filenames", () => {
+    expect(isActionFilePath("actions/action-001")).toBe(false);
+  });
+
+  it("rejects extension-less conflict-copy sibling", () => {
+    // CONFLICTED_COPY_RE ends with `\.[A-Za-z0-9]+$` so it only matches
+    // when there IS an extension. An extension-less path is rejected first
+    // by the `.md` check, which is the correct outcome regardless.
+    expect(
+      isActionFilePath(
+        "actions/note (Sam's conflicted copy 20260315-1200)",
+      ),
+    ).toBe(false);
+  });
+
+  // ── Gap: nested conflict-of-conflict (real shape in the user's data) ─────────
+
+  it("rejects nested 'conflict-of-conflict' siblings (real shape from agntux-teams)", () => {
+    // When the daemon catches a 409 against an already-conflicted-copy
+    // sibling, it appends another `(...'s conflicted copy YYYYMMDD-HHmm)`
+    // suffix. The greedy `.+` in CONFLICTED_COPY_RE absorbs the inner
+    // group; the trailing `\)\.[A-Za-z0-9]+$` anchor matches the
+    // outermost parens. Both single-level and nested forms reject.
+    expect(
+      isActionFilePath(
+        "actions/note (mac.lan's conflicted copy 20260515-1218) (mac.lan's conflicted copy 20260515-1227).md",
+      ),
+    ).toBe(false);
+  });
 });

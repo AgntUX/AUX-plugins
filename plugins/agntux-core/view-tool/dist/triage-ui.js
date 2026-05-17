@@ -25,6 +25,9 @@ import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 function TriageView({ payload }) {
     if (!payload)
         return _jsx("div", { className: "p-4", children: "Loading\u2026" });
+    if ("connect_error" in payload) {
+        return (_jsxs("div", { className: "p-4", children: [_jsx("p", { className: "font-semibold", children: "Couldn't reach the host." }), _jsx("p", { className: "text-sm opacity-70 mt-1", children: payload.connect_error }), _jsxs("p", { className: "text-sm mt-2", children: ["Refresh the iframe or re-invoke ", _jsx("code", { children: "/agntux triage-digest" }), "."] })] }));
+    }
     if ("error" in payload) {
         return (_jsx("div", { className: "p-4", children: _jsx("p", { children: "No action items yet \u2014 run /agntux onboard to get started." }) }));
     }
@@ -50,10 +53,12 @@ app.ontoolresult = (params) => {
     root.render(_jsx(TriageView, { payload: currentPayload }));
 };
 void app.connect().catch((err) => {
-    // Connection failure is the host's problem — we render Loading… so the
-    // user sees something rather than a blank iframe. Re-thrown errors here
-    // would surface in the host's iframe-error reporter (if any) but
-    // otherwise have no recourse.
-    console.error("[triage-view] SimpleMcpApp.connect failed:", err);
+    // 9.5.6: don't leave the iframe stuck on "Loading…" if the host
+    // handshake fails. Render an error state with the message so the user
+    // knows it's a connect failure (not a slow-loading payload).
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[triage-view] SimpleMcpApp.connect failed:", msg);
+    currentPayload = { connect_error: msg };
+    root.render(_jsx(TriageView, { payload: currentPayload }));
 });
 //# sourceMappingURL=triage-ui.js.map

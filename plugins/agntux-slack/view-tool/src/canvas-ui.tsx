@@ -24,10 +24,22 @@ interface CanvasPayloadOk {
   };
 }
 
-type CanvasPayload = CanvasPayloadOk | { error: string } | null;
+type CanvasPayload =
+  | CanvasPayloadOk
+  | { error: string }
+  | { connect_error: string }
+  | null;
 
 function CanvasView({ payload }: { payload: CanvasPayload }): JSX.Element {
   if (!payload) return <div className="p-4">Loading…</div>;
+  if ("connect_error" in payload) {
+    return (
+      <div className="p-4">
+        <p className="font-semibold">Couldn't reach the host.</p>
+        <p className="text-sm opacity-70 mt-1">{payload.connect_error}</p>
+      </div>
+    );
+  }
   if ("error" in payload) {
     return <div className="p-4">Error: {payload.error}</div>;
   }
@@ -68,5 +80,8 @@ app.ontoolresult = (params) => {
 };
 
 void app.connect().catch((err: unknown) => {
-  console.error("[canvas-view] SimpleMcpApp.connect failed:", err);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error("[canvas-view] SimpleMcpApp.connect failed:", msg);
+  currentPayload = { connect_error: msg };
+  root.render(<CanvasView payload={currentPayload} />);
 });
