@@ -6,6 +6,61 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.3] — 2026-05-17
+
+### Fixed
+
+- Triage view tool's `structuredContent` no longer exceeds the host's
+  max-tokens cap. A workspace with the default 30 open actions could
+  produce a ~62 KB JSON-RPC tool-result body (each row carried two
+  600-char excerpts plus arrays of related entities and suggested
+  actions, almost none of which the iframe rendered), at which point
+  Claude rejected the result with `result (62,863 characters) exceeds
+  maximum allowed tokens` and the triage UI failed to render.
+  9.5.3 trims the per-action payload to the six fields
+  `agntux-core/triage.html` actually reads (`id`, `title`, `summary`,
+  `priority`, `status`, `reason_class`) plus an internal `due_by` the
+  iframe ignores but the server uses for sorting — seven keys total.
+  Per-handled-row payload is trimmed from six fields to three (`id`,
+  `title`, `handled_at`). Typical 30-row worst-case payload is now
+  ~17 KB, well under the cap. No iframe-render change for the user —
+  the dropped fields were declared on the iframe's `TriageActionRow`
+  interface but never bound to any JSX.
+
+  Re-upload `dist-zips/agntux-core-9.5.3.zip` to Claude Desktop to
+  pick up the trimmed bundle locally; remote hosts pick it up
+  automatically on the next `agntux-core@9.5.3` tag fetch.
+
+### Compatibility
+
+- `last_updated_at` semantics preserved: still the max-of-row
+  frontmatter.updated_at across the scanned set (snapshot-time
+  fallback when no row carries it). Computed server-side in
+  `processActionsDir` and surfaced as a single top-level scalar so
+  per-row `updated_at` doesn't ship on the wire.
+- S3/remote-fs path is unchanged. The dropped fields were never
+  populated from S3 metadata; the trim only affects the local-fs
+  rendering side of the wire shape.
+- The legacy/aspirational triage component subtree at
+  `ui-handlers/triage/component/src/components/main-component.tsx`
+  reads several of the dropped fields (`snoozed_until`, `source`,
+  `related_entities`, `suggested_actions`, `why_matters_excerpt`,
+  `personalization_fit_excerpt`, `created_at`, `updated_at`, plus
+  handled-row `priority` / `status` / `outcome`). That subtree is
+  NOT the live iframe entry — `view-tools.manifest.json` ships
+  `view-tool/dist/ui-resources/triage.html` (built from
+  `view-tool/src/triage-ui.tsx`). Any future migration that promotes
+  those primitives back to the iframe entry must either restore the
+  dropped fields under a paginated detail-fetch shape or rebind to
+  the trimmed payload — do not assume the 9.5.2 wire shape will
+  return.
+- The stale unit test at `mcp-server/__tests__/triage-view.test.ts`
+  was already broken pre-9.5.3 (imports a path that doesn't exist
+  post the P5 migration). 9.5.3 widens the gap between its
+  assertions and the live shape; rewrite is deferred to a separate
+  cleanup. A new focused regression-guard suite lives at
+  `view-tool/__tests__/payload-shape.test.ts`.
+
 ## [9.5.2] — 2026-05-16
 
 ### Fixed
