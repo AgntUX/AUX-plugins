@@ -93,4 +93,39 @@ describe("isActionFilePath", () => {
   it("rejects non-.md extensions", () => {
     expect(isActionFilePath("actions/notes.txt")).toBe(false);
   });
+
+  // 9.5.5 — agntux-teams daemon conflict-copy filter. The daemon's
+  // `push.ts → conflictedCopyPath()` produces sibling files whose
+  // frontmatter `id` matches the original, so the triage view-tool
+  // would otherwise show every action N+1 times.
+
+  it("rejects agntux-teams conflicted-copy siblings", () => {
+    expect(
+      isActionFilePath(
+        "actions/2026-05-06-relay-2025-scope-decision-5pm (John Jordan's conflicted copy 20260510-1430).md",
+      ),
+    ).toBe(false);
+    expect(
+      isActionFilePath(
+        "actions/action-001 (Sarah's conflicted copy 20260101-0900).md",
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts an action with the word 'conflict' anywhere else in the name", () => {
+    // Defensive: the regex anchors on the FULL `'s conflicted copy YYYYMMDD-HHmm`
+    // shape, so a user-authored filename mentioning "conflict" passes.
+    expect(isActionFilePath("actions/team-meeting-conflict.md")).toBe(true);
+    expect(isActionFilePath("actions/2026-conflict-resolution-plan.md")).toBe(
+      true,
+    );
+  });
+
+  it("rejects conflict copy with unusual but valid display names", () => {
+    expect(
+      isActionFilePath(
+        "actions/note (Dr. María García-López's conflicted copy 20260315-2359).md",
+      ),
+    ).toBe(false);
+  });
 });

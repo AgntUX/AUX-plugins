@@ -2,7 +2,9 @@ import { type ViewToolModule } from "@agntux/plugin-runtime";
 /**
  * Filter a `list` / `listWithMeta` result down to real action files —
  * `.md` extension, no leading underscore (skips `_index.md` and any
- * other sidecar files that use the same convention).
+ * other sidecar files that use the same convention), and not an
+ * agntux-teams daemon conflict-copy sibling (those parse to the same
+ * action id as the original and would produce N+1 phantom rows).
  */
 export declare function isActionFilePath(p: string): boolean;
 /**
