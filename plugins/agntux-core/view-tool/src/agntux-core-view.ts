@@ -121,15 +121,40 @@ function firstParagraph(s: string): string {
 }
 
 /**
+ * Conflict-file pattern produced by the agntux-teams daemon when its
+ * push detects a 409 from the server. The daemon renames the local
+ * file to `{stem} ({DisplayName}'s conflicted copy YYYYMMDD-HHmm){ext}`
+ * before re-pushing, so the original path keeps the server's content
+ * and the local sibling preserves the user's divergent edits — see
+ * `agntux-teams/src/daemon/push.ts → conflictedCopyPath()`.
+ *
+ * These sibling files keep the SAME `id:` in frontmatter as the
+ * original action, so the triage view-tool would otherwise surface
+ * each action N+1 times (once for the original, once per conflict
+ * copy). 9.5.5 filters them out at `isActionFilePath()` so they
+ * never enter the scan. The on-disk / S3 garbage-collection of
+ * already-uploaded conflict files is a separate cleanup pass.
+ *
+ * Regex anchors on the literal "'s conflicted copy " phrase plus the
+ * YYYYMMDD-HHmm timestamp inside parentheses so a user's natural-
+ * language filename containing "conflict" can't match accidentally.
+ */
+const CONFLICTED_COPY_RE =
+  /\(.+'s conflicted copy \d{8}-\d{4}\)\.[A-Za-z0-9]+$/;
+
+/**
  * Filter a `list` / `listWithMeta` result down to real action files —
  * `.md` extension, no leading underscore (skips `_index.md` and any
- * other sidecar files that use the same convention).
+ * other sidecar files that use the same convention), and not an
+ * agntux-teams daemon conflict-copy sibling (those parse to the same
+ * action id as the original and would produce N+1 phantom rows).
  */
 export function isActionFilePath(p: string): boolean {
   const base = p.split("/").pop() ?? "";
   if (!base.endsWith(".md")) return false;
   if (base === "_index.md") return false;
   if (base.startsWith("_")) return false;
+  if (CONFLICTED_COPY_RE.test(base)) return false;
   return true;
 }
 

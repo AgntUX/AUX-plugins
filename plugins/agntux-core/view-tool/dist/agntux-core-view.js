@@ -41,11 +41,13 @@ function firstParagraph(s) {
   const idx = s.indexOf("\n\n");
   return (idx >= 0 ? s.slice(0, idx) : s).trim();
 }
+var CONFLICTED_COPY_RE = /\(.+'s conflicted copy \d{8}-\d{4}\)\.[A-Za-z0-9]+$/;
 function isActionFilePath(p) {
   const base = p.split("/").pop() ?? "";
   if (!base.endsWith(".md")) return false;
   if (base === "_index.md") return false;
   if (base.startsWith("_")) return false;
+  if (CONFLICTED_COPY_RE.test(base)) return false;
   return true;
 }
 function shouldFetchForTriage(meta, handledCutoffMs) {

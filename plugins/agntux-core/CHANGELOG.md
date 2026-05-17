@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.5] — 2026-05-17
+
+### Fixed
+
+- Triage view tool no longer surfaces agntux-teams daemon
+  conflict-copy files as phantom duplicate rows. When the daemon's
+  push detects a 409 (the local file and the server diverged), it
+  renames the local file to
+  `{stem} ({DisplayName}'s conflicted copy YYYYMMDD-HHmm){ext}` and
+  re-pushes — preserving the user's edits in a sibling. The sibling
+  keeps the SAME `id:` in frontmatter as the original, so each
+  conflicted action surfaced N+1 times in the triage view (once for
+  the original, once per surviving conflict copy). A user with a
+  history of daemon races was seeing every action item 3× in the
+  triage payload before the cap kicked in.
+
+  9.5.5 filters the conflict-copy filename pattern out at
+  `isActionFilePath()` so those siblings never enter the scan. The
+  regex anchors on the literal "'s conflicted copy YYYYMMDD-HHmm)"
+  shape inside parentheses — a user-authored filename containing
+  "conflict" anywhere else (e.g. `team-meeting-conflict.md`) is
+  unaffected.
+
+  The on-disk / S3 garbage-collection of already-uploaded conflict
+  files is a separate cleanup pass — the lingering blobs cost
+  storage but no longer pollute the view-tool response.
+
+  Re-upload `dist-zips/agntux-core-9.5.5.zip` to Claude Desktop to
+  pick up the filter locally; remote hosts pick it up automatically
+  on the next `agntux-core@9.5.5` tag fetch.
+
 ## [9.5.4] — 2026-05-17
 
 ### Fixed
