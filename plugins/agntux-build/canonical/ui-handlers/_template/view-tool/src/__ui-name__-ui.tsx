@@ -1,5 +1,5 @@
 // =============================================================================
-// ui-resource.tsx — the React UI surface for {{ui-display-name}}.
+// {{ui-name}}-ui.tsx — the React UI surface for {{ui-display-name}}.
 //
 // Compiled by Vite (vite-plugin-singlefile) into one self-contained HTML file
 // per resource (dist/ui-resources/{{ui-name}}.html). The remote MCP server

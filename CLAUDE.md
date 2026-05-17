@@ -286,6 +286,7 @@ Passes that catch user-visible breakage (not exhaustive):
 | 7 | E13 | No third-party MCP calls from view tools |
 | 8 | — | Sync-skill render drift + skill line-budget |
 | 9 | E20–E22 | **Zip-upload safety**: forbidden filename chars (`{ } : ? * < > \| "` + control chars), reserved plugin-name prefixes (`claude-`, `anthropic-`), non-ASCII filenames (warning) |
+| 10 | E23 | **View-tool bundles are real HTML**: every `plugins/*/view-tool/dist/ui-resources/*.html` must begin with HTML markup (`<!doctype` / `<html`), not a raw JS module renamed to `.html`. Catches misconfigured Vite inputs that ship `mimeType: "text/html"` resources containing a JS bundle — Claude Cowork and MCPJam reject those with "Unsupported UI resource content format". Fix is to point Vite's `rollupOptions.input` at a sibling HTML file that imports the `.tsx` via `<script type="module">` (canonical shape: `plugins/agntux-core/view-tool/triage.html` + `vite.config.ts`; template: `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/`). |
 
 Pass 9 catches the Claude Desktop upload rules at PR time so plugins don't
 make it to the upload UI just to be rejected there. The same scan runs

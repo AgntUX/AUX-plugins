@@ -77,7 +77,17 @@ for (const vt of viewTools) {
 const uiBundles = [];
 const viewToolEntries = [];
 const DEFAULT_CSP = {
+  // `script_src` must allow `'unsafe-inline'` because vite-plugin-singlefile
+  // inlines the UI bundle as `<script type="module">…</script>` directly in
+  // the HTML. Under default-src 'self' alone (which is the script-src
+  // fallback when script-src is absent), the host's CSP enforcer blocks
+  // every inline <script>, the iframe renders an empty <div id="root">,
+  // and the UI silently fails. `style_src` already carries 'unsafe-inline'
+  // for the same reason (Vite inlines styles). `default_src 'self'`
+  // restricts everything else (img/connect/font/etc.) — fonts are inlined
+  // via data: URIs by the bundle so no font-src override is needed.
   default_src: ["'self'"],
+  script_src: ["'self'", "'unsafe-inline'"],
   style_src: ["'self'", "'unsafe-inline'"],
 };
 const DEFAULT_PERMISSIONS = { allowFollowUp: true, allowFormSubmit: true };

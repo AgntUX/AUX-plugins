@@ -12,7 +12,10 @@ _template/
   view-tool/                    # NEW — compiled into the library module
     src/
       __ui-name__-view.ts       # ViewTool descriptor + handler
-      ui-resource.tsx           # React iframe entry
+      __ui-name__-ui.tsx        # React iframe entry (Vite-bundled into HTML)
+    __ui-name__.html            # HTML entry Vite resolves to a real
+                                # <!doctype html> bundle. See CLAUDE.md
+                                # lint pass 10 (E23) for the rationale.
     scripts/
       emit-manifest.mjs         # Emits view-tools.manifest.json
     package.json

@@ -24,6 +24,7 @@ import {
 } from "./lint/lint-no-third-party-in-views.js";
 import { pass8SkillRender } from "./lint/lint-skill-render.js";
 import { pass9ZipUploadSafe } from "./lint/lint-zip-upload-safe.js";
+import { pass10ViewToolBundles } from "./lint/lint-view-tool-bundles.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -641,6 +642,11 @@ export function lintPlugin(
   // reserved plugin-name prefixes, and non-ASCII paths that fail
   // Claude Desktop's manual plugin-upload validator.
   pass9ZipUploadSafe(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 10 — view-tool bundles must be real HTML, not JS modules
+  // renamed to .html. Catches misconfigured Vite inputs that ship
+  // `mimeType: "text/html"` resources containing a JS bundle, which
+  // every compliant MCP App host rejects.
+  pass10ViewToolBundles(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 
