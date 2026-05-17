@@ -13,6 +13,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // stayed on "Loading…" forever. See agntux-core/CHANGELOG.md → 9.5.4 for
 // the bug-class rationale; same fix applied here.
 // =============================================================================
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 function ComposeView({ payload }) {

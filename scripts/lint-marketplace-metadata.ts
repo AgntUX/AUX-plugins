@@ -2,7 +2,7 @@
 /**
  * lint-marketplace-metadata.ts
  *
- * Five-pass linter for AgntUX marketplace plugin metadata. P15 §5.
+ * Multi-pass linter for AgntUX marketplace plugin metadata. P15 §5.
  *
  * Usage:
  *   tsx scripts/lint-marketplace-metadata.ts [--plugin <slug>] [--json] [--fix]
@@ -30,6 +30,7 @@ import {
 } from "./lint/lint-view-tool-bundles.js";
 import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.js";
 import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
+import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -669,6 +670,12 @@ export function lintPlugin(
   // plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/.
   // Drift here re-introduces the 9.5.4 iframe-protocol bug silently.
   pass12AppsClientDrift(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 13 — every view-tool whose source uses className= MUST emit
+  // an HTML resource that contains a non-empty inline <style> block.
+  // Catches the 9.5.7-class bug where the iframe renders as unstyled
+  // HTML because Vite never built any CSS at all. Warning-only for
+  // now; promote to error after every plugin ships the fix.
+  pass13ViewToolCssBundle(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

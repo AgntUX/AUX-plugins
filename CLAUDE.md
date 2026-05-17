@@ -175,6 +175,18 @@ Every plugin under `plugins/{plugin-slug}/` MUST ship the following files
   or `packages/*/dist/` — your edit will be overwritten on the next merge.
   Edit the source under `src/` and run `node scripts/build-plugin.mjs
   {slug}` (or `/dev-plugin {slug}` for local-server plugins) to regenerate.
+- **View-tool bundles inline their own CSS.** The iframe loads ONLY the
+  inlined HTML resource — external stylesheets are never fetched and
+  `vite-plugin-singlefile` does not emit any external assets. Author
+  styles via Tailwind utility classes in `view-tool/src/*-ui.tsx` only
+  when the view-tool also wires the Tailwind CSS pipeline into Vite:
+  add `tailwindcss` + `@tailwindcss/vite` to `view-tool/package.json`
+  devDeps, register `tailwindcss()` in `view-tool/vite.config.ts`,
+  create `view-tool/src/globals.css` with `@import "tailwindcss";`,
+  and `import "./globals.css";` at the top of every `*-ui.tsx`. The
+  pass-13 marketplace linter (E28) enforces a non-empty inline
+  `<style>` block in every emitted HTML resource when the source
+  references `className=`.
 - **We do NOT use `@modelcontextprotocol/ext-apps` (the official MCP Apps
   SDK).** Servers depend only on core `@modelcontextprotocol/sdk` and
   hand-roll the Apps surface (`_meta.ui.resourceUri` on tools, `ui://...`
@@ -289,6 +301,7 @@ Passes that catch user-visible breakage (not exhaustive):
 | 10 | E23 | **View-tool bundles are real HTML**: every `plugins/*/view-tool/dist/ui-resources/*.html` must begin with HTML markup (`<!doctype` / `<html`), not a raw JS module renamed to `.html`. Catches misconfigured Vite inputs that ship `mimeType: "text/html"` resources containing a JS bundle — Claude Cowork and MCPJam reject those with "Unsupported UI resource content format". Fix is to point Vite's `rollupOptions.input` at a sibling HTML file that imports the `.tsx` via `<script type="module">` (canonical shape: `plugins/agntux-core/view-tool/triage.html` + `vite.config.ts`; template: `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/`). |
 | 11 | E24, E25 (warning) | **View-tool payload-shape regression guard**: every plugin that ships `view-tool/` MUST also ship `view-tool/__tests__/payload-shape.test.ts` containing both a byte-length builder (`Buffer.byteLength` or `JSON.stringify`) AND a `.toBeLessThan` matcher. Catches the agntux-core 9.5.3 bug class — `structuredContent` that exceeds the host's ~64 KB max-tokens cap on saturated workspaces, silently breaking iframe rendering. E24 = test file missing; E25 = file exists but has no size assertion. Both are **warnings** (not errors) for now so existing plugins without the test don't break CI; promote to error once every plugin ships the file. Scaffold at `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/__tests__/payload-shape.test.ts` — copy and tune `KEPT_KEYS` + `PAYLOAD_BUDGET_BYTES` per plugin. |
 | 12 | E26 (error), E27 (warning) | **Vendored apps-client byte-equality**: every vendored copy of `simple-mcp-app.ts` and `constants.ts` under `plugins/*/view-tool/src/lib/apps-client/` and `plugins/agntux-build/canonical/ui-handlers/_template/{view-tool,component}/src/lib/apps-client/` MUST be byte-identical to the canonical at `plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/`. Catches the silent-regression class where a future bugfix lands in one copy but not the others — the affected plugin's iframe would stay on "Loading…" forever (the 9.5.4 bug class) while the others work fine. E26 = sha256 mismatch (re-copy from canonical or update the canonical first); E27 = vendored file missing. The canonical itself is never linted (it IS the source). |
+| 13 | E28 (warning) | **View-tool CSS bundle present**: every plugin whose `view-tool/src/*-ui.tsx` references `className=` MUST emit `view-tool/dist/ui-resources/*.html` resources that contain a non-empty inline `<style>` block. Catches the agntux-core 9.5.7-class bug where the iframe renders as unstyled HTML because Vite never built any CSS at all (Tailwind utility classes were used in the JSX but `@tailwindcss/vite` was not wired up, so the rendered output looked like a raw text dump). Fix: add `@tailwindcss/vite` + `tailwindcss` to view-tool devDeps, register the plugin in `view-tool/vite.config.ts`, create `view-tool/src/globals.css` with `@import "tailwindcss";`, and `import "./globals.css";` at the top of every `*-ui.tsx` entry. Canonical shape: `plugins/agntux-build/canonical/ui-handlers/_template/view-tool/`. Warning-only for now; promote to error once every plugin ships the fix. |
 
 Pass 9 catches the Claude Desktop upload rules at PR time so plugins don't
 make it to the upload UI just to be rejected there. The same scan runs

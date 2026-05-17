@@ -10,6 +10,7 @@
 // agntux-core/CHANGELOG.md → 9.5.4 for the bug-class rationale.
 // =============================================================================
 
+import "./globals.css";
 import { createRoot } from "react-dom/client";
 import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 
