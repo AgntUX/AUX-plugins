@@ -6,6 +6,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.1.0] — 2026-05-17
+
+### Added
+
+- **Rich compose + canvas iframes restored.** The interactive React
+  surfaces the P5 architecture migration accidentally collapsed into
+  ~80-line slim placeholders are now back. Both iframes render the
+  full `MainComponent` with theme + safe-area integration, streaming
+  partial-input handling, and host-provided CSS variables — the same
+  UIs the pre-P5 `ui-handlers/{compose,canvas}/component/` shipped.
+  Architectural delivery path is unchanged (view-tool emits two
+  inlined HTML resources, ~213 kB each, served from the remote MCP
+  registry).
+- Vendored `@agntux/ui-primitives` + `jose` into the view-tool. Added
+  `@testing-library/{react,jest-dom,user-event}` and `jsdom` for the
+  restored component-level vitest suite (147 tests).
+- Per-UI source trees at `view-tool/src/apps/{compose,canvas}/` —
+  each app contains its own `App.tsx`, `main-component.tsx`,
+  `lib/apps-client/` (Pass 12 byte-equality enforced), and
+  `__tests__/`. Shared `globals.css` + iframe entries
+  (`compose-ui.tsx`, `canvas-ui.tsx`) live at `view-tool/src/`.
+
+### Changed
+
+- `view-tool/package.json`: `tsc` is now `--noEmit` (esbuild owns the
+  runtime bundle); build prefixed with `rm -rf dist &&` so stale
+  artifacts can't leak.
+- `view-tool/tsconfig.json`: `moduleResolution: Bundler` +
+  `allowImportingTsExtensions` so extensionless relative imports from
+  the rich tree resolve.
+- `view-tool/vitest.config.ts`: jsdom env, setup file under
+  `src/apps/compose/__tests__/setup.tsx` (byte-identical to canvas's),
+  test includes both `src/apps/**/__tests__/**` and the existing
+  `__tests__/payload-shape.test.ts` regression guard.
+
 ## [8.0.6] — 2026-05-17
 
 ### Fixed

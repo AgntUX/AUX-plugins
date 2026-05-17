@@ -6,21 +6,27 @@
   "private": true,
   "engines": { "node": ">=20" },
   "scripts": {
-    "build": "VITE_ENTRY=compose vite build && VITE_ENTRY=canvas vite build --emptyOutDir=false && tsc -p tsconfig.json && esbuild src/agntux-slack-view.ts --bundle --platform=node --format=esm --outfile=dist/agntux-slack-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
+    "build": "rm -rf dist && VITE_ENTRY=compose vite build && VITE_ENTRY=canvas vite build --emptyOutDir=false && tsc --noEmit -p tsconfig.json && esbuild src/agntux-slack-view.ts --bundle --platform=node --format=esm --outfile=dist/agntux-slack-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@agntux/plugin-runtime": "file:../../../packages/plugin-runtime",
+    "@agntux/ui-primitives": "file:../../../packages/agntux-ui-primitives",
+    "jose": "^5.10.0",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
     "@types/js-yaml": "^4.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "esbuild": "^0.23.0",
+    "jsdom": "^26.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.1.0",

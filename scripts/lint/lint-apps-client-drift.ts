@@ -15,11 +15,14 @@
  * affected plugin's iframe stays on "Loading…" forever while the
  * others work fine.
  *
- * This pass walks every plugin and computes sha256 over
- * `view-tool/src/lib/apps-client/{simple-mcp-app,constants}.ts` plus the
- * canonical at `plugins/agntux-core/view-tool/src/lib/apps-client/
- * {simple-mcp-app,constants}.ts`, plus the canonical _template path.
- * Every hash must match.
+ * This pass walks every plugin and recursively scans `view-tool/src/`
+ * for any directory named `apps-client/` (slim post-P5 plugins have one
+ * at `view-tool/src/lib/apps-client/`; rich post-restoration plugins
+ * have one per app under `view-tool/src/apps/{ui}/lib/apps-client/`).
+ * Every found copy's `simple-mcp-app.ts` and `constants.ts` must
+ * byte-match the canonical at
+ * `plugins/agntux-core/view-tool/src/lib/apps-client/{simple-mcp-app,constants}.ts`,
+ * plus the canonical _template path.
  *
  * Findings:
  *
@@ -105,6 +108,55 @@ function sha256(filePath: string): string | null {
   }
 }
 
+/**
+ * Recursively walk `rootDir` and return every directory whose basename is
+ * `apps-client`. Skips `node_modules/` and `dist/` so we never lint the
+ * compiled output or transitive package contents (which contain unrelated
+ * apps-client trees from ext-apps published packages, etc.).
+ */
+function findAppsClientDirs(rootDir: string): string[] {
+  const result: string[] = [];
+  // Skip set covers everything we never want to lint as source: package
+  // installs (node_modules), tracked build artifacts (dist, out), vite +
+  // turbo + tsc caches (.vite, .turbo, .tsbuildinfo lives at file level so
+  // doesn't need a dir entry), coverage reports, snapshot dirs, and .git.
+  // Risk: a stale CI dist tree that contains a compiled `apps-client/`
+  // directory would otherwise show up as an E26 false-positive.
+  const SKIP = new Set([
+    "node_modules",
+    "dist",
+    "out",
+    ".git",
+    ".vite",
+    ".turbo",
+    "coverage",
+    "__snapshots__",
+  ]);
+  function walk(dir: string): void {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (SKIP.has(entry.name)) continue;
+      const child = path.join(dir, entry.name);
+      if (entry.name === "apps-client") {
+        result.push(child);
+        // Don't recurse into the apps-client dir itself; it has no nested
+        // apps-client trees and walking it would just waste filesystem
+        // syscalls.
+        continue;
+      }
+      walk(child);
+    }
+  }
+  walk(rootDir);
+  return result;
+}
+
 export function pass12AppsClientDrift(
   pluginSlug: string,
   pluginDir: string,
@@ -129,43 +181,76 @@ export function pass12AppsClientDrift(
   const hasViewTool =
     fs.existsSync(viewToolDir) && fs.statSync(viewToolDir).isDirectory();
 
-  // Plugin-local check: view-tool/src/lib/apps-client/{file}.
+  // Plugin-local check: scan recursively for every `apps-client/` directory
+  // under view-tool/src/. Slim post-P5 plugins have a single copy at
+  // view-tool/src/lib/apps-client/; rich post-restoration plugins (with
+  // an `apps/{ui-name}/` layout) have one per UI at
+  // view-tool/src/apps/{ui-name}/lib/apps-client/. Every found copy must
+  // hash-match the canonical.
+  //
   // Skip the canonical owner — it IS the source; comparing it to itself
   // is meaningless and would just add noise to lint output.
   if (hasViewTool && pluginSlug !== CANONICAL_OWNER) {
-    const vendoredDir = path.join(viewToolDir, "src", "lib", "apps-client");
-    for (const name of REQUIRED_FILES) {
-      const filePath = path.join(vendoredDir, name);
-      const relForReport = path.relative(pluginDir, filePath);
-      if (!fs.existsSync(filePath)) {
+    const viewToolSrc = path.join(viewToolDir, "src");
+    const vendoredDirs = fs.existsSync(viewToolSrc)
+      ? findAppsClientDirs(viewToolSrc)
+      : [];
+    // If no apps-client dir is found anywhere under view-tool/src/, emit
+    // E27 for each required file against the canonical slim path. This
+    // preserves the pre-widening signal for plugins that ship view-tool/
+    // but forgot to vendor the apps-client tree at all.
+    if (vendoredDirs.length === 0) {
+      const canonicalSlim = path.join(viewToolSrc, "lib", "apps-client");
+      for (const name of REQUIRED_FILES) {
+        const filePath = path.join(canonicalSlim, name);
         findings.push({
           code: "E27",
           severity: "warning",
           plugin: pluginSlug,
-          file: relForReport,
+          file: path.relative(pluginDir, filePath),
           message:
-            `Plugin ships view-tool/ but is missing the vendored ` +
-            `apps-client file ${name}. Copy from ` +
-            `${CANONICAL_REL}/${name} so the iframe entry can speak the ` +
-            `MCP Apps JSON-RPC protocol.`,
+            `Plugin ships view-tool/ but is missing every vendored ` +
+            `apps-client copy. Copy ${name} from ${CANONICAL_REL}/${name} ` +
+            `into view-tool/src/lib/apps-client/ (or per-UI under ` +
+            `view-tool/src/apps/{ui}/lib/apps-client/) so the iframe ` +
+            `entry can speak the MCP Apps JSON-RPC protocol.`,
         });
-        continue;
       }
-      const actual = sha256(filePath);
-      const expected = canonicalHashes.get(name)!;
-      if (actual !== expected) {
-        findings.push({
-          code: "E26",
-          severity: "error",
-          plugin: pluginSlug,
-          file: relForReport,
-          message:
-            `Vendored apps-client copy drift. ${name} differs from the ` +
-            `canonical at ${CANONICAL_REL}/${name} ` +
-            `(expected sha256=${expected.slice(0, 12)}…, ` +
-            `actual=${actual?.slice(0, 12) ?? "<unreadable>"}…). ` +
-            `Re-copy from the canonical or update the canonical first.`,
-        });
+    } else {
+      for (const vendoredDir of vendoredDirs) {
+        for (const name of REQUIRED_FILES) {
+          const filePath = path.join(vendoredDir, name);
+          const relForReport = path.relative(pluginDir, filePath);
+          if (!fs.existsSync(filePath)) {
+            findings.push({
+              code: "E27",
+              severity: "warning",
+              plugin: pluginSlug,
+              file: relForReport,
+              message:
+                `Plugin ships an apps-client copy but is missing ` +
+                `${name}. Copy from ${CANONICAL_REL}/${name} so the ` +
+                `iframe entry can speak the MCP Apps JSON-RPC protocol.`,
+            });
+            continue;
+          }
+          const actual = sha256(filePath);
+          const expected = canonicalHashes.get(name)!;
+          if (actual !== expected) {
+            findings.push({
+              code: "E26",
+              severity: "error",
+              plugin: pluginSlug,
+              file: relForReport,
+              message:
+                `Vendored apps-client copy drift. ${name} differs from ` +
+                `the canonical at ${CANONICAL_REL}/${name} ` +
+                `(expected sha256=${expected.slice(0, 12)}…, ` +
+                `actual=${actual?.slice(0, 12) ?? "<unreadable>"}…). ` +
+                `Re-copy from the canonical or update the canonical first.`,
+            });
+          }
+        }
       }
     }
   }
