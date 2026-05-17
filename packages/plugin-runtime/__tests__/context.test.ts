@@ -11,7 +11,13 @@ const stubFs: ViewToolFs = {
   async readFile() {
     return Buffer.from("");
   },
+  async readMany() {
+    return [];
+  },
   async list() {
+    return [];
+  },
+  async listWithMeta() {
     return [];
   },
   async exists() {

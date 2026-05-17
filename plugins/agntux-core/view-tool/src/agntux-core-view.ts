@@ -133,28 +133,81 @@ function firstParagraph(s: string): string {
   return (idx >= 0 ? s.slice(0, idx) : s).trim();
 }
 
-// Resolve filenames under `actions/` to absolute relative paths the
-// fs shim can read. Filters out _index.md and any underscore-prefixed
-// names (we follow the same convention as the legacy handler).
-async function listActionFiles(
-  ctx: ViewToolContext,
-  prefix: string,
-): Promise<string[]> {
-  let entries: string[];
-  try {
-    entries = await ctx.fs.list(prefix);
-  } catch {
-    return [];
+/**
+ * Filter a `list` / `listWithMeta` result down to real action files —
+ * `.md` extension, no leading underscore (skips `_index.md` and any
+ * other sidecar files that use the same convention).
+ */
+export function isActionFilePath(p: string): boolean {
+  const base = p.split("/").pop() ?? "";
+  if (!base.endsWith(".md")) return false;
+  if (base === "_index.md") return false;
+  if (base.startsWith("_")) return false;
+  return true;
+}
+
+/**
+ * Decide whether an action's frontmatter passes the triage-view's
+ * status filter — i.e. whether the row is worth fetching the body
+ * for. Implements the same predicate the post-parse loop used to
+ * apply, but against the metadata-only index so we don't have to
+ * read closed actions older than the handled cutoff at all.
+ *
+ *   - status=open    → always include
+ *   - status=snoozed → always include (the view shows a snoozed count)
+ *   - status=done    → include only if handled within the cutoff
+ *   - status=dismissed → include only if handled within the cutoff
+ *   - anything else  → exclude
+ *
+ * The `handled_at` heuristic mirrors `pickHandledAt` in the post-parse
+ * path: prefer `completed_at` on done, `dismissed_at` on dismissed,
+ * fall back to `updated_at`, then `created_at`. A handled action with
+ * no usable timestamp is included so the renderer can still surface
+ * it (rather than silently dropping it on bad data).
+ */
+export function shouldFetchForTriage(
+  meta: Record<string, unknown> | null,
+  handledCutoffMs: number,
+): boolean {
+  if (!meta) {
+    // No metadata cache yet (cold first call) and the listWithMeta
+    // fallback couldn't extract it either — include so the loader
+    // surfaces malformed rows in the legacy "always read" mode.
+    // Safer than silently dropping rows the view-tool would've
+    // rendered before this optimization.
+    return true;
   }
-  const out: string[] = [];
-  for (const path of entries) {
-    const base = path.split("/").pop() ?? "";
-    if (!base.endsWith(".md")) continue;
-    if (base === "_index.md") continue;
-    if (base.startsWith("_")) continue;
-    out.push(path);
+  const status =
+    typeof meta.status === "string" ? meta.status.toLowerCase() : "";
+  if (status === "open" || status === "snoozed") {
+    return true;
   }
-  return out;
+  if (status === "done" || status === "dismissed") {
+    const completedAt =
+      typeof meta.completed_at === "string" ? meta.completed_at : null;
+    const dismissedAt =
+      typeof meta.dismissed_at === "string" ? meta.dismissed_at : null;
+    const updatedAt =
+      typeof meta.updated_at === "string" ? meta.updated_at : null;
+    const createdAt =
+      typeof meta.created_at === "string" ? meta.created_at : null;
+    const handledAt =
+      (status === "done" ? completedAt : dismissedAt) ??
+      updatedAt ??
+      createdAt;
+    if (!handledAt) {
+      // Missing timestamp on a handled row — include so the renderer
+      // shows it; ordering by mtime is impossible anyway in the
+      // remote-fs world.
+      return true;
+    }
+    const t = Date.parse(handledAt);
+    if (Number.isNaN(t)) return true;
+    return t >= handledCutoffMs;
+  }
+  // Unknown status — exclude. Better to drop a row the renderer
+  // wouldn't have rendered anyway than to bloat the read path.
+  return false;
 }
 
 async function processActionsDir(
@@ -166,18 +219,43 @@ async function processActionsDir(
   handled: TriageHandledRow[];
   snoozedCount: number;
 }> {
-  const files = await listActionFiles(ctx, actionsPrefix);
+  // listWithMeta returns every action's path AND its parsed YAML
+  // frontmatter in a single call (one DB query if cached, parallel
+  // S3 fetches if not). We push the status/handled-recent filter
+  // into the metadata layer so closed actions older than the
+  // handled cutoff are never read.
+  //
+  // This replaces the N+1 read pattern the previous implementation
+  // had — for a workspace with 1000 actions of which 30 are open
+  // and 5 are recently handled, this fetches 35 bodies instead of
+  // 1000.
+  let entries;
+  try {
+    entries = await ctx.fs.listWithMeta(actionsPrefix);
+  } catch {
+    return { open: [], handled: [], snoozedCount: 0 };
+  }
+  const filtered = entries.filter(
+    (e) =>
+      isActionFilePath(e.path) && shouldFetchForTriage(e.meta, handledCutoffMs),
+  );
+  const pathsToFetch = filtered.map((e) => e.path);
+  // Single batched read — parallel S3 GETs with concurrency cap
+  // applied inside the fs shim.
+  const bodies = await ctx.fs.readMany(pathsToFetch);
+
   const open: TriageActionRow[] = [];
   const handled: TriageHandledRow[] = [];
   let snoozedCount = 0;
 
-  for (const filePath of files) {
+  for (let i = 0; i < filtered.length; i++) {
+    const buf = bodies[i];
+    if (!buf) continue;
     let parsed;
     try {
-      const buf = await ctx.fs.readFile(filePath);
       parsed = parseActionFile(buf.toString("utf8"));
     } catch {
-      // Skip malformed / missing files; never crash the whole render.
+      // Skip malformed files; never crash the whole render.
       continue;
     }
     const fm = parsed.frontmatter;

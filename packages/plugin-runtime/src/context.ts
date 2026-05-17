@@ -53,11 +53,53 @@ export interface ViewToolScope {
  *   - `"schema"`    (500) — caller-detected schema/parse failure surfaced
  *                            up from a parse helper
  */
+/**
+ * A single entry in a `listWithMeta` response. `meta` is the YAML
+ * frontmatter parsed out of the file at write time (S3 backend) or on
+ * the fly (local-fs backend). `null` when the file has no frontmatter
+ * or extraction failed.
+ */
+export interface ListWithMetaEntry {
+  path: string;
+  meta: Record<string, unknown> | null;
+}
+
 export interface ViewToolFs {
   /** Read the file at `path`. Throws ViewToolFsError on any failure. */
   readFile(path: string): Promise<Buffer>;
+  /**
+   * Batch read of multiple files. Position-correlated to `paths`:
+   * `result[i]` is the body of `paths[i]`, or `null` if that path
+   * could not be read (not-found, forbidden, transient). Never throws
+   * for a per-file failure — only for a backend-level error.
+   *
+   * Backends SHOULD parallelize the underlying reads (S3-backed
+   * implementations are expected to fan out with a concurrency cap).
+   * Callers MUST use `readMany` instead of a `for…await readFile`
+   * loop whenever they need N files — N+1 read latency is the
+   * single biggest cause of slow view-tool responses on the
+   * remote MCP server.
+   */
+  readMany(paths: string[]): Promise<Array<Buffer | null>>;
   /** List paths whose prefix matches `prefix`. Returns sorted, ≤1000 entries. */
   list(prefix: string): Promise<string[]>;
+  /**
+   * List paths whose prefix matches `prefix`, each annotated with the
+   * file's parsed YAML frontmatter. Use this to push status / priority /
+   * date filtering into the storage layer — callers can drop entries
+   * client-side using the returned `meta` and then `readMany` only
+   * the bodies they actually need to render.
+   *
+   * Returns sorted, ≤1000 entries to match `list`'s cap. `meta` is
+   * `null` for files without YAML frontmatter or for files whose
+   * frontmatter could not be parsed.
+   *
+   * Backends MAY satisfy this from a server-side metadata index
+   * (S3-backed implementations) or by reading + parsing each file
+   * (local-fs). Either way, the contract is "no per-file body fetch
+   * for entries the caller is going to discard".
+   */
+  listWithMeta(prefix: string): Promise<ListWithMetaEntry[]>;
   /** Cheap existence probe. Returns false on any not-found/forbidden. */
   exists(path: string): Promise<boolean>;
 }

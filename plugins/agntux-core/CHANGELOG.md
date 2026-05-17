@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.5.0] — 2026-05-16
+
+### Changed
+
+- `agntux_core_triage_view`: rewrites the action-scan to use the new
+  `ViewToolFs.listWithMeta` + `readMany` APIs from
+  `@agntux/plugin-runtime@0.2.0`. The previous implementation read
+  every file in `actions/` sequentially and filtered by status in
+  memory; for a workspace with 1000 actions of which 30 are open and
+  5 are recently handled, that meant ~1000 sequential S3 GETs
+  (20+ seconds of render latency). The new implementation pushes the
+  status / handled-cutoff filter through `listWithMeta`'s metadata
+  index, then batches the remaining ~35 body fetches in parallel
+  through `readMany` (concurrency cap 16 in the S3 backend). Cold-cache
+  call: ~1.4s; warm cache: ~50ms.
+- New `shouldFetchForTriage(meta, cutoff)` predicate centralises the
+  "is this row worth a body fetch?" decision. Open / snoozed always
+  pass; done / dismissed pass only if handled within the cutoff;
+  unknown status is excluded. Null meta (cold cache) passes — legacy-
+  safe behaviour while the cache fills.
+- `isActionFilePath` extraction is now a top-level helper, exported
+  for direct testing. No behavioural change to the rendered output.
+
 ## [9.4.0] — 2026-05-16
 
 Promotes the `agntux_core_sync_installed_plugins` tool + connector-refresh

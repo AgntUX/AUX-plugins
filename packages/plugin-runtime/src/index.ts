@@ -16,6 +16,7 @@
 // --- Cross-environment runtime contract -------------------------------------
 export type {
   JsonSchema,
+  ListWithMetaEntry,
   ViewTool,
   ViewToolContext,
   ViewToolDescriptor,
@@ -37,6 +38,7 @@ export type {
 } from "./parse-action.js";
 export {
   extractFencedYaml,
+  extractFrontmatterMetadata,
   extractSection,
   parseActionFile,
   parseComposePayload,

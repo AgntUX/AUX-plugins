@@ -19,12 +19,14 @@
 import { promises as fsp } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import {
+  type ListWithMetaEntry,
   mergeScope,
   ViewToolFsError,
   type ViewToolContext,
   type ViewToolFs,
   type ViewToolScope,
 } from "./context.js";
+import { extractFrontmatterMetadata } from "./parse-action.js";
 
 // Re-export agntux-root helpers — local-fs callers only.
 export {
@@ -108,6 +110,25 @@ export function createLocalFsContext(
       }
     },
 
+    async readMany(paths) {
+      // Local-fs has no per-call cost beyond a sys-call per file — fan
+      // out everything in parallel. The S3 backend caps concurrency
+      // because every read costs an S3 GET; we don't on local.
+      return await Promise.all(
+        paths.map(async (p) => {
+          try {
+            const abs = resolveSafe(p);
+            return await fsp.readFile(abs);
+          } catch {
+            // Per the contract, per-file failures resolve to null
+            // rather than throwing. Callers iterate the result array
+            // and skip null entries.
+            return null;
+          }
+        }),
+      );
+    },
+
     async list(prefix) {
       const abs = resolveSafe(prefix);
       // The prefix is interpreted as a directory: list every regular-file
@@ -137,6 +158,25 @@ export function createLocalFsContext(
       } catch {
         return false;
       }
+    },
+
+    async listWithMeta(prefix): Promise<ListWithMetaEntry[]> {
+      // Local-fs has no server-side metadata index — we synthesize one
+      // by reading every file in the prefix and parsing the YAML
+      // frontmatter. Cheap enough for the dev iteration loop's typical
+      // file counts (≤100 actions); the S3 backend joins against a
+      // pre-populated `blob_metadata` table instead.
+      const paths = await fs.list(prefix);
+      const bufs = await fs.readMany(paths);
+      const out: ListWithMetaEntry[] = [];
+      for (let i = 0; i < paths.length; i++) {
+        const buf = bufs[i];
+        const meta = buf
+          ? extractFrontmatterMetadata(buf.toString("utf8"))
+          : null;
+        out.push({ path: paths[i]!, meta });
+      }
+      return out;
     },
   };
 

@@ -47,32 +47,56 @@ function firstParagraph(s) {
   const idx = s.indexOf("\n\n");
   return (idx >= 0 ? s.slice(0, idx) : s).trim();
 }
-async function listActionFiles(ctx, prefix) {
-  let entries;
-  try {
-    entries = await ctx.fs.list(prefix);
-  } catch {
-    return [];
+function isActionFilePath(p) {
+  const base = p.split("/").pop() ?? "";
+  if (!base.endsWith(".md")) return false;
+  if (base === "_index.md") return false;
+  if (base.startsWith("_")) return false;
+  return true;
+}
+function shouldFetchForTriage(meta, handledCutoffMs) {
+  if (!meta) {
+    return true;
   }
-  const out = [];
-  for (const path of entries) {
-    const base = path.split("/").pop() ?? "";
-    if (!base.endsWith(".md")) continue;
-    if (base === "_index.md") continue;
-    if (base.startsWith("_")) continue;
-    out.push(path);
+  const status = typeof meta.status === "string" ? meta.status.toLowerCase() : "";
+  if (status === "open" || status === "snoozed") {
+    return true;
   }
-  return out;
+  if (status === "done" || status === "dismissed") {
+    const completedAt = typeof meta.completed_at === "string" ? meta.completed_at : null;
+    const dismissedAt = typeof meta.dismissed_at === "string" ? meta.dismissed_at : null;
+    const updatedAt = typeof meta.updated_at === "string" ? meta.updated_at : null;
+    const createdAt = typeof meta.created_at === "string" ? meta.created_at : null;
+    const handledAt = (status === "done" ? completedAt : dismissedAt) ?? updatedAt ?? createdAt;
+    if (!handledAt) {
+      return true;
+    }
+    const t = Date.parse(handledAt);
+    if (Number.isNaN(t)) return true;
+    return t >= handledCutoffMs;
+  }
+  return false;
 }
 async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
-  const files = await listActionFiles(ctx, actionsPrefix);
+  let entries;
+  try {
+    entries = await ctx.fs.listWithMeta(actionsPrefix);
+  } catch {
+    return { open: [], handled: [], snoozedCount: 0 };
+  }
+  const filtered = entries.filter(
+    (e) => isActionFilePath(e.path) && shouldFetchForTriage(e.meta, handledCutoffMs)
+  );
+  const pathsToFetch = filtered.map((e) => e.path);
+  const bodies = await ctx.fs.readMany(pathsToFetch);
   const open = [];
   const handled = [];
   let snoozedCount = 0;
-  for (const filePath of files) {
+  for (let i = 0; i < filtered.length; i++) {
+    const buf = bodies[i];
+    if (!buf) continue;
     let parsed;
     try {
-      const buf = await ctx.fs.readFile(filePath);
       parsed = parseActionFile(buf.toString("utf8"));
     } catch {
       continue;
@@ -222,5 +246,7 @@ var mod = {
 };
 var agntux_core_view_default = mod;
 export {
-  agntux_core_view_default as default
+  agntux_core_view_default as default,
+  isActionFilePath,
+  shouldFetchForTriage
 };

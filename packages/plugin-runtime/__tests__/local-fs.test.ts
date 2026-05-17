@@ -12,6 +12,19 @@ beforeAll(async () => {
   await mkdir(join(ROOT, "data", "actions"), { recursive: true });
   await writeFile(join(ROOT, "data", "actions", "a.md"), "alpha\n", "utf8");
   await writeFile(join(ROOT, "data", "actions", "b.md"), "bravo\n", "utf8");
+  // c.md has YAML frontmatter so listWithMeta has something to surface
+  // metadata for. The other two are body-only so the test can also
+  // assert the `meta: null` branch.
+  await writeFile(
+    join(ROOT, "data", "actions", "c.md"),
+    `---
+status: open
+priority: high
+---
+charlie body
+`,
+    "utf8",
+  );
   await mkdir(join(ROOT, "teams", "engineering", "data"), { recursive: true });
   await writeFile(
     join(ROOT, "teams", "engineering", "data", "x.md"),
@@ -59,7 +72,11 @@ describe("createLocalFsContext", () => {
   it("list returns sorted relative paths", async () => {
     const ctx = makeCtx();
     const paths = await ctx.fs.list("data/actions");
-    expect(paths).toEqual(["data/actions/a.md", "data/actions/b.md"]);
+    expect(paths).toEqual([
+      "data/actions/a.md",
+      "data/actions/b.md",
+      "data/actions/c.md",
+    ]);
   });
 
   it("list returns [] for a missing prefix", async () => {
@@ -126,5 +143,45 @@ describe.skipIf(skipEaccess)("createLocalFsContext — EACCES mapping", () => {
     } finally {
       await chmod(forbiddenFile, 0o644);
     }
+  });
+
+  it("readMany returns position-correlated Buffers and null for a missing path", async () => {
+    const ctx = makeCtx();
+    const result = await ctx.fs.readMany([
+      "data/actions/a.md",
+      "data/actions/MISSING.md",
+      "data/actions/b.md",
+    ]);
+    expect(result).toHaveLength(3);
+    expect(result[0]?.toString("utf8")).toBe("alpha\n");
+    expect(result[1]).toBeNull();
+    expect(result[2]?.toString("utf8")).toBe("bravo\n");
+  });
+
+  it("readMany returns null (not throw) for a path that escapes the root", async () => {
+    const ctx = makeCtx();
+    // A real readFile call for ".." would throw `forbidden`. The
+    // contract of readMany is: per-file failures resolve to null.
+    // The whole batch must not abort on a single bad path.
+    const result = await ctx.fs.readMany([
+      "data/actions/a.md",
+      "../../etc/passwd",
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.toString("utf8")).toBe("alpha\n");
+    expect(result[1]).toBeNull();
+  });
+
+  it("listWithMeta surfaces frontmatter for files that have it, null otherwise", async () => {
+    const ctx = makeCtx();
+    const entries = await ctx.fs.listWithMeta("data/actions");
+    // The list is sorted asc by path; a.md → null, b.md → null, c.md → { status, priority }.
+    const byPath = Object.fromEntries(entries.map((e) => [e.path, e.meta]));
+    expect(byPath["data/actions/a.md"]).toBeNull();
+    expect(byPath["data/actions/b.md"]).toBeNull();
+    expect(byPath["data/actions/c.md"]).toEqual({
+      status: "open",
+      priority: "high",
+    });
   });
 });
