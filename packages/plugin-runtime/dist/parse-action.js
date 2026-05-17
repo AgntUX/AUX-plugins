@@ -22,8 +22,10 @@ const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
  * `ActionFrontmatter` shape), this helper returns the raw parsed YAML
  * object so callers can index on arbitrary keys. Used by:
  *
- *   - The sync API's blob-upload write path, to populate the
- *     `blob_metadata.metadata` jsonb column.
+ *   - The remote MCP server's S3-backed `ViewToolFs` (in `app/`'s
+ *     `lib/mcp/runtime/fs-s3.ts`): called inside `readMany` /
+ *     `listWithMeta` to populate the lazy `blob_metadata` cache the
+ *     first time a blob is read.
  *   - The local-fs ViewToolContext's `listWithMeta`, to synthesize
  *     metadata on the fly during dev iteration.
  *
