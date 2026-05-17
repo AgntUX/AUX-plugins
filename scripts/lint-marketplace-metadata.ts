@@ -24,7 +24,10 @@ import {
 } from "./lint/lint-no-third-party-in-views.js";
 import { pass8SkillRender } from "./lint/lint-skill-render.js";
 import { pass9ZipUploadSafe } from "./lint/lint-zip-upload-safe.js";
-import { pass10ViewToolBundles } from "./lint/lint-view-tool-bundles.js";
+import {
+  pass10ViewToolBundles,
+  pass10ViewToolBundlesInZip,
+} from "./lint/lint-view-tool-bundles.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -647,6 +650,12 @@ export function lintPlugin(
   // `mimeType: "text/html"` resources containing a JS bundle, which
   // every compliant MCP App host rejects.
   pass10ViewToolBundles(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 10 (zip variant) — the same classifier against any
+  // dist-zips/{slug}-*.zip already produced by package-plugins.mjs.
+  // Catches the case where dist/ on disk is healthy but the zip on disk
+  // was packaged from an older tree (e.g. --skip-build, or a stale
+  // checkout). Skipped silently when no dist-zips/ tree exists.
+  pass10ViewToolBundlesInZip(pluginSlug, opts.repoRoot, findings);
   return findings;
 }
 

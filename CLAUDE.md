@@ -420,6 +420,48 @@ The canonical checklist lives in [`CONTRIBUTING.md`](CONTRIBUTING.md#pr-review-c
 
 ---
 
+## Version Tags Are Load-Bearing
+
+Every plugin version is published to consumers via a git tag of shape
+`{slug}@{version}` (e.g. `agntux-core@9.5.1`, `agntux-gmail@4.0.2`).
+The tag — **not the file in main** — is the contract surface. The
+`agntux/app` remote MCP loader's pin-resolver reads the tag to fetch
+the matching `view-tool/dist/` bundle; until a tag exists for a given
+version, every Claude Desktop / claude.ai client keeps loading the
+**previously-tagged** version's bundle, even if `main` has the new
+code.
+
+This means **bumping `plugin.json` without landing the commit on main
+is a no-op for end users.** Symptom: re-uploading a freshly-built
+zip to Claude Desktop doesn't change what the host renders, because
+the host resolves the bundle through the remote loader (which is
+still pinned to the previous tag). The fingerprint is the served
+bundle matching the OLD version's CSP / opener; the local file on
+disk is irrelevant.
+
+Tags are pushed **automatically** by `.github/workflows/build-plugins.yml`
+on every push to `main`. The workflow's final step
+("Tag new plugin versions") iterates every `plugins/*/.claude-plugin/plugin.json`,
+checks whether `{slug}@{version}` already exists, and pushes any
+missing tags at the same SHA as the freshly-rebuilt `dist/` artifacts
+commit. Idempotent — re-running on a SHA whose versions are already
+tagged is a no-op.
+
+What this means in practice:
+
+- A version bump merged to main with the workflow enabled tags itself
+  on the next CI run. Nothing for the author to do.
+- A version bump that **only exists in a local working tree** is
+  invisible to clients. If a user reports the previous bundle still
+  being served, check `git log origin/main -- plugins/{slug}/.claude-plugin/plugin.json`
+  before doing anything else. (Also see CHANGELOG.md → 9.5.1 in
+  agntux-core / 8.0.2 in agntux-slack / 4.0.2 in agntux-gmail for the
+  user-visible regression that surfaced this gap.)
+- If you ever need to tag manually (e.g. CI was bypassed):
+  `git tag {slug}@{version} && git push origin {slug}@{version}`.
+
+---
+
 ## What's Out of Scope for This Repo
 
 - The agent skill prompts (P4 / P5 specify those; this repo ships them as part of each plugin tree).

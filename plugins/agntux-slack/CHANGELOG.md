@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.0.2] — 2026-05-16
+
+### Fixed
+
+- Compose and canvas view tools no longer ship JavaScript modules
+  renamed to `compose.html` / `canvas.html`. The previous
+  `view-tool/vite.config.ts` pointed `rollupOptions.input` directly
+  at the `.tsx` sources and relied on
+  `output.entryFileNames: "[name].html"` as a renamer.
+  `vite-plugin-singlefile` only inlines the bundle INTO an HTML
+  document when the rollup input is itself HTML — given a `.tsx`
+  entry, Rollup just emitted a JS module with an `.html` extension.
+  The MCP App view-tool registered the files with
+  `mimeType: "text/html"`; Claude Cowork and MCPJam rejected the
+  resources with "Unsupported UI resource content format" because
+  the body started with `var Bi={exports:{}}` instead of
+  `<!doctype html>`. The build-layer fix landed in `ea050c8d` (May
+  16). This release exists to give the host a fresh version string
+  so cached `dist-zips/agntux-slack-*.zip` uploads invalidate.
+
+Re-upload `dist-zips/agntux-slack-8.0.2.zip` to Claude Desktop to
+pick up the corrected `view-tool/dist/ui-resources/compose.html`
+and `canvas.html` (real `<!doctype html>` documents with their
+bundles inlined).
+
 ## [8.0.1] — 2026-05-16
 
 Republish at fresh tag. No source changes — pairs with the agntux/app
