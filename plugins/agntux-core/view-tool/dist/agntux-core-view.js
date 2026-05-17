@@ -6,11 +6,8 @@ var TRIAGE_RESOURCE_URI = "ui://agntux-core/triage";
 var DEFAULT_LIMIT = 30;
 var DEFAULT_HANDLED_DAYS = 7;
 var MAX_HANDLED_RECENT = 10;
-var MAX_RELATED_ENTITIES = 6;
-var MAX_SUGGESTED_ACTIONS = 6;
 var MAX_SUMMARY_CHARS = 200;
 var MAX_TITLE_CHARS = 120;
-var MAX_EXCERPT_CHARS = 600;
 var PRIORITY_RANK = {
   high: 0,
   medium: 1,
@@ -27,9 +24,6 @@ function asPriority(v) {
 }
 function asActionStatus(v) {
   return v === "snoozed" ? "snoozed" : "open";
-}
-function asHandledStatus(v) {
-  return v === "dismissed" ? "dismissed" : "done";
 }
 function deriveTitle(fm, why) {
   if (fm.reason_detail) {
@@ -82,7 +76,7 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
   try {
     entries = await ctx.fs.listWithMeta(actionsPrefix);
   } catch {
-    return { open: [], handled: [], snoozedCount: 0 };
+    return { open: [], handled: [], snoozedCount: 0, maxUpdatedAt: "" };
   }
   const filtered = entries.filter(
     (e) => isActionFilePath(e.path) && shouldFetchForTriage(e.meta, handledCutoffMs)
@@ -92,6 +86,7 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
   const open = [];
   const handled = [];
   let snoozedCount = 0;
+  let maxUpdatedAt = "";
   for (let i = 0; i < filtered.length; i++) {
     const buf = bodies[i];
     if (!buf) continue;
@@ -103,10 +98,12 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
     }
     const fm = parsed.frontmatter;
     if (!fm.id) continue;
+    if (fm.updated_at && fm.updated_at > maxUpdatedAt) {
+      maxUpdatedAt = fm.updated_at;
+    }
     if (fm.status === "open" || fm.status === "snoozed") {
       if (fm.status === "snoozed") snoozedCount++;
       const why = parsed.why_matters;
-      const fitRaw = parsed.personalization_fit;
       const row = {
         id: fm.id,
         title: deriveTitle(fm, why),
@@ -114,20 +111,7 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
         priority: asPriority(fm.priority),
         status: asActionStatus(fm.status),
         reason_class: fm.reason_class || "",
-        due_by: fm.due_by || null,
-        snoozed_until: fm.snoozed_until || null,
-        source: fm.source || null,
-        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
-        suggested_actions: fm.suggested_actions.slice(
-          0,
-          MAX_SUGGESTED_ACTIONS
-        ),
-        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
-        personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
-        created_at: fm.created_at || null,
-        // P5 Decision 13: order by frontmatter.updated_at. Falls back to
-        // null when the frontmatter doesn't carry it.
-        updated_at: fm.updated_at || null
+        due_by: fm.due_by || null
       };
       open.push(row);
       continue;
@@ -140,14 +124,11 @@ async function processActionsDir(ctx, actionsPrefix, handledCutoffMs) {
       handled.push({
         id: fm.id,
         title: deriveTitle(fm, parsed.why_matters),
-        priority: asPriority(fm.priority),
-        status: asHandledStatus(fm.status),
-        handled_at: handledAt,
-        outcome: null
+        handled_at: handledAt
       });
     }
   }
-  return { open, handled, snoozedCount };
+  return { open, handled, snoozedCount, maxUpdatedAt };
 }
 function sortOpen(open) {
   open.sort((a, b) => {
@@ -186,15 +167,7 @@ async function handleTriageView(_args, ctx) {
   const actionsCapped = truncated ? scan.open.slice(0, limit) : scan.open;
   const handledCapped = scan.handled.slice(0, MAX_HANDLED_RECENT);
   const openCount = scan.open.filter((a) => a.status === "open").length;
-  let lastUpdatedAt = "";
-  for (const row of scan.open) {
-    if (row.updated_at && row.updated_at > lastUpdatedAt) {
-      lastUpdatedAt = row.updated_at;
-    }
-  }
-  if (!lastUpdatedAt) {
-    lastUpdatedAt = ctx.now().toISOString();
-  }
+  const lastUpdatedAt = scan.maxUpdatedAt || ctx.now().toISOString();
   const bootstrapMode = scan.open.length === 0 && scan.handled.length === 0;
   return {
     structuredContent: {

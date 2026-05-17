@@ -16,10 +16,8 @@ import {
   type ViewTool,
   type ViewToolContext,
   type ViewToolModule,
-  ViewToolFsError,
   parseActionFile,
   type ActionFrontmatter,
-  type SuggestedActionRow,
 } from "@agntux/plugin-runtime";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
@@ -28,11 +26,8 @@ const TRIAGE_RESOURCE_URI = "ui://agntux-core/triage" as const;
 const DEFAULT_LIMIT = 30;
 const DEFAULT_HANDLED_DAYS = 7;
 const MAX_HANDLED_RECENT = 10;
-const MAX_RELATED_ENTITIES = 6;
-const MAX_SUGGESTED_ACTIONS = 6;
 const MAX_SUMMARY_CHARS = 200;
 const MAX_TITLE_CHARS = 120;
-const MAX_EXCERPT_CHARS = 600;
 
 const PRIORITY_RANK: Record<string, number> = {
   high: 0,
@@ -41,6 +36,13 @@ const PRIORITY_RANK: Record<string, number> = {
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
+//
+// Shape note: this payload is consumed exclusively by triage-ui.tsx (the
+// MCP Apps iframe). Fields that the iframe doesn't render were stripped in
+// 9.5.3 to keep the JSON-RPC tool-result body under the host's max-token
+// cap — a 30-row payload with full excerpts hit ~62 KB and was being
+// rejected on the way back to the chat model. `due_by` is kept because
+// sortOpen() reads it; the iframe ignores it.
 
 interface TriageActionRow {
   id: string;
@@ -49,28 +51,17 @@ interface TriageActionRow {
   priority: "high" | "medium" | "low";
   status: "open" | "snoozed";
   reason_class: string;
+  // Internal use only — sort key for sortOpen. The iframe ignores this
+  // field; kept on the row (vs. an intermediate sort tuple) because the
+  // overhead is ~10 bytes per row and the simpler shape is easier to
+  // reason about.
   due_by: string | null;
-  snoozed_until: string | null;
-  source: string | null;
-  related_entities: string[];
-  suggested_actions: SuggestedActionRow[];
-  why_matters_excerpt: string;
-  personalization_fit_excerpt: string;
-  // Created/updated timestamps surfaced so the component can render
-  // "Created X ago / Updated Y ago" lines and offer a sort-by-recency option.
-  // Both read from frontmatter. `updated_at` may be absent on legacy files;
-  // ordering falls back to `created_at`, then to filename order.
-  created_at: string | null;
-  updated_at: string | null;
 }
 
 interface TriageHandledRow {
   id: string;
   title: string;
-  priority: "high" | "medium" | "low";
-  status: "done" | "dismissed";
   handled_at: string;
-  outcome: string | null;
 }
 
 interface TriageCounts {
@@ -109,10 +100,6 @@ function asPriority(v: string): "high" | "medium" | "low" {
 
 function asActionStatus(v: string): "open" | "snoozed" {
   return v === "snoozed" ? "snoozed" : "open";
-}
-
-function asHandledStatus(v: string): "done" | "dismissed" {
-  return v === "dismissed" ? "dismissed" : "done";
 }
 
 function deriveTitle(fm: ActionFrontmatter, why: string): string {
@@ -218,6 +205,12 @@ async function processActionsDir(
   open: TriageActionRow[];
   handled: TriageHandledRow[];
   snoozedCount: number;
+  // Max-of-row frontmatter.updated_at across the scanned set. Computed
+  // server-side and surfaced as `last_updated_at` on the payload so the
+  // iframe can render a meaningful "Updated X ago" stamp. Not shipped per
+  // row — the 9.5.3 trim moved this to a single top-level scalar to keep
+  // the wire payload under the host's max-tokens cap.
+  maxUpdatedAt: string;
 }> {
   // listWithMeta returns every action's path AND its parsed YAML
   // frontmatter in a single call (one DB query if cached, parallel
@@ -233,7 +226,7 @@ async function processActionsDir(
   try {
     entries = await ctx.fs.listWithMeta(actionsPrefix);
   } catch {
-    return { open: [], handled: [], snoozedCount: 0 };
+    return { open: [], handled: [], snoozedCount: 0, maxUpdatedAt: "" };
   }
   const filtered = entries.filter(
     (e) =>
@@ -247,6 +240,7 @@ async function processActionsDir(
   const open: TriageActionRow[] = [];
   const handled: TriageHandledRow[] = [];
   let snoozedCount = 0;
+  let maxUpdatedAt = "";
 
   for (let i = 0; i < filtered.length; i++) {
     const buf = bodies[i];
@@ -261,10 +255,17 @@ async function processActionsDir(
     const fm = parsed.frontmatter;
     if (!fm.id) continue;
 
+    // Track the most-recent frontmatter.updated_at across the whole scan
+    // (open + handled) for the top-level last_updated_at stamp. Done
+    // before the status branch so closed actions still bump the
+    // freshness mark.
+    if (fm.updated_at && fm.updated_at > maxUpdatedAt) {
+      maxUpdatedAt = fm.updated_at;
+    }
+
     if (fm.status === "open" || fm.status === "snoozed") {
       if (fm.status === "snoozed") snoozedCount++;
       const why = parsed.why_matters;
-      const fitRaw = parsed.personalization_fit;
       const row: TriageActionRow = {
         id: fm.id,
         title: deriveTitle(fm, why),
@@ -273,19 +274,6 @@ async function processActionsDir(
         status: asActionStatus(fm.status),
         reason_class: fm.reason_class || "",
         due_by: fm.due_by || null,
-        snoozed_until: fm.snoozed_until || null,
-        source: fm.source || null,
-        related_entities: fm.related_entities.slice(0, MAX_RELATED_ENTITIES),
-        suggested_actions: fm.suggested_actions.slice(
-          0,
-          MAX_SUGGESTED_ACTIONS,
-        ),
-        why_matters_excerpt: truncate(why, MAX_EXCERPT_CHARS),
-        personalization_fit_excerpt: truncate(fitRaw, MAX_EXCERPT_CHARS),
-        created_at: fm.created_at || null,
-        // P5 Decision 13: order by frontmatter.updated_at. Falls back to
-        // null when the frontmatter doesn't carry it.
-        updated_at: fm.updated_at || null,
       };
       open.push(row);
       continue;
@@ -301,15 +289,12 @@ async function processActionsDir(
       handled.push({
         id: fm.id,
         title: deriveTitle(fm, parsed.why_matters),
-        priority: asPriority(fm.priority),
-        status: asHandledStatus(fm.status),
         handled_at: handledAt,
-        outcome: null,
       });
     }
   }
 
-  return { open, handled, snoozedCount };
+  return { open, handled, snoozedCount, maxUpdatedAt };
 }
 
 function sortOpen(open: TriageActionRow[]): void {
@@ -366,17 +351,12 @@ async function handleTriageView(
   const handledCapped = scan.handled.slice(0, MAX_HANDLED_RECENT);
   const openCount = scan.open.filter((a) => a.status === "open").length;
 
-  // last_updated_at picks the most-recent action `updated_at` across the
-  // scanned rows. Falls back to ctx.now() when no row carries it.
-  let lastUpdatedAt = "";
-  for (const row of scan.open) {
-    if (row.updated_at && row.updated_at > lastUpdatedAt) {
-      lastUpdatedAt = row.updated_at;
-    }
-  }
-  if (!lastUpdatedAt) {
-    lastUpdatedAt = ctx.now().toISOString();
-  }
+  // last_updated_at preserves the 9.5.2 data-mtime semantics — the
+  // max-of-row frontmatter.updated_at across the scanned set — but is
+  // now computed server-side in processActionsDir() and surfaced as a
+  // single top-level scalar so per-row `updated_at` doesn't bloat the
+  // wire payload. Falls back to ctx.now() when no row carries it.
+  const lastUpdatedAt = scan.maxUpdatedAt || ctx.now().toISOString();
 
   const bootstrapMode =
     scan.open.length === 0 && scan.handled.length === 0;

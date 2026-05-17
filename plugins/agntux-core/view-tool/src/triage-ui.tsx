@@ -18,7 +18,6 @@ interface TriageActionRow {
   priority: "high" | "medium" | "low";
   status: "open" | "snoozed";
   reason_class: string;
-  why_matters_excerpt: string;
 }
 
 interface TriagePayloadOk {
