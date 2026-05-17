@@ -3,7 +3,7 @@ export default {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    '../../../../../packages/agntux-ui-primitives/src/**/*.{js,ts,jsx,tsx}',
+    '../../../packages/agntux-ui-primitives/src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

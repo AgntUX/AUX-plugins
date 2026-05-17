@@ -1,9 +1,0 @@
-{
-  "args": {},
-  "prompt": "Call triage_view with no arguments and render the result.",
-  "interactions": [
-    { "type": "query", "selector": "[data-testid='actions-index-missing']" },
-    { "type": "query", "selector": "[data-testid='run-onboard']" }
-  ],
-  "_notes": "Tests the degraded-state render. triage_view's inputSchema clamps numeric args (limit, view_handled_days) so an 'invalid arg' error path doesn't exist — degraded states come from server state instead. To force `actions_index_missing`, set AGNTUX_ROOT_OVERRIDE=/tmp/no-such-dir before running. The component should render the run-onboard CTA without throwing — zero component console errors."
-}

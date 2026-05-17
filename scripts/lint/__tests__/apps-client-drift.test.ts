@@ -5,7 +5,7 @@
  *
  * Each test builds an ephemeral repo layout under os.tmpdir() that
  * mimics the real shape: a canonical copy at
- * `plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client/`
+ * `plugins/agntux-core/view-tool/src/lib/apps-client/`
  * and a per-plugin copy at `plugins/<slug>/view-tool/src/lib/apps-client/`.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,7 +16,7 @@ import { pass12AppsClientDrift } from "../lint-apps-client-drift.js";
 import type { Finding } from "../lint-apps-client-drift.js";
 
 const CANONICAL_REL =
-  "plugins/agntux-core/ui-handlers/triage/component/src/lib/apps-client";
+  "plugins/agntux-core/view-tool/src/lib/apps-client";
 
 function setupRepo(): { repoRoot: string } {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "lint12-"));
@@ -136,55 +136,57 @@ describe("pass12AppsClientDrift", () => {
     expect(findings[0]?.severity).toBe("warning");
   });
 
-  it("does not emit findings against the canonical source itself", () => {
-    // agntux-core's pluginDir contains the canonical at ui-handlers/...
-    // and its OWN view-tool vendored copy. As long as the view-tool copy
-    // matches the canonical, no finding.
+  it("does not emit findings against the canonical owner (agntux-core) itself", () => {
+    // The canonical lives AT plugins/agntux-core/view-tool/src/lib/apps-client/
+    // post-9.6.0. The plugin-local check is skipped for agntux-core so it
+    // doesn't self-report a hash mismatch against itself; even if the
+    // vendored copy is missing or differs, no finding is emitted for slug
+    // agntux-core.
     env = setupRepo();
-    const { pluginDir } = vendorInto(env.repoRoot, "agntux-core");
+    // Drop a vendored copy that DOES NOT match the canonical (would be E26
+    // for any other plugin) plus an agntux-core pluginDir.
+    const pluginDir = path.join(env.repoRoot, "plugins", "agntux-core");
+    const vendorDir = path.join(pluginDir, "view-tool", "src", "lib", "apps-client");
+    fs.mkdirSync(vendorDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(vendorDir, "simple-mcp-app.ts"),
+      "// drift — but agntux-core is the owner and should be skipped\n",
+    );
+    fs.writeFileSync(
+      path.join(vendorDir, "constants.ts"),
+      "// drift\n",
+    );
     const findings: Finding[] = [];
     pass12AppsClientDrift("agntux-core", pluginDir, env.repoRoot, findings);
     expect(findings).toEqual([]);
   });
 
-  it("checks agntux-build's two canonical _template apps-client copies", () => {
+  it("checks agntux-build's canonical _template/view-tool apps-client copy", () => {
     env = setupRepo();
     // No view-tool/ at the plugin root (agntux-build doesn't ship one)
-    // but EXTRA_COPIES targets two paths inside its canonical/ subtree.
+    // but EXTRA_COPIES targets the _template/view-tool path inside its
+    // canonical/ subtree.
     const pluginDir = path.join(env.repoRoot, "plugins", "agntux-build");
     fs.mkdirSync(pluginDir, { recursive: true });
     const tplViewTool = path.join(
       pluginDir,
       "canonical/ui-handlers/_template/view-tool/src/lib/apps-client",
     );
-    const tplComponent = path.join(
-      pluginDir,
-      "canonical/ui-handlers/_template/component/src/lib/apps-client",
-    );
     const canon = path.join(env.repoRoot, CANONICAL_REL);
     fs.mkdirSync(tplViewTool, { recursive: true });
-    fs.mkdirSync(tplComponent, { recursive: true });
-    fs.copyFileSync(
-      path.join(canon, "simple-mcp-app.ts"),
+    // Drift the copy.
+    fs.writeFileSync(
       path.join(tplViewTool, "simple-mcp-app.ts"),
+      "// DRIFTED canonical template\n",
     );
     fs.copyFileSync(
       path.join(canon, "constants.ts"),
       path.join(tplViewTool, "constants.ts"),
     );
-    // Drift the second copy.
-    fs.writeFileSync(
-      path.join(tplComponent, "simple-mcp-app.ts"),
-      "// DRIFTED canonical template\n",
-    );
-    fs.copyFileSync(
-      path.join(canon, "constants.ts"),
-      path.join(tplComponent, "constants.ts"),
-    );
     const findings: Finding[] = [];
     pass12AppsClientDrift("agntux-build", pluginDir, env.repoRoot, findings);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.code).toBe("E26");
-    expect(findings[0]?.file).toMatch(/_template\/component/);
+    expect(findings[0]?.file).toMatch(/_template\/view-tool/);
   });
 });
