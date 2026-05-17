@@ -3,13 +3,25 @@
 // Vite (vite-plugin-singlefile) emits one self-contained HTML at
 // dist/ui-resources/triage.html.
 //
-// Minimal MVP shell — full primitives (ScrollablePanel, ServerErrorScreen,
-// safe-accessors, suggested-actions buttons) will move out of the legacy
-// ui-handlers/triage/component/ subtree in a follow-up pass. The shape here
-// matches the structuredContent contract emitted by agntux-core-view.ts.
+// The shape here matches the structuredContent contract emitted by
+// agntux-core-view.ts.
+//
+// ── MCP Apps protocol ──────────────────────────────────────────────────────
+//
+// This iframe communicates with the host via JSON-RPC 2.0 over postMessage
+// per the MCP Apps spec (`ext-apps/specification/2026-01-26/apps.mdx`).
+// The bare `data.type === "tool-result"` listener shape that earlier
+// versions of this file used did NOT speak the real protocol — hosts
+// (claude.ai, Claude Desktop) send
+// `{ jsonrpc: "2.0", method: "ui/notifications/tool-result", params }`
+// envelopes, never matched by the bare check, so the iframe stayed on
+// "Loading…" forever. 9.5.4 wires the canonical SimpleMcpApp wrapper from
+// ./lib/apps-client/ which performs the ui/initialize handshake and
+// dispatches notifications to the right handler.
 // =============================================================================
 
 import { createRoot } from "react-dom/client";
+import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 
 interface TriageActionRow {
   id: string;
@@ -88,10 +100,25 @@ const root = createRoot(document.getElementById("root")!);
 let currentPayload: TriagePayload = null;
 root.render(<TriageView payload={currentPayload} />);
 
-window.addEventListener("message", (ev) => {
-  const data = ev.data;
-  if (data && typeof data === "object" && data.type === "tool-result") {
-    currentPayload = data.structuredContent;
-    root.render(<TriageView payload={currentPayload} />);
-  }
+const app = new SimpleMcpApp({
+  name: "agntux-core-triage-view",
+  version: "1.0.0",
+});
+
+// `ontoolresult` fires when the host delivers
+// `ui/notifications/tool-result` after the agent's tool call resolves.
+// `params.structuredContent` carries the payload the handler emitted.
+app.ontoolresult = (params) => {
+  const sc = (params as { structuredContent?: unknown } | undefined)
+    ?.structuredContent;
+  currentPayload = (sc ?? null) as TriagePayload;
+  root.render(<TriageView payload={currentPayload} />);
+};
+
+void app.connect().catch((err: unknown) => {
+  // Connection failure is the host's problem — we render Loading… so the
+  // user sees something rather than a blank iframe. Re-thrown errors here
+  // would surface in the host's iframe-error reporter (if any) but
+  // otherwise have no recourse.
+  console.error("[triage-view] SimpleMcpApp.connect failed:", err);
 });

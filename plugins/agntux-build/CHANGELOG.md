@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-05-17
+
+### Fixed
+
+- Canonical view-tool scaffold at
+  `canonical/ui-handlers/_template/view-tool/src/__ui-name__-ui.tsx`
+  now wires the canonical `SimpleMcpApp` wrapper from the vendored
+  `view-tool/src/lib/apps-client/` directory. Previous template
+  imported `useToolResult` from `../../component/src/lib/apps-react`,
+  which assumed a specific component/ subtree layout that the
+  existing live plugins (agntux-core, agntux-slack, agntux-gmail)
+  don't ship — meaning newly-scaffolded plugins inherited a different
+  iframe-protocol pattern than the live ones. 0.2.3 aligns the
+  canonical with the live-plugin pattern (direct SimpleMcpApp
+  import) so new plugins ship with the same iframe wiring as
+  agntux-core 9.5.4 / agntux-slack 8.0.4 / agntux-gmail 4.0.4.
+
+  See agntux-core/CHANGELOG.md → 9.5.4 for the bug class this
+  pattern exists to prevent (the bare `data.type === "tool-result"`
+  listener never matches the MCP Apps JSON-RPC envelope per the spec
+  at `ext-apps/specification/2026-01-26/apps.mdx`).
+
 ## [0.2.2] — 2026-05-17
 
 ### Added

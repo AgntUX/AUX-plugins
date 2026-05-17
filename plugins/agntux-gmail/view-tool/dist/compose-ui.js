@@ -1,8 +1,17 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // =============================================================================
 // compose-ui.tsx — iframe entry for the agntux-gmail compose view.
+//
+// ── MCP Apps protocol ──────────────────────────────────────────────────────
+//
+// Wires the canonical SimpleMcpApp wrapper from ./lib/apps-client/ to
+// receive `ui/notifications/tool-result` per the MCP Apps spec. The bare
+// `data.type === "tool-result"` listener that earlier versions of this
+// file used never matched the host's JSON-RPC envelope. See
+// agntux-core/CHANGELOG.md → 9.5.4 for the bug-class rationale.
 // =============================================================================
 import { createRoot } from "react-dom/client";
+import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 function ComposeView({ payload }) {
     if (!payload)
         return _jsx("div", { className: "p-4", children: "Loading\u2026" });
@@ -14,11 +23,17 @@ function ComposeView({ payload }) {
 const root = createRoot(document.getElementById("root"));
 let currentPayload = null;
 root.render(_jsx(ComposeView, { payload: currentPayload }));
-window.addEventListener("message", (ev) => {
-    const data = ev.data;
-    if (data && typeof data === "object" && data.type === "tool-result") {
-        currentPayload = data.structuredContent;
-        root.render(_jsx(ComposeView, { payload: currentPayload }));
-    }
+const app = new SimpleMcpApp({
+    name: "agntux-gmail-compose-view",
+    version: "1.0.0",
+});
+app.ontoolresult = (params) => {
+    const sc = params
+        ?.structuredContent;
+    currentPayload = (sc ?? null);
+    root.render(_jsx(ComposeView, { payload: currentPayload }));
+};
+void app.connect().catch((err) => {
+    console.error("[compose-view] SimpleMcpApp.connect failed:", err);
 });
 //# sourceMappingURL=compose-ui.js.map

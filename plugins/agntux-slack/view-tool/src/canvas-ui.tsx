@@ -1,8 +1,17 @@
 // =============================================================================
 // canvas-ui.tsx — iframe entry for the agntux-slack canvas view.
+//
+// ── MCP Apps protocol ──────────────────────────────────────────────────────
+//
+// Wires the canonical SimpleMcpApp wrapper from ./lib/apps-client/ to
+// receive `ui/notifications/tool-result` per the MCP Apps spec. The bare
+// `data.type === "tool-result"` listener that earlier versions of this
+// file used never matched the host's JSON-RPC envelope. See
+// agntux-core/CHANGELOG.md → 9.5.4 for the bug-class rationale.
 // =============================================================================
 
 import { createRoot } from "react-dom/client";
+import { SimpleMcpApp } from "./lib/apps-client/simple-mcp-app.js";
 
 interface CanvasPayloadOk {
   action_id: string;
@@ -15,7 +24,9 @@ interface CanvasPayloadOk {
   };
 }
 
-function CanvasView({ payload }: { payload: CanvasPayloadOk | { error: string } | null }): JSX.Element {
+type CanvasPayload = CanvasPayloadOk | { error: string } | null;
+
+function CanvasView({ payload }: { payload: CanvasPayload }): JSX.Element {
   if (!payload) return <div className="p-4">Loading…</div>;
   if ("error" in payload) {
     return <div className="p-4">Error: {payload.error}</div>;
@@ -41,13 +52,21 @@ function CanvasView({ payload }: { payload: CanvasPayloadOk | { error: string } 
 }
 
 const root = createRoot(document.getElementById("root")!);
-let currentPayload: CanvasPayloadOk | { error: string } | null = null;
+let currentPayload: CanvasPayload = null;
 root.render(<CanvasView payload={currentPayload} />);
 
-window.addEventListener("message", (ev) => {
-  const data = ev.data;
-  if (data && typeof data === "object" && data.type === "tool-result") {
-    currentPayload = data.structuredContent;
-    root.render(<CanvasView payload={currentPayload} />);
-  }
+const app = new SimpleMcpApp({
+  name: "agntux-slack-canvas-view",
+  version: "1.0.0",
+});
+
+app.ontoolresult = (params) => {
+  const sc = (params as { structuredContent?: unknown } | undefined)
+    ?.structuredContent;
+  currentPayload = (sc ?? null) as CanvasPayload;
+  root.render(<CanvasView payload={currentPayload} />);
+};
+
+void app.connect().catch((err: unknown) => {
+  console.error("[canvas-view] SimpleMcpApp.connect failed:", err);
 });
