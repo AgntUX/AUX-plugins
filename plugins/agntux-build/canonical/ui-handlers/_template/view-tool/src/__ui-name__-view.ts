@@ -10,6 +10,19 @@
 // plugins (like this template) export a one-element array; multi-view plugins
 // (e.g. agntux-slack with compose + canvas) export N elements. The compiled
 // module's `default.viewTools` is the contract the remote registry consumes.
+//
+// ── Payload-shape rule ──────────────────────────────────────────────────────
+//
+// `structuredContent` is the JSON-RPC body the host returns to the chat
+// model — capped at ~64 KB. Only ship fields the iframe actually binds to
+// JSX. Build a row → grep your iframe for every field name on it → drop
+// anything that's not bound. The bug class is silent: a saturated workspace
+// (long thread, 30+ rows, max-length excerpts) inflates the wire body past
+// the cap, the host rejects the result, the iframe never renders, and you
+// only find out from a user report. See plugins/agntux-core/CHANGELOG.md →
+// 9.5.3 for the canonical incident; this template ships a regression-guard
+// test at `__tests__/payload-shape.test.ts` that enforces a byte budget +
+// a frozen key set so the bug becomes structurally hard to ship.
 // =============================================================================
 
 import {
