@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-14T14:44:23.537Z",
+  "generated_at": "2026-05-18T21:29:27.770Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a system AgntUX doesn't yet support.",
@@ -277,7 +277,7 @@
       "supported_prompts": [
         {
           "prompt": "/agntux-slack",
-          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–10pm weekdays). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
+          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–7pm weekdays local). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
         }
       ],
       "ui_components": [
