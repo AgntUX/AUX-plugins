@@ -6,6 +6,63 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.2.0] — 2026-05-18
+
+### Changed
+
+- **`recommended_ingest_cadence` tightened to working hours.** Now
+  reads `Every 30 min, 7am–7pm weekdays local` (previously `7am–10pm`).
+  Aligns with the new repo-wide default — scheduled jobs run only
+  during the user's normal working hours unless the source genuinely
+  needs out-of-hours coverage. README updated.
+- **Action-button host_prompts migrated to bare slash-command form.**
+  Skill reference compose-payload (both rendered and `_overrides/`)
+  now emits `host_prompt: "/agntux-slack open the reply composer
+  for action {id}"` instead of the legacy `"ux: Use the agntux-slack
+  plugin to open the reply composer for action {id}."`. The 4.0.0+
+  marketplace schema accepts both forms, so action items already on
+  disk continue to route correctly — but every newly-synced action
+  carries the bare-slash form. View-tool description trigger-phrase
+  lists updated to recognise the new envelopes alongside the legacy
+  ones for transitional compatibility.
+- **`agntux_slack_compose_view` and `agntux_slack_canvas_view`
+  descriptions instruct the host to stop after rendering.** Both now
+  explicitly tell the host not to add chat commentary after rendering
+  the iframe and not to chain further tool calls — the UI is the
+  response. Resolves cases where the model appended a redundant text
+  summary on top of the compose card.
+- **Compose AND canvas envelopes now suppress Slack's native
+  send-message / canvas-create MCP App UIs.** Both
+  `buildEnvelope()` in `view-tool/src/apps/compose/lib/build-
+  envelope.ts` (all 3 branches: send / schedule / save_draft) AND
+  `buildCanvasEnvelope()` in
+  `view-tool/src/apps/canvas/lib/build-canvas-envelope.ts` (the
+  two-step create-canvas + post-link flow) now append a directive
+  telling the host to execute the Slack Connector tool
+  programmatically and return the result as plain chat text — not
+  to render Slack's native form on top of the AgntUX iframe.
+  Resolves the regression where the user filled in the AgntUX UI,
+  clicked Send / Create canvas, and was then shown Slack's
+  identical native UI underneath. New tests at
+  `apps/compose/__tests__/lib/build-envelope.test.ts` and
+  `apps/canvas/__tests__/lib/build-canvas-envelope.test.ts` lock in
+  the directive's presence. The compose / canvas tool descriptions
+  carry the same instruction so it's anchored at both the per-send
+  envelope and the entry-point descriptor.
+- **Iframe-height floor + initial size signal.** `compose-ui.tsx`
+  and `canvas-ui.tsx` now set a 480px `min-height` on
+  `document.documentElement`, `document.body`, and `#root` BEFORE
+  mount. The vendored `simple-mcp-app.ts` emits one
+  `ui/notifications/size-changed` synchronously when
+  `setupSizeChangedNotifications()` runs (in addition to the
+  `ResizeObserver` chain it already wired). Hosts that lock the
+  iframe to a small default on first paint now receive the larger
+  signal before they commit. Update propagated byte-identical to all
+  five vendored apps-client copies (`agntux-core`, `agntux-gmail`,
+  `agntux-slack/apps/compose`, `agntux-slack/apps/canvas`,
+  `agntux-build/_template`) so the pass-12 byte-equality lint stays
+  green.
+
 ## [8.1.0] — 2026-05-17
 
 ### Added

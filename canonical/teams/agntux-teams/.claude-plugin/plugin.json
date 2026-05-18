@@ -4,5 +4,5 @@
   "description": "Team coordination for AgntUX. Designs team data, lifts personal data into shared team views, and generates team-relevant action items via a per-team scheduled task.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "SEE LICENSE",
-  "recommended_ingest_cadence": "Every 15 min, 7am–9pm local — dispatch floor for the team scheduled task; per-team cadences (default 60 min) override inside the skill body via teams/{slug}/data/team-config.md."
+  "recommended_ingest_cadence": "Every 15 min, 7am–7pm weekdays local — dispatch floor for the team scheduled task; per-team cadences (default 60 min) override inside the skill body via teams/{slug}/data/team-config.md."
 }

@@ -59,7 +59,9 @@ directly from this conversation.
      still apply.
 
 3. **Read the source plugin's `.claude-plugin/plugin.json`** for
-   `recommended_ingest_cadence`. Default to `Daily 04:00` if absent.
+   `recommended_ingest_cadence`. Default to `Every 60 min, 7am–7pm
+   weekdays local` if absent (normal working hours in user's local
+   timezone, weekdays only).
 
 4. **Read the canonical per-plugin interview shape** from
    `plugins/agntux-core/skills/agntux/reference/onboard.md`. Locate

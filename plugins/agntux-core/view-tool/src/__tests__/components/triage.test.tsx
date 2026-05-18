@@ -58,12 +58,12 @@ function makeAction(overrides: Record<string, unknown> = {}): Record<string, unk
       {
         label: 'Draft a reply',
         host_prompt:
-          'ux: Use the agntux-slack plugin to draft a reply for action fixture-action-1.',
+          '/agntux-slack draft a reply for action fixture-action-1',
       },
       {
         label: 'Open in source',
         host_prompt:
-          'ux: Use the agntux-core plugin to print the source permalink for action fixture-action-1.',
+          '/agntux print the source permalink for action fixture-action-1',
       },
     ],
     why_matters_excerpt: 'Why this matters body…',
@@ -268,7 +268,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('suggested-fixture-action-1-0'));
     expect(sendFollowUpMessageSpy).toHaveBeenCalledWith(
-      'ux: Use the agntux-slack plugin to draft a reply for action fixture-action-1.',
+      '/agntux-slack draft a reply for action fixture-action-1',
     );
   });
 
@@ -284,7 +284,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
               {
                 label: 'Draft a reply',
                 host_prompt:
-                  'ux: Use the agntux-slack plugin to draft a reply for action fixture-action-1.',
+                  '/agntux-slack draft a reply for action fixture-action-1',
               },
             ],
           }),
@@ -354,7 +354,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     await user.click(screen.getByTestId('stop-raising'));
     expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
     const [prompt] = sendFollowUpMessageSpy.mock.calls[0] as [string];
-    expect(prompt).toMatch(/^ux: Use the agntux-core plugin/);
+    expect(prompt).toMatch(/^\/agntux\s+engage the user-feedback subagent/);
     expect(prompt).toContain('engage the user-feedback subagent');
     expect(prompt).toContain('fixture-action-1');
     expect(prompt).toContain('reason_class: response-needed');
@@ -452,7 +452,7 @@ describe('MainComponent — optimistic hide on resolve', () => {
               {
                 label: 'Mark done — already handled in Slack',
                 host_prompt:
-                  'ux: Use the agntux-core plugin to set action mark-done-a status to done with outcome "completed-externally" (already handled in Slack).',
+                  '/agntux set action mark-done-a status to done with outcome "completed-externally" (already handled in Slack)',
               },
             ],
           }),
@@ -477,7 +477,7 @@ describe('MainComponent — optimistic hide on resolve', () => {
               {
                 label: 'Draft a reply',
                 host_prompt:
-                  'ux: Use the agntux-slack plugin to open the reply composer for action open-composer-a.',
+                  '/agntux-slack open the reply composer for action open-composer-a',
               },
             ],
           }),
@@ -491,6 +491,39 @@ describe('MainComponent — optimistic hide on resolve', () => {
     // the iframe's Send button (which fires set_status separately).
     expect(screen.getByTestId('action-card-open-composer-a')).toBeInTheDocument();
     expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // 8.2.0 / 9.8.0 backwards-compat invariant. TERMINATING_PROMPT_PATTERNS is
+  // prefix-agnostic (verb-only regex). Action items already on disk that
+  // carry the legacy `ux: Use the agntux-core plugin to set action … status
+  // to done` envelope must still trigger the optimistic-hide path so the
+  // migration to bare-slash prompts doesn't break existing rows.
+  it('legacy `ux:` "set action … status to done" envelope still hides the row (prefix-agnostic match-guard)', async () => {
+    const user = userEvent.setup();
+    const { props, sendFollowUpMessageSpy } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({
+            id: 'legacy-mark-done',
+            suggested_actions: [
+              {
+                label: 'Mark done — already handled in Slack',
+                host_prompt:
+                  'ux: Use the agntux-core plugin to set action legacy-mark-done status to done with outcome "completed-externally" (already handled in Slack).',
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    await user.click(screen.getByTestId('suggested-legacy-mark-done-0'));
+    expect(screen.queryByTestId('action-card-legacy-mark-done')).not.toBeInTheDocument();
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
+    // The legacy envelope is forwarded verbatim — no prefix translation.
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledWith(
+      'ux: Use the agntux-core plugin to set action legacy-mark-done status to done with outcome "completed-externally" (already handled in Slack).',
+    );
   });
 
   it('hidden id stays hidden when the server still lists the action as open (slow-write race guard)', async () => {

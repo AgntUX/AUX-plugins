@@ -155,4 +155,4 @@ unspecified per P9 §8.2).
 
 `no-render` means the component does NOT attempt a partial render. It shows only the
 degraded-state message and (for `source_not_found`) a single "Mark done" button that
-emits `sendFollowUpMessage("ux: Use the agntux-core plugin to mark action item {action_id} done")`.
+emits `sendFollowUpMessage("/agntux mark action item {action_id} done")`.

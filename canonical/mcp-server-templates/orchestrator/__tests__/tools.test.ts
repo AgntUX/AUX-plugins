@@ -234,12 +234,12 @@ describe("tool: pivot (path guard)", () => {
     expect(() => validate("")).toThrow("subtype is required");
   });
 
-  it("returns a host_prompt with correct ux: prefix", () => {
+  it("returns a host_prompt with correct /agntux bare slash prefix", () => {
     const subtype = "companies";
     const slug = "acme-corp";
-    const hostPrompt = `ux: Use the agntux-core plugin to open the entity browser for ${subtype}/${slug}.`;
-    expect(hostPrompt.startsWith("ux: ")).toBe(true);
-    expect(hostPrompt).toContain("agntux-core");
+    const hostPrompt = `/agntux open the entity browser for ${subtype}/${slug}`;
+    expect(hostPrompt.startsWith("/agntux ")).toBe(true);
+    expect(hostPrompt).toContain(`${subtype}/${slug}`);
   });
 
   // Pivot has TWO defensive layers: a kebab-case shape check (rejects with
@@ -273,7 +273,7 @@ describe("tool: pivot (path guard)", () => {
 
   it("real handler returns host_prompt for valid input (no FS write)", async () => {
     const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    expect(result.content[0].text).toMatch(/^ux: /);
+    expect(result.content[0].text).toMatch(/^\/agntux /);
     expect((result as { _meta?: { host_prompt?: string } })._meta?.host_prompt).toContain("companies/acme-corp");
   });
 });

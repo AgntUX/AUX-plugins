@@ -6,6 +6,60 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-18
+
+### Changed
+
+- **Scaffold templates inherit the five sibling-plugin improvements
+  from agntux-slack 8.2.0 / agntux-gmail 4.2.0 / agntux-core 9.8.0**,
+  so every plugin scaffolded going forward gets them for free:
+
+  1. **Working-hours cadence default.** `recommended_ingest_cadence`
+     example bumped to `Every 60 min, 7am–7pm weekdays local`
+     everywhere a default is shown — `agents/manifest-author.md`
+     (rubric examples), `skills/build/references/04-discover-tools.md`
+     (planning example), `skills/build/references/09a-onboarding-
+     iterate.md` (fallback when `plugin.json` doesn't carry one),
+     and the maintainer `.claude/commands/scaffold-plugin.md`
+     seeded value. `STUBS.md` placeholder doc updated to recommend
+     the same default.
+  2. **Bare slash-command host_prompts.** Canonical
+     `prompts/ingest/skills/sync/reference/sync.md` now emits
+     `"/{{plugin-slug}} {imperative} for action {id}"` instead of
+     the legacy `"ux: …"` form. `agents/ingest-prompt-author.md`,
+     `agents/draft-flow-author.md`, and
+     `canonical/prompts/agntux-core-hub-contract.md` updated to
+     match. Legacy form still accepted by the schema for backwards
+     compatibility.
+  3. **Stop-after-rendering directive on view-tool descriptors.**
+     `canonical/ui-handlers/_template/view-tool/src/__ui-name__-
+     view.ts` automatically appends the canonical "Once this UI is
+     rendered, the user sees everything they need in the iframe —
+     do NOT add any chat commentary after rendering, and do NOT
+     make any further tool calls" suffix to every descriptor, so
+     authors don't have to remember and can't accidentally double
+     it up. `_template/README.md` and `agents/ui-handler-author.md`
+     document the convention.
+  4. **Iframe-height floor + initial size signal.**
+     `_template/view-tool/src/__ui-name__-ui.tsx` now sets a 480px
+     `min-height` on documentElement / body / `#root` BEFORE mount
+     so the first reported `scrollHeight` is at least the floor.
+     The vendored `_template/view-tool/src/lib/apps-client/
+     simple-mcp-app.ts` emits one initial `ui/notifications/
+     size-changed` synchronously when
+     `setupSizeChangedNotifications()` runs. Copied byte-identical
+     from the canonical at `plugins/agntux-core/view-tool/src/lib/
+     apps-client/simple-mcp-app.ts` to satisfy linter pass 12.
+  5. **Native-UI suppression rule for write-back envelopes.**
+     `agents/draft-flow-author.md` now carries an authoring rule
+     requiring every envelope builder that dispatches to a third-
+     party connector with its own MCP App UI (Slack, Gmail, Linear,
+     etc.) to append a directive telling the host to call the tool
+     programmatically and not render the connector's native UI.
+     `canonical/ui-handlers/slack-thread/handler/slack-thread.md`
+     and `canonical/mcp-server-templates/orchestrator/src/tools/
+     pivot.ts` updated to the new prefix as well.
+
 ## [0.3.0] — 2026-05-17
 
 ### Added

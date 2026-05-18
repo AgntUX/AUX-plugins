@@ -97,19 +97,22 @@ Write `plugins/{slug}/.claude-plugin/plugin.json`:
   "description": "{Display Name} integration for AgntUX. Ingests data from {Display Name} into your knowledge store.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0",
-  "recommended_ingest_cadence": "Daily 04:00"
+  "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
 }
 ```
 
 Tell the user: "`recommended_ingest_cadence` is free-form descriptive
-text — replace `Daily 04:00` with whatever phrasing best matches when
-your source actually produces signal the user cares about. Examples:
-`Hourly` (only if overnight signal is load-bearing — incident channels,
-security feeds), `Every 30 min, 7am–10pm weekdays only` (chat during
-work hours; quiet otherwise; conserves tokens), `Weekly Friday 16:00`
-(low-volume weekly summary), `0,30 7-22 * * 1-5` (cron syntax). See
-the `manifest-author` specialist in `plugin-toolkit` (now in the
-`agntux-plugin-dev` marketplace) for the rubric."
+text. The seeded default — `Every 60 min, 7am–7pm weekdays local` —
+runs once an hour during the user's normal working hours (local
+timezone, weekdays only) and is the right baseline for most sources.
+Tighten or loosen to match when your source actually produces signal
+the user cares about. Examples: `Hourly` (only if overnight signal is
+load-bearing — incident channels, security feeds), `Every 30 min,
+7am–7pm weekdays local` (chat during work hours; quiet otherwise;
+conserves tokens), `Weekly Friday 16:00` (low-volume weekly summary),
+`0,30 7-19 * * 1-5` (cron syntax). See the `manifest-author`
+specialist in `plugin-toolkit` (now in the `agntux-plugin-dev`
+marketplace) for the rubric."
 
 ### Step 3 — `LICENSE`
 

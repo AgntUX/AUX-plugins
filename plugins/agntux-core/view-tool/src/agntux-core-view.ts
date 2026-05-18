@@ -490,7 +490,7 @@ const triageView: ViewTool<Record<string, unknown>, TriagePayload> = {
   descriptor: {
     name: "agntux_core_triage_view",
     description:
-      "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'.",
+      "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. Once this UI is rendered, the user sees everything they need in the iframe — do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response.",
     inputSchema: {
       type: "object",
       properties: {},

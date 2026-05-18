@@ -474,4 +474,60 @@ describe('SimpleMcpApp', () => {
       expect(app.getHostContext()).toEqual({ theme: 'light' });
     });
   });
+
+  // ========================================================================
+  // setupSizeChangedNotifications — initial-emit + ResizeObserver wiring
+  //
+  // The MCP Apps protocol's `ui/notifications/size-changed` channel is one-
+  // way (iframe → host). Hosts often commit to a default iframe height on
+  // first paint and ignore subsequent notifications, so the canonical
+  // implementation emits ONE synchronous size signal up-front (before the
+  // ResizeObserver fires) to race the host's commit. The `*-ui.tsx` entry
+  // for each plugin sets a `min-height` on documentElement / body / #root
+  // BEFORE mount; the value reported here therefore reflects that floor.
+  // ========================================================================
+
+  describe('setupSizeChangedNotifications', () => {
+    it('emits an initial size-changed notification synchronously on setup', async () => {
+      const app = await createConnectedApp();
+      // Clear out the handshake messages so the next assert sees only the
+      // initial size emit.
+      sentMessages.length = 0;
+
+      const cleanup = app.setupSizeChangedNotifications();
+      // The initial sendSizeChanged is awaited via `void` but the
+      // _sendNotification call that puts a message on the postMessage queue
+      // is synchronous — assert it's already there with no microtask drain.
+      const sizeMsgs = sentMessages.filter(
+        (m) => m.method === 'ui/notifications/size-changed',
+      );
+      expect(sizeMsgs.length).toBeGreaterThanOrEqual(1);
+      const params = sizeMsgs[0].params as Record<string, unknown>;
+      expect(params).toHaveProperty('width');
+      expect(params).toHaveProperty('height');
+      expect(typeof params.width).toBe('number');
+      expect(typeof params.height).toBe('number');
+
+      cleanup();
+    });
+
+    it('returns a no-op cleanup when ResizeObserver is undefined', async () => {
+      const app = await createConnectedApp();
+      // Stub out ResizeObserver to force the early-return branch. The
+      // jsdom env provides ResizeObserver via the test setup; saving and
+      // restoring keeps the rest of the suite unaffected.
+      const original = (globalThis as { ResizeObserver?: unknown })
+        .ResizeObserver;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).ResizeObserver = undefined;
+      try {
+        const cleanup = app.setupSizeChangedNotifications();
+        // Cleanup is callable without throwing — that's the contract.
+        expect(() => cleanup()).not.toThrow();
+      } finally {
+        (globalThis as { ResizeObserver?: unknown }).ResizeObserver =
+          original;
+      }
+    });
+  });
 });

@@ -122,9 +122,9 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "ux: Use the agntux-slack plugin to draft a reply for action test-1."
+    host_prompt: "/agntux-slack draft a reply for action test-1"
   - label: "Snooze 24h"
-    host_prompt: "ux: Use the agntux-core plugin to snooze action item test-1 for 24 hours."`,
+    host_prompt: "/agntux snooze action item test-1 for 24 hours"`,
       `## Why this matters\n\nThis is the test rationale.\n\n## Personalization fit\n\n- Matches a rule\n`,
     );
 
@@ -147,13 +147,13 @@ suggested_actions:
       {
         label: "Draft a reply",
         host_prompt:
-          "ux: Use the agntux-slack plugin to draft a reply for action test-1.",
+          "/agntux-slack draft a reply for action test-1",
         url: null,
       },
       {
         label: "Snooze 24h",
         host_prompt:
-          "ux: Use the agntux-core plugin to snooze action item test-1 for 24 hours.",
+          "/agntux snooze action item test-1 for 24 hours",
         url: null,
       },
     ]);
@@ -381,7 +381,7 @@ suggested_actions:
   - label: "Open in Slack"
     url: "https://oatfi.slack.com/archives/C031V2MJ2KA/p1777391863734439"
   - label: "Draft a reply"
-    host_prompt: "ux: Use the agntux-slack plugin to draft a reply for action url-only."`,
+    host_prompt: "/agntux-slack draft a reply for action url-only"`,
     );
     const result = await handleTriageView({});
     const a = (asPayload(result).actions as Array<Record<string, unknown>>)[0];
@@ -394,7 +394,7 @@ suggested_actions:
       {
         label: "Draft a reply",
         host_prompt:
-          "ux: Use the agntux-slack plugin to draft a reply for action url-only.",
+          "/agntux-slack draft a reply for action url-only",
         url: null,
       },
     ]);

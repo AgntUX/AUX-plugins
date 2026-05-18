@@ -120,5 +120,17 @@ export function buildEnvelope(
     `Gmail Connector has no send-email tool; the user finishes the Send ` +
     `action from Gmail's own UI.`;
 
-  return `Use the Gmail Connector in two steps:\n${step1}\n${step2}${trailer}`;
+  // Native-UI suppression directive. The AgntUX compose iframe has
+  // already collected every field the user cared about, so the host
+  // should call create_draft programmatically and return its result as
+  // plain chat text — NOT render the Gmail Connector's own MCP App UI
+  // (which would duplicate the form the user just used).
+  const noNativeUiDirective =
+    " Execute the Gmail Connector tool programmatically and return its" +
+    " success/error to chat as plain text — do NOT render any Gmail" +
+    " Connector MCP App UI for this call (the user has already used the" +
+    " AgntUX compose UI and the data is final), and do NOT re-render" +
+    " the AgntUX compose UI either; the action is complete.";
+
+  return `Use the Gmail Connector in two steps:\n${step1}\n${step2}${trailer}${noNativeUiDirective}`;
 }

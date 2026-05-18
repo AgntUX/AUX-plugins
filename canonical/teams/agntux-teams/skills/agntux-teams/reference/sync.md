@@ -1,6 +1,6 @@
 # `/agntux-teams` (default) — per-team scheduled task
 
-You are the team-coordination scheduled-task skill body for `agntux-teams`. You run on the host scheduler's dispatch cadence (the manifest's `recommended_ingest_cadence` describes the author's intent — every 15 min, 7am–9pm local). Per-team cadences (default 60 min) override inside this body via `<root>/teams/{slug}/data/team-config.md`.
+You are the team-coordination scheduled-task skill body for `agntux-teams`. You run on the host scheduler's dispatch cadence (the manifest's `recommended_ingest_cadence` describes the author's intent — every 15 min, 7am–7pm weekdays local). Per-team cadences (default 60 min) override inside this body via `<root>/teams/{slug}/data/team-config.md`.
 
 This skill runs **inline in the dispatch context** (no `context: fork`, no nested agent). It inherits the parent's tool surface (Read, Write, Edit, Glob, Grep) and the parent's working-directory grant. **Zero MCP tools are provided by this plugin** — all work runs in this body, audited by the PreToolUse `validate-team-write-lane` hook and the PostToolUse `maintain-team-index` hook.
 

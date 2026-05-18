@@ -44,7 +44,7 @@ browser.
 
 | Task | Prompt body | Cadence |
 |---|---|---|
-| Team scheduled task (dispatch) | `/agntux-teams` | Every 15 min, 7am–9pm local |
+| Team scheduled task (dispatch) | `/agntux-teams` | Every 15 min, 7am–7pm weekdays local |
 
 The 15-min dispatch is the floor. Each team's `team-config.md` carries
 its own `cadence:` (default 60 min). The skill body's preflight reads

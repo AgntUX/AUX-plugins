@@ -6,6 +6,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [9.8.0] — 2026-05-18
+
+### Changed
+
+- **`agntux_core_triage_view` description instructs the host to stop
+  after rendering.** Appended an explicit "do NOT add any chat
+  commentary after rendering, and do NOT make any further tool calls"
+  directive to the tool description so the model treats the rendered
+  triage UI as the response, not a prelude to a written summary.
+- **Triage's runtime `host_prompt` emit migrated to bare slash-command
+  form.** `handleStopRaising` in `view-tool/src/components/main-
+  component.tsx` now emits `/agntux engage the user-feedback
+  subagent …` (was `ux: Use the agntux-core plugin to engage …`).
+  Test fixtures in `mcp-server/__tests__/triage-view.test.ts` and
+  `view-tool/src/__tests__/components/triage.test.tsx` updated to
+  the new prefix. Legacy `"ux: …"` action items still route correctly
+  — the schema accepts both forms.
+- **Iframe-height floor + initial size signal.** `triage-ui.tsx` now
+  sets a 640px `min-height` on `document.documentElement`,
+  `document.body`, and `#root` BEFORE mount; the table-shaped triage
+  body needs the larger floor to show priority groups + handled-
+  recent without clipping. The vendored `simple-mcp-app.ts` emits one
+  initial `ui/notifications/size-changed` synchronously when
+  `setupSizeChangedNotifications()` runs (in addition to the existing
+  `ResizeObserver` chain), giving hosts a starting point before they
+  commit to a default iframe height. Canonical change at
+  `view-tool/src/lib/apps-client/simple-mcp-app.ts` (also the
+  canonical for the marketplace lint); propagated byte-identical to
+  all four vendored copies (`agntux-gmail`, `agntux-slack/apps/canvas`,
+  `agntux-slack/apps/compose`, `agntux-build/_template`) — five
+  byte-identical files total — per linter pass 12 (E26). New tests
+  at `view-tool/src/__tests__/lib/simple-mcp-app.test.ts` cover the
+  initial-emit and the no-op fallback when `ResizeObserver` is
+  undefined.
+- **Backwards-compat invariant locked in.** New test at
+  `view-tool/src/__tests__/components/triage.test.tsx` asserts that
+  legacy `"ux: Use the agntux-core plugin to set action … status to
+  done"` envelopes still trigger the optimistic-hide path — the
+  `TERMINATING_PROMPT_PATTERNS` regex is verb-only and prefix-
+  agnostic, so action items already on disk continue to route
+  correctly after the migration.
+
 ## [9.7.0] — 2026-05-17
 
 ### Added

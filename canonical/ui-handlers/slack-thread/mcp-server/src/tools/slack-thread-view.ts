@@ -26,7 +26,10 @@ export const viewToolDescriptor = {
     "Render the slack-thread UI component for Slack. " +
     "Returns structuredContent populated with thread messages, members, and the " +
     "orchestrator-drafted proposed reply. Also returns _meta.ui.resourceUri pointing " +
-    "at ui://slack-thread. Stateless: no Slack MCP calls, no file writes.",
+    "at ui://slack-thread. Stateless: no Slack MCP calls, no file writes. " +
+    "Once this UI is rendered, the user sees everything they need in the iframe — " +
+    "do NOT add any chat commentary after rendering, and do NOT make any further " +
+    "tool calls; the UI is the response.",
   inputSchema: {
     type: "object" as const,
     properties: {

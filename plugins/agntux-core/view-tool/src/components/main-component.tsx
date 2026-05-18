@@ -687,9 +687,10 @@ function nowPlus3dISO(): string {
 }
 
 // Regex match-guard for status-mutating host_prompts so the optimistic
-// hide path is scoped to terminating verbs only — a `ux: ...open the reply
-// composer for action {id}` prompt opens an iframe and must NOT hide the
-// row. Module-scope constant so it isn't reallocated per render.
+// hide path is scoped to terminating verbs only — a `/agntux-slack open
+// the reply composer for action {id}` prompt opens an iframe and must NOT
+// hide the row. The legacy `ux: …` prefix is also accepted. Module-scope
+// constant so it isn't reallocated per render.
 const TERMINATING_PROMPT_PATTERNS: readonly RegExp[] = [
   /set action ([\w-]+) status to done/i,
   /snooze action item ([\w-]+)/i,
@@ -2850,7 +2851,7 @@ export function MainComponent(props: MainComponentProps) {
 
   const handleStopRaising = useCallback(
     (action: Action) => {
-      const prompt = `ux: Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'}).`;
+      const prompt = `/agntux engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'})`;
       void sendFollowUpMessage(prompt);
       setExpanded((cur) => (cur && cur.id === action.id ? null : cur));
       showFeedback(action.id, {

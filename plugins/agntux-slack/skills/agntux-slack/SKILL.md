@@ -67,7 +67,7 @@ and are loaded directly when the body needs them.
 
 - [`reference/fetch.md`](./reference/fetch.md) — Step 5 fetch shape.
 - [`reference/cursor.md`](./reference/cursor.md) — cursor-map semantics.
-- [`reference/compose-payload.md`](./reference/compose-payload.md) — write shape (for ux:-prompt suggested actions).
+- [`reference/compose-payload.md`](./reference/compose-payload.md) — write shape (for `host_prompt` suggested actions).
 - [`reference/runbook.md`](./reference/runbook.md) — failure-mode taxonomy.
 - [`reference/deep-links.md`](./reference/deep-links.md) — host URL formation for citations.
 - [`reference/honesty.md`](./reference/honesty.md) — what to claim and refuse.

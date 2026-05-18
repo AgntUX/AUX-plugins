@@ -310,13 +310,17 @@ tool — you don't need to match a specific format.
 
 Examples:
 
+- `"Every 60 min, 7am–7pm weekdays local"` — **default** for new
+  ingest plugins. Hourly cadence inside normal working hours in the
+  user's local timezone, weekdays only. Stay within this window unless
+  the source genuinely needs out-of-hours coverage.
 - `"Hourly"` — appropriate only for sources where overnight signal is
   load-bearing (incident/oncall channels, security feeds).
 - `"Daily 04:00"` — overnight email / PM digest.
 - `"Weekdays 09:00"` — work-hours-only signal.
-- `"Every 30 min, 7am–10pm weekdays only"` — time-sensitive but quiet
+- `"Every 30 min, 7am–7pm weekdays local"` — time-sensitive but quiet
   outside work hours; conserves tokens.
-- `"0,30 7-22 * * 1-5"` — cron syntax; same intent.
+- `"0,30 7-19 * * 1-5"` — cron syntax; same intent.
 - `"Weekly Friday 16:00"` — low-volume weekly summary.
 
 Authoring rubric:

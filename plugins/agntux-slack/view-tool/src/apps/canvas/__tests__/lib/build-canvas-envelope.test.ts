@@ -133,4 +133,16 @@ describe("buildCanvasEnvelope", () => {
     const result = buildCanvasEnvelope("a", "T", "S", [], [], "m", CHANNEL, THREAD);
     expect(result).not.toMatch(/agntux-slack plugin/);
   });
+
+  // 8.2.0 — native-UI suppression directive
+  describe("no-native-UI directive (8.2.0)", () => {
+    it("appends a directive that suppresses Slack's native canvas + send-message UIs", () => {
+      const result = buildCanvasEnvelope("a", "T", "S", [], [], "m", CHANNEL, THREAD);
+      expect(result).toContain("do NOT render any Slack Connector MCP App UI");
+      expect(result).toContain("canvas-create / canvas-update UI");
+      expect(result).toContain("send-message UI");
+      expect(result).toContain("do NOT re-render the AgntUX canvas UI");
+      expect(result).toContain("return the success/error of each as plain chat text");
+    });
+  });
 });

@@ -74,7 +74,7 @@ export const pivotTool = {
     guardEntityShape(subtype, slug);
     guardEntityPath(subtype, slug);
 
-    const hostPrompt = `ux: Use the agntux-core plugin to open the entity browser for ${subtype}/${slug}.`;
+    const hostPrompt = `/agntux open the entity browser for ${subtype}/${slug}`;
 
     return {
       content: [

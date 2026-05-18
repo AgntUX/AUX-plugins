@@ -6,6 +6,44 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.2.0] — 2026-05-18
+
+### Changed
+
+- **`recommended_ingest_cadence` constrained to working hours.** Now
+  reads `Every 60 min, 7am–7pm weekdays local` (previously
+  `Hourly`). Aligns with the new repo-wide default — scheduled jobs
+  run only during the user's normal working hours unless the source
+  genuinely needs out-of-hours coverage.
+- **Action-button host_prompts migrated to bare slash-command form.**
+  Skill reference compose-payload (both rendered and `_overrides/`)
+  now emits `host_prompt: "/agntux-gmail open the reply composer for
+  action {id}"` instead of the legacy `"ux: Use the agntux-gmail
+  plugin to open the reply composer for action {id}."`. The 4.0.0+
+  marketplace schema accepts both forms, so action items already on
+  disk continue to route — but every newly-synced action emits the
+  bare-slash form. The `agntux_gmail_compose_view` description's
+  trigger-phrase list now recognises both shapes.
+- **`agntux_gmail_compose_view` description instructs the host to
+  stop after rendering.** Explicit no-chat-commentary / no-further-
+  tool-calls suffix added so the model doesn't summarise the iframe
+  on top of itself.
+- **Compose envelopes now suppress Gmail's native draft MCP App UI.**
+  `buildEnvelope()` in `view-tool/src/lib/build-envelope.ts` appends
+  a directive telling the host to call `create_draft` programmatically
+  and return the resulting draft link as plain chat text — not to
+  render Gmail's native draft UI on top of the AgntUX compose
+  iframe. New tests at
+  `view-tool/src/__tests__/lib/build-envelope.test.ts` lock in the
+  directive's presence.
+- **Iframe-height floor + initial size signal.** `compose-ui.tsx`
+  now sets a 480px `min-height` on `document.documentElement`,
+  `document.body`, and `#root` BEFORE mount. The vendored
+  `simple-mcp-app.ts` emits one initial `ui/notifications/
+  size-changed` synchronously when `setupSizeChangedNotifications()`
+  runs. Hosts that lock the iframe to a small default on first
+  paint now receive the larger signal before they commit.
+
 ## [4.1.0] — 2026-05-17
 
 ### Added
