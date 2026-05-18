@@ -265,10 +265,15 @@ Each `suggested_actions` entry MUST carry `label` plus exactly one of
 ```yaml
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "ux: Use the {plugin-slug} plugin to open the reply composer for action {id}"
+    host_prompt: "/{plugin-slug} open the reply composer for action {id}"
   - label: "Open in {Source}"
     url: "https://{workspace}.{source-tld}/{path}"
 ```
+
+The bare-slash prefix `/{plugin-slug} ` is the 4.0.0+ schema shape. The
+legacy `"ux: Use the {plugin-slug} plugin to …"` form is still accepted
+by the validator for backwards compatibility with action items already on
+disk, but new writes from any ingest skill MUST emit the bare-slash form.
 
 | Use `host_prompt` when… | Use `url` when… |
 |---|---|

@@ -126,7 +126,7 @@ Save:
     "write": ["create_comment", "update_issue_state", ...]
   },
   "primary_write_verbs": ["comment_on_issue", "transition_state", "assign_user", "edit_description"],
-  "recommended_cadence": "Every 60 min, 7am–10pm weekdays"
+  "recommended_cadence": "Every 60 min, 7am–7pm weekdays local"
 }
 ```
 

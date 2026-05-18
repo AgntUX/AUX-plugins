@@ -372,7 +372,7 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "{≤40 char display label}"
-    host_prompt: "ux: open the {imperative} for action {id}"
+    host_prompt: "/{{plugin-slug}} {imperative} for action {id}"
   # next row only when deep_link_url is non-null:
   - label: "Open in {{source-display-name}}"
     url: "{deep_link_url}"
@@ -380,7 +380,7 @@ suggested_actions:
 
 **Priority anchoring** (P3 §4.3): `high` = deadline within 48 hours, top-account / direct-manager / VIP, or reversible cost > ~$10K. `medium` = default for items the user wants but won't suffer harm from delay. `low` = borderline-actionable.
 
-**`suggested_actions` rules:** 1–4 buttons; each row carries **either** `host_prompt` (chat-message envelope routed via view-tool description matching) **or** `url` (host openLink), never both, never neither. `host_prompt` strings start with `ux: ` and reference `{id}`; trigger phrases are owned by the view tool's `description` field, not by Step 10. The drafted reply body is pre-composed into `## Compose payload` at Step 10.1; `host_prompt` itself carries the routing intent only.
+**`suggested_actions` rules:** 1–4 buttons; each row carries **either** `host_prompt` (chat-message envelope routed via view-tool description matching) **or** `url` (host openLink), never both, never neither. `host_prompt` strings start with `/{{plugin-slug}} ` (bare slash command, 4.0.0+ schema) and reference `{id}`; trigger phrases are owned by the view tool's `description` field, not by Step 10. The drafted reply body is pre-composed into `## Compose payload` at Step 10.1; `host_prompt` itself carries the routing intent only. The legacy `"ux: …"` prefix is still accepted by the marketplace schema for backwards compatibility with action items already on disk, but new writes MUST use the bare slash form.
 
 **Apply `# Rewrites` from `data/instructions/{{plugin-slug}}.md`** when composing action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten `## Why this matters` to 1–2 sentences.
 
@@ -458,7 +458,7 @@ Off-lane paths the skill MUST refuse to write (refused at compose time, logged w
 
 Per-plugin override files (e.g., `_overrides/reference/contract-lock.md`) MUST NOT authorise a write outside the lanes above; the toolkit lint pass `pass8SkillRender` rejects malformed overrides before render.
 
-You also do NOT decide when you run (the host's scheduler does), create/edit scheduled tasks (host-UI primitive), or draft proposed replies / schedule sends / summarise at click time — those fire from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes. Suggested-action `ux:` prompts route to your view tool; this skill pre-composes the body inside `## Compose payload` for the view tool to lift, but does not handle the click-time path.
+You also do NOT decide when you run (the host's scheduler does), create/edit scheduled tasks (host-UI primitive), or draft proposed replies / schedule sends / summarise at click time — those fire from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes. Suggested-action `host_prompt` envelopes (bare slash form `/{{plugin-slug}} …`; the legacy `ux: …` form is still accepted on disk) route to your view tool; this skill pre-composes the body inside `## Compose payload` for the view tool to lift, but does not handle the click-time path.
 
 <!-- append:out-of-scope -->
 

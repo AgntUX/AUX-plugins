@@ -16,7 +16,7 @@ verbatim:
 ```yaml
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "ux: Use the agntux-gmail plugin to open the reply composer for action {id}."
+    host_prompt: "/agntux-gmail open the reply composer for action {id}"
   # Include the next row ONLY IF gmail_thread_url is non-null. Drop both
   # lines if null.
   - label: "Open in Gmail"
@@ -27,9 +27,16 @@ The host's tool selector matches each `host_prompt` against the
 `agntux_gmail_compose_view` tool's `description` (which carries the
 trigger phrases inline). The Draft button also accepts the
 alternative phrasings that the view tool's description lists
-("draft an email reply for action {id}", "open the email composer
-for action {id}", etc.). Emit the row above; do NOT vary the wording
-per action.
+("/agntux-gmail draft an email reply for action {id}",
+"/agntux-gmail open the email composer for action {id}", etc.). Emit
+the row above; do NOT vary the wording per action.
+
+**Prefix history.** Prior to agntux-gmail 4.2.0 these prompts used the
+legacy `"ux: Use the agntux-gmail plugin to …"` shape. The bare
+slash-command form (`"/agntux-gmail …"`, 4.0.0+ schema) is the
+going-forward shape; the view-tool `description` still recognises the
+legacy form for backwards compatibility with action items written
+before the migration.
 
 The `Open in Gmail` URL itself is constructed by the deep-links
 reference shape (account-index ladder → `authuser=` fallback →
@@ -52,9 +59,9 @@ keys on `source_ref`.
 
 **Never pre-fill the draft body in the ingest agent's `host_prompt`.**
 The drafted reply lives in the `## Compose payload` body section below;
-the `host_prompt` carries only the view-tool routing intent (`ux: open
-the email composer for action {id}`). The compose iframe lifts the
-payload at click time.
+the `host_prompt` carries only the view-tool routing intent
+(`/agntux-gmail open the email composer for action {id}`). The compose
+iframe lifts the payload at click time.
 
 ## Conditional body section: `## Compose payload`
 

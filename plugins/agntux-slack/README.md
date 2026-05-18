@@ -6,9 +6,10 @@ replies on demand — but only ever send them after you confirm.
 ## What it does
 
 - Reads every channel and DM you have access to, every 30 minutes
-  during weekday work hours (7am–10pm). DMs, @mentions, and active
-  threads are time-sensitive while you're working but don't need
-  overnight or weekend polling — quiet hours conserve tokens.
+  during weekday work hours (7am–7pm, your local timezone). DMs,
+  @mentions, and active threads are time-sensitive while you're working
+  but don't need overnight or weekend polling — quiet hours conserve
+  tokens.
 - Extracts entities: Slack users (people), organisations referenced in
   shared links, workstreams from your `# Glossary`, and recurring topics.
 - Triages action items: response-needed (DMs, @mentions), deadlines,

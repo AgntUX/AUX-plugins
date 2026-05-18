@@ -2865,7 +2865,7 @@ async function handleCanvas(args, ctx) {
 var composeView = {
   descriptor: {
     name: "agntux_slack_compose_view",
-    description: "Open the Slack reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section.",
+    description: "Open the Slack reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the reply composer for action {id}`, `/agntux-slack open the reply composer in schedule mode for action {id}`, `/agntux-slack draft a reply for action {id}`, `/agntux-slack draft a reply and schedule it for action {id}`. The legacy `ux: Use the agntux-slack plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user clicks Send / Schedule / Save Draft inside this UI and the Slack Connector tool returns, do NOT re-render this AgntUX compose UI and do NOT render Slack's native send-message UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },
@@ -2888,7 +2888,7 @@ var composeView = {
 var canvasView = {
   descriptor: {
     name: "agntux_slack_canvas_view",
-    description: "Open the Slack canvas summariser for an action. Pass action_id; the handler reads the action file's `## Canvas payload` body section.",
+    description: "Open the Slack canvas summariser for an action. Pass action_id; the handler reads the action file's `## Canvas payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the canvas summariser for action {id}`, `/agntux-slack summarise the thread for action {id}`. The legacy `ux: Use the agntux-slack plugin to summarise the thread for action {id}` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user commits the canvas write from this UI and the Slack Connector tool returns, do NOT re-render this AgntUX canvas UI and do NOT render Slack's native canvas-create/update UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

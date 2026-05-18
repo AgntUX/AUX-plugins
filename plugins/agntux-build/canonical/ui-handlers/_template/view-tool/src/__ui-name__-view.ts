@@ -87,7 +87,17 @@ async function handle(
 const viewTool: ViewTool<{{ui-name-pascal}}Args, {{ui-name-pascal}}Payload> = {
   descriptor: {
     name: "{{view-tool-name}}",
-    description: "{{view-tool-description}}",
+    // Convention (agntux-build _template, P15 §UI tool descriptor suffix):
+    // every UI-rendering tool description ends with the standard
+    // stop-after-rendering directive so the host's model doesn't add
+    // commentary or chain follow-up tool calls. Author {{view-tool-description}}
+    // as the verb-phrase / trigger-list body; the suffix is appended here so
+    // authors don't have to remember (and can't accidentally double-up).
+    description:
+      "{{view-tool-description}} " +
+      "Once this UI is rendered, the user sees everything they need in the " +
+      "iframe — do NOT add any chat commentary after rendering, and do NOT " +
+      "make any further tool calls; the UI is the response.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

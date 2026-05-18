@@ -99,6 +99,21 @@ export function buildCanvasEnvelope(
   // (not the escaped title) so the host substitutes the unescaped title
   // text — embedding the escaped form (with doubled guillemets) would
   // leak the doubling into the actual Slack message label.
+  // Native-UI suppression directive. The AgntUX canvas iframe has already
+  // collected every field the user cared about, so the host should call
+  // slack_create_canvas + slack_send_message programmatically and return
+  // their results as plain chat text — NOT render Slack's native
+  // canvas-create / canvas-update / send-message MCP App UI on top of
+  // the AgntUX canvas iframe.
+  const noNativeUiDirective =
+    " Execute both Slack Connector tools programmatically and return the" +
+    " success/error of each as plain chat text — do NOT render any Slack" +
+    " Connector MCP App UI for either call (the user has already used the" +
+    " AgntUX canvas UI and the data is final; this applies to Slack's" +
+    " native canvas-create / canvas-update UI and to Slack's native" +
+    " send-message UI), and do NOT re-render the AgntUX canvas UI either;" +
+    " the action is complete.";
+
   return (
     `Use the Slack Connector in two steps:\n` +
     `1. Create a Slack canvas titled «${escapedTitle}» with body assembled ` +
@@ -112,6 +127,6 @@ export function buildCanvasEnvelope(
     `canvas title (the same text passed to slack_create_canvas, with any ` +
     `«« or »» pairs collapsed back to single « or »). Reply in-thread; if no ` +
     `thread exists yet on the parent message, this reply will start one. ` +
-    `Use slack_send_message.${trailer}`
+    `Use slack_send_message.${trailer}${noNativeUiDirective}`
   );
 }

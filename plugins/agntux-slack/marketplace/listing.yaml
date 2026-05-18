@@ -29,7 +29,7 @@ data_ingested:
   - "Pinned messages and canvases referenced from monitored channels"
 supported_prompts:
   - prompt: "/agntux-slack"
-    purpose: "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–10pm weekdays). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
+    purpose: "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–7pm weekdays local). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
 ui_components:
   - name: "compose"
     title: "Slack reply composer"

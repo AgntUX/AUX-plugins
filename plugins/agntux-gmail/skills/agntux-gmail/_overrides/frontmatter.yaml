@@ -5,7 +5,7 @@ plugin-slug: agntux-gmail
 plugin-version: 3.0.0
 source-display-name: Gmail
 source-slug: gmail
-recommended-cadence: Hourly — email is bursty during the workday but doesn't need higher resolution than every 60 min
+recommended-cadence: Every 60 min, 7am–7pm weekdays local — email is bursty during the workday but doesn't need higher resolution than every 60 min
 source-cursor-semantics: "Single JSON map under `cursor`. Two key shapes: the literal string `inbox` for the discovery low-water-mark, and `<thread_id>` for per-thread cursors. Plus sibling fields `discovery_ts` and `user_email` on `sync.md`."
 source-mcp-tools: "search_threads, get_thread, list_labels (read-only); the write tools create_label, create_draft are inherited but forbidden by this prompt — view-tool send envelopes own the draft path"
 thread-unit-name: thread

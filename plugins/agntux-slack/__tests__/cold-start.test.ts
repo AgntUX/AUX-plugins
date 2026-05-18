@@ -560,9 +560,9 @@ describe("sync skill 4.0.0 — suggested_actions carries the three standard butt
   });
 
   it("Draft / Schedule / Summarise prompts route directly to the view tools (no skill round-trip)", () => {
-    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer for action \{id\}/);
-    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer in schedule mode for action \{id\}/);
-    expect(src).toMatch(/Use the agntux-slack plugin to open the canvas summariser for action \{id\}/);
+    expect(src).toMatch(/\/agntux-slack open the reply composer for action \{id\}/);
+    expect(src).toMatch(/\/agntux-slack open the reply composer in schedule mode for action \{id\}/);
+    expect(src).toMatch(/\/agntux-slack open the canvas summariser for action \{id\}/);
   });
 
   it("suggested_actions rules document the 2–4 button range (4.0.0+ — was 2–5 before Mark done was retired)", () => {
@@ -744,14 +744,17 @@ describe("example action item", () => {
     expect(content).toContain("generated_at:");
   });
 
-  it("suggested_actions host_prompts start with ux: and name a plugin", () => {
+  it("suggested_actions host_prompts use the bare-slash prefix (/agntux-slack or /agntux)", () => {
     const content = readMd(actionPath);
     const lines = content.split("\n");
-    const promptLines = lines.filter((l) => l.trim().startsWith("ux: Use the"));
+    const promptLines = lines.filter((l) => /^\s*\/agntux(-slack)?\s/.test(l));
     expect(promptLines.length).toBeGreaterThan(0);
     for (const line of promptLines) {
-      expect(line.trim()).toMatch(/^ux: Use the (agntux-slack|agntux-core) plugin to/);
+      expect(line.trim()).toMatch(/^\/(agntux-slack|agntux)\s/);
     }
+    // Legacy "ux: …" envelopes must NOT appear in newly-authored fixtures.
+    const legacy = lines.filter((l) => /^\s*ux:\s/.test(l));
+    expect(legacy).toHaveLength(0);
   });
 });
 

@@ -157,6 +157,20 @@ in the template's README (`{{plugin-slug-kebab}}`, `{{plugin-slug-snake}}`,
 `{{ui-name}}`, `{{view-tool-name}}`, `{{ui-name-pascal}}`,
 `{{view-tool-description}}`, `{{ui-display-name}}`).
 
+**Authoring rule — descriptor shape (load-bearing).** `{{view-tool-description}}`
+holds the verb phrase + trigger-phrase list ONLY. The template's
+`__ui-name__-view.ts` automatically appends the canonical
+stop-after-rendering directive ("Once this UI is rendered, the user
+sees everything they need in the iframe — do NOT add any chat
+commentary after rendering, and do NOT make any further tool calls;
+the UI is the response."). Do not duplicate the suffix in
+`{{view-tool-description}}`. If the view tool dispatches to a third-
+party connector that ships its own MCP App UI (Slack, Gmail, Linear,
+etc.), additionally instruct the host not to re-render this view AND
+not to render the connector's native UI after the connector tool
+returns — model the wording on `agntux_slack_compose_view`'s
+description.
+
 **Two placeholder spellings.** File **contents** use `{{ui-name}}` (etc.).
 On-disk **filenames** in the template tree use `__ui-name__` instead —
 the brace form is rejected by Claude Desktop's plugin-zip upload

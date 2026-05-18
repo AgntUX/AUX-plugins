@@ -89,4 +89,34 @@ describe("buildEnvelope", () => {
     const result = buildEnvelope("a", "send", "b", CHANNEL, THREAD);
     expect(result).not.toMatch(/agntux-slack plugin/);
   });
+
+  // The native-UI suppression directive — 8.2.0 contract addition. The
+  // AgntUX compose iframe already collected every field, so the host
+  // must execute the Slack Connector programmatically rather than
+  // rendering Slack's native send-message MCP App UI.
+  describe("no-native-UI directive (8.2.0)", () => {
+    it("send mode appends the directive", () => {
+      const result = buildEnvelope("a", "send", "b", CHANNEL, THREAD);
+      expect(result).toContain("do NOT render any Slack Connector MCP App UI");
+      expect(result).toContain("do NOT re-render the AgntUX compose UI");
+      expect(result).toContain("return its success/error to chat as plain text");
+    });
+    it("schedule mode appends the directive", () => {
+      const result = buildEnvelope(
+        "a",
+        "schedule",
+        "b",
+        CHANNEL,
+        THREAD,
+        "2026-05-05T09:00:00.000Z",
+      );
+      expect(result).toContain("do NOT render any Slack Connector MCP App UI");
+      expect(result).toContain("do NOT re-render the AgntUX compose UI");
+    });
+    it("save_draft mode appends the directive", () => {
+      const result = buildEnvelope("a", "save_draft", "b", CHANNEL, THREAD);
+      expect(result).toContain("do NOT render any Slack Connector MCP App UI");
+      expect(result).toContain("do NOT re-render the AgntUX compose UI");
+    });
+  });
 });

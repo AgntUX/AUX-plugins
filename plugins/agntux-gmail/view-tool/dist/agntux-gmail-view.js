@@ -110,7 +110,7 @@ async function handleCompose(args, ctx) {
 var composeView = {
   descriptor: {
     name: "agntux_gmail_compose_view",
-    description: "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section.",
+    description: "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-gmail open the reply composer for action {id}`, `/agntux-gmail open the email composer for action {id}`, `/agntux-gmail draft an email reply for action {id}`. The legacy `ux: Use the agntux-gmail plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user clicks Save Draft inside this UI and the Gmail Connector tool returns, do NOT re-render this AgntUX compose UI and do NOT render Gmail's native draft/send UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

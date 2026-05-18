@@ -53,6 +53,19 @@ _template/
 | `{{view-tool-name}}`           | `agntux_slack_compose_view`          |
 | `{{view-tool-description}}`    | `Open the Slack compose modal…`      |
 
+**`{{view-tool-description}}` shape.** Author the verb-phrase + trigger
+list ONLY — do NOT include the stop-after-rendering directive. The
+template's `__ui-name__-view.ts` automatically appends the canonical
+"Once this UI is rendered, the user sees everything they need in the
+iframe — do NOT add any chat commentary after rendering, and do NOT
+make any further tool calls; the UI is the response." suffix to every
+descriptor, so authors don't double it up. If your view tool dispatches
+to a connector that ships its own MCP App UI (Slack, Gmail, Linear,
+etc.), additionally extend `{{view-tool-description}}` with a sentence
+instructing the host not to re-render this view AND not to render the
+connector's native UI after the connector call returns (see the
+`agntux_slack_compose_view` description for the canonical phrasing).
+
 **Filename placeholder convention.** File **contents** use `{{ui-name}}`
 (and the other `{{…}}` placeholders above). On-disk **filenames** in the
 template tree use `__ui-name__` instead — `{` and `}` are rejected by

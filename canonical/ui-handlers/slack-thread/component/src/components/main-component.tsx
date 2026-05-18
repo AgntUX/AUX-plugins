@@ -798,7 +798,7 @@ interface DegradedViewProps {
 function DegradedView({ icon, title, body, showMarkDone, actionId, sendFollowUpMessage }: DegradedViewProps) {
   const handleMarkDone = useCallback(async () => {
     await sendFollowUpMessage(
-      `ux: Use the agntux-core plugin to mark action item ${actionId} done`
+      `/agntux mark action item ${actionId} done`
     );
   }, [actionId, sendFollowUpMessage]);
 

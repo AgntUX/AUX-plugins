@@ -135,7 +135,7 @@ related_entities: [alice-doe]
 created_at: 2026-05-06T15:42:11Z
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "ux: Use the agntux-slack plugin to open the reply composer for action 2026-05-06-respond-to-alice-on-launch"
+    host_prompt: "/agntux-slack open the reply composer for action 2026-05-06-respond-to-alice-on-launch"
   - label: "Open in Slack"
     url: "https://acme.slack.com/archives/C0123/p1714400000000200"
 ---
@@ -166,6 +166,23 @@ deck.
 ```
 ```
 
+**Authoring rule — native-UI suppression directive on write-back
+envelopes.** If your plugin's write-back envelope dispatches to a
+connector that ships its own MCP App UI (Slack, Gmail, Linear, etc.),
+append a verbatim directive to every emitted envelope telling the host
+to (1) execute the connector tool programmatically and return its
+success/error to chat as plain text; (2) NOT render any of the
+connector's own MCP App UI for this call — the user already filled in
+the form via the AgntUX iframe and the data is final; (3) NOT
+re-render the AgntUX compose UI either; the action is complete.
+Without this directive the host stacks the connector's native form on
+top of the AgntUX iframe, duplicating UI the user just used. See
+`plugins/agntux-slack/view-tool/src/apps/compose/lib/build-envelope.ts`
+for the canonical `NO_NATIVE_UI_DIRECTIVE` constant and how it is
+appended to every branch (`send` / `schedule` / `save_draft`); the
+Gmail mirror at `plugins/agntux-gmail/view-tool/src/lib/build-envelope.ts`
+shows the single-branch shape.
+
 The freshness tradeoff: pre-composing at ingest means the body reflects
 what was true *at ingest time*, not at click time. If the source-side
 state changes between ingest and click (new replies on the thread,
@@ -173,8 +190,8 @@ status updates), the pre-composed body is stale. Two mitigations:
 
 - **Ingest cadence**. The default `recommended_ingest_cadence` keeps
   pre-composed bodies fresh (every 30 min, weekdays for Slack;
-  daily 04:00 for digest sources). High-volume sources should ingest
-  more frequently.
+  hourly 7am–7pm weekdays for digest sources). High-volume sources
+  should ingest more frequently.
 - **Click-time refresh**. The view tool can read both the on-disk
   payload and the live source-side state, falling back to the on-disk
   copy when the source-side fetch fails (auth, rate limits, etc.). See

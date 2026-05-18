@@ -321,7 +321,7 @@ header: "Cadence"
 multiSelect: false
 options:
   - label: "Every hour (recommended)"
-    description: "Hourly during business hours (7am–9pm local). Matches the team-data settling rhythm."
+    description: "Hourly during business hours (7am–7pm weekdays local). Matches the team-data settling rhythm."
   - label: "Every 30 minutes"
     description: "Faster but more LLM cost. Useful for fast-moving teams."
   - label: "Every 4 hours"

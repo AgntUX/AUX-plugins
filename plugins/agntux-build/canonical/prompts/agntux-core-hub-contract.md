@@ -108,7 +108,7 @@ Optional frontmatter:
 ```yaml
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "ux: Use the agntux-slack plugin to open the reply composer for action {id}"
+    host_prompt: "/agntux-slack open the reply composer for action {id}"
   - label: "Open in Slack"
     url: "https://acme.slack.com/archives/C012345/p1714400000000200"
 ```
@@ -116,7 +116,10 @@ suggested_actions:
 Each suggested action MUST carry `label` plus exactly one of `host_prompt`
 or `url` (not both). The hub dispatches:
 
-- `host_prompt`-only → `client.sendFollowUpMessage(host_prompt_minus_ux_prefix)`.
+- `host_prompt`-only → `client.sendFollowUpMessage(host_prompt)` — the
+  prompt is forwarded verbatim. Both the bare slash-command form
+  (`/{plugin-slug} …`, 4.0.0+) and the legacy `ux: …` form are accepted
+  by the host's tool selector.
 - `url`-only → `client.openLink(url)` if the URL is a safe scheme.
 
 Optional `## Compose payload` / `## Canvas payload` body sections (see §4)

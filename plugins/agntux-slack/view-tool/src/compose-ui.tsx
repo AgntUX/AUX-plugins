@@ -18,8 +18,21 @@ import { AppsProvider } from './apps/compose/lib/apps-react/index.js';
 import { App } from './apps/compose/App.js';
 import './globals.css';
 
+// Iframe-height floor for the compose view. See triage-ui.tsx in
+// agntux-core for the full rationale. The compose card needs ~480px to
+// show the channel/thread chip row + drafted body textarea + Send /
+// Schedule / Save Draft action row without scrolling.
+const COMPOSE_MIN_HEIGHT_PX = 480;
+if (typeof document !== 'undefined') {
+  document.documentElement.style.minHeight = `${COMPOSE_MIN_HEIGHT_PX}px`;
+  if (document.body) {
+    document.body.style.minHeight = `${COMPOSE_MIN_HEIGHT_PX}px`;
+  }
+}
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
+  rootElement.style.minHeight = `${COMPOSE_MIN_HEIGHT_PX}px`;
   createRoot(rootElement).render(
     <StrictMode>
       <AppsProvider>

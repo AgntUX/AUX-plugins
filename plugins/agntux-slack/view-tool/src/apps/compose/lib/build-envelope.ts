@@ -70,6 +70,19 @@ const THREADING_NOTE =
   "Reply in-thread; if no thread exists yet on the parent message, this " +
   "reply will start one when posted.";
 
+// Native-UI suppression directive. The AgntUX compose iframe has already
+// collected every field the user cared about, so the host should call the
+// Slack Connector tool programmatically and return its result as plain
+// chat text — NOT render the Slack Connector's own MCP App UI (which
+// would duplicate the form the user just used). Appended verbatim to
+// every envelope (send / schedule / save_draft).
+const NO_NATIVE_UI_DIRECTIVE =
+  " Execute the Slack Connector tool programmatically and return its " +
+  "success/error to chat as plain text — do NOT render any Slack " +
+  "Connector MCP App UI for this call (the user has already used the " +
+  "AgntUX compose UI and the data is final), and do NOT re-render the " +
+  "AgntUX compose UI either; the action is complete.";
+
 /**
  * Build the committed host_prompt envelope for a compose action.
  *
@@ -100,7 +113,8 @@ export function buildEnvelope(
       `Use the Slack Connector to save a Slack draft (do NOT send) of a ` +
       `thread reply. channel_id: ${channelStr}, thread_ts: ${threadTs}. ` +
       `${THREADING_NOTE} Save as draft only — do not send. ` +
-      `Body: «${escapedBody}».${trailer}`
+      `Body: «${escapedBody}».${trailer}` +
+      NO_NATIVE_UI_DIRECTIVE
     );
   }
 
@@ -109,7 +123,8 @@ export function buildEnvelope(
       `Use the Slack Connector to schedule a Slack message as a thread ` +
       `reply. channel_id: ${channelStr}, thread_ts: ${threadTs}, ` +
       `send_at: ${send_at}. ${THREADING_NOTE} ` +
-      `Body: «${escapedBody}».${trailer}`
+      `Body: «${escapedBody}».${trailer}` +
+      NO_NATIVE_UI_DIRECTIVE
     );
   }
 
@@ -119,6 +134,7 @@ export function buildEnvelope(
   return (
     `Use the Slack Connector to send a Slack message as a thread reply. ` +
     `channel_id: ${channelStr}, thread_ts: ${threadTs}. ${THREADING_NOTE} ` +
-    `Body: «${escapedBody}».${trailer}`
+    `Body: «${escapedBody}».${trailer}` +
+    NO_NATIVE_UI_DIRECTIVE
   );
 }

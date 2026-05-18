@@ -298,10 +298,30 @@ export class SimpleMcpApp {
    * @returns cleanup function that disconnects the observer
    */
   setupSizeChangedNotifications(): () => void {
-    if (
-      typeof document === 'undefined' ||
-      typeof ResizeObserver === 'undefined'
-    ) {
+    if (typeof document === 'undefined') {
+      return () => {};
+    }
+
+    // Emit one initial size signal synchronously, before the first
+    // ResizeObserver callback fires (and even when ResizeObserver isn't
+    // available at all — e.g. strict-CSP hosts or older browsers).
+    // Without this, the host's iframe-size decision is made off whatever
+    // default it picked (typically 200-400 pixels) and many hosts only
+    // honor the *initial* size — later notifications are ignored.
+    // Reporting up-front lets the host commit to a useful height on
+    // first paint. The observer below (when available) still picks up
+    // every subsequent change.
+    const initialWidth =
+      document.documentElement.scrollWidth ||
+      (typeof window !== 'undefined' ? window.innerWidth : 800);
+    const initialHeight =
+      document.documentElement.scrollHeight ||
+      (typeof window !== 'undefined' ? window.innerHeight : 600);
+    void this.sendSizeChanged({ width: initialWidth, height: initialHeight });
+
+    if (typeof ResizeObserver === 'undefined') {
+      // No observer means no later updates, but the initial emit still
+      // gave the host a useful starting point. Return no-op cleanup.
       return () => {};
     }
 

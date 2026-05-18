@@ -18,8 +18,21 @@ import { AppsProvider } from './apps/canvas/lib/apps-react/index.js';
 import { App } from './apps/canvas/App.js';
 import './globals.css';
 
+// Iframe-height floor for the canvas view. See triage-ui.tsx in
+// agntux-core for the full rationale. The canvas summariser needs ~480px
+// to show the title row + summary body + commit action row without
+// scrolling.
+const CANVAS_MIN_HEIGHT_PX = 480;
+if (typeof document !== 'undefined') {
+  document.documentElement.style.minHeight = `${CANVAS_MIN_HEIGHT_PX}px`;
+  if (document.body) {
+    document.body.style.minHeight = `${CANVAS_MIN_HEIGHT_PX}px`;
+  }
+}
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
+  rootElement.style.minHeight = `${CANVAS_MIN_HEIGHT_PX}px`;
   createRoot(rootElement).render(
     <StrictMode>
       <AppsProvider>
