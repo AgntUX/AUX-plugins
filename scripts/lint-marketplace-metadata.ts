@@ -31,6 +31,7 @@ import {
 import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.js";
 import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
 import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
+import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-envelope.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -676,6 +677,19 @@ export function lintPlugin(
   // HTML because Vite never built any CSS at all. Warning-only for
   // now; promote to error after every plugin ships the fix.
   pass13ViewToolCssBundle(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 14 — every view-tool source MUST call renderConfirmationText(…)
+  // so the handler returns a `content[].text` block alongside
+  // `structuredContent`. Without it the model treats the tool response
+  // as raw data and builds a duplicate widget + paragraphs of commentary
+  // (Claude Cowork post-render commentary / duplicate-widget regression,
+  // 2026-05-18). Warning-only for now — promote to error once all three
+  // production plugins land the fix.
+  pass14ViewToolResponseEnvelope(
+    pluginSlug,
+    pluginDir,
+    opts.repoRoot,
+    findings,
+  );
   return findings;
 }
 

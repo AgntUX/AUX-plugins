@@ -196,6 +196,67 @@ Every `view_tools[].name` MUST be prefixed with `{plugin-slug-snake}_`
 (e.g. `agntux_slack_compose_view`). `emit-manifest.mjs` enforces this
 at build time; the invariant-checker re-asserts at PR time.
 
+## 3.1 Response envelope rule (load-bearing)
+
+Every handler return — **both success and error branches** — MUST ship a
+`content[]` block alongside `structuredContent`:
+
+```ts
+return {
+  content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
+  structuredContent: { ... },
+};
+```
+
+Why: the host materializes `structuredContent` into the iframe
+automatically, but the model only sees the wire result — a JSON blob it
+reasonably mistakes for "raw data I need to render somehow." In
+production (Claude Cowork, 2026-05-18) this produced a recurring class
+of regression: after `/agntux triage` fired its view tool and the host
+rendered the iframe, the model also built a duplicate HTML widget via
+the host's `visualize` tool AND wrote 5 paragraphs of commentary,
+because nothing in the tool response told it the user could already see
+the result.
+
+The `content[].text` block fixes this by **explaining the MCP Apps
+lifecycle** — what just happened, where the data went, why the turn is
+complete. Don't author the wording inline — call
+`renderConfirmationText(uiLabel)` from `@agntux/plugin-runtime` so the
+wording stays centralized and tunable in one place across every plugin.
+
+Rule applies to **error** branches too — the iframe renders error
+states (e.g. `actions_index_missing`, `compose_payload_missing`), so the
+same "stop after rendering" framing applies.
+
+The wording in `renderConfirmationText()` is frozen on three load-
+bearing anchor strings — `"iframe"`, `"host"`, `"MCP App"`. Every
+plugin's `__tests__/payload-shape.test.ts` asserts those tokens appear
+in the `content[0].text` block of every handler return. The pass-14 /
+E29 marketplace linter additionally greps `view-tool/src/*-view.ts` for
+literal `renderConfirmationText(` calls so a future contributor can't
+silently drop the block.
+
+If you find yourself wanting to add detail the centralized wording
+lacks, push the change into `packages/plugin-runtime/src/render-
+confirmation.ts` — never inline the override.
+
+## 3.2 If your tool's success path doesn't render the iframe, it isn't a view tool
+
+A view tool by definition produces a `structuredContent` payload the
+host materializes as an iframe. If you find your success branch
+returning `content[]` text the user is meant to read directly with no
+iframe rendered, you've authored a regular (non-UI) MCP tool — move it
+out of `view-tool/src/` and either expose it as a mutation tool (for
+write operations) or as a plain tool registered on the local
+`mcp-server/`. Mixing the two surfaces in one handler defeats the
+"stop after rendering" frame in §3.1 because the model can't tell
+which return shape it's looking at.
+
+The §3.1 envelope rule still applies to error branches of a true view
+tool — the iframe renders error states — but if the success branch
+isn't producing an iframe, the §3.1 wording becomes a lie ("the
+iframe above this message" when there is no iframe). Move the tool.
+
 ## 4. Design review gate (REQUIRED before scaffolding)
 
 If the developer (or a sibling design lane) produced a static

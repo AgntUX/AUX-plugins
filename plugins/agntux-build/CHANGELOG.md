@@ -6,6 +6,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-18
+
+### Changed
+
+- **Canonical view-tool template now bakes the response-envelope
+  rule in.** `plugins/agntux-build/canonical/ui-handlers/_template/
+  view-tool/src/__ui-name__-view.ts` imports
+  `renderConfirmationText` from `@agntux/plugin-runtime`, ships a
+  `content[].text` block on both the success and not-found branches
+  of the handler, and the descriptor's appended description suffix
+  was reframed from a forbid-list ("do NOT add any chat commentary
+  …") to an explanation of the MCP Apps lifecycle ("This tool is
+  an MCP App view tool: it returns a structured data payload that
+  the host renders into an interactive iframe …"). A new
+  `{{ui-display-name}}` placeholder is referenced inline so scaffold
+  authors supply a human-readable label per view tool. Test scaffold
+  at `__tests__/payload-shape.test.ts` extended with a "response
+  envelope guard" describe block.
+- **`agents/ui-handler-author.md`** gained §3.1 ("Response envelope
+  rule (load-bearing)") documenting the `renderConfirmationText`
+  contract and the production bug it guards against, and §3.2 ("If
+  your tool's success path doesn't render the iframe, it isn't a
+  view tool") making the scope rule explicit so authors don't abuse
+  the view-tool surface for non-rendering side effects.
+
+### Why
+
+Production bug observed in Claude Cowork on 2026-05-18 — see
+`@agntux/plugin-runtime` 0.2.1, `agntux-core` 10.0.1,
+`agntux-slack` 8.2.1, `agntux-gmail` 4.2.1. Plugins scaffolded from
+the template inherit the fix automatically. PATCH-level: template
+change only, no shipped behavior change.
+
 ## [0.4.0] — 2026-05-18
 
 ### Changed

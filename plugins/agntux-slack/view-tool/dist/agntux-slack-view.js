@@ -2,7 +2,8 @@
 import {
   ViewToolFsError,
   extractFencedYaml,
-  parseFrontmatter
+  parseFrontmatter,
+  renderConfirmationText
 } from "@agntux/plugin-runtime";
 
 // ../node_modules/js-yaml/dist/js-yaml.mjs
@@ -2632,6 +2633,8 @@ var jsYaml = {
 // src/agntux-slack-view.ts
 var COMPOSE_RESOURCE_URI = "ui://agntux-slack/compose";
 var CANVAS_RESOURCE_URI = "ui://agntux-slack/canvas";
+var COMPOSE_UI_LABEL = "AgntUX Slack reply composer";
+var CANVAS_UI_LABEL = "AgntUX Slack canvas summariser";
 var MAX_DRAFTED_BODY_CHARS = 4e3;
 var MAX_PERSONALIZATION_SIGNALS = 4;
 var MAX_SIGNAL_CHARS = 120;
@@ -2777,22 +2780,38 @@ async function readActionFile(ctx, actionId) {
     throw err;
   }
 }
+function composeEnvelope(payload) {
+  return {
+    content: [
+      { type: "text", text: renderConfirmationText(COMPOSE_UI_LABEL) }
+    ],
+    structuredContent: payload
+  };
+}
+function canvasEnvelope(payload) {
+  return {
+    content: [
+      { type: "text", text: renderConfirmationText(CANVAS_UI_LABEL) }
+    ],
+    structuredContent: payload
+  };
+}
 async function handleCompose(args, ctx) {
   const actionId = asString(args.action_id);
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const text = await readActionFile(ctx, actionId);
   if (text === "not-found" || text === "error") {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const { frontmatter, body } = parseFrontmatter(text);
   if (isActionAlreadyHandled(frontmatter.status, frontmatter.snoozed_until)) {
-    return { structuredContent: { error: "action_already_handled" } };
+    return composeEnvelope({ error: "action_already_handled" });
   }
   const onDisk = parseSlackComposePayload(body);
   if (!onDisk) {
-    return { structuredContent: { error: "compose_payload_missing" } };
+    return composeEnvelope({ error: "compose_payload_missing" });
   }
   const personalizationSignals = onDisk.personalization_signals.slice(0, MAX_PERSONALIZATION_SIGNALS).map((s) => truncate(s, MAX_SIGNAL_CHARS));
   const messagesPreview = onDisk.thread_context.messages_preview.slice(0, MAX_MESSAGES_PREVIEW).map((m) => ({
@@ -2821,24 +2840,24 @@ async function handleCompose(args, ctx) {
     proposed_send_time: null,
     slack_permalink: onDisk.slack_permalink
   };
-  return { structuredContent: payload };
+  return composeEnvelope(payload);
 }
 async function handleCanvas(args, ctx) {
   const actionId = asString(args.action_id);
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
-    return { structuredContent: { error: "action_not_found" } };
+    return canvasEnvelope({ error: "action_not_found" });
   }
   const text = await readActionFile(ctx, actionId);
   if (text === "not-found" || text === "error") {
-    return { structuredContent: { error: "action_not_found" } };
+    return canvasEnvelope({ error: "action_not_found" });
   }
   const { frontmatter, body } = parseFrontmatter(text);
   if (isActionAlreadyHandled(frontmatter.status, frontmatter.snoozed_until)) {
-    return { structuredContent: { error: "action_already_handled" } };
+    return canvasEnvelope({ error: "action_already_handled" });
   }
   const onDisk = parseSlackCanvasPayload(body);
   if (!onDisk) {
-    return { structuredContent: { error: "canvas_payload_missing" } };
+    return canvasEnvelope({ error: "canvas_payload_missing" });
   }
   const payload = {
     action_id: actionId,
@@ -2860,12 +2879,12 @@ async function handleCanvas(args, ctx) {
       MAX_FOLLOWUP_CHARS
     )
   };
-  return { structuredContent: payload };
+  return canvasEnvelope(payload);
 }
 var composeView = {
   descriptor: {
     name: "agntux_slack_compose_view",
-    description: "Open the Slack reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the reply composer for action {id}`, `/agntux-slack open the reply composer in schedule mode for action {id}`, `/agntux-slack draft a reply for action {id}`, `/agntux-slack draft a reply and schedule it for action {id}`. The legacy `ux: Use the agntux-slack plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user clicks Send / Schedule / Save Draft inside this UI and the Slack Connector tool returns, do NOT re-render this AgntUX compose UI and do NOT render Slack's native send-message UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
+    description: "Open the Slack reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the reply composer for action {id}`, `/agntux-slack open the reply composer in schedule mode for action {id}`, `/agntux-slack draft a reply for action {id}`, `/agntux-slack draft a reply and schedule it for action {id}`. The legacy `ux: Use the agntux-slack plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. After the user clicks Send / Schedule / Save Draft inside this iframe, the host invokes the Slack connector's send-message tool. The connector's success/error response is what the user needs next \u2014 surface it as plain chat text; the AgntUX view tool does not need to be re-invoked and the connector's own native UI does not need to be rendered.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },
@@ -2888,7 +2907,7 @@ var composeView = {
 var canvasView = {
   descriptor: {
     name: "agntux_slack_canvas_view",
-    description: "Open the Slack canvas summariser for an action. Pass action_id; the handler reads the action file's `## Canvas payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the canvas summariser for action {id}`, `/agntux-slack summarise the thread for action {id}`. The legacy `ux: Use the agntux-slack plugin to summarise the thread for action {id}` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user commits the canvas write from this UI and the Slack Connector tool returns, do NOT re-render this AgntUX canvas UI and do NOT render Slack's native canvas-create/update UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
+    description: "Open the Slack canvas summariser for an action. Pass action_id; the handler reads the action file's `## Canvas payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-slack open the canvas summariser for action {id}`, `/agntux-slack summarise the thread for action {id}`. The legacy `ux: Use the agntux-slack plugin to summarise the thread for action {id}` envelope is still accepted for backwards compatibility with action items already on disk. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. After the user commits the canvas write from this iframe, the host invokes the Slack connector's canvas-create/update tool. The connector's success/error response is what the user needs next \u2014 surface it as plain chat text; the AgntUX view tool does not need to be re-invoked and the connector's own native UI does not need to be rendered.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

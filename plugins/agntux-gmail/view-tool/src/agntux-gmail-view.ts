@@ -13,11 +13,18 @@ import {
   type ViewToolModule,
   ViewToolFsError,
   parseActionFile,
+  renderConfirmationText,
 } from "@agntux/plugin-runtime";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
 
 const COMPOSE_RESOURCE_URI = "ui://agntux-gmail/compose" as const;
+// Human-readable UI label fed to renderConfirmationText() so the model's
+// `content[].text` block names the surface the host just materialized.
+// Both success AND error branches ship the same block — the iframe
+// renders both, so the "stop after rendering" framing applies either
+// way. Wording centralized in @agntux/plugin-runtime.
+const COMPOSE_UI_LABEL = "AgntUX Gmail reply composer";
 const MAX_DRAFTED_BODY_CHARS = 4000;
 const MAX_PERSONALIZATION_SIGNALS = 4;
 const MAX_SIGNAL_CHARS = 120;
@@ -111,13 +118,32 @@ function deriveUserEmailFromUrl(url: string | null): string | null {
 
 // ── compose_view handler ─────────────────────────────────────────────────────
 
+// Envelope helper: every return — success and error alike — must ship
+// the canonical content[] block. Wrapping the bare structuredContent
+// here keeps each branch a one-liner and makes the pass-14 linter's
+// grep for `renderConfirmationText(` trivial.
+function composeEnvelope(payload: ComposePayload): {
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: ComposePayload;
+} {
+  return {
+    content: [
+      { type: "text", text: renderConfirmationText(COMPOSE_UI_LABEL) },
+    ],
+    structuredContent: payload,
+  };
+}
+
 async function handleCompose(
   args: ComposeArgs,
   ctx: ViewToolContext,
-): Promise<{ structuredContent: ComposePayload }> {
+): Promise<{
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: ComposePayload;
+}> {
   const actionId = asString(args.action_id);
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const path = `actions/${actionId}.md`;
   let buf: Buffer;
@@ -125,7 +151,7 @@ async function handleCompose(
     buf = await ctx.fs.readFile(path);
   } catch (err) {
     if (err instanceof ViewToolFsError && err.code === "not-found") {
-      return { structuredContent: { error: "action_not_found" } };
+      return composeEnvelope({ error: "action_not_found" });
     }
     throw err;
   }
@@ -133,15 +159,15 @@ async function handleCompose(
   try {
     parsed = parseActionFile(buf.toString("utf8"));
   } catch {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const fm = parsed.frontmatter;
   if (isActionAlreadyHandled(fm.status, fm.snoozed_until)) {
-    return { structuredContent: { error: "action_already_handled" } };
+    return composeEnvelope({ error: "action_already_handled" });
   }
   const onDisk = parsed.compose_payload;
   if (!onDisk) {
-    return { structuredContent: { error: "compose_payload_missing" } };
+    return composeEnvelope({ error: "compose_payload_missing" });
   }
   const personalizationSignals = onDisk.personalization_signals
     .slice(0, MAX_PERSONALIZATION_SIGNALS)
@@ -182,7 +208,7 @@ async function handleCompose(
     user_email: userEmail,
     account_index: onDisk.account_index,
   };
-  return { structuredContent: payload };
+  return composeEnvelope(payload);
 }
 
 // ── Descriptor ───────────────────────────────────────────────────────────────
@@ -191,7 +217,7 @@ const composeView: ViewTool<ComposeArgs, ComposePayload> = {
   descriptor: {
     name: "agntux_gmail_compose_view",
     description:
-      "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-gmail open the reply composer for action {id}`, `/agntux-gmail open the email composer for action {id}`, `/agntux-gmail draft an email reply for action {id}`. The legacy `ux: Use the agntux-gmail plugin to …` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe — do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user clicks Save Draft inside this UI and the Gmail Connector tool returns, do NOT re-render this AgntUX compose UI and do NOT render Gmail's native draft/send UI — the action is complete; return the connector's success/error as plain chat text.",
+      "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-gmail open the reply composer for action {id}`, `/agntux-gmail open the email composer for action {id}`, `/agntux-gmail draft an email reply for action {id}`. The legacy `ux: Use the agntux-gmail plugin to …` envelope is still accepted for backwards compatibility with action items already on disk. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. After the user clicks Save Draft inside this iframe, the host invokes the Gmail connector's draft tool. The connector's success/error response is what the user needs next — surface it as plain chat text; the AgntUX view tool does not need to be re-invoked and the connector's own native UI does not need to be rendered.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },
