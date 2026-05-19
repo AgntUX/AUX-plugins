@@ -1,11 +1,11 @@
 {
   "plugin_slug": "agntux_core",
-  "plugin_version": "9.8.0",
+  "plugin_version": "10.0.0",
   "handler_module": "view-tool/dist/agntux-core-view.js",
   "view_tools": [
     {
       "name": "agntux_core_triage_view",
-      "description": "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. Once this UI is rendered, the user sees everything they need in the iframe — do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response.",
+      "description": "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -65,6 +65,199 @@
         "baseUriDomains": []
       },
       "permissions": {}
+    }
+  ],
+  "mutation_tools": [
+    {
+      "name": "agntux_core_snooze",
+      "description": "Snooze an action item until a specified date. Defaults to the personal `actions/` scope; pass `team_slug` or `view_slug` to snooze a team- or leader-view-scoped item instead. (team mode).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Action item ID (filename without .md)"
+          },
+          "until": {
+            "type": "string",
+            "description": "ISO date or RFC 3339 timestamp"
+          },
+          "team_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `teams/{team_slug}/actions/` instead of personal. Mutually exclusive with view_slug."
+          },
+          "view_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `leader-views/{view_slug}/actions/` instead of personal. Mutually exclusive with team_slug."
+          }
+        },
+        "required": [
+          "id",
+          "until"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "agntux_core_dismiss",
+      "description": "Dismiss an action item (mark it as not worth acting on). Optionally captures user intent via `outcome` — `noise`, `irrelevant`, `completed-externally`, or any free-form string — appended as an `## Outcome` body section. pattern-feedback reads this to distinguish genuine noise from completion-elsewhere; without an outcome, the dismissal is treated as ambiguous. Defaults to the personal `actions/` scope; pass `team_slug` or `view_slug` to dismiss a team- or leader-view-scoped item instead (team mode).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Action item ID (filename without .md)"
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Optional intent marker. Suggested: `noise`, `irrelevant`, `completed-externally`. Free-form strings allowed. Appends a `## Outcome` body section."
+          },
+          "outcome_note": {
+            "type": "string",
+            "description": "Optional free-form note appended to the `## Outcome` body section."
+          },
+          "team_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `teams/{team_slug}/actions/` instead of personal. Mutually exclusive with view_slug."
+          },
+          "view_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `leader-views/{view_slug}/actions/` instead of personal. Mutually exclusive with team_slug."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "agntux_core_set_status",
+      "description": "Set the status of an action item (open, snoozed, done, or dismissed). Optionally captures user intent via `outcome` — `completed-externally`, `noise`, `irrelevant`, or any free-form string — appended as an `## Outcome` body section. pattern-feedback reads this to distinguish positive dismissals from negative. Defaults to the personal `actions/` scope; pass `team_slug` or `view_slug` to mutate a team- or leader-view-scoped item instead (team mode). For team / leader-view scoped mark-done, also writes `done_by_user_slug`, `done_by_user_id`, and `done_at` when `user_slug` / `user_id` are provided — these are the team-wide audit fields visible to every member after sync.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Action item ID (filename without .md)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "snoozed",
+              "done",
+              "dismissed"
+            ]
+          },
+          "snoozed_until": {
+            "type": "string",
+            "description": "Required when status=snoozed. ISO 8601 timestamp."
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Optional intent marker for done/dismissed transitions. Suggested values: `completed-externally`, `noise`, `irrelevant`. Free-form strings allowed."
+          },
+          "outcome_note": {
+            "type": "string",
+            "description": "Optional free-form note appended to the `## Outcome` body section."
+          },
+          "user_slug": {
+            "type": "string",
+            "description": "Optional. The slug of the user performing the action. Used for team-wide audit fields (done_by_user_slug)."
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Optional. The id of the user performing the action. Used for team-wide audit fields (done_by_user_id)."
+          },
+          "team_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `teams/{team_slug}/actions/` instead of personal. Mutually exclusive with view_slug."
+          },
+          "view_slug": {
+            "type": "string",
+            "description": "Optional. Route the write to `leader-views/{view_slug}/actions/` instead of personal. Mutually exclusive with team_slug."
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "agntux_core_save_triage_prefs",
+      "description": "Persist the triage UI's filter state to `.agntux/triage-prefs.json`. Called by the triage MCP App when the user toggles a team filter chip, a relevance-class chip, or a show-done/snoozed/dismissed toggle; not user-facing. MERGES patch fields into the existing file — callers may patch a single field without re-sending the whole state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "muted_team_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Legacy v1 field — flat array of team slugs the user has hidden. Translated to `team_filters[slug] = 'hidden'` on write."
+          },
+          "muted_view_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Legacy v1 field — flat array of view slugs the user has hidden. Translated to `view_filters[slug] = 'hidden'` on write."
+          },
+          "team_filters": {
+            "type": "object",
+            "description": "Map of team-slug → 'shown' | 'hidden'. Patches the existing map."
+          },
+          "view_filters": {
+            "type": "object",
+            "description": "Map of view-slug → 'shown' | 'hidden'. Patches the existing map."
+          },
+          "relevance_class_filters": {
+            "type": "object",
+            "description": "Map of team-slug → array of selected relevance-class slugs."
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort key. One of: priority, due, created, team-then-priority, due-then-priority."
+          },
+          "show_done": {
+            "type": "boolean"
+          },
+          "show_snoozed": {
+            "type": "boolean"
+          },
+          "show_dismissed": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "agntux_core_set_triage_pref",
+      "description": "Set the per-path triage state (snooze / dismiss) for a specific action file. Writes `.agntux/triage-prefs.json` → `triage_state[path]`. PERSONAL: the action file is untouched, so a team item snoozed by Alice still appears in Bob's triage. Pass `path` (relative to AgntUX root, e.g. `teams/platform/actions/2026-05-12-foo.md`) and at least one of `snoozed_until`, `dismissed_at`. Pass `null` for a field to clear it; both null removes the entry.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the action file, relative to the AgntUX project root."
+          },
+          "snoozed_until": {
+            "description": "RFC 3339 timestamp when the snooze ends. Pass `null` to clear. Omit to leave unchanged."
+          },
+          "dismissed_at": {
+            "description": "RFC 3339 timestamp when dismissed. Pass `null` to clear. Omit to leave unchanged."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

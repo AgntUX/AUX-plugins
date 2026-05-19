@@ -17,6 +17,7 @@ import {
   type ViewToolContext,
   type ViewToolModule,
   parseActionFile,
+  renderConfirmationText,
   type ActionFrontmatter,
   type SuggestedActionRow,
 } from "@agntux/plugin-runtime";
@@ -24,6 +25,13 @@ import {
 // ── Constants & caps ─────────────────────────────────────────────────────────
 
 const TRIAGE_RESOURCE_URI = "ui://agntux-core/triage" as const;
+// Human-readable UI label fed to renderConfirmationText() so the model's
+// `content[].text` block names the surface the host just materialized.
+// Both success AND error branches ship the same block — the iframe
+// renders both, so the "stop after rendering" framing applies either
+// way. The wording itself is centralized in @agntux/plugin-runtime;
+// tune it once, every plugin gets the new wording on next build.
+const TRIAGE_UI_LABEL = "AgntUX triage UI";
 const DEFAULT_LIMIT = 30;
 const DEFAULT_HANDLED_DAYS = 7;
 const MAX_HANDLED_RECENT = 10;
@@ -424,7 +432,10 @@ function sortHandled(handled: TriageHandledRow[]): void {
 async function handleTriageView(
   _args: Record<string, unknown>,
   ctx: ViewToolContext,
-): Promise<{ structuredContent: TriagePayload }> {
+): Promise<{
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: TriagePayload;
+}> {
   const handledDays = DEFAULT_HANDLED_DAYS;
   const limit = DEFAULT_LIMIT;
   const handledCutoffMs = ctx.now().getTime() - handledDays * 86_400_000;
@@ -439,6 +450,9 @@ async function handleTriageView(
   const indexExists = await ctx.fs.exists(`${personalActionsPrefix}/_index.md`);
   if (!indexExists) {
     return {
+      content: [
+        { type: "text", text: renderConfirmationText(TRIAGE_UI_LABEL) },
+      ],
       structuredContent: {
         error: "actions_index_missing",
       },
@@ -469,6 +483,9 @@ async function handleTriageView(
     scan.open.length === 0 && scan.handled.length === 0;
 
   return {
+    content: [
+      { type: "text", text: renderConfirmationText(TRIAGE_UI_LABEL) },
+    ],
     structuredContent: {
       actions: actionsCapped,
       handled_recent: handledCapped,
@@ -490,7 +507,7 @@ const triageView: ViewTool<Record<string, unknown>, TriagePayload> = {
   descriptor: {
     name: "agntux_core_triage_view",
     description:
-      "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. Once this UI is rendered, the user sees everything they need in the iframe — do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response.",
+      "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments — call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -518,8 +535,35 @@ const triageView: ViewTool<Record<string, unknown>, TriagePayload> = {
   handle: handleTriageView,
 };
 
+// ── Mutation tools ──────────────────────────────────────────────────────────
+//
+// 10.0.0 — the iframe's write-back path (snooze / dismiss / set-status /
+// save_triage_prefs / set_triage_pref) was moved from agntux-core's local
+// stdio mcp-server into the view-tool bundle. The remote MCP server in
+// agntux/app picks these up from the manifest's `mutation_tools[]`,
+// registers them on `tools/list` (without `_meta.ui`), and routes
+// callTool() invocations from inside the triage iframe to the handlers
+// below. Writes go through `ctx.fs.update()` — CAS-guarded via
+// `team_sync_push_entry` — and an SSE event fans out to the user's
+// agntux-teams daemons so the new file lands on disk within ~1s.
+
+import { dismissTool } from "./tools/dismiss.js";
+import { setStatusTool } from "./tools/set-status.js";
+import { snoozeTool } from "./tools/snooze.js";
+import {
+  savePrefsTool,
+  setPrefTool,
+} from "./tools/triage-prefs.js";
+
 const mod: ViewToolModule = {
   viewTools: [triageView],
+  mutationTools: [
+    snoozeTool,
+    dismissTool,
+    setStatusTool,
+    savePrefsTool,
+    setPrefTool,
+  ],
 };
 
 export default mod;

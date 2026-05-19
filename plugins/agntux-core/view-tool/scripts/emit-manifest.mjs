@@ -149,12 +149,45 @@ for (let i = 0; i < viewTools.length; i++) {
   });
 }
 
+// Mutation tools (optional). The compiled handler module may also export
+// `{ mutationTools: MutationTool[] }` — write-back tools the iframe calls
+// via useAppsClient().callTool(...). They don't render UI, so no
+// ui_resource_uri, no outputSchema. The remote MCP server's plugin
+// registry picks these up alongside view_tools and registers them on
+// `tools/list` (without `_meta.ui`).
+const mutationTools = mod.default?.mutationTools;
+const mutationToolEntries = [];
+if (Array.isArray(mutationTools)) {
+  for (const mt of mutationTools) {
+    if (!mt?.descriptor?.name) {
+      console.error(
+        `[emit-manifest] mutationTools[] entry missing descriptor.name`,
+      );
+      process.exit(1);
+    }
+    if (!mt.descriptor.name.startsWith(`${slugSnake}_`)) {
+      console.error(
+        `[emit-manifest] mutationTools[].name=${mt.descriptor.name} must be prefixed with plugin-slug-snake (${slugSnake}_).`,
+      );
+      process.exit(1);
+    }
+    mutationToolEntries.push({
+      name: mt.descriptor.name,
+      description: mt.descriptor.description,
+      inputSchema: mt.descriptor.inputSchema,
+    });
+  }
+}
+
 const manifest = {
   plugin_slug: slugSnake,
   plugin_version: pluginJson.version,
   handler_module: `view-tool/dist/${handlerModuleName}`,
   view_tools: viewToolEntries,
   ui_bundles: uiBundles,
+  ...(mutationToolEntries.length > 0
+    ? { mutation_tools: mutationToolEntries }
+    : {}),
 };
 const parsed = ViewToolsManifestSchema.safeParse(manifest);
 if (!parsed.success) {
@@ -168,5 +201,5 @@ writeFileSync(
   "utf8",
 );
 console.log(
-  `[emit-manifest] wrote dist/view-tools.manifest.json (${viewToolEntries.length} view tools, ${uiBundles.length} ui bundles)`,
+  `[emit-manifest] wrote dist/view-tools.manifest.json (${viewToolEntries.length} view tools, ${mutationToolEntries.length} mutation tools, ${uiBundles.length} ui bundles)`,
 );

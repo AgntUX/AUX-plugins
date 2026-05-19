@@ -4,6 +4,40 @@ All notable changes to `@agntux/plugin-runtime` are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-05-18
+
+### Added
+
+- **`renderConfirmationText(uiLabel)`** — canonical wording builder for
+  the `content[].text` block every view-tool handler should ship
+  alongside `structuredContent`. The function returns a ~5-sentence
+  explanation of the MCP Apps lifecycle (the host materializes
+  `structuredContent` into the iframe; the iframe IS the user-visible
+  result; no follow-up output / visualization / tool call is needed).
+  Frozen anchor strings — `"iframe"`, `"host"`, `"MCP App"` — are
+  asserted by every plugin's `__tests__/payload-shape.test.ts` and
+  by the new marketplace linter pass 14 / E29.
+- **`ViewTool.handle`** return type widened from
+  `Promise<{ structuredContent: Out }>` to
+  `Promise<{ content?: Array<{ type: "text"; text: string }>;
+  structuredContent: Out }>` so handlers can ship a `content[]` block
+  without a type-level fight. `content[]` is optional for backwards
+  compatibility, but every production plugin and the canonical
+  agntux-build template ship it on every success and error branch.
+
+### Why
+
+Production bug observed in Claude Cowork on 2026-05-18: after
+`/agntux triage` correctly fired the triage view tool and the host
+rendered the iframe, the model also (a) built a duplicate HTML widget
+via the host's `visualize` tool and (b) wrote 5 paragraphs of
+commentary summarizing the iframe the user could already see. Root
+cause: the handler returned only `structuredContent`, so the model
+never received an explicit signal that the host had materialized the
+iframe — the JSON blob looked like raw data awaiting downstream
+processing. Centralizing the wording here means we can tune the
+explanation once and every plugin picks it up on next build.
+
 ## [0.2.0] — 2026-05-16
 
 ### Added

@@ -2980,7 +2980,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve3.call(this, root, ref);
+      let _sch = resolve.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
@@ -3007,7 +3007,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve3(root, ref) {
+    function resolve(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3638,55 +3638,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve3(baseURI, relativeURI, options) {
+    function resolve(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative2, options, skipNormalization) {
+    function resolveComponent(base, relative, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse3(serialize(base, options), options);
-        relative2 = parse3(serialize(relative2, options), options);
+        relative = parse3(serialize(relative, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative2.scheme) {
-        target.scheme = relative2.scheme;
-        target.userinfo = relative2.userinfo;
-        target.host = relative2.host;
-        target.port = relative2.port;
-        target.path = removeDotSegments(relative2.path || "");
-        target.query = relative2.query;
+      if (!options.tolerant && relative.scheme) {
+        target.scheme = relative.scheme;
+        target.userinfo = relative.userinfo;
+        target.host = relative.host;
+        target.port = relative.port;
+        target.path = removeDotSegments(relative.path || "");
+        target.query = relative.query;
       } else {
-        if (relative2.userinfo !== void 0 || relative2.host !== void 0 || relative2.port !== void 0) {
-          target.userinfo = relative2.userinfo;
-          target.host = relative2.host;
-          target.port = relative2.port;
-          target.path = removeDotSegments(relative2.path || "");
-          target.query = relative2.query;
+        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
+          target.userinfo = relative.userinfo;
+          target.host = relative.host;
+          target.port = relative.port;
+          target.path = removeDotSegments(relative.path || "");
+          target.query = relative.query;
         } else {
-          if (!relative2.path) {
+          if (!relative.path) {
             target.path = base.path;
-            if (relative2.query !== void 0) {
-              target.query = relative2.query;
+            if (relative.query !== void 0) {
+              target.query = relative.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative2.path[0] === "/") {
-              target.path = removeDotSegments(relative2.path);
+            if (relative.path[0] === "/") {
+              target.path = removeDotSegments(relative.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative2.path;
+                target.path = "/" + relative.path;
               } else if (!base.path) {
-                target.path = relative2.path;
+                target.path = relative.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative2.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative2.query;
+            target.query = relative.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3694,7 +3694,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative2.fragment;
+      target.fragment = relative.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3896,7 +3896,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve3,
+      resolve,
       resolveComponent,
       equal,
       serialize,
@@ -14215,7 +14215,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -14232,7 +14232,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -14310,7 +14310,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve3(parseResult.data);
+            resolve(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -14571,12 +14571,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve3, interval);
+      const timeoutId = setTimeout(resolve, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -15446,12 +15446,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve3) => {
+    return new Promise((resolve) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve3();
+        resolve();
       } else {
-        this._stdout.once("drain", resolve3);
+        this._stdout.once("drain", resolve);
       }
     });
   }
@@ -15950,7 +15950,7 @@ var responseViaResponseObject = async (res, outgoing, options = {}) => {
         });
         if (!chunk) {
           if (i === 1) {
-            await new Promise((resolve3) => setTimeout(resolve3));
+            await new Promise((resolve) => setTimeout(resolve));
             maxReadCount = 3;
             continue;
           }
@@ -16450,9 +16450,9 @@ data:
       const initRequest = messages.find((m) => isInitializeRequest(m));
       const clientProtocolVersion = initRequest ? initRequest.params.protocolVersion : req.headers.get("mcp-protocol-version") ?? DEFAULT_NEGOTIATED_PROTOCOL_VERSION;
       if (this._enableJsonResponse) {
-        return new Promise((resolve3) => {
+        return new Promise((resolve) => {
           this._streamMapping.set(streamId, {
-            resolveJson: resolve3,
+            resolveJson: resolve,
             cleanup: () => {
               this._streamMapping.delete(streamId);
             }
@@ -16796,774 +16796,27 @@ async function handleUIResource(uri) {
 }
 var UI_RESOURCE_LIST = [];
 
-// src/tools/snooze.ts
-import { readFileSync, writeFileSync, renameSync } from "node:fs";
-
-// src/frontmatter.ts
-var FM_OPEN = /^---\n/;
-function setFrontmatter(raw, patch) {
-  const openMatch = FM_OPEN.exec(raw);
-  if (!openMatch) throw new Error("File has no frontmatter opening ---");
-  const afterOpen = raw.slice(openMatch[0].length);
-  const closeIdx = afterOpen.indexOf("\n---\n");
-  if (closeIdx === -1) throw new Error("File has no frontmatter closing ---");
-  const yamlBlock = afterOpen.slice(0, closeIdx);
-  const body = afterOpen.slice(closeIdx + "\n---\n".length);
-  const pairs = [];
-  const seenKeys = /* @__PURE__ */ new Set();
-  for (const line of yamlBlock.split("\n")) {
-    if (!line.trim()) continue;
-    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_-]*)\s*:\s*(.*)$/);
-    if (m) {
-      pairs.push([m[1], m[2]]);
-      seenKeys.add(m[1]);
-    } else {
-      pairs.push(["", line]);
-    }
-  }
-  const newKeys = [];
-  for (const key of Object.keys(patch)) {
-    if (!seenKeys.has(key)) newKeys.push(key);
-  }
-  const patchedPairs = pairs.map(([key, raw2]) => {
-    if (key && Object.prototype.hasOwnProperty.call(patch, key)) {
-      return [key, serialiseValue(patch[key])];
-    }
-    return [key, raw2];
-  });
-  for (const key of newKeys) {
-    patchedPairs.push([key, serialiseValue(patch[key])]);
-  }
-  const newYaml = patchedPairs.map(([key, val]) => key ? `${key}: ${val}` : val).join("\n");
-  return `---
-${newYaml}
----
-${body}`;
-}
-var ISO_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
-function serialiseValue(v) {
-  if (v === null) return "null";
-  if (typeof v === "boolean") return v ? "true" : "false";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "string") {
-    if (ISO_TIMESTAMP_RE.test(v)) return v;
-    if (v === "" || v === "null" || v === "true" || v === "false" || /^[-+]?\d/.test(v) || v.includes(":") || v.includes("#") || v.startsWith(" ") || v.endsWith(" ")) {
-      return `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-    }
-    return v;
-  }
-  return JSON.stringify(v);
-}
-
-// src/tools/scope.ts
-import { resolve as resolve2, relative, join as join2 } from "node:path";
-
-// src/agntux-root.ts
-import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { statSync } from "node:fs";
-var AGNTUX_DIR_NAME = "agntux";
-function isDir(p) {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-function resolveAgntuxRoot(cwd) {
-  const override = process.env.AGNTUX_ROOT_OVERRIDE;
-  if (override) return override;
-  let dir;
-  try {
-    dir = resolve(cwd ?? process.cwd());
-  } catch {
-    return fallback();
-  }
-  while (true) {
-    if (basename(dir).toLowerCase() === AGNTUX_DIR_NAME && isDir(dir)) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return fallback();
-}
-function expectedAgntuxRoot(cwd) {
-  return resolveAgntuxRoot(cwd) ?? join(homedir(), AGNTUX_DIR_NAME);
-}
-function fallback() {
-  const f = join(homedir(), AGNTUX_DIR_NAME);
-  if (isDir(f)) return f;
-  return null;
-}
-
-// src/tools/scope.ts
-var SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-function resolveActionsDir(scope) {
-  const root = expectedAgntuxRoot();
-  if (scope?.team_slug && scope?.view_slug) {
-    throw new Error(
-      "Pass at most one of team_slug or view_slug, not both."
-    );
-  }
-  if (scope?.team_slug) {
-    if (!SLUG_RE.test(scope.team_slug)) {
-      throw new Error(`Invalid team_slug "${scope.team_slug}".`);
-    }
-    return join2(root, "teams", scope.team_slug, "actions");
-  }
-  if (scope?.view_slug) {
-    if (!SLUG_RE.test(scope.view_slug)) {
-      throw new Error(`Invalid view_slug "${scope.view_slug}".`);
-    }
-    return join2(root, "leader-views", scope.view_slug, "actions");
-  }
-  return join2(root, "actions");
-}
-var ID_RE = /^[a-z0-9][a-z0-9.\-]{0,127}$/;
-function resolveActionPath(id, scope) {
-  if (typeof id !== "string" || !ID_RE.test(id) || id.includes("..")) {
-    throw new Error(
-      `Path traversal rejected: invalid action id "${id}".`
-    );
-  }
-  const dir = resolveActionsDir(scope);
-  const resolved = resolve2(dir, `${id}.md`);
-  if (resolved !== join2(dir, `${id}.md`)) {
-    throw new Error(
-      `Path traversal rejected: id "${id}" resolves outside the action scope.`
-    );
-  }
-  const rel = relative(dir, resolved);
-  if (rel.startsWith("..") || rel !== `${id}.md`) {
-    throw new Error(
-      `Path traversal rejected: id "${id}" resolves outside the action scope.`
-    );
-  }
-  return resolved;
-}
-var SCOPE_INPUT_SCHEMA_FRAGMENT = {
-  team_slug: {
-    type: "string",
-    description: "Optional. Route the write to `<root>/teams/{team_slug}/actions/` instead of personal. Mutually exclusive with view_slug. Omit (solo path) for personal items."
-  },
-  view_slug: {
-    type: "string",
-    description: "Optional. Route the write to `<root>/leader-views/{view_slug}/actions/` instead of personal. Mutually exclusive with team_slug. Omit for personal items."
-  }
-};
-function readScopeFromArgs(args) {
-  const team_slug = typeof args.team_slug === "string" ? args.team_slug.trim() : "";
-  const view_slug = typeof args.view_slug === "string" ? args.view_slug.trim() : "";
-  if (team_slug && view_slug) {
-    throw new Error("Pass at most one of team_slug or view_slug, not both.");
-  }
-  if (team_slug) return { team_slug };
-  if (view_slug) return { view_slug };
-  return void 0;
-}
-function describeScope(scope) {
-  if (scope?.team_slug) return ` (team: ${scope.team_slug})`;
-  if (scope?.view_slug) return ` (view: ${scope.view_slug})`;
-  return "";
-}
-
-// src/tools/snooze.ts
-var snoozeTool = {
-  description: "Snooze an action item until a specified date. Defaults to the personal `<root>/actions/` scope; pass `team_slug` or `view_slug` to snooze a team- or leader-view-scoped item instead (team mode).",
-  inputSchema: {
-    type: "object",
-    properties: {
-      id: { type: "string", description: "Action item ID (filename without .md)" },
-      until: { type: "string", description: "ISO date or RFC 3339 timestamp" },
-      ...SCOPE_INPUT_SCHEMA_FRAGMENT
-    },
-    required: ["id", "until"]
-  },
-  async handler(args) {
-    const id = String(args.id ?? "");
-    const until = String(args.until ?? "");
-    if (!id) throw new Error("id is required");
-    if (!until) throw new Error("until is required");
-    const scope = readScopeFromArgs(args);
-    const filePath = resolveActionPath(id, scope);
-    const file = readFileSync(filePath, "utf8");
-    const updated = setFrontmatter(file, {
-      status: "snoozed",
-      snoozed_until: until,
-      completed_at: null,
-      dismissed_at: null
-    });
-    const tmp = filePath + ".tmp";
-    writeFileSync(tmp, updated, { mode: 420 });
-    renameSync(tmp, filePath);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Snoozed ${id} until ${until}${describeScope(scope)}.`
-        }
-      ]
-    };
-  }
-};
-
-// src/tools/dismiss.ts
-import { readFileSync as readFileSync3, writeFileSync as writeFileSync3, renameSync as renameSync3 } from "node:fs";
-
-// src/tools/set-status.ts
-import { readFileSync as readFileSync2, writeFileSync as writeFileSync2, renameSync as renameSync2 } from "node:fs";
-var VALID_STATUSES = /* @__PURE__ */ new Set(["open", "snoozed", "done", "dismissed"]);
-var USER_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-var USER_ID_MAX = 128;
-function readDoneAttribution(args) {
-  const slugRaw = typeof args.user_slug === "string" ? args.user_slug.trim() : "";
-  const idRaw = typeof args.user_id === "string" ? args.user_id.trim() : "";
-  const slug = slugRaw && USER_SLUG_RE.test(slugRaw) ? slugRaw : null;
-  const id = idRaw && idRaw.length <= USER_ID_MAX ? idRaw : null;
-  return { user_slug: slug, user_id: id };
-}
-function appendOutcomeSection(file, outcome, note) {
-  const stamp = (/* @__PURE__ */ new Date()).toISOString();
-  const noteLine = note ? `
-${note.trim()}` : "";
-  const block = `
-## Outcome
-${outcome} \u2014 ${stamp}${noteLine}
-`;
-  return file.endsWith("\n") ? file + block : file + "\n" + block;
-}
-var setStatusTool = {
-  description: "Set the status of an action item (open, snoozed, done, or dismissed). Optionally captures user intent via `outcome` \u2014 `completed-externally`, `noise`, `irrelevant`, or any free-form string \u2014 appended as an `## Outcome` body section. pattern-feedback reads this to distinguish positive dismissals from negative. Defaults to the personal `<root>/actions/` scope; pass `team_slug` or `view_slug` to mutate a team- or leader-view-scoped item instead (team mode). For team / leader-view scoped mark-done, also writes `done_by_user_slug`, `done_by_user_id`, and `done_at` when `user_slug` / `user_id` are provided \u2014 these are the team-wide audit fields visible to every member after sync.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      id: { type: "string", description: "Action item ID (filename without .md)" },
-      status: {
-        type: "string",
-        enum: ["open", "snoozed", "done", "dismissed"],
-        description: "New status value"
-      },
-      snoozed_until: {
-        type: "string",
-        description: "ISO date or RFC 3339 timestamp (required when status is snoozed)"
-      },
-      outcome: {
-        type: "string",
-        description: "Optional intent marker for done/dismissed transitions. Suggested values: `completed-externally`, `noise`, `irrelevant`. Free-form strings allowed. Appends a `## Outcome` body section. pattern-feedback reads this to distinguish completion-elsewhere (positive) from genuine noise (negative)."
-      },
-      outcome_note: {
-        type: "string",
-        description: "Optional free-form note appended to the `## Outcome` body section."
-      },
-      user_slug: {
-        type: "string",
-        description: "Optional. The mutator's user-slug. When status is `done` on a team or leader-view scope, this is written to the action file as `done_by_user_slug` so every team member's triage UI can attribute the mark-done after sync. Ignored on personal scope. Must match the strict slug pattern (lowercase alphanumeric + dashes)."
-      },
-      user_id: {
-        type: "string",
-        description: "Optional. The mutator's canonical user identity (typically a UUID). When status is `done` on a team or leader-view scope, this is written to the action file as `done_by_user_id`. Ignored on personal scope."
-      },
-      ...SCOPE_INPUT_SCHEMA_FRAGMENT
-    },
-    required: ["id", "status"]
-  },
-  async handler(args) {
-    const id = String(args.id ?? "");
-    const status = String(args.status ?? "");
-    if (!id) throw new Error("id is required");
-    if (!VALID_STATUSES.has(status)) {
-      throw new Error(`Invalid status "${status}". Must be one of: open, snoozed, done, dismissed`);
-    }
-    if (status === "snoozed" && !args.snoozed_until) {
-      throw new Error("snoozed_until is required when status is snoozed");
-    }
-    const scope = readScopeFromArgs(args);
-    const filePath = resolveActionPath(id, scope);
-    const file = readFileSync2(filePath, "utf8");
-    const patch = { status };
-    const now = (/* @__PURE__ */ new Date()).toISOString();
-    const scopeIsTeamOrLeader = !!(scope?.team_slug || scope?.view_slug);
-    if (status === "done") {
-      patch.completed_at = now;
-      patch.dismissed_at = null;
-      if (scopeIsTeamOrLeader) {
-        const { user_slug, user_id } = readDoneAttribution(args);
-        if (user_slug) patch.done_by_user_slug = user_slug;
-        if (user_id) patch.done_by_user_id = user_id;
-        patch.done_at = now;
-      }
-    } else if (status === "dismissed") {
-      patch.dismissed_at = now;
-      patch.completed_at = null;
-      if (scopeIsTeamOrLeader) {
-        patch.done_by_user_slug = null;
-        patch.done_by_user_id = null;
-        patch.done_at = null;
-      }
-    } else if (status === "snoozed") {
-      patch.snoozed_until = args.snoozed_until;
-      patch.completed_at = null;
-      patch.dismissed_at = null;
-      if (scopeIsTeamOrLeader) {
-        patch.done_by_user_slug = null;
-        patch.done_by_user_id = null;
-        patch.done_at = null;
-      }
-    } else if (status === "open") {
-      patch.snoozed_until = null;
-      patch.completed_at = null;
-      patch.dismissed_at = null;
-      if (scopeIsTeamOrLeader) {
-        patch.done_by_user_slug = null;
-        patch.done_by_user_id = null;
-        patch.done_at = null;
-      }
-    }
-    let updated = setFrontmatter(file, patch);
-    const outcomeArg = typeof args.outcome === "string" ? args.outcome.trim() : "";
-    const outcomeNote = typeof args.outcome_note === "string" ? args.outcome_note.trim() : void 0;
-    if (outcomeArg && (status === "done" || status === "dismissed")) {
-      updated = appendOutcomeSection(updated, outcomeArg, outcomeNote);
-    }
-    const tmp = filePath + ".tmp";
-    writeFileSync2(tmp, updated, { mode: 420 });
-    renameSync2(tmp, filePath);
-    const outcomeSuffix = outcomeArg && (status === "done" || status === "dismissed") ? ` (outcome: ${outcomeArg})` : "";
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Set status of ${id} to ${status}${outcomeSuffix}${describeScope(scope)}.`
-        }
-      ]
-    };
-  }
-};
-
-// src/tools/dismiss.ts
-var dismissTool = {
-  description: "Dismiss an action item (mark it as not worth acting on). Optionally captures user intent via `outcome` \u2014 `noise`, `irrelevant`, `completed-externally`, or any free-form string \u2014 appended as an `## Outcome` body section. pattern-feedback reads this to distinguish genuine noise from completion-elsewhere; without an outcome, the dismissal is treated as ambiguous. Defaults to the personal `<root>/actions/` scope; pass `team_slug` or `view_slug` to dismiss a team- or leader-view-scoped item instead (team mode).",
-  inputSchema: {
-    type: "object",
-    properties: {
-      id: { type: "string", description: "Action item ID (filename without .md)" },
-      outcome: {
-        type: "string",
-        description: "Optional intent marker. Suggested: `noise`, `irrelevant`, `completed-externally`. Free-form strings allowed. Appends a `## Outcome` body section. pattern-feedback only counts dismissals toward `\u2192 deprioritize` patterns when an outcome marker (or paired `# Never raise` capture) is present."
-      },
-      outcome_note: {
-        type: "string",
-        description: "Optional free-form note appended to the `## Outcome` body section."
-      },
-      ...SCOPE_INPUT_SCHEMA_FRAGMENT
-    },
-    required: ["id"]
-  },
-  async handler(args) {
-    const id = String(args.id ?? "");
-    if (!id) throw new Error("id is required");
-    const scope = readScopeFromArgs(args);
-    const filePath = resolveActionPath(id, scope);
-    const file = readFileSync3(filePath, "utf8");
-    let updated = setFrontmatter(file, {
-      status: "dismissed",
-      dismissed_at: (/* @__PURE__ */ new Date()).toISOString(),
-      completed_at: null
-    });
-    const outcomeArg = typeof args.outcome === "string" ? args.outcome.trim() : "";
-    const outcomeNote = typeof args.outcome_note === "string" ? args.outcome_note.trim() : void 0;
-    if (outcomeArg) {
-      updated = appendOutcomeSection(updated, outcomeArg, outcomeNote);
-    }
-    const tmp = filePath + ".tmp";
-    writeFileSync3(tmp, updated, { mode: 420 });
-    renameSync3(tmp, filePath);
-    const outcomeSuffix = outcomeArg ? ` (outcome: ${outcomeArg})` : "";
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Dismissed ${id}${outcomeSuffix}${describeScope(scope)}.`
-        }
-      ]
-    };
-  }
-};
-
-// src/tools/triage-prefs.ts
-import { mkdirSync, readFileSync as readFileSync4, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join3 } from "node:path";
-var SLUG_RE2 = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-var MAX_MUTED_SLUGS = 256;
-var MAX_TRIAGE_STATE_ENTRIES = 4096;
-var TRIAGE_STATE_PATH_RE = /^(actions|teams\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\/actions|leader-views\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\/actions)\/[^/\\\0]{1,200}\.md$/;
-var VALID_SORTS = /* @__PURE__ */ new Set([
-  "priority",
-  "due",
-  "created",
-  "team-then-priority",
-  "due-then-priority"
-]);
-var VALID_FILTER_STATES = /* @__PURE__ */ new Set(["shown", "hidden"]);
-var EMPTY_PREFS_V2 = {
-  schema_version: 2,
-  muted_team_slugs: [],
-  muted_view_slugs: [],
-  team_filters: {},
-  view_filters: {},
-  relevance_class_filters: {},
-  sort: "priority",
-  show_done: false,
-  show_snoozed: false,
-  show_dismissed: false,
-  triage_state: {}
-};
-function sanitizeSlugList(raw) {
-  if (!Array.isArray(raw)) return [];
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const v of raw) {
-    if (typeof v !== "string") continue;
-    const t = v.trim();
-    if (!t || !SLUG_RE2.test(t)) continue;
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= MAX_MUTED_SLUGS) break;
-  }
-  return out;
-}
-function sanitizeFilterMap(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out = {};
-  let count = 0;
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof k !== "string" || !SLUG_RE2.test(k)) continue;
-    if (typeof v !== "string" || !VALID_FILTER_STATES.has(v)) continue;
-    out[k] = v;
-    count++;
-    if (count >= MAX_MUTED_SLUGS) break;
-  }
-  return out;
-}
-function sanitizeRelevanceClassFilters(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out = {};
-  let count = 0;
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof k !== "string" || !SLUG_RE2.test(k)) continue;
-    const classes = sanitizeSlugList(v);
-    out[k] = classes;
-    count++;
-    if (count >= MAX_MUTED_SLUGS) break;
-  }
-  return out;
-}
-var ISO_TIMESTAMP_RE2 = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
-function sanitizeIsoOrNull(v) {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  if (!t) return null;
-  if (t.length > 64) return null;
-  if (!ISO_TIMESTAMP_RE2.test(t)) return null;
-  if (!Number.isFinite(Date.parse(t))) return null;
-  return t;
-}
-function sanitizeTriageState(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const out = {};
-  let count = 0;
-  for (const [k, v] of Object.entries(raw)) {
-    if (!isValidTriageStatePath(k)) continue;
-    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
-    const entry = v;
-    out[k] = {
-      snoozed_until: sanitizeIsoOrNull(entry.snoozed_until),
-      dismissed_at: sanitizeIsoOrNull(entry.dismissed_at)
-    };
-    count++;
-    if (count >= MAX_TRIAGE_STATE_ENTRIES) break;
-  }
-  return out;
-}
-function isValidTriageStatePath(p) {
-  if (typeof p !== "string") return false;
-  if (p.length === 0 || p.length > 512) return false;
-  if (p.includes("..")) return false;
-  return TRIAGE_STATE_PATH_RE.test(p);
-}
-function prefsPath() {
-  return join3(expectedAgntuxRoot(), ".agntux", "triage-prefs.json");
-}
-function readTriagePrefs() {
-  let raw;
-  try {
-    raw = readFileSync4(prefsPath(), "utf8");
-  } catch {
-    return cloneEmpty();
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return cloneEmpty();
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return cloneEmpty();
-  }
-  const obj = parsed;
-  const muted_team_slugs = sanitizeSlugList(obj.muted_team_slugs);
-  const muted_view_slugs = sanitizeSlugList(obj.muted_view_slugs);
-  const team_filters = sanitizeFilterMap(obj.team_filters);
-  const view_filters = sanitizeFilterMap(obj.view_filters);
-  for (const slug of muted_team_slugs) {
-    if (team_filters[slug] === void 0) team_filters[slug] = "hidden";
-  }
-  for (const slug of muted_view_slugs) {
-    if (view_filters[slug] === void 0) view_filters[slug] = "hidden";
-  }
-  const sort = typeof obj.sort === "string" && VALID_SORTS.has(obj.sort) ? obj.sort : "priority";
-  return {
-    schema_version: 2,
-    muted_team_slugs,
-    muted_view_slugs,
-    team_filters,
-    view_filters,
-    relevance_class_filters: sanitizeRelevanceClassFilters(obj.relevance_class_filters),
-    sort,
-    show_done: obj.show_done === true,
-    show_snoozed: obj.show_snoozed === true,
-    show_dismissed: obj.show_dismissed === true,
-    triage_state: sanitizeTriageState(obj.triage_state)
-  };
-}
-function cloneEmpty() {
-  return {
-    schema_version: 2,
-    muted_team_slugs: [],
-    muted_view_slugs: [],
-    team_filters: {},
-    view_filters: {},
-    relevance_class_filters: {},
-    sort: EMPTY_PREFS_V2.sort,
-    show_done: false,
-    show_snoozed: false,
-    show_dismissed: false,
-    triage_state: {}
-  };
-}
-function writePrefs(prefs) {
-  const path = prefsPath();
-  const dir = join3(expectedAgntuxRoot(), ".agntux");
-  mkdirSync(dir, { recursive: true });
-  const muted_team_slugs = [];
-  for (const [slug, state] of Object.entries(prefs.team_filters)) {
-    if (state === "hidden") muted_team_slugs.push(slug);
-  }
-  const muted_view_slugs = [];
-  for (const [slug, state] of Object.entries(prefs.view_filters)) {
-    if (state === "hidden") muted_view_slugs.push(slug);
-  }
-  const out = {
-    ...prefs,
-    muted_team_slugs,
-    muted_view_slugs
-  };
-  const body = JSON.stringify(out, null, 2) + "\n";
-  const tmp = path + ".tmp";
-  writeFileSync4(tmp, body, { mode: 420 });
-  renameSync4(tmp, path);
-}
-var triagePrefsTool = {
-  description: "Persist the triage UI's filter state for the current AgntUX project. Writes `<root>/.agntux/triage-prefs.json`. Called by the triage MCP App when the user toggles a team filter chip, a relevance-class chip, or a show-done/snoozed/dismissed toggle; not user-facing. MERGES patch fields into the existing file \u2014 callers may patch a single field without re-sending the whole state.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      // Legacy v1 fields. Accepted for back-compat with older bundles
-      // and translated into `team_filters` / `view_filters` on write.
-      muted_team_slugs: {
-        type: "array",
-        items: { type: "string" },
-        description: "Legacy v1 field \u2014 flat array of team slugs the user has hidden. Translated to `team_filters[slug] = 'hidden'` on write. New callers should prefer `team_filters` directly."
-      },
-      muted_view_slugs: {
-        type: "array",
-        items: { type: "string" },
-        description: "Legacy v1 field \u2014 flat array of view slugs the user has hidden. Translated to `view_filters[slug] = 'hidden'` on write."
-      },
-      // v2 fields.
-      team_filters: {
-        type: "object",
-        description: "Map of team-slug \u2192 'shown' | 'hidden'. Replaces the legacy `muted_team_slugs` array; missing slugs default to 'shown'. Patches the existing map: keys not in the patch retain their stored value."
-      },
-      view_filters: {
-        type: "object",
-        description: "Map of leader-view-slug \u2192 'shown' | 'hidden'. Mirrors `team_filters` for leader views."
-      },
-      relevance_class_filters: {
-        type: "object",
-        description: "Map of team-slug \u2192 array of selected relevance-class slugs. The triage UI's strict-intersection filter renders an item only when the item's `relevance_classes[]` intersects the selected set. Patches the existing map: keys not in the patch retain their stored value."
-      },
-      sort: {
-        type: "string",
-        description: "Sort key. One of: priority, due, created, team-then-priority, due-then-priority. Invalid values are ignored."
-      },
-      show_done: { type: "boolean", description: "Toggle: render `status: done` items." },
-      show_snoozed: {
-        type: "boolean",
-        description: "Toggle: render items the user has snoozed via triage-prefs."
-      },
-      show_dismissed: {
-        type: "boolean",
-        description: "Toggle: render items the user has dismissed via triage-prefs."
-      }
-    },
-    required: []
-  },
-  async handler(args) {
-    const current = readTriagePrefs();
-    const next = {
-      ...current,
-      team_filters: { ...current.team_filters },
-      view_filters: { ...current.view_filters },
-      relevance_class_filters: { ...current.relevance_class_filters },
-      triage_state: { ...current.triage_state }
-    };
-    if (args.muted_team_slugs !== void 0) {
-      const muted = sanitizeSlugList(args.muted_team_slugs);
-      const filters = {};
-      for (const slug of muted) filters[slug] = "hidden";
-      for (const [slug, state] of Object.entries(next.team_filters)) {
-        if (state === "shown" && filters[slug] === void 0) filters[slug] = "shown";
-      }
-      next.team_filters = filters;
-    }
-    if (args.muted_view_slugs !== void 0) {
-      const muted = sanitizeSlugList(args.muted_view_slugs);
-      const filters = {};
-      for (const slug of muted) filters[slug] = "hidden";
-      for (const [slug, state] of Object.entries(next.view_filters)) {
-        if (state === "shown" && filters[slug] === void 0) filters[slug] = "shown";
-      }
-      next.view_filters = filters;
-    }
-    if (args.team_filters !== void 0) {
-      const patch = sanitizeFilterMap(args.team_filters);
-      for (const [k, v] of Object.entries(patch)) next.team_filters[k] = v;
-    }
-    if (args.view_filters !== void 0) {
-      const patch = sanitizeFilterMap(args.view_filters);
-      for (const [k, v] of Object.entries(patch)) next.view_filters[k] = v;
-    }
-    if (args.relevance_class_filters !== void 0) {
-      const patch = sanitizeRelevanceClassFilters(args.relevance_class_filters);
-      for (const [k, v] of Object.entries(patch)) next.relevance_class_filters[k] = v;
-    }
-    if (typeof args.sort === "string" && VALID_SORTS.has(args.sort)) {
-      next.sort = args.sort;
-    }
-    if (typeof args.show_done === "boolean") next.show_done = args.show_done;
-    if (typeof args.show_snoozed === "boolean") next.show_snoozed = args.show_snoozed;
-    if (typeof args.show_dismissed === "boolean") {
-      next.show_dismissed = args.show_dismissed;
-    }
-    writePrefs(next);
-    const hiddenTeams = Object.values(next.team_filters).filter((s) => s === "hidden").length;
-    const hiddenViews = Object.values(next.view_filters).filter((s) => s === "hidden").length;
-    return {
-      content: [
-        {
-          type: "text",
-          text: `triage-prefs.json saved (${hiddenTeams} team(s) hidden, ${hiddenViews} view(s) hidden, sort=${next.sort}).`
-        }
-      ]
-    };
-  }
-};
-var setTriagePrefTool = {
-  description: "Set the per-path triage state (snooze / dismiss) for a specific action file. Writes `<root>/.agntux/triage-prefs.json` \u2192 `triage_state[path]`. PERSONAL: the action file is untouched, so a team item snoozed by Alice still appears in Bob's triage. Pass `path` (relative to AgntUX root, e.g. `teams/platform/actions/2026-05-12-foo.md`) and at least one of `snoozed_until`, `dismissed_at`. Pass `null` for a field to clear it. To remove the entry entirely, pass both as null.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: {
-        type: "string",
-        description: "Path to the action file, relative to the AgntUX project root. Must match `actions/*.md`, `teams/{slug}/actions/*.md`, or `leader-views/{slug}/actions/*.md`."
-      },
-      snoozed_until: {
-        description: "RFC 3339 timestamp when the snooze ends. Pass `null` to clear. Omit to leave unchanged."
-      },
-      dismissed_at: {
-        description: "RFC 3339 timestamp when dismissed. Pass `null` to clear. Omit to leave unchanged."
-      }
-    },
-    required: ["path"]
-  },
-  async handler(args) {
-    const path = typeof args.path === "string" ? args.path.trim() : "";
-    if (!path) throw new Error("path is required");
-    if (!isValidTriageStatePath(path)) {
-      throw new Error(
-        `Path traversal rejected: invalid triage-prefs path "${path}".`
-      );
-    }
-    const current = readTriagePrefs();
-    const next = {
-      ...current,
-      team_filters: { ...current.team_filters },
-      view_filters: { ...current.view_filters },
-      relevance_class_filters: { ...current.relevance_class_filters },
-      triage_state: { ...current.triage_state }
-    };
-    const existing = next.triage_state[path] ?? {
-      snoozed_until: null,
-      dismissed_at: null
-    };
-    let snoozed_until = existing.snoozed_until;
-    let dismissed_at = existing.dismissed_at;
-    if (Object.prototype.hasOwnProperty.call(args, "snoozed_until")) {
-      snoozed_until = sanitizeIsoOrNull(args.snoozed_until);
-    }
-    if (Object.prototype.hasOwnProperty.call(args, "dismissed_at")) {
-      dismissed_at = sanitizeIsoOrNull(args.dismissed_at);
-    }
-    if (snoozed_until === null && dismissed_at === null) {
-      delete next.triage_state[path];
-    } else {
-      next.triage_state[path] = { snoozed_until, dismissed_at };
-    }
-    writePrefs(next);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `triage-prefs.json updated for ${path} (snoozed_until=${snoozed_until ?? "null"}, dismissed_at=${dismissed_at ?? "null"}).`
-        }
-      ]
-    };
-  }
-};
-
 // src/tools/sync-installed-plugins.ts
 import {
-  mkdirSync as mkdirSync2,
-  renameSync as renameSync5,
-  writeFileSync as writeFileSync5
+  mkdirSync,
+  renameSync,
+  writeFileSync
 } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { join as join4 } from "node:path";
-var SLUG_RE3 = /^[a-z](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-var MARKETPLACE_RE = SLUG_RE3;
+import { homedir } from "node:os";
+import { join } from "node:path";
+var SLUG_RE = /^[a-z](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+var MARKETPLACE_RE = SLUG_RE;
 var MAX_PLUGINS = 256;
 var MAX_VERSION_LEN = 64;
 var MAX_SHA_LEN = 128;
 function resolveHomeRoot() {
-  return process.env.AGNTUX_HOME_OVERRIDE ?? homedir2();
+  return process.env.AGNTUX_HOME_OVERRIDE ?? homedir();
 }
 function installedPluginsPath() {
-  return join4(resolveHomeRoot(), ".agntux", "installed-plugins.json");
+  return join(resolveHomeRoot(), ".agntux", "installed-plugins.json");
 }
 function installedPluginsDir() {
-  return join4(resolveHomeRoot(), ".agntux");
+  return join(resolveHomeRoot(), ".agntux");
 }
 function sanitizeEntry(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -17572,7 +16825,7 @@ function sanitizeEntry(raw) {
   if (typeof obj.marketplace !== "string") return null;
   const slug = obj.slug.trim();
   const marketplace = obj.marketplace.trim();
-  if (!SLUG_RE3.test(slug)) return null;
+  if (!SLUG_RE.test(slug)) return null;
   if (!MARKETPLACE_RE.test(marketplace)) return null;
   const out = { slug, marketplace };
   if (typeof obj.version === "string") {
@@ -17602,11 +16855,11 @@ function sanitizePlugins(raw) {
 function writeInstalledPluginsFile(file) {
   const dir = installedPluginsDir();
   const path = installedPluginsPath();
-  mkdirSync2(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true });
   const body = JSON.stringify(file, null, 2) + "\n";
   const tmp = path + ".tmp";
-  writeFileSync5(tmp, body, { mode: 420 });
-  renameSync5(tmp, path);
+  writeFileSync(tmp, body, { mode: 420 });
+  renameSync(tmp, path);
   return path;
 }
 var syncInstalledPluginsTool = {
@@ -17657,7 +16910,7 @@ var syncInstalledPluginsTool = {
 
 // src/index.ts
 var PLUGIN_NAME = "agntux-core";
-var PLUGIN_VERSION = "9.3.0";
+var PLUGIN_VERSION = "10.0.0";
 var server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   {
@@ -17671,17 +16924,6 @@ var server = new Server(
   }
 );
 var TOOLS = {
-  agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
-  agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
-  agntux_core_set_status: { ...setStatusTool, handler: setStatusTool.handler },
-  agntux_core_save_triage_prefs: {
-    ...triagePrefsTool,
-    handler: triagePrefsTool.handler
-  },
-  agntux_core_set_triage_pref: {
-    ...setTriagePrefTool,
-    handler: setTriagePrefTool.handler
-  },
   agntux_core_sync_installed_plugins: {
     ...syncInstalledPluginsTool,
     handler: syncInstalledPluginsTool.handler

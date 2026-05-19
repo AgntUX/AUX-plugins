@@ -14,4 +14,10 @@
 // =============================================================================
 export { mergeScope, ViewToolFsError } from "./context.js";
 export { extractFencedYaml, extractFrontmatterMetadata, extractSection, parseActionFile, parseComposePayload, parseFrontmatter, } from "./parse-action.js";
-export { DataPathSchema, HandlerModuleRegex, HtmlPathRegex, McpAppMetaSchema, McpUiCspSchema, McpUiPermissionsSchema, ScopeSchema, UiBundleSchema, UiResourceUriRegex, ViewToolSchema, ViewToolsManifestSchema, } from "./manifest-schema.js";
+export { DataPathSchema, HandlerModuleRegex, HtmlPathRegex, McpAppMetaSchema, McpUiCspSchema, McpUiPermissionsSchema, MutationToolSchema, ScopeSchema, UiBundleSchema, UiResourceUriRegex, ViewToolSchema, ViewToolsManifestSchema, } from "./manifest-schema.js";
+// --- Canonical wording for the view-tool response envelope -----------------
+// Centralizes the `content[].text` block every view-tool handler returns
+// alongside `structuredContent` so the model has an explicit mental model
+// of the MCP Apps lifecycle. See `render-confirmation.ts` for the rationale
+// (Claude Cowork post-render commentary / duplicate-widget regression).
+export { renderConfirmationText } from "./render-confirmation.js";

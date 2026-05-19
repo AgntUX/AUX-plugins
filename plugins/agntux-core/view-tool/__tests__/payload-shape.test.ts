@@ -445,3 +445,51 @@ describe("handleTriageView payload shape", () => {
     expect(sc.error).toBe("actions_index_missing");
   });
 });
+
+// =============================================================================
+// Response envelope guard — every handler return (success AND error) must
+// ship a `content[]` block alongside `structuredContent` that explains the
+// MCP Apps lifecycle to the model. Frozen anchor strings: `iframe`, `host`,
+// `MCP App`. The anchors survive wording tweaks within the explanatory
+// frame but fail loudly if a refactor reverts to a short forbid-list or
+// strips the lifecycle context. See the production bug
+// (Claude Cowork post-render commentary / duplicate-widget) referenced in
+// the plan at ~/.claude/plans/image-1-claude-cowork-playful-backus.md.
+// =============================================================================
+
+describe("handleTriageView response envelope", () => {
+  function assertEnvelope(content: unknown) {
+    expect(Array.isArray(content)).toBe(true);
+    if (!Array.isArray(content)) return;
+    expect(content[0].type).toBe("text");
+    const text = content[0].text as string;
+    expect(text).toContain("iframe");
+    expect(text).toContain("host");
+    expect(text).toContain("MCP App");
+  }
+
+  it("success path ships the canonical content[] explanation", async () => {
+    const files: Record<string, string> = {
+      "actions/_index.md": "# index\n",
+      "actions/env-001.md": makeActionFile({
+        id: "env-001",
+        status: "open",
+      }),
+    };
+    const result = await triageTool.handle({}, makeCtx(files));
+    assertEnvelope(result.content);
+  });
+
+  it("actions_index_missing error path also ships the canonical content[] explanation", async () => {
+    // The iframe renders error states too, so the "stop after rendering"
+    // framing applies — the error envelope MUST also ship content[].
+    const result = await triageTool.handle({}, makeCtx({}));
+    assertEnvelope(result.content);
+  });
+
+  it("bootstrap (empty workspace) ships the canonical content[] explanation", async () => {
+    const files = { "actions/_index.md": "# index\n" };
+    const result = await triageTool.handle({}, makeCtx(files));
+    assertEnvelope(result.content);
+  });
+});

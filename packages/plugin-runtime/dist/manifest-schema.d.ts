@@ -234,6 +234,32 @@ export declare const ViewToolSchema: z.ZodObject<{
         scope: "personal" | "team" | "leader-view";
     }[];
 }>;
+/**
+ * Mutation tools — invoked from within a view-tool iframe (via
+ * `useAppsClient().callTool(...)`) to write back through the remote MCP
+ * server. Shape is intentionally narrower than `ViewToolSchema`: no
+ * `outputSchema` (mutations return a small status envelope), no
+ * `mcp_app_meta` (no iframe is rendered for the call's result), no
+ * `data_paths` (writes route through the same path-classifier as reads).
+ *
+ * The bundle exports a handler for each mutation tool under the same
+ * registry slot as view-tool handlers (`toolHandlers[name]`); the remote
+ * server merges both arrays into one `tools/list` and routes by name on
+ * `tools/call`.
+ */
+export declare const MutationToolSchema: z.ZodObject<{
+    name: z.ZodString;
+    description: z.ZodString;
+    inputSchema: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+}, {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+}>;
 export declare const NoParentSegment: RegExp;
 export declare const HandlerModuleRegex: RegExp;
 export declare const HtmlPathRegex: RegExp;
@@ -502,6 +528,19 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         uri: string;
         html_path: string;
     }>, "many">;
+    mutation_tools: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        description: z.ZodString;
+        inputSchema: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }, {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     plugin_slug: string;
     plugin_version: string;
@@ -547,6 +586,11 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         uri: string;
         html_path: string;
     }[];
+    mutation_tools?: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }[] | undefined;
 }, {
     plugin_slug: string;
     plugin_version: string;
@@ -592,6 +636,11 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         uri: string;
         html_path: string;
     }[];
+    mutation_tools?: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }[] | undefined;
 }>, {
     plugin_slug: string;
     plugin_version: string;
@@ -637,6 +686,11 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         uri: string;
         html_path: string;
     }[];
+    mutation_tools?: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }[] | undefined;
 }, {
     plugin_slug: string;
     plugin_version: string;
@@ -682,6 +736,11 @@ export declare const ViewToolsManifestSchema: z.ZodEffects<z.ZodObject<{
         uri: string;
         html_path: string;
     }[];
+    mutation_tools?: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+    }[] | undefined;
 }>;
 export type ViewToolsManifest = z.infer<typeof ViewToolsManifestSchema>;
 export type DataPath = z.infer<typeof DataPathSchema>;
@@ -690,3 +749,4 @@ export type McpUiCsp = z.infer<typeof McpUiCspSchema>;
 export type McpUiPermissions = z.infer<typeof McpUiPermissionsSchema>;
 export type ViewToolEntry = z.infer<typeof ViewToolSchema>;
 export type UiBundleEntry = z.infer<typeof UiBundleSchema>;
+export type MutationToolEntry = z.infer<typeof MutationToolSchema>;

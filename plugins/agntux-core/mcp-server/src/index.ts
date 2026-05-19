@@ -10,14 +10,10 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
-import { snoozeTool } from "./tools/snooze.js";
-import { dismissTool } from "./tools/dismiss.js";
-import { setStatusTool } from "./tools/set-status.js";
-import { triagePrefsTool, setTriagePrefTool } from "./tools/triage-prefs.js";
 import { syncInstalledPluginsTool } from "./tools/sync-installed-plugins.js";
 
 const PLUGIN_NAME = "agntux-core";
-const PLUGIN_VERSION = "9.3.0";
+const PLUGIN_VERSION = "10.0.0";
 
 // MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
 // section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
@@ -39,54 +35,24 @@ const server = new Server(
   },
 );
 
-// Tools surface (v6.0.0+ all tool names are prefixed with `agntux_core_` so
-// they are unambiguous at the host's MCP routing layer — collisions with
-// other servers' tool names are no longer possible):
-//   - agntux_core_snooze / agntux_core_dismiss / agntux_core_set_status —
-//     invoked by the triage component via useAppsClient().callTool() for
-//     inline mutations. NOT routed through the LLM, so their args are
-//     component-supplied and effectively free. Team-mode (P3 v2) callers
-//     pass an optional `team_slug` or `view_slug` to route the mutation
-//     to the matching team / leader-view actions/ directory.
-//   - agntux_core_triage_view — MOVED to view-tool/dist/agntux-core-view.js
-//     under the P5 view-only shape. The remote MCP server registry loads
-//     the compiled view-tool module and multiplexes triage_view alongside
-//     view tools from other plugins. No longer registered locally.
-//   - agntux_core_save_triage_prefs — invoked by the triage component when
-//     the user toggles a team / leader-view filter chip, a relevance-class
-//     chip, the sort dropdown, or the show-done/snoozed/dismissed toggles.
-//     Persists state to `<root>/.agntux/triage-prefs.json` (v2 schema as
-//     of 9.3.0 / P9). MERGES patch fields into the existing file — the
-//     UI can patch a single key without re-sending the whole state. NOT
-//     user-facing.
-//   - agntux_core_set_triage_pref — P9 (9.3.0). Invoked by the triage
-//     component when the user snoozes or dismisses a specific action
-//     row. Writes the entry to `triage_state[<relative_path>]` in
-//     triage-prefs.json. Personal: the action file itself is untouched
-//     so the team's view of the item is unchanged. NOT user-facing.
-//   - agntux_core_sync_installed_plugins — invoked by the agntux-core
-//     skill after it enumerates Claude's installed plugins via
-//     `mcp__plugins__list_plugins`. Writes
-//     `~/.agntux/installed-plugins.json` atomically. The agntux-teams
-//     daemon watches that file with chokidar and POSTs the snapshot to
-//     `/api/me/plugins`; the server uses the per-user install ledger to
-//     decide which plugins' view-tools to expose on the remote MCP
-//     connector. agntux-core is the canonical reader of Claude's local
-//     install state — daemon and server only ever read our small,
-//     stable schema, so Anthropic format changes touch one file in our
-//     tree.
+// Tools surface — 10.0.0:
+//
+//   The view-tool / triage mutation tools (`agntux_core_snooze`,
+//   `agntux_core_dismiss`, `agntux_core_set_status`,
+//   `agntux_core_save_triage_prefs`, `agntux_core_set_triage_pref`) have
+//   MOVED to `view-tool/dist/agntux-core-view.js` under the new
+//   manifest `mutation_tools[]` shape. The remote MCP server in
+//   agntux/app registers them on `tools/list`, dispatches via the
+//   same handler map as `agntux_core_triage_view`, and writes through
+//   `ctx.fs.update()` (CAS-guarded via `team_sync_push_entry`). An
+//   SSE event fans out to the user's agntux-teams daemons so the
+//   resulting on-disk change lands within ~1s.
+//
+//   This local stdio server retains exactly ONE tool —
+//   `agntux_core_sync_installed_plugins`. It's HOME-scoped (writes
+//   `~/.agntux/installed-plugins.json`, not project data), and the
+//   agntux-teams daemon watches that file via chokidar.
 const TOOLS = {
-  agntux_core_snooze: { ...snoozeTool, handler: snoozeTool.handler },
-  agntux_core_dismiss: { ...dismissTool, handler: dismissTool.handler },
-  agntux_core_set_status: { ...setStatusTool, handler: setStatusTool.handler },
-  agntux_core_save_triage_prefs: {
-    ...triagePrefsTool,
-    handler: triagePrefsTool.handler,
-  },
-  agntux_core_set_triage_pref: {
-    ...setTriagePrefTool,
-    handler: setTriagePrefTool.handler,
-  },
   agntux_core_sync_installed_plugins: {
     ...syncInstalledPluginsTool,
     handler: syncInstalledPluginsTool.handler,

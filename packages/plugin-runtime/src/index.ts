@@ -17,6 +17,9 @@
 export type {
   JsonSchema,
   ListWithMetaEntry,
+  MutationTool,
+  MutationToolDescriptor,
+  UpdatePatch,
   ViewTool,
   ViewToolContext,
   ViewToolDescriptor,
@@ -24,6 +27,8 @@ export type {
   ViewToolFsErrorCode,
   ViewToolModule,
   ViewToolScope,
+  WriteFileOpts,
+  WriteResult,
 } from "./context.js";
 export { mergeScope, ViewToolFsError } from "./context.js";
 
@@ -51,6 +56,7 @@ export type {
   McpAppMeta,
   McpUiCsp,
   McpUiPermissions,
+  MutationToolEntry,
   Scope,
   UiBundleEntry,
   ViewToolEntry,
@@ -63,6 +69,7 @@ export {
   McpAppMetaSchema,
   McpUiCspSchema,
   McpUiPermissionsSchema,
+  MutationToolSchema,
   ScopeSchema,
   UiBundleSchema,
   UiResourceUriRegex,
@@ -73,3 +80,10 @@ export {
 // --- AgntuxRootPaths shape (defined alongside the local-fs factory) --------
 // Type-only re-export; the factory itself is NOT exported here on purpose.
 export type { AgntuxRootPaths } from "./local-fs.js";
+
+// --- Canonical wording for the view-tool response envelope -----------------
+// Centralizes the `content[].text` block every view-tool handler returns
+// alongside `structuredContent` so the model has an explicit mental model
+// of the MCP Apps lifecycle. See `render-confirmation.ts` for the rationale
+// (Claude Cowork post-render commentary / duplicate-widget regression).
+export { renderConfirmationText } from "./render-confirmation.js";
