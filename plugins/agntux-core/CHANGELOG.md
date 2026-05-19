@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.0.1] — 2026-05-18
+
+### Changed
+
+- **`agntux_core_triage_view` handler now ships a `content[].text`
+  block alongside `structuredContent`** on both the success branch
+  and the `actions_index_missing` error branch. The text is built
+  from `renderConfirmationText("AgntUX triage UI")` (centralized in
+  `@agntux/plugin-runtime` 0.2.1) and explains the MCP Apps
+  lifecycle to the model — what the iframe is, where the data
+  went, why the turn is complete. The tool's `description` was
+  reframed in the same pass: the old forbid-list suffix ("do NOT
+  add chat commentary …") became an explanatory one ("This tool is
+  an MCP App view tool: it returns a structured data payload that
+  the host renders into an interactive iframe …").
+
+### Why
+
+Production bug observed in Claude Cowork on 2026-05-18: after
+`/agntux triage` correctly fired this view tool and the host
+rendered the iframe, the model also (a) built a duplicate HTML
+widget via the host's `visualize` tool and (b) wrote 5 paragraphs
+of commentary summarizing the 34 open items the user could
+already see in the iframe. The handler was returning only
+`structuredContent`, so the model saw a JSON blob and reasonably
+concluded "this is data I need to render somehow." The fix is the
+response-envelope `content[]` block, structured as architecture
+explanation rather than a forbid-list. PATCH-level: no
+consumer-visible payload change, no new runtime dependency.
+
 ## [10.0.0] — 2026-05-18
 
 ### Changed (BREAKING)

@@ -1,9 +1,11 @@
 // src/agntux-gmail-view.ts
 import {
   ViewToolFsError,
-  parseActionFile
+  parseActionFile,
+  renderConfirmationText
 } from "@agntux/plugin-runtime";
 var COMPOSE_RESOURCE_URI = "ui://agntux-gmail/compose";
+var COMPOSE_UI_LABEL = "AgntUX Gmail reply composer";
 var MAX_DRAFTED_BODY_CHARS = 4e3;
 var MAX_PERSONALIZATION_SIGNALS = 4;
 var MAX_SIGNAL_CHARS = 120;
@@ -39,10 +41,18 @@ function deriveUserEmailFromUrl(url) {
     return null;
   }
 }
+function composeEnvelope(payload) {
+  return {
+    content: [
+      { type: "text", text: renderConfirmationText(COMPOSE_UI_LABEL) }
+    ],
+    structuredContent: payload
+  };
+}
 async function handleCompose(args, ctx) {
   const actionId = asString(args.action_id);
   if (!actionId || !/^[a-zA-Z0-9_-]+$/.test(actionId)) {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const path = `actions/${actionId}.md`;
   let buf;
@@ -50,7 +60,7 @@ async function handleCompose(args, ctx) {
     buf = await ctx.fs.readFile(path);
   } catch (err) {
     if (err instanceof ViewToolFsError && err.code === "not-found") {
-      return { structuredContent: { error: "action_not_found" } };
+      return composeEnvelope({ error: "action_not_found" });
     }
     throw err;
   }
@@ -58,15 +68,15 @@ async function handleCompose(args, ctx) {
   try {
     parsed = parseActionFile(buf.toString("utf8"));
   } catch {
-    return { structuredContent: { error: "action_not_found" } };
+    return composeEnvelope({ error: "action_not_found" });
   }
   const fm = parsed.frontmatter;
   if (isActionAlreadyHandled(fm.status, fm.snoozed_until)) {
-    return { structuredContent: { error: "action_already_handled" } };
+    return composeEnvelope({ error: "action_already_handled" });
   }
   const onDisk = parsed.compose_payload;
   if (!onDisk) {
-    return { structuredContent: { error: "compose_payload_missing" } };
+    return composeEnvelope({ error: "compose_payload_missing" });
   }
   const personalizationSignals = onDisk.personalization_signals.slice(0, MAX_PERSONALIZATION_SIGNALS).map((s) => truncate(s, MAX_SIGNAL_CHARS));
   const userEmail = deriveUserEmailFromUrl(onDisk.gmail_thread_url);
@@ -105,12 +115,12 @@ async function handleCompose(args, ctx) {
     user_email: userEmail,
     account_index: onDisk.account_index
   };
-  return { structuredContent: payload };
+  return composeEnvelope(payload);
 }
 var composeView = {
   descriptor: {
     name: "agntux_gmail_compose_view",
-    description: "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-gmail open the reply composer for action {id}`, `/agntux-gmail open the email composer for action {id}`, `/agntux-gmail draft an email reply for action {id}`. The legacy `ux: Use the agntux-gmail plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. Once this UI is rendered, the user sees everything they need in the iframe \u2014 do NOT add any chat commentary after rendering, and do NOT make any further tool calls; the UI is the response. After the user clicks Save Draft inside this UI and the Gmail Connector tool returns, do NOT re-render this AgntUX compose UI and do NOT render Gmail's native draft/send UI \u2014 the action is complete; return the connector's success/error as plain chat text.",
+    description: "Open the Gmail reply composer for an action. Pass action_id; the handler reads the action file's `## Compose payload` body section. Trigger phrases (host's tool selector matches the user's chat message against this list): `/agntux-gmail open the reply composer for action {id}`, `/agntux-gmail open the email composer for action {id}`, `/agntux-gmail draft an email reply for action {id}`. The legacy `ux: Use the agntux-gmail plugin to \u2026` envelope is still accepted for backwards compatibility with action items already on disk. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. After the user clicks Save Draft inside this iframe, the host invokes the Gmail connector's draft tool. The connector's success/error response is what the user needs next \u2014 surface it as plain chat text; the AgntUX view tool does not need to be re-invoked and the connector's own native UI does not need to be rendered.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

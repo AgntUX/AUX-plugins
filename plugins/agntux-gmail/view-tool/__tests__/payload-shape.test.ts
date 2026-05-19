@@ -287,3 +287,92 @@ account_index: null
     expect(bytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
   });
 });
+
+// =============================================================================
+// Response envelope guard — every handler return (success AND error) must
+// ship a `content[]` block alongside `structuredContent` that explains the
+// MCP Apps lifecycle to the model. Frozen anchor strings: `iframe`, `host`,
+// `MCP App`. See the production bug (Claude Cowork post-render commentary /
+// duplicate-widget) referenced in the plan at
+// ~/.claude/plans/image-1-claude-cowork-playful-backus.md.
+// =============================================================================
+
+describe("agntux-gmail compose_view response envelope", () => {
+  function assertEnvelope(content: unknown) {
+    expect(Array.isArray(content)).toBe(true);
+    if (!Array.isArray(content)) return;
+    expect(content[0].type).toBe("text");
+    const text = content[0].text as string;
+    expect(text).toContain("iframe");
+    expect(text).toContain("host");
+    expect(text).toContain("MCP App");
+  }
+
+  it("success path ships the canonical content[] explanation", async () => {
+    const actionId = "envelope-gmail-001";
+    const files = {
+      [`actions/${actionId}.md`]: makeGmailComposeActionFile(actionId),
+    };
+    const result = await composeTool.handle(
+      { action_id: actionId },
+      makeCtx(files),
+    );
+    assertEnvelope(result.content);
+  });
+
+  it("action_not_found error path ships the canonical content[] explanation", async () => {
+    const result = await composeTool.handle(
+      { action_id: "missing" },
+      makeCtx({}),
+    );
+    assertEnvelope(result.content);
+  });
+
+  it("compose_payload_missing error path ships the canonical content[] explanation", async () => {
+    const files = {
+      "actions/no-payload.md": `---\nid: no-payload\nstatus: open\npriority: medium\nreason_class: gmail_reply\n---\n\n## Why this matters\n\nNo payload here.\n`,
+    };
+    const result = await composeTool.handle(
+      { action_id: "no-payload" },
+      makeCtx(files),
+    );
+    assertEnvelope(result.content);
+  });
+
+  it("action_already_handled error path ships the canonical content[] explanation", async () => {
+    // The already-handled branch was shape-tested but not envelope-
+    // tested before this — a future refactor that added a bare
+    // `return { structuredContent: ... }` for the done/dismissed
+    // branch alone would slip past the per-branch guards.
+    const files = {
+      "actions/done-action.md": `---\nid: done-action\nstatus: done\npriority: medium\nreason_class: gmail_reply\ncompleted_at: 2026-05-16T10:00:00Z\n---\n\n## Why this matters\n\nAlready handled.\n\n## Compose payload\n\n\`\`\`yaml\nthread_id: thread-001\n\`\`\`\n`,
+    };
+    const result = await composeTool.handle(
+      { action_id: "done-action" },
+      makeCtx(files),
+    );
+    assertEnvelope(result.content);
+  });
+
+  it("malformed-body fallback path still ships the canonical content[] explanation", async () => {
+    // The action file parses (`parseActionFile` is tolerant of
+    // unrecognised body sections) but has no parseable `## Compose
+    // payload` — so the handler lands on the `compose_payload_missing`
+    // branch. This is a realistic failure mode under partial-write /
+    // sync-race conditions where the file has frontmatter but the body
+    // hasn't been finalised. The point isn't pinning the error code;
+    // it's catching a future refactor that splits the bare-payload-
+    // missing branch off into a separate return without the envelope.
+    const files = {
+      "actions/partial.md":
+        "---\nid: partial\nstatus: open\npriority: medium\nreason_class: gmail_reply\n---\n\n## Why this matters\n\nFile exists but body is still being written by the sync daemon.\n",
+    };
+    const result = await composeTool.handle(
+      { action_id: "partial" },
+      makeCtx(files),
+    );
+    const sc = result.structuredContent;
+    expect("error" in sc).toBe(true);
+    assertEnvelope(result.content);
+  });
+});

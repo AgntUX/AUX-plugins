@@ -205,3 +205,47 @@ describe("{{view-tool-name}} payload-shape regression guard", () => {
     expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
   });
 });
+
+// =============================================================================
+// Response envelope guard — every handler return (success AND error) must
+// ship a `content[]` block alongside `structuredContent` that explains the
+// MCP Apps lifecycle to the model. Frozen anchor strings: `iframe`, `host`,
+// `MCP App` (frozen because the wording is centralized in
+// `@agntux/plugin-runtime/render-confirmation.ts`).
+//
+// The pass-14 / E29 marketplace linter additionally greps for
+// `renderConfirmationText(` calls in `view-tool/src/*-view.ts`. Both layers
+// (test + linter) defend against the silent-regression class where a
+// future contributor refactors the handler and drops the block.
+// =============================================================================
+
+describe("{{view-tool-name}} response envelope guard", () => {
+  function assertEnvelope(content: unknown) {
+    expect(Array.isArray(content)).toBe(true);
+    if (!Array.isArray(content)) return;
+    expect(content[0].type).toBe("text");
+    const text = content[0].text as string;
+    expect(text).toContain("iframe");
+    expect(text).toContain("host");
+    expect(text).toContain("MCP App");
+  }
+
+  it("success path ships the canonical content[] explanation", async () => {
+    const files = {
+      "actions/env-1.md": makeActionFile({ id: "env-1" }),
+    };
+    const result = await viewTool.handle(
+      { action_id: "env-1" },
+      makeCtx(files),
+    );
+    assertEnvelope(result.content);
+  });
+
+  it("missing-file error branch also ships the canonical content[] explanation", async () => {
+    const result = await viewTool.handle(
+      { action_id: "missing" },
+      makeCtx({}),
+    );
+    assertEnvelope(result.content);
+  });
+});

@@ -23,6 +23,24 @@
 // 9.5.3 for the canonical incident; this template ships a regression-guard
 // test at `__tests__/payload-shape.test.ts` that enforces a byte budget +
 // a frozen key set so the bug becomes structurally hard to ship.
+//
+// ── Response envelope rule ──────────────────────────────────────────────────
+//
+// Every handler return — success AND error branches — must ship a
+// `content[]` block alongside `structuredContent`. Author the text via
+// `renderConfirmationText(UI_LABEL)` from @agntux/plugin-runtime so the
+// wording stays centralized across every plugin. Why this matters: the
+// host materializes `structuredContent` into the iframe automatically, but
+// the model only sees the wire result — a JSON blob it reasonably
+// mistakes for "raw data I need to render somehow." Without `content[]`
+// the model goes on to build a duplicate widget via the host's
+// `visualize`/artifact tool and writes paragraphs of commentary
+// summarizing the iframe the user can already see. The Claude Cowork
+// post-render commentary / duplicate-widget regression was the canonical
+// incident. The `content[].text` block explains the MCP Apps lifecycle
+// — what the iframe is, where the data went, why the turn is complete —
+// so the correct behavior follows naturally. See
+// `packages/plugin-runtime/src/render-confirmation.ts` for the wording.
 // =============================================================================
 
 import {
@@ -31,6 +49,7 @@ import {
   type ViewToolModule,
   ViewToolFsError,
   parseActionFile,
+  renderConfirmationText,
 } from "@agntux/plugin-runtime";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
@@ -53,15 +72,28 @@ interface {{ui-name-pascal}}Payload {
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 
+// Human-readable label fed to renderConfirmationText() so the model's
+// `content[].text` block names the surface the host just materialized
+// (e.g. "AgntUX Slack reply composer"). Both success AND error branches
+// ship the same block — the iframe renders both, so the
+// "stop after rendering" framing applies either way. Wording is
+// centralized in @agntux/plugin-runtime; tune once, every plugin gets
+// the new wording on next build.
+const UI_LABEL = "{{ui-display-name}}";
+
 async function handle(
   args: {{ui-name-pascal}}Args,
   ctx: ViewToolContext,
-): Promise<{ structuredContent: {{ui-name-pascal}}Payload }> {
+): Promise<{
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: {{ui-name-pascal}}Payload;
+}> {
   const path = `actions/${args.action_id}.md`;
   try {
     const buf = await ctx.fs.readFile(path);
     const parsed = parseActionFile(buf.toString("utf8"));
     return {
+      content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
       structuredContent: {
         action_id: args.action_id,
         title: (parsed.frontmatter.title as string | undefined) ?? "",
@@ -71,6 +103,7 @@ async function handle(
   } catch (err) {
     if (err instanceof ViewToolFsError && err.code === "not-found") {
       return {
+        content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
         structuredContent: {
           action_id: args.action_id,
           title: "",
@@ -88,16 +121,22 @@ const viewTool: ViewTool<{{ui-name-pascal}}Args, {{ui-name-pascal}}Payload> = {
   descriptor: {
     name: "{{view-tool-name}}",
     // Convention (agntux-build _template, P15 §UI tool descriptor suffix):
-    // every UI-rendering tool description ends with the standard
-    // stop-after-rendering directive so the host's model doesn't add
-    // commentary or chain follow-up tool calls. Author {{view-tool-description}}
-    // as the verb-phrase / trigger-list body; the suffix is appended here so
+    // every UI-rendering tool description ends with the canonical
+    // explanatory suffix below. Framing: don't tell the model what NOT
+    // to do — explain the MCP Apps lifecycle so the correct behavior
+    // follows naturally. The `content[].text` block emitted by the
+    // handler (via renderConfirmationText()) reinforces the same frame
+    // at response time. Author {{view-tool-description}} as the
+    // verb-phrase / trigger-list body; the suffix is appended here so
     // authors don't have to remember (and can't accidentally double-up).
     description:
       "{{view-tool-description}} " +
-      "Once this UI is rendered, the user sees everything they need in the " +
-      "iframe — do NOT add any chat commentary after rendering, and do NOT " +
-      "make any further tool calls; the UI is the response.",
+      "This tool is an MCP App view tool: it returns a structured data " +
+      "payload that the host (Claude Desktop / Claude Cowork / Claude Code) " +
+      "renders into an interactive iframe shown above the next assistant " +
+      "turn. The iframe is the user-visible result of calling this tool; " +
+      "no additional chat output, summary, or visualization tool call is " +
+      "needed afterwards.",
     inputSchema: {
       type: "object",
       properties: { action_id: { type: "string" } },

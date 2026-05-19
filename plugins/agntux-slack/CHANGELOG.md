@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.2.1] — 2026-05-18
+
+### Changed
+
+- **`agntux_slack_compose_view` and `agntux_slack_canvas_view`
+  handlers now ship a `content[].text` block alongside
+  `structuredContent`** on every return — success and error
+  branches alike. Text built from
+  `renderConfirmationText("AgntUX Slack reply composer")` /
+  `renderConfirmationText("AgntUX Slack canvas summariser")`
+  (centralized in `@agntux/plugin-runtime` 0.2.1). Both tools'
+  `description` fields were reframed in the same pass: the old
+  forbid-list framing ("Once this UI is rendered … do NOT add any
+  chat commentary …") became an explanation of the MCP Apps
+  lifecycle, and the Stage-2 sentence about the Slack connector's
+  send/canvas response is now framed as "surface the connector's
+  success/error as plain chat text" rather than a list of forbidden
+  re-renders.
+
+### Why
+
+Production bug observed in Claude Cowork on 2026-05-18: after a
+view tool fired and the host rendered its iframe, the model
+followed up with duplicate widgets and paragraphs of commentary
+because nothing in the tool response told it the host had already
+materialized the UI. The `content[].text` block plus reframed
+descriptions give the model an architecture-level mental model so
+the correct "end turn" behavior follows naturally. PATCH-level:
+no payload or schema change.
+
 ## [8.2.0] — 2026-05-18
 
 ### Changed
