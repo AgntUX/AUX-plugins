@@ -6,6 +6,56 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.0.0] — 2026-05-18
+
+### Changed (BREAKING)
+
+- **Triage mutation tools moved to the remote MCP server.**
+  `agntux_core_snooze`, `agntux_core_dismiss`, `agntux_core_set_status`,
+  `agntux_core_save_triage_prefs`, and `agntux_core_set_triage_pref`
+  are no longer registered by the local stdio mcp-server. They've
+  moved into the view-tool bundle's `mutationTools[]` export, and the
+  remote MCP server in `agntux/app` picks them up from the manifest's
+  new `mutation_tools[]` field. Writes go through
+  `team_sync_push_entry` (CAS-guarded, advances the per-container
+  seq cursor), then an SSE event fans out via
+  `GET /api/sync/v1/events` so the agntux-teams desktop daemon pulls
+  the change immediately rather than waiting for the next 5-minute
+  poll tick.
+- **Fixes `MCP error -32602: Tool not found: agntux_core_dismiss`** in
+  the triage iframe on Claude Desktop / claude.ai. The triage view-tool
+  is hosted by the remote MCP server; until 10.0.0 the iframe's
+  `useAppsClient().callTool(...)` invocations against
+  `agntux_core_dismiss` (and its siblings) were rejected because the
+  remote server didn't register them. They live there now.
+
+### Added
+
+- **`mutation_tools[]` field in `view-tool/dist/view-tools.manifest.json`.**
+  Parallel to `view_tools[]`, narrower shape (`name`, `description`,
+  `inputSchema` only — no `outputSchema`, no `mcp_app_meta`, no
+  `data_paths`). Optional; only ingest plugins with write-back UI
+  flows declare it. The remote plugin registry parses + dispatches
+  both arrays through the same handler map.
+- **`ViewToolFs.writeFile` / `update` / `deleteFile`** added to the
+  `@agntux/plugin-runtime` contract. The S3 backend writes through
+  `team_sync_push_entry` for CAS atomicity + seq advance; the
+  local-fs backend uses atomic-rename with best-effort SHA CAS.
+- **Server-Sent Events push channel** at
+  `GET /api/sync/v1/events`. The agntux-teams daemon opens the stream
+  on boot; the server fans out `changes-available` events scoped to
+  `(user_id, organization_id)` after every successful mutation write.
+
+### Removed
+
+- **`mcp-server/src/tools/{snooze,dismiss,set-status,triage-prefs,scope}.ts`,
+  `mcp-server/src/frontmatter.ts`, and `mcp-server/src/parse-action.ts`**.
+  The remaining local tool is `agntux_core_sync_installed_plugins`
+  (HOME-scoped — writes `~/.agntux/installed-plugins.json`, which
+  the agntux-teams daemon watches via chokidar).
+- **`.agntux/triage-prefs.json` is no longer excluded from sync.**
+  Personal prefs now sync across the user's devices.
+
 ## [9.8.0] — 2026-05-18
 
 ### Changed

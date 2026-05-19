@@ -26,6 +26,10 @@ const STATUS_BY_CODE = {
     forbidden: 403,
     transient: 503,
     schema: 500,
+    // 409 Conflict — CAS guard failed: file's current head doesn't match the
+    // supplied parent_sha. Callers using `update()` get automatic bounded
+    // retry; raw `writeFile` callers must surface this to the user.
+    conflict: 409,
 };
 /**
  * Uniform error shape across both fs factories. Sub-plan 2's `/api/mcp` route

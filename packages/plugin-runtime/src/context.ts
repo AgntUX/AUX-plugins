@@ -64,6 +64,47 @@ export interface ListWithMetaEntry {
   meta: Record<string, unknown> | null;
 }
 
+/**
+ * Result of a successful write through `ViewToolFs.writeFile` / `update`.
+ *
+ * `seq` is the per-container sequence number assigned by the storage layer
+ * after the write. The desktop daemon's pull loop fetches changes since
+ * its last-seen `seq`, so emitting it here lets the SSE push channel
+ * tell the daemon exactly which cursor to advance to without re-querying
+ * the database.
+ */
+export interface WriteResult {
+  /** Lowercase 64-hex sha256 of the new file body. */
+  new_sha256: string;
+  /** Per-container monotonic sequence number assigned to this write. */
+  seq: number;
+  /** Container the write landed in. */
+  container_id: string;
+}
+
+/**
+ * Input to `ViewToolFs.writeFile`. `parent_sha` is the CAS guard — the write
+ * succeeds only if the file's current head matches. Pass `null` for
+ * create-only (write fails if the file already exists). Omit (undefined)
+ * for last-write-wins.
+ */
+export interface WriteFileOpts {
+  /**
+   * Lowercase 64-hex parent sha256 for CAS, `null` for create-only, or
+   * `undefined` to skip CAS entirely (last-write-wins; not recommended).
+   */
+  parent_sha?: string | null;
+}
+
+/**
+ * Patch function passed to `ViewToolFs.update`. Receives the current body
+ * (or `null` when the file doesn't exist) and returns the new body. May be
+ * called more than once if the CAS guard fails and the helper retries.
+ */
+export type UpdatePatch = (
+  current: string | null,
+) => string | Promise<string>;
+
 export interface ViewToolFs {
   /** Read the file at `path`. Throws ViewToolFsError on any failure. */
   readFile(path: string): Promise<Buffer>;
@@ -102,6 +143,48 @@ export interface ViewToolFs {
   listWithMeta(prefix: string): Promise<ListWithMetaEntry[]>;
   /** Cheap existence probe. Returns false on any not-found/forbidden. */
   exists(path: string): Promise<boolean>;
+  /**
+   * Write `body` to `path`. Atomic at the container level via the storage
+   * layer's CAS protocol (Postgres `team_sync_push_entry` for the S3
+   * backend; atomic-rename for the local-fs backend). The blob is uploaded
+   * to S3 if its content-addressed sha is not already present.
+   *
+   * Throws `ViewToolFsError("conflict")` when `opts.parent_sha` is set and
+   * the file's current head sha doesn't match — callers either retry via
+   * `update()` (which re-reads + re-patches) or surface the conflict to
+   * the user. Throws `ViewToolFsError("forbidden")` if the path resolves
+   * to a container the caller cannot write to (same gate as reads).
+   *
+   * Returns the new content sha + the per-container seq the write landed
+   * at. The S3 backend additionally publishes a push-notification event
+   * on the seq advance so the desktop daemon pulls the new file
+   * immediately rather than waiting for the next 5-min poll.
+   */
+  writeFile(
+    path: string,
+    body: Buffer | string,
+    opts?: WriteFileOpts,
+  ): Promise<WriteResult>;
+  /**
+   * Read-modify-write helper with bounded CAS retry. Reads the file's
+   * current body (or `null` if absent), calls `patch` to produce the new
+   * body, then writes through `writeFile` with the read-time parent sha.
+   * On `conflict` errors, re-reads and retries up to 3 times with jittered
+   * backoff before giving up.
+   *
+   * Use this for any mutation that depends on the file's current state
+   * (appending a body section, merging a JSON patch, advancing a
+   * frontmatter state machine). One-shot writes that don't read the
+   * existing body SHOULD call `writeFile` directly.
+   */
+  update(path: string, patch: UpdatePatch): Promise<WriteResult>;
+  /**
+   * Tombstone a file. The S3 backend records a `deleted=true` entry in
+   * `team_files` via the same `team_sync_push_entry` RPC; the local-fs
+   * backend unlinks. Idempotent on already-deleted paths (returns the
+   * current seq).
+   */
+  deleteFile(path: string, opts?: WriteFileOpts): Promise<WriteResult>;
 }
 
 /**
@@ -156,10 +239,64 @@ export interface ViewToolDescriptor {
  */
 export interface ViewTool<Args, Out> {
   descriptor: ViewToolDescriptor;
+  /**
+   * Return shape: `{ content?, structuredContent }`.
+   *
+   * `structuredContent` is the data payload the host materializes into
+   * the iframe (the user-visible surface). `content[]` is an optional
+   * text channel forwarded to the chat model alongside the iframe —
+   * use it to explain the MCP Apps lifecycle so the model knows the
+   * iframe IS the result of its tool call and no follow-up commentary
+   * or visualization is needed. Author the text via
+   * `renderConfirmationText(uiLabel)` from this package so every
+   * plugin shares the same wording (see render-confirmation.ts).
+   *
+   * Both success AND error branches should ship `content[]` — the
+   * iframe renders both, so the "stop after rendering" framing applies
+   * either way.
+   *
+   * Per MCP 2025-06-18 §tool-result, `content[]` and `structuredContent`
+   * coexisting on a single CallToolResult is explicitly compliant.
+   */
   handle(
     args: Args,
     ctx: ViewToolContext,
-  ): Promise<{ structuredContent: Out }>;
+  ): Promise<{
+    content?: Array<{ type: "text"; text: string }>;
+    structuredContent: Out;
+  }>;
+}
+
+/**
+ * Per-mutation-tool descriptor. Narrower than `ViewToolDescriptor` —
+ * mutation tools don't render UI, so they carry no `ui_resource_uri` or
+ * `outputSchema`. The compiled handler module exports one entry per
+ * declared mutation tool alongside view tools (`{ viewTools: [],
+ * mutationTools: [] }`).
+ */
+export interface MutationToolDescriptor {
+  /** Snake_case, plugin-prefixed. e.g. `agntux_core_dismiss`. */
+  name: string;
+  description: string;
+  inputSchema: JsonSchema;
+}
+
+/**
+ * Handler surface for a mutation tool. Returns either a small status
+ * envelope (`{ content: [{type: "text", text: ...}] }`) or a structured
+ * result — both are accepted by the remote server's dispatch. The
+ * iframe usually ignores the return shape on success; the structured
+ * form is useful when the mutation also needs to relay state back.
+ */
+export interface MutationTool<Args> {
+  descriptor: MutationToolDescriptor;
+  handle(
+    args: Args,
+    ctx: ViewToolContext,
+  ): Promise<
+    | { content: Array<{ type: "text"; text: string }> }
+    | { structuredContent: unknown }
+  >;
 }
 
 /**
@@ -169,22 +306,31 @@ export interface ViewTool<Args, Out> {
  * to this type so any refactor (e.g. moving to `export const viewTools`)
  * breaks both consumers at compile time. See the master plan's "compiled-
  * module shape drift" risk entry.
+ *
+ * `mutationTools` is optional — only ingest plugins with write-back UI
+ * flows declare it.
  */
 export interface ViewToolModule {
   viewTools: ViewTool<unknown, unknown>[];
+  mutationTools?: MutationTool<unknown>[];
 }
 
 export type ViewToolFsErrorCode =
   | "not-found"
   | "forbidden"
   | "transient"
-  | "schema";
+  | "schema"
+  | "conflict";
 
 const STATUS_BY_CODE: Record<ViewToolFsErrorCode, number> = {
   "not-found": 404,
   forbidden: 403,
   transient: 503,
   schema: 500,
+  // 409 Conflict — CAS guard failed: file's current head doesn't match the
+  // supplied parent_sha. Callers using `update()` get automatic bounded
+  // retry; raw `writeFile` callers must surface this to the user.
+  conflict: 409,
 };
 
 /**

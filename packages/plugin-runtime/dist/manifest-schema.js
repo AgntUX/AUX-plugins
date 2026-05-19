@@ -72,6 +72,24 @@ export const ViewToolSchema = z.object({
     // rejected at parse time.
     data_paths: z.array(DataPathSchema).min(1),
 });
+/**
+ * Mutation tools — invoked from within a view-tool iframe (via
+ * `useAppsClient().callTool(...)`) to write back through the remote MCP
+ * server. Shape is intentionally narrower than `ViewToolSchema`: no
+ * `outputSchema` (mutations return a small status envelope), no
+ * `mcp_app_meta` (no iframe is rendered for the call's result), no
+ * `data_paths` (writes route through the same path-classifier as reads).
+ *
+ * The bundle exports a handler for each mutation tool under the same
+ * registry slot as view-tool handlers (`toolHandlers[name]`); the remote
+ * server merges both arrays into one `tools/list` and routes by name on
+ * `tools/call`.
+ */
+export const MutationToolSchema = z.object({
+    name: z.string().regex(/^[a-z][a-z0-9_]*$/),
+    description: z.string().min(1),
+    inputSchema: JsonSchemaShape,
+});
 // Decision B: ONE compiled module per plugin. `handler_module` is the path
 // to that ESM file relative to the plugin root; it exports
 // `default: { viewTools: ViewTool[] }`.
@@ -110,6 +128,11 @@ export const ViewToolsManifestSchema = z
     handler_module: HandlerModulePath,
     view_tools: z.array(ViewToolSchema).min(1),
     ui_bundles: z.array(UiBundleSchema).min(1),
+    // Optional — only ingest plugins with write-back UI flows declare it.
+    // The compiled handler module exports one function per entry, keyed by
+    // `name`; the remote server registers them on `tools/list` alongside
+    // view tools (without `_meta.ui` since they don't render an iframe).
+    mutation_tools: z.array(MutationToolSchema).optional(),
 })
     .refine((m) => m.view_tools.every((vt) => m.ui_bundles.some((b) => b.uri === vt.mcp_app_meta.resourceUri)), {
     message: "every view_tools[].mcp_app_meta.resourceUri must have a matching ui_bundles[] entry",
