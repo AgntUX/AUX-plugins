@@ -168,16 +168,16 @@ directly from this conversation.
    contributor either accept what's there or explicitly skip Stage 10:
 
    > Three revisions in. Want to move on with this setup (accept), or
-   > skip the sync test entirely and jump to the triage UI test? If
-   > sync personalization is the bottleneck, the underlying issue may
-   > be that your `listing.yaml -> proposed_schema` block needs more
+   > skip the sync test entirely and jump to submission? If sync
+   > personalization is the bottleneck, the underlying issue may be
+   > that your `listing.yaml -> proposed_schema` block needs more
    > shape — that's a stage-5 / spec question, not a stage-9.5 one.
 
    - **accept** → continue as in the normal accept path.
    - **skip** → save state with `sync_test_skipped: true`, do NOT load
-     `10-sync-iterate.md`, jump directly to
-     `11-triage-ui-test.md`. The triage UI test still validates the
-     end-to-end render path, so the plugin isn't shipping unvalidated.
+     `10-sync-iterate.md`, jump directly to `12-submit.md`. Stage 6's
+     headed-renderer pass already validated the iframes; the AgntUX
+     team's deploy-time check will catch any end-to-end issues.
 
 8. **Save state** to the session record:
    ```json

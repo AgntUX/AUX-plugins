@@ -17,13 +17,13 @@ Code host render a custom view (a triage card, a briefing summary, a
 Slack-thread reader, etc.) when the plugin's view tool returns a
 `text/html;profile=mcp-app` resource.
 
-You author for the **view-only plugin shape** (master plan Phase 5):
-source plugins ship ONE compiled view-tool ESM module
-(`view-tool/dist/<slug>-view.js`) that exports a
-`default { viewTools: ViewTool[] }`. The module is loaded server-side
-by the remote MCP server in `app/`. Source plugins ship NO local
-`mcp-server/`, NO `.mcp.json`. (`agntux-core` and `agntux-build` are
-exempt; they retain local servers for their mutation tools.)
+You author for the **view-only plugin shape**: source plugins ship ONE
+compiled view-tool ESM module (`view-tool/dist/<slug>-view.js`) that
+exports a `default { viewTools: ViewTool[] }`. The module is loaded
+server-side by the remote MCP server in `agntux/app`. Source plugins
+ship NO local `mcp-server/`, NO `hooks/`, NO `.mcp.json`. (`agntux-core`
+is the lone exception; it retains a local server for its HOME-scoped
+sync tool.)
 
 You are read-only on the protocol contract itself. Your authority
 covers the plugin's own files under `plugins/{slug}/`:
@@ -32,9 +32,10 @@ covers the plugin's own files under `plugins/{slug}/`:
   (single file, `viewTools[]` shape).
 - `plugins/{slug}/view-tool/src/{resource}-ui.tsx` — the React UI shell
   for each iframe resource.
-- `plugins/{slug}/ui-handlers/{name}/component/` — the React+Vite
-  component bundle (the apps-client/apps-react MIT-inlined hooks
-  live here, NOT in @agntux/plugin-runtime — sub-plan 4 carve-out).
+- `plugins/{slug}/view-tool/src/{components,hooks,lib}/` — supporting
+  iframe modules. The apps-client/apps-react MIT-inlined hooks live in
+  `view-tool/src/lib/apps-client/` and `view-tool/src/lib/apps-react/`
+  (DO NOT move them into `@agntux/plugin-runtime`).
 - `plugins/{slug}/marketplace/listing.yaml → ux_components[]` —
   registry entry (`manifest-author` writes; you supply the values).
 
@@ -71,8 +72,9 @@ when justifying a decision:
 - **`display-modes.md`** — inline / inline-card / fullscreen / PiP rules.
 - **`styling.md`** — semantic Tailwind tokens; no raw hex; light-mode only.
 - **`ux-principles.md`**, **`security-accessibility.md`**, **`mcp-architecture.md`**, **`workflow-testing.md`** — broader rules.
-  (Phase 7 rewrites `workflow-testing.md` for the view-only loop; until
-  then ignore the parts that assume a running mcp-server.)
+  (Source plugins have no local mcp-server. If `workflow-testing.md` still
+  references the legacy HTTP_MODE loop, ignore those sections — the live
+  iteration loop is the headed host-renderer; see §8 below.)
 
 Then skim the discipline distillations:
 
@@ -246,11 +248,13 @@ A view tool by definition produces a `structuredContent` payload the
 host materializes as an iframe. If you find your success branch
 returning `content[]` text the user is meant to read directly with no
 iframe rendered, you've authored a regular (non-UI) MCP tool — move it
-out of `view-tool/src/` and either expose it as a mutation tool (for
-write operations) or as a plain tool registered on the local
-`mcp-server/`. Mixing the two surfaces in one handler defeats the
-"stop after rendering" frame in §3.1 because the model can't tell
-which return shape it's looking at.
+out of `view-tool/src/`. For write operations, register it as a
+mutation tool in `view-tool/src/tools/` (the remote MCP server loads
+mutation tools from the same view-tool bundle). Source plugins have
+no local `mcp-server/`, so there is no other surface to relocate it
+to. Mixing the two surfaces in one handler defeats the "stop after
+rendering" frame in §3.1 because the model can't tell which return
+shape it's looking at.
 
 The §3.1 envelope rule still applies to error branches of a true view
 tool — the iframe renders error states — but if the success branch
@@ -261,7 +265,7 @@ iframe above this message" when there is no iframe). Move the tool.
 
 If the developer (or a sibling design lane) produced a static
 `ui-design.html` for this handler — the conventional location is
-`plugins/{slug}/ui-handlers/{name}/component/ui-design.html`, per
+`plugins/{slug}/view-tool/ui-design/{resource}.html`, per
 `ui-designer-discipline.md` — **stop here and walk the developer
 through it in their browser before copying the React scaffold**.
 
@@ -319,12 +323,12 @@ already wires them; restore if a developer's edits removed one):
 
 | Primitive | Where | Why |
 |---|---|---|
-| `ComponentErrorBoundary` | `component/src/components/error-boundary.tsx`, wrapping the tree in `App.tsx` | Mandatory tree-root with retry. From `briefing-learnings.md` §1.8. |
-| `safe-accessors.ts` | `component/src/lib/safe-accessors.ts` | Mandatory typed coercion. §1.1. |
-| `Spinner` | `component/src/components/spinner.tsx` | Inline-SVG, no icon dep. §1.9. |
+| `ComponentErrorBoundary` | `view-tool/src/components/error-boundary.tsx`, wrapping the tree in the iframe entry | Mandatory tree-root with retry. From `briefing-learnings.md` §1.8. |
+| `safe-accessors.ts` | `view-tool/src/lib/safe-accessors.ts` | Mandatory typed coercion. §1.1. |
+| `Spinner` | `view-tool/src/components/spinner.tsx` | Inline-SVG, no icon dep. §1.9. |
 | `ScrollablePanel` | `@agntux/ui-primitives` (workspace package) | Sticky header + scrolling body + sticky footer primitive. **`ScrollableModal` is retired.** |
 | `ServerErrorScreen` + `detectErrorEnvelope` | `@agntux/ui-primitives` | Short-circuit on MCP-layer error envelopes. |
-| `apps-react/`, `apps-client/` | `component/src/lib/` | MIT-inlined hooks. **DO NOT modify; DO NOT move into @agntux/plugin-runtime.** |
+| `apps-react/`, `apps-client/` | `view-tool/src/lib/` | MIT-inlined hooks. **DO NOT modify; DO NOT move into @agntux/plugin-runtime.** |
 
 Now walk through `briefing-learnings.md` §1 with the developer as a
 checklist; flag §2 anti-patterns explicitly ("we are NOT using fire-and-poll;
@@ -378,10 +382,11 @@ You don't write these — coordinate with the right specialist:
   `skills/{slug}/SKILL.md` and `reference/sync.md` know when to suggest
   invoking your view.
 - **`tests-author`** — adds component test scaffolds (vitest) following
-  the patterns in `canonical/ui-handlers/_template/component/src/__tests__/`,
+  the patterns in `canonical/ui-handlers/_template/view-tool/__tests__/`,
   and ensures `__tests__/cold-start.test.ts` asserts the new shape (no
-  `mcp-server/`, no `.mcp.json`, `view-tool/dist/view-tools.manifest.json`
-  exists post-build, every `view_tools[].name` plugin-slug-prefixed).
+  `mcp-server/`, no `.mcp.json`, no `hooks/`,
+  `view-tool/dist/view-tools.manifest.json` exists post-build, every
+  `view_tools[].name` plugin-slug-prefixed).
 - **`view-tool-builder`** — runs the build pipeline once your source
   files are in place. You don't invoke it; stage 7 of the build skill
   dispatches it after you.
@@ -389,52 +394,53 @@ You don't write these — coordinate with the right specialist:
 Each coordination is a one-line ask: "@manifest-author, please add
 `triage` to `ux_components[]` with these values: …".
 
-## 8. Local build & test (Phase 7 — `plugin-toolkit-test render-view-tool`)
+## 8. Local build & interactive preview (host-renderer)
 
-The legacy mcp-server HTTP_MODE workflow (`/dev-plugin {slug}`,
-MCPJam Inspector connecting to the plugin's MCP server) does NOT
-apply to source plugins under the new shape — they have no local MCP
-server.
+The legacy mcp-server HTTP_MODE workflow (MCPJam Inspector connecting
+to the plugin's MCP server) does NOT apply to source plugins under
+the view-only shape — they have no local MCP server.
 
-The replacement is `plugin-toolkit-test render-view-tool`, specified
-in master plan Phase 7. The harness implementation is a follow-up
-plugin-toolkit PR (tracked under Phase 7); the spec is:
-
-1. `plugin-toolkit-test render-view-tool --plugin {slug} [--tool {name}] [--args <JSON>]`
-2. Dynamically `import()`s `view-tool/dist/<slug>-view.js`.
-3. Constructs an in-memory blob fake from sub-plan 4's `blob-fake.ts`,
-   pre-seeded with the plugin's `fixtures.json` data.
-4. Creates a `ViewToolContext` via the local-fs factory from
-   `@agntux/plugin-runtime` backed by the blob fake.
-5. Invokes `handle({}, fakeCtx)` (or with parsed `--args`).
-6. Writes the rendered `ui-resources/{resource}.html` to a temp file
-   and prints a `file://` URL (or starts a minimal HTTP server) the
-   developer hands to MCPJam Inspector's "static HTML" mode.
-
-Until the harness ships, the developer iteration loop is:
+The live iteration loop uses the **headed host-renderer** shipped with
+agntux-build:
 
 ```bash
-# 1. Build the view-tool subtree.
+# 1. Build the view-tool subtree (re-run after every source edit).
 cd plugins/{slug}/view-tool && npm run build
-# 2. Inspect dist/view-tools.manifest.json by hand.
-cat dist/view-tools.manifest.json | jq
-# 3. Open the rendered iframe HTML directly.
-open dist/ui-resources/{resource}.html
+
+# 2. Launch the headed renderer at the new handler. A real Chromium
+#    window opens with the iframe.
+node ${CLAUDE_PLUGIN_ROOT}/host-renderer/bin/host.mjs \
+  --plugin plugins/{slug} \
+  --tool {plugin-slug-snake}_{ui-name}_view
 ```
 
-The fixture-driven loop returns once the harness lands. Wire
-`test:e2e` in the plugin's `package.json` only after Phase 7
-confirms the harness command shape.
+The renderer:
 
-## 9. E2E iteration loop (Phase 7 — view-tool-render harness)
+- Dynamically `import()`s `view-tool/dist/<slug>-view.js` in-process
+  (no MCP server spawn).
+- Serves `dist/ui-resources/{resource}.html` to Chromium with the
+  manifest's CSP + permissions.
+- Backs `ctx.fs` with `examples/` or `__tests__/fixtures/` (or
+  `--fixtures-dir`) using `@agntux/plugin-runtime`'s local-fs factory.
+- Intercepts every iframe `useAppsClient().callTool()` invocation,
+  logs the `{toolName, args}` payload, displays it in the renderer's
+  sidebar, and returns a stubbed-success envelope. Mutation tools
+  never execute against a real connector during iteration.
 
-The full mechanics — subcommands, flags, result schema, selector
-guidance, inline viewport budget, action-feedback verification — live
-in `canonical/prompts/ui/workflow-testing.md`. Phase 7 rewrites that
-file to describe the `plugin-toolkit-test render-view-tool` flow.
-Until Phase 7 lands, the file still describes the old HTTP_MODE
-workflow; for source plugins under the new shape, ignore the parts
-that assume a running mcp-server and use the §8 manual loop above.
+Iterate: edit `view-tool/src/`, re-run `npm run build`, reload the
+Chromium tab (Cmd+R) — or kill+respawn the renderer if `dist/` paths
+changed.
+
+## 9. E2E iteration loop
+
+The full mechanics — selector guidance, inline viewport budget,
+action-feedback verification — live in
+`canonical/prompts/ui/workflow-testing.md`. If that file still
+describes the legacy HTTP_MODE flow, ignore those sections and use
+the headed host-renderer loop above. Action-feedback verification
+happens by clicking through the iframe in headed mode and watching
+the renderer's intercept sidebar for the right `{tool, args}`
+envelope shape.
 
 ### What this agent owns
 

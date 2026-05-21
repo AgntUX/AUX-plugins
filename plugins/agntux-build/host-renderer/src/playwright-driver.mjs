@@ -52,8 +52,9 @@ export async function runHeadlessRender({
   args,
   argsExplicit = false,
   timeoutMs = 60_000,
+  headless = true,
 }) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless });
   const context = await browser.newContext({
     viewport: { width: 800, height: 700 },
     deviceScaleFactor: 2,

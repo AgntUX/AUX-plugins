@@ -224,11 +224,11 @@ if (!hasInlineBody && !onDisk) {
 }
 ```
 
-The reference `parseBodySection` helper lives at
-`${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/mcp-server/src/`
-(when scaffolded into a real plugin: `mcp-server/src/parse-action.ts`).
-See `agntux-slack`'s `compose-view.ts` for the canonical resolution
-sequence.
+The reference `parseBodySection` / `parseActionFile` helpers live in
+`@agntux/plugin-runtime` (imported as
+`import { parseActionFile, extractFencedYaml } from "@agntux/plugin-runtime"`).
+See `agntux-slack`'s `view-tool/src/agntux-slack-view.ts` for the
+canonical resolution sequence.
 
 The view tool's tool description (visible to the host LLM) should
 **clearly distinguish click-time trigger phrases from out-of-band
@@ -530,11 +530,11 @@ Both `status: draft` and `status: final` are authoritative for read.
 
 **Connector-envelope lane (§2)** — the component itself doesn't need
 explicit tool grants; it dispatches via `client.sendFollowUpMessage()`
-(an MCP Apps protocol primitive, not a tool grant). The view tool that
-backs the iframe lives in `mcp-server/src/tools/{name}-view.ts` and is
-declared in the MCP server's `index.ts`. agntux-core mutation tools
-are called by the host after the connector commits, not by the
-component.
+(an MCP Apps protocol primitive, not a tool grant). The view tool
+that backs the iframe lives in `view-tool/src/{slug}-view.ts` and is
+declared in that file's exported `viewTools[]` array. agntux-core
+mutation tools are called by the host after the connector commits,
+not by the component.
 
 **Chat-confirm lane (§3)** — the skeleton declares no `tools:` line;
 the general-purpose agent inherits everything:

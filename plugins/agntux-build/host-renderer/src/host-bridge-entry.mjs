@@ -174,9 +174,12 @@ async function run() {
   });
   window.__agntuxBridge = bridge;
 
-  // Forward view-initiated tool calls through the same Express endpoint.
+  // Forward view-initiated tool calls (the iframe's `useAppsClient().callTool()`)
+  // to the intercept endpoint — these are mutation tool calls that we deliberately
+  // do NOT execute against a real connector during iteration. The endpoint logs
+  // the payload to the SSE stream and returns a stubbed success envelope.
   bridge.oncalltool = async (callParams) => {
-    const fwd = await fetch("/api/tool-call", {
+    const fwd = await fetch("/api/intercept-tool-call", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -190,8 +193,9 @@ async function run() {
         isError: true,
       };
     }
-    const { toolResult: out } = await fwd.json();
-    return out;
+    // The intercept endpoint returns a CallToolResult envelope directly
+    // (no { toolResult } wrapper), so use it as-is.
+    return await fwd.json();
   };
 
   // Capture view-initiated `ui/message` requests so the C8 click-through

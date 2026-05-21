@@ -49,7 +49,7 @@ Exit codes:
 ## Flags
 
 ```
---plugin <path>     Plugin root containing mcp-server/dist/index.js (required)
+--plugin <path>     Plugin root containing view-tool/dist/<slug>-view.js (required)
 --tool <name>       Tool name to render (required)
 --args <json>       Tool args as JSON string. Default: {}
 --out <dir>         Result dir. Default: ./test-results

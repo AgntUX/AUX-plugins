@@ -79,7 +79,7 @@ MUST use the prefix.
 |---|---|---|
 | `data_ingested` | array of string | up to 12 entries, each 1–120 chars |
 | `supported_prompts` | array of objects | up to 20; each `{prompt, purpose}`; `prompt` must start with `ux:`, `/ux`, `/{slug}:`, or `/{slug}` |
-| `ux_components` | array of objects | up to 20; each `{name: kebab-case, title: 1–60 chars, purpose: 1–200 chars, view_tool?: snake_case ending `_view`, resource_uri?: `^ui://[a-z][a-z0-9-]*$`, verb_phrases?: array of 1–8 strings (each 1–120 chars)}`. **Omit entirely if your plugin ships zero UI**. The `view_tool`, `resource_uri`, and `verb_phrases` fields are required when the entry corresponds to a real MCP App UI handler (one for which `ui-handler-author` produced files under `ui-handlers/{name}/component/` and `mcp-server/src/{tools,ui-resources}/`); they may be omitted only for placeholder catalog entries that document an upcoming UI. |
+| `ux_components` | array of objects | up to 20; each `{name: kebab-case, title: 1–60 chars, purpose: 1–200 chars, view_tool?: snake_case ending `_view`, resource_uri?: `^ui://[a-z][a-z0-9-]*$`, verb_phrases?: array of 1–8 strings (each 1–120 chars)}`. **Omit entirely if your plugin ships zero UI**. The `view_tool`, `resource_uri`, and `verb_phrases` fields are required when the entry corresponds to a real MCP App UI handler (one for which `ui-handler-author` produced files under `view-tool/src/`); they may be omitted only for placeholder catalog entries that document an upcoming UI. |
 | `screenshot_order` | array of string | each filename matches `^[0-9]{2}-[a-z0-9-]+\.(png\|jpg)$`; must reference real files |
 | `demo_url` | string | https URL |
 | `requires_plugins` | array of slug | every ingest plugin should list `agntux-core` here |

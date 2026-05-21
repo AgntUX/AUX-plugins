@@ -18100,10 +18100,18 @@ function GX(X, Y) {
   return JSON.stringify(X) === JSON.stringify(Y);
 }
 
+// src/empty-args-hint.mjs
+function shouldShowEmptyArgsHint({ argsExplicit: argsExplicit2, errorKind }) {
+  if (argsExplicit2) return false;
+  return errorKind === "not_found";
+}
+var EMPTY_ARGS_HINT_TEXT = "Harness ran with no args source applied; add a fixtures.json next to this handler so the harness has a known-passing args object to render against.";
+
 // src/host-bridge-entry.mjs
 var params = new URLSearchParams(window.location.search);
 var toolName = params.get("tool");
 var argsRaw = params.get("args");
+var argsExplicit = params.get("argsExplicit") === "1";
 var autorun = params.get("autorun") === "1";
 var toolArgs = {};
 if (argsRaw) {
@@ -18173,6 +18181,11 @@ async function run() {
   }
   const { toolResult, uiResource } = await callRes.json();
   window.__agntuxStructuredContent = toolResult?.structuredContent ?? null;
+  const errorKind = window.__agntuxStructuredContent?.error;
+  if (shouldShowEmptyArgsHint({ argsExplicit, errorKind })) {
+    window.__agntuxEmptyArgsHint = EMPTY_ARGS_HINT_TEXT;
+    setStatus(window.__agntuxEmptyArgsHint, true);
+  }
   if (!uiResource) {
     setRenderState("tool-result");
     setStatus(`done (no UI handler)`);
@@ -18191,7 +18204,7 @@ async function run() {
   });
   window.__agntuxBridge = bridge;
   bridge.oncalltool = async (callParams) => {
-    const fwd = await fetch("/api/tool-call", {
+    const fwd = await fetch("/api/intercept-tool-call", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -18205,8 +18218,7 @@ async function run() {
         isError: true
       };
     }
-    const { toolResult: out } = await fwd.json();
-    return out;
+    return await fwd.json();
   };
   bridge.onmessage = async (msgParams) => {
     window.__agntuxCapturedMessages.push(msgParams);

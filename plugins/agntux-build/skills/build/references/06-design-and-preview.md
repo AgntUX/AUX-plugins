@@ -1,8 +1,9 @@
 # Stage 6 — design and preview
 
-For each UI handler from stage 5, we now scaffold the component and
-preview it inline. The user sees a real rendered iframe; they don't
-see internal stage names or scaffold filenames.
+For each UI handler from stage 5, scaffold the component, build the
+view-tool bundle, then preview it in a **real Chromium window** the
+user can click in. They see the real iframe — they don't see internal
+stage names or scaffold filenames.
 
 ## What happens internally (silent)
 
@@ -12,46 +13,69 @@ specialist:
 
 1. Reads the canonical UI knowledge layer at
    `${CLAUDE_PLUGIN_ROOT}/canonical/prompts/ui/`.
-2. Generates the component scaffold from
-   `${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/component/`,
+2. Generates the view-tool source from
+   `${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/view-tool/`,
    substituting `{{plugin-slug}}`, `{{ui-name}}`,
-   `{{verb-phrases}}`, `{{structured-content-schema}}`.
-3. Writes the handler manifest, view tool stub, and ui-resources
-   fragment into the working `agntux-{slug}/` tree.
-4. Returns the rendered HTML for the preview.
+   `{{view-tool-name}}`, `{{view-tool-description}}` and the
+   structured-content schema.
+3. Writes `view-tool/src/{slug}-view.ts` (handler) and
+   `view-tool/src/{ui-name}-ui.tsx` (React iframe entry) plus the
+   `{{ui-name}}.html` Vite entry into the working `agntux-{slug}/`
+   tree.
 
-You don't tell the user any of this. You just show the result.
+Then run the view-tool build and launch the headed host-renderer:
 
-## How the preview works
-
-Use the host's preview tool. Resolve via `ToolSearch`:
-`mcp__claude_preview__preview_start` is the typical name. It renders
-HTML inline in the chat surface — no setup, no extra terminal.
-
-```
-{
-  "type": "html",
-  "html": "<inline preview HTML from the scaffold>"
-}
+```bash
+cd {build-path}/view-tool && npm run build
+node ${CLAUDE_PLUGIN_ROOT}/host-renderer/bin/host.mjs \
+  --plugin {build-path} \
+  --tool {view-tool-name}
 ```
 
-The preview shows the iframe with realistic mock data:
+The renderer:
+
+- Dynamically imports `view-tool/dist/{slug}-view.js` in-process — no
+  MCP server spawn.
+- Serves `dist/ui-resources/{ui-name}.html` to Chromium with CSP and
+  permissions from `view-tools.manifest.json`.
+- Backs `ctx.fs` with the plugin's own `examples/` or `__tests__/fixtures/`
+  (or `--fixtures-dir`).
+- Intercepts every iframe `useAppsClient().callTool()` invocation,
+  logs the `{toolName, args}` payload to stdout and to an SSE stream,
+  and returns a stubbed-success envelope. Mutations never execute.
+
+You don't tell the user any of this. You just open the window.
+
+## How the preview works (user-facing)
+
+A real Chromium window opens. The user sees the iframe live with
+realistic mock data sourced from the plugin's fixtures:
 
 - An action item card on top with mock source context (quoted
   message, issue title, etc.).
-- The editable body pre-filled with a draft (a real-feeling 3-line
-  message based on the action item).
-- Mode tabs above the Send button (Send / Schedule / Save draft —
-  for the chat-style verbs; just Send for issue-state verbs).
+- The editable body pre-filled with a draft.
+- Mode tabs above the Send button (Send / Schedule / Save draft for
+  chat-style verbs; just Send for issue-state verbs).
 - The Send button bottom-right.
 
-The user sees this rendered. They iterate by saying things like
-"can the title be smaller", "make the draft area taller", "add a
-'Cancel' button".
+They click around. When they click Send (or Schedule, or any verb),
+the renderer intercepts the payload and the SSE stream surfaces it.
+Echo it back in chat so the user confirms the *shape* of the
+mutation is right:
+
+> Send fired with:
+> ```
+> {channel: "#general", text: "Thanks — taking a look now and will reply by EOD."}
+> ```
+> That's the envelope your plugin will hand the {connector-display-name}
+> connector. Looks right?
+
+The mutation never reaches the real connector during iteration.
+The deployed remote MCP server is the first place it actually runs.
 
 ## What you accept and don't accept
 
-### ✅ Accept and apply
+### Accept and apply
 
 - Copy changes (button labels, helper text, placeholder text).
 - Layout tweaks within the canonical primitives (more or less
@@ -59,7 +83,7 @@ The user sees this rendered. They iterate by saying things like
 - Adding a single optional helper line below the editor (e.g.,
   "tone preferences from your profile applied").
 
-### ❌ Reject (redirect to issues)
+### Reject (redirect to issues)
 
 - Dark mode, custom theme, custom hex.
 - Custom typography.
@@ -79,10 +103,13 @@ prescribes:
 
 ## Iteration loop
 
-1. Show the preview.
+1. Build the view-tool and launch the renderer (only on the first
+   iteration; for follow-ups, edit source + rebuild + reload the tab).
 2. Ask: *"How does that look? Anything to change?"*
-3. On feedback within the acceptable set, regenerate the preview
-   with the change applied.
+3. On feedback within the acceptable set, regenerate the source,
+   re-run `npm run build` inside `view-tool/`, then reload the
+   Chromium tab (Playwright `page.reload()`) so the new bundle takes
+   effect.
 4. On feedback outside, redirect to issues.
 5. Loop until the user says "looks good", "ship it", or similar.
 6. Confirm: *"Looking great. Saving this as the design — building
@@ -125,14 +152,17 @@ later.
       ...,
       "preview_iterations": 3,
       "preview_accepted_at": "2026-05-08T...",
-      "final_html_preview_path": ".agntux-build/sessions/{id}/preview-reply.html"
+      "intercepted_payloads": [
+        {"tool": "slack_send_message", "args": {"channel": "#general", "text": "..."}}
+      ]
     }
   ]
 }
 ```
 
-Save the final preview HTML so stage 8's headless test can compare
-against it.
+Save the intercepted payload shapes so stage 12's submission body
+can surface them to the AgntUX maintainers ("here are the envelopes
+this plugin will emit").
 
 ## What you say to advance
 

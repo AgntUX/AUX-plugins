@@ -25,7 +25,7 @@ SUBCOMMANDS
 
 RENDER FLAGS
   --plugin <path>      Plugin root (required).
-                       Must contain mcp-server/dist/index.js.
+                       Must contain view-tool/dist/<slug>-view.js.
   --tool <name>        View tool to invoke (required).
   --args <json>        Tool args as a JSON string. Wins over --fixture.
   --fixture <ref>      Path or bare name of a fixture JSON file. Bare names
