@@ -6,6 +6,12 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.2.2] — 2026-05-21
+
+Republish at fresh tag. No source changes — pairs with the agntux/app
+remote MCP loader's pin-resolver requirement that `agntux-gmail@${version}`
+tags point at a commit containing the rebuilt `view-tool/dist/` tree.
+
 ## [4.2.1] — 2026-05-18
 
 ### Changed

@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.0.2] — 2026-05-21
+
+Republish at fresh tag. No source changes — pairs with the agntux/app
+remote MCP loader's pin-resolver requirement that `agntux-core@${version}`
+tags point at a commit containing the rebuilt `view-tool/dist/` tree.
+
 ## [10.0.1] — 2026-05-18
 
 ### Changed
