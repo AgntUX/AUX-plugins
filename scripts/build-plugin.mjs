@@ -235,10 +235,11 @@ async function buildPlugin(slug, pluginDir, skipInstall) {
   }
 
   if (!hasMcpServer && !hasViewTool) {
-    fail(
-      `[${slug}] no mcp-server/ and no view-tool/ — nothing to build. ` +
-        `Add one of those directories or remove the plugin from plugins/.`,
-    );
+    // Skill-only plugin (e.g. agntux-build post-0.5.0): ships skills/,
+    // agents/, marketplace/ and nothing that needs a compile step. The
+    // sync-skill render above still ran if relevant. Treat as a successful
+    // no-op so package-plugins can proceed to zip the source tree.
+    log(`[${slug}] skill-only plugin (no mcp-server/ or view-tool/) — nothing to compile`);
   }
 }
 
