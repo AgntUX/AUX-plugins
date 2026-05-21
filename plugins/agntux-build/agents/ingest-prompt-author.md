@@ -141,13 +141,12 @@ node scripts/render-skill.mjs --to-stdout {slug}
 node scripts/render-skill.mjs --self-test
 ```
 
-`scripts/build-plugin.mjs` invokes the renderer automatically between
-the UI component build and the mcp-server build, so a routine
-`node scripts/build-plugin.mjs {slug}` always re-renders the tree
-before embedding it. Don't hand-run the renderer if you're already
-running the full build — but during prompt iteration (override edits,
-canonical tweaks), the bare `render-skill.mjs {slug}` is the fastest
-loop.
+`scripts/build-plugin.mjs` invokes the renderer automatically as part
+of the view-tool build, so a routine `node scripts/build-plugin.mjs
+{slug}` always re-renders the tree before bundling. Don't hand-run
+the renderer if you're already running the full build — but during
+prompt iteration (override edits, canonical tweaks), the bare
+`render-skill.mjs {slug}` is the fastest loop.
 
 The four lint invariants — no surviving placeholders, byte-identical
 re-render reproducibility, ≤500-line budgets, one-level-deep refs —

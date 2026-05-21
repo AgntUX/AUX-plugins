@@ -113,13 +113,18 @@ function regenerate(): void {
       );
     }
 
-    // P7 plugin-kind discriminator. A source plugin is one whose directory
-    // contains no `mcp-server/` subdirectory (i.e. it ships only a remote
-    // view tool). Hybrid plugins (have BOTH mcp-server/ and view-tool/, e.g.
-    // agntux-core) and pure local-server plugins (agntux-build, plugin-toolkit)
-    // omit `kind` — the host treats them as local. Same predicate as
-    // `scripts/build-plugin.mjs`; keep them in sync if you change one.
+    // P7 plugin-kind discriminator. A source plugin is one that ships a
+    // `view-tool/` (the remote MCP server loads its compiled bundle) and
+    // NO local `mcp-server/`. Hybrid plugins (have BOTH mcp-server/ and
+    // view-tool/, e.g. agntux-core) and pure local-server plugins
+    // (plugin-toolkit) omit `kind` — the host treats them as local.
+    // Skill-only plugins (agntux-build — ships slash commands and agents
+    // but no view tools and no MCP server after the 0.5.0 cleanup) also
+    // omit `kind` so the host doesn't try to fetch a non-existent view
+    // bundle. Same predicate as `scripts/build-plugin.mjs`; keep them in
+    // sync if you change one.
     const hasMcpServer = isDirectory(path.join(pluginDir, "mcp-server"));
+    const hasViewTool = isDirectory(path.join(pluginDir, "view-tool"));
 
     const entry: MarketplacePlugin = {
       name: pluginJson.name ?? slug,
@@ -128,7 +133,7 @@ function regenerate(): void {
       keywords: listingYaml.keywords ?? [],
       category: listingYaml.categories?.[0] ?? "meta",
     };
-    if (!hasMcpServer) {
+    if (!hasMcpServer && hasViewTool) {
       entry.kind = "remote-view-only";
     }
 

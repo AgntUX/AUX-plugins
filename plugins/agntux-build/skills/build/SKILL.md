@@ -56,15 +56,14 @@ prior runs — re-load the resource so per-stage updates apply.
 | 6 | After UI scope is confirmed | [`references/06-design-and-preview.md`](references/06-design-and-preview.md) |
 | 7 | After preview iterations look right | [`references/07-build.md`](references/07-build.md) |
 | 8 | After build completes | [`references/08-headless-test.md`](references/08-headless-test.md) |
-| 9 | After headless tests pass | [`references/09-zip-and-install.md`](references/09-zip-and-install.md) |
+| 9 | After headless tests pass | [`references/09-zip.md`](references/09-zip.md) |
 | 9.5 | After the snapshot zip lands in Downloads. Synthesizes a test personalization context (shipped persona + source plugin's listing.yaml metadata) so stage 10 has realistic inputs. No interview of the contributor; nothing written to disk. | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
 | 10 | After stage 9.5 leaves the synthesized personalization in conversation context. Build skill drives sync against on-disk rendered prompts and real source data in **analyze-only** mode — pulls data, runs compose logic, emits would-write tables. No install, no scratch dir, no writes to the user's `data/`. | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
-| 11 | After sync iterations converge — first stage that walks the install flow (triage UI test needs a live plugin) | [`references/11-triage-ui-test.md`](references/11-triage-ui-test.md) |
-| 12 | After action button works in triage | [`references/12-submit.md`](references/12-submit.md) |
+| 12 | After sync iterations converge — generate signature, re-zip, hand off via `mailto:plugins@agntux.ai`. Source plugins can't run locally in Claude Cowork; first real run happens on the remote MCP server after AgntUX deploys. | [`references/12-submit.md`](references/12-submit.md) |
 
 [`references/update-mode.md`](references/update-mode.md) is loaded
 from stage 2 when the user reports an issue with an existing plugin.
-It re-uses stages 3–11 verbatim and replaces stage 12 with a "submit
+It re-uses stages 3–10 verbatim and replaces stage 12 with a "submit
 a fix" framing.
 
 ## Stage 0 — identity + Developer Certificate of Origin (first run only)

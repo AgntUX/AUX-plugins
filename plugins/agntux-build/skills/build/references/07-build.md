@@ -80,9 +80,7 @@ in the user-facing status line.
    marketplace clone's `packages/` if present, or
    `<CLAUDE_PLUGIN_ROOT>/canonical/packages/`. The marketplace's
    `scripts/build-plugin.mjs` already implements this auto-resolution;
-   when the orchestrator shells out to it (the typical path for the
-   stage-7.5 compile gate, see `08-headless-test.md` §B5), no
-   additional work is needed.
+   when the orchestrator shells out to it, no additional work is needed.
 2. **The 11 locale stubs exist.** `use-translation.ts` static-imports
    `en-US.json` plus ten siblings (es-ES, es-MX, fr-FR, de-DE, ja-JP,
    zh-CN, pt-BR, it-IT, ko-KR, ru-RU). The canonical scaffold template

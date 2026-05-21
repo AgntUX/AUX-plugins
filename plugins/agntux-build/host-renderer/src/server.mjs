@@ -1,16 +1,24 @@
-// Express server. Two ports' worth of logic, fused into one app since
-// we run inside a single plugin process — the host page and the
-// sandbox iframe are served from the same origin pair via path
-// routing rather than separate ports.
+// Express server. Hosts the plugin's compiled view-tool ESM module
+// in-process and serves it to Playwright (headed by default for
+// interactive iteration; headless for the final regression
+// screenshot).
 //
 // Routes:
-//   GET  /host.html         — host shell (foreground/dev only; 404 in --headless)
-//   GET  /host-bridge.mjs   — client-side bridge module
-//   GET  /sandbox.html      — sandbox-proxy with CSP from ?csp= query param
-//   GET  /api/tool/:name    — read tool descriptor (incl. _meta.ui)
-//   POST /api/tool-call     — proxy a tool call to the plugin's MCP
-//   GET  /api/ui-resource   — fetch the UI resource HTML for a tool
-//   POST /__test/render     — headless: drive a Playwright render and return artifacts
+//   GET  /host.html                  — host shell
+//   GET  /host-bridge.mjs            — client-side bridge module
+//   GET  /sandbox.html               — sandbox-proxy with CSP from ?csp= query param
+//   GET  /api/tools                  — listTools (for diagnostics)
+//   POST /api/tool-call              — invoke the read-only view-tool handler
+//                                       (this is what produces structuredContent
+//                                       for the *initial* iframe render)
+//   POST /api/intercept-tool-call    — iframe-originated mutation calls land here.
+//                                       Logs the payload + emits to SSE + returns a
+//                                       stubbed success envelope. Never executes
+//                                       the mutation against a real connector.
+//   GET  /api/intercepts/stream      — server-sent-events stream of intercepted calls
+//   POST /__test/render              — headless: drive a Playwright render and
+//                                       return artifacts (used by the test harness
+//                                       and stage 8's regression pass)
 //
 // All static files live under ../public/ relative to this file.
 
@@ -20,34 +28,50 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { buildCspHeader } from "./csp.mjs";
-import { spawnPluginMcp, connectClient, callToolWithUi } from "./mcp-bridge.mjs";
+import { loadViewToolModule, callToolWithUi } from "./mcp-bridge.mjs";
 import { runHeadlessRender } from "./playwright-driver.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
 
+const INTERCEPT_RING_CAP = 200;
+
 export async function startServer({
   pluginRoot,
   port = 0,
-  headless = false,
+  fixturesDir = undefined,
 }) {
-  // Hoisted at the top because `/__test/render` reads it inside its
-  // closure. The closure is only invoked after `app.listen()` resolves
-  // and assigns the real port, but declaring up-front makes the data
-  // flow obvious on read.
   let listenedPort = port;
 
-  // Spawn the plugin MCP up-front so the foreground host page can call
-  // tools immediately. In headless mode we do the same so /__test/render
-  // is fast on the first call.
-  const mcp = await spawnPluginMcp(pluginRoot);
-  const client = await connectClient(mcp.url);
+  // Load the plugin's view-tool module in-process. Replaces the legacy
+  // spawn-MCP-server-in-HTTP-mode path; remote-view-only plugins have
+  // no local MCP server to spawn.
+  const client = await loadViewToolModule(pluginRoot, { fixturesDir });
+
+  // Ring buffer + SSE subscribers for intercepted mutation tool calls.
+  const intercepts = [];
+  const sseSubscribers = new Set();
+
+  function recordIntercept(entry) {
+    intercepts.push(entry);
+    if (intercepts.length > INTERCEPT_RING_CAP) {
+      intercepts.splice(0, intercepts.length - INTERCEPT_RING_CAP);
+    }
+    const payload = `event: intercept\ndata: ${JSON.stringify(entry)}\n\n`;
+    for (const res of sseSubscribers) {
+      try {
+        res.write(payload);
+      } catch {
+        // dead subscriber — `close` handler will clean it up
+      }
+    }
+  }
 
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "5mb" }));
 
-  // ---------- static (always served — Playwright also loads host.html in headless) ----------
+  // ---------- static ----------
   app.get("/host.html", (_req, res) => {
     res.sendFile(join(PUBLIC_DIR, "host.html"));
   });
@@ -56,7 +80,7 @@ export async function startServer({
     res.sendFile(join(PUBLIC_DIR, "host-bridge.mjs"));
   });
 
-  // ---------- sandbox (always served — even in headless, Playwright loads it) ----------
+  // ---------- sandbox ----------
   app.get(["/sandbox.html"], (req, res) => {
     let cspConfig;
     if (typeof req.query.csp === "string") {
@@ -79,10 +103,12 @@ export async function startServer({
       const list = await client.listTools();
       res.json({ tools: list.tools });
     } catch (e) {
-      res.status(500).json({ error: String(e) });
+      res.status(500).json({ error: String(e instanceof Error ? e.message : e) });
     }
   });
 
+  // Initial view-tool render. The handler is read-only — it produces the
+  // structuredContent the iframe materializes. Safe to invoke directly.
   app.post("/api/tool-call", async (req, res) => {
     const { name, args } = req.body ?? {};
     if (typeof name !== "string") {
@@ -92,17 +118,76 @@ export async function startServer({
       const out = await callToolWithUi(client, name, args ?? {});
       res.json(out);
     } catch (e) {
-      res.status(500).json({ error: String(e) });
+      res.status(500).json({ error: String(e instanceof Error ? e.message : e) });
     }
   });
 
-  // ---------- headless render (test harness drives this) ----------
+  // Mutation interception. Every `useAppsClient().callTool()` invocation
+  // from inside the iframe lands here so we can confirm the *shape* of
+  // the call (right tool, right args) without firing it against a real
+  // connector. Source plugins can't be installed locally during
+  // iteration (Claude Cowork's local-stdio path is broken for view
+  // tools), so this is the only place mutation iteration happens.
+  app.post("/api/intercept-tool-call", (req, res) => {
+    const { name, args } = req.body ?? {};
+    if (typeof name !== "string") {
+      return res.status(400).json({ error: "name required" });
+    }
+    const entry = {
+      tool: name,
+      args: args ?? {},
+      ts: new Date().toISOString(),
+    };
+    recordIntercept(entry);
+    process.stdout.write(`[intercept] ${name} ${JSON.stringify(entry.args)}\n`);
+    res.json({
+      content: [
+        {
+          type: "text",
+          text: `[stub] ${name} call captured — not executed locally. The remote MCP server will run it once the plugin is deployed.`,
+        },
+      ],
+      isError: false,
+    });
+  });
+
+  // Server-sent-events stream of intercepted calls. The host page's
+  // sidebar subscribes via EventSource; the build skill can subscribe
+  // via fetch to surface payloads back to chat. Replays the ring buffer
+  // to new subscribers so the sidebar shows history on tab reload.
+  //
+  // SUBSCRIBE BEFORE REPLAYING — otherwise a `recordIntercept` call
+  // that fires between the snapshot iteration and `add(res)` would
+  // miss this subscriber. Snapshot the ring inline (cheap) and write
+  // it after we're in the subscriber set; any live events that arrive
+  // during the replay window are double-delivered (subscriber sees
+  // them via both the snapshot and the live push), but every entry
+  // carries a unique `ts`, so the UI dedupes naturally.
+  app.get("/api/intercepts/stream", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    sseSubscribers.add(res);
+    req.on("close", () => {
+      sseSubscribers.delete(res);
+    });
+
+    const snapshot = intercepts.slice();
+    for (const entry of snapshot) {
+      res.write(`event: intercept\ndata: ${JSON.stringify(entry)}\n\n`);
+    }
+  });
+
+  // ---------- headless render (regression smoke + test harness) ----------
   app.post("/__test/render", async (req, res) => {
     const {
       toolName,
       args = {},
       argsExplicit = false,
       timeoutMs = 60_000,
+      headless = true,
     } = req.body ?? {};
     if (typeof toolName !== "string") {
       return res.status(400).json({ error: "toolName required" });
@@ -114,6 +199,7 @@ export async function startServer({
         args,
         argsExplicit,
         timeoutMs,
+        headless,
       });
       res.json(result);
     } catch (e) {
@@ -135,14 +221,23 @@ export async function startServer({
 
   return {
     port: listenedPort,
-    pluginMcpUrl: mcp.url,
+    pluginSlug: client.pluginSlug,
+    fixturesRoot: client.fixturesRoot,
+    getIntercepts: () => intercepts.slice(),
     shutdown: async () => {
+      for (const res of sseSubscribers) {
+        try {
+          res.end();
+        } catch {
+          // ignore
+        }
+      }
+      sseSubscribers.clear();
       try {
-        await client.close();
+        client.close();
       } catch {
         // ignore
       }
-      mcp.kill();
     },
   };
 }

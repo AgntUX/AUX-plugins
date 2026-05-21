@@ -82,10 +82,12 @@ describe("agntux-build cold start", () => {
       "06-design-and-preview.md",
       "07-build.md",
       "08-headless-test.md",
-      "09-zip-and-install.md",
+      "09-zip.md",
       "09a-onboarding-iterate.md",
       "10-sync-iterate.md",
-      "11-triage-ui-test.md",
+      // No stage 11 — the "first real install walk" is gone. Claude
+      // Cowork's local-stdio path is broken for view tools, so there's
+      // nothing to install locally during build.
       "12-submit.md",
       "design-standards.md",
       "voice-and-gratitude.md",

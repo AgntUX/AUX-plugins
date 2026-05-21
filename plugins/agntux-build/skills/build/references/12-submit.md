@@ -1,27 +1,13 @@
 # Stage 12 — submit the plugin
 
-The plugin works. Sync surfaces the right things, the action button
-fires real source-side writes. Time to ship.
+The plugin works. Sync surfaces the right things. Time to ship it to
+the AgntUX maintainers, who will deploy it to the remote MCP server.
 
-## Where does this plugin go?
-
-Two destinations exist; Stage 0 already decided which one applies.
-Read the session JSON at
-`<agntux project root>/.agntux-build/sessions/{session-id}.json`
-once at the top of this stage.
-
-- **`team_context` absent (solo / public-submission path):** the
-  plugin is destined for the **public** AgntUX marketplace. Continue
-  with the artefacts + mailto flow exactly as documented below.
-- **`team_context` present (team-publish path, P3 / S3.3):** the
-  plugin is destined for the user's **team's private** marketplace.
-  After writing `CONTRIBUTING-SIGNATURE.md` and re-zipping (steps 1
-  and 2 below — they're identical in both paths because the
-  per-zip DCO trailer is the same in both worlds), **jump to the
-  "Team-publish branch (P3 / S3.3)" section near the bottom of this
-  file instead of building the mailto link.**
-
-The solo path below is byte-identical to releases ≤ 0.1.5.
+Source plugins are remote-view-only — they have no local MCP server,
+and local install in Claude Cowork is broken for the view-tool path.
+The plugin's first real run is on the remote MCP server after the
+AgntUX team deploys it. The submission is therefore a one-step
+`mailto:` handoff plus a zip the user drags into the email.
 
 ## Two artefacts to write
 
@@ -38,7 +24,7 @@ contributor:
 dco:
   version: "1.1"
   agreed_at: {dco_agreed_at-iso-timestamp}
-  agreed_via: agntux-build/0.1.0
+  agreed_via: agntux-build/{plugin-version}
 submission:
   plugin_slug: agntux-{slug}
   plugin_version: {final-version-from-stage-10}
@@ -98,14 +84,14 @@ By making a contribution to this project, I certify that:
 
 Write to `{build-path}/CONTRIBUTING-SIGNATURE.md`.
 
-### 2. The final zip (final version, with the signature)
+### 2. The final zip (with the signature)
 
-Re-run `node scripts/build-plugin.mjs agntux-{slug}` so the
-signature lands inside the bundled tree, then re-zip into the user's
-Downloads folder. Use the **same cross-platform resolution algorithm
-documented in `09-zip-and-install.md → Generate the zip`** — Linux
-`xdg-user-dir DOWNLOAD` first, then `$HOME/Downloads` /
-`%USERPROFILE%\Downloads` if it exists, falling back to `$HOME`.
+Re-run the view-tool build to make sure `dist/` is fresh, then re-zip
+the plugin tree into the user's Downloads folder. Use the **same
+cross-platform resolution algorithm documented in `09-zip.md →
+Generate the zip`** — Linux `xdg-user-dir DOWNLOAD` first, then
+`$HOME/Downloads` / `%USERPROFILE%\Downloads` if it exists, falling
+back to `$HOME`.
 
 The final filename:
 
@@ -113,22 +99,24 @@ The final filename:
 agntux-{slug}-v{final-version}.zip
 ```
 
-Note: this is a **new zip** — keep the prior iteration zips around in
-Downloads so the user has a paper trail of versions. The version-stamped
-filename means snapshots accumulate naturally without overwriting. Same
-fail-closed rule as stage 11: if the version didn't bump from
-`post_iteration_zip_path`'s embedded version, fall back to
-`agntux-{slug}-v{final-version}-final.zip` rather than overwriting.
+This is a **new zip** — keep the prior iteration zips around in
+Downloads so the user has a paper trail of versions. The
+version-stamped filename means snapshots accumulate naturally without
+overwriting. If the version didn't bump from the stage-9 snapshot,
+fall back to `agntux-{slug}-v{final-version}-final.zip` rather than
+overwriting.
+
+The contents match the shape documented in `09-zip.md` (no
+`mcp-server/`, no `hooks/`, no `NOTICE`, no `.mcp.json`) with
+`CONTRIBUTING-SIGNATURE.md` added at the plugin root.
 
 ## The mailto link
 
-Generate a `mailto:` URL with the body pre-filled. Use
-`mcp__claude_preview__preview_start` with HTML containing the
-clickable link, OR print as a markdown link directly.
+Generate a `mailto:` URL with the body pre-filled. Print as a markdown
+link directly (or use `mcp__claude_preview__preview_start` if
+available).
 
-The body's exact shape (URL-encoded for `mailto:`):
-
-**Create mode:**
+**Create mode body:**
 ```
 Subject: New plugin: agntux-{slug} v{version}
 
@@ -140,10 +128,14 @@ Plugin: agntux-{slug}
 What it does: {one-sentence-from-listing-yaml-tagline}
 Connector: {connector-display-name}
 Sync cadence: {recommended-cadence}
-UI handlers ({N}):
-  - {ui-handler-1-name} ({verb-phrase-1})
-  - {ui-handler-2-name} ({verb-phrase-2})
+View tools ({N}):
+  - {view-tool-name-1} ({verb-phrase-1})
+  - {view-tool-name-2} ({verb-phrase-2})
   - …
+
+Intercepted mutation payloads (from stage 6 preview):
+  - {tool-1}: {sample-args-json}
+  - {tool-2}: {sample-args-json}
 
 Contributor: {captured-name} <{captured-email}>
 DCO: agreed to v1.1 on {dco_agreed_at-date}
@@ -154,11 +146,11 @@ Signed-off-by: {captured-name} <{captured-email}>
 Generated by agntux-build/{plugin-version}
 ```
 
-(For read-only sources with no UI handlers, replace the
-`UI handlers (N):` block with `UI handlers: none — read-only
-source, "Open in {connector}" only.`)
+(For read-only sources with no view tools, replace the
+`View tools (N):` block with `View tools: none — read-only source,
+sync only.` and omit the intercepted-payloads block.)
 
-**Update mode:**
+**Update mode body:**
 ```
 Subject: Update: agntux-{slug} v{new-version}
 
@@ -243,8 +235,9 @@ Once the user confirms they sent the email:
 > just did it.
 >
 > The team will review the submission and post back at
-> {captured-email} with any questions. The plugin should be in
-> the public marketplace within a week if everything checks out.
+> {captured-email} with any questions. Once it's deployed to the
+> AgntUX remote MCP server, anyone who installs `agntux-{slug}`
+> will get the live view tools you designed.
 
 In update mode, change the closing:
 
@@ -288,164 +281,9 @@ In update mode, change the closing:
   for a non-technical contributor — high-level only. The session
   file at `<agntux project root>/.agntux-build/sessions/{id}.json`
   has all the detail; that's where it belongs.
-
-## Team-publish branch (P3 / S3.3)
-
-Run this branch instead of the mailto flow above **only when** the
-session JSON's `team_context` field is present. The two artefacts
-already exist on disk at this point — `CONTRIBUTING-SIGNATURE.md`
-inside the rebuilt plugin tree, and the final
-`agntux-{slug}-v{version}.zip` in Downloads. They are produced
-identically in both branches; the team-publish branch never mutates
-either.
-
-### 1. Call the publish tool
-
-Invoke the new MCP tool `agntux_build_publish_to_team` shipped by
-this plugin's MCP server (see `mcp-server/`). Inputs:
-
-```json
-{
-  "team_slug":        "{team_context.team_slug}",
-  "org_slug":         "{team_context.org_slug}",
-  "plugin_slug":      "agntux-{slug}",
-  "plugin_version":   "{final-version-from-stage-10}",
-  "tarball_path":     "{absolute-zip-path}",
-  "plugin_dir":       "{build-path}",
-  "agntux_root":      "{agntux project root, absolute}",
-  "contributor": {
-    "name":  "{captured-name from contributor.json}",
-    "email": "{captured-email from contributor.json}"
-  },
-  "dco_text_version": "1.1"
-}
-```
-
-The tool walks `plugin_dir`, builds a base64 manifest of every file
-under the plugin tree (skipping `node_modules/`, `dist/`, `.git/`,
-`.omc/`), reads the license JWT from
-`<agntux_root>/.agntux/teams.json`, and POSTs the manifest to the
-backend at
-`https://app.agntux.ai/api/teams/{org_slug}/marketplace/publish`
-with the license JWT in the `Authorization: Bearer` header. The
-backend verifies the JWT, validates the DCO trailer in
-`CONTRIBUTING-SIGNATURE.md`, commits the tree under
-`plugins/agntux-{slug}/` in the org's private marketplace repo, and
-writes an audit row.
-
-### 2. Branch on the tool result
-
-The tool returns one of:
-
-```json
-{ "ok": true,  "submitted_at": "...", "plugin_slug": "...",
-  "plugin_version": "...", "team_slug": "..." }
-```
-
-```json
-{ "ok": false, "reason": "auth" | "validation" | "conflict" | "network",
-  "error": "..." }
-```
-
-### 3a. On success — surface non-technical confirmation
-
-**Do NOT print the GitHub commit URL.** The team's private
-marketplace lives in an AgntUX-owned GitHub org that team members
-have no access to, per P1's auth model. Surface this message
-instead:
-
-> {Name}, your plugin has been submitted to your team's private
-> marketplace.
->
-> - Plugin: **agntux-{slug}** v{plugin_version}
-> - Team: **{team_context.team_display_name}**
-> - Submitted: {submitted_at}
->
-> Your organization admin needs to enable **agntux-{slug}** in
-> Claude Desktop's organization plugin settings before team members
-> can install it. Team members can then add it from their plugin
-> browser.
-
-In update mode, change the wording slightly:
-
-> {Name}, the fix has been submitted to your team's private
-> marketplace as **agntux-{slug}** v{plugin_version}. Your team
-> members will pick up the new version on their next plugin update.
-
-### 3b. On failure — non-technical-friendly fallback copy
-
-Map the `reason` field to user-facing copy. **Do not surface the
-raw `error` string** — it's for the session JSON.
-
-- `reason: "auth"`:
-  > Your team's subscription or sign-in needs attention before we
-  > can submit on behalf of your team. Open the AgntUX desktop app
-  > and ask your admin to check billing. If you'd like to publish
-  > this as an open-source contribution instead, run
-  > `/agntux-build:build` again and pick "Submit publicly" at the
-  > team-selection step.
-
-- `reason: "validation"`:
-  > Something in the packaged plugin didn't pass the team-publish
-  > checks (the most common cause: the DCO signature didn't match
-  > the contributor name on file). I can re-run from Stage 11 to
-  > rebuild — type **retry** when you're ready, or **public** to
-  > switch to the open-source submission flow.
-
-- `reason: "conflict"`:
-  > Your team's marketplace is in a state that needs admin
-  > attention (often: the team was just archived). Reach out to
-  > your team-lead and re-run this build once it's resolved.
-
-- `reason: "network"`:
-  > I couldn't reach the AgntUX backend just now. The plugin zip
-  > is still saved at **{absolute-zip-path}**, so nothing is lost
-  > — re-run `/agntux-build:build` once you're back online and
-  > we'll pick up where we left off.
-
-In every failure case, **do not write `submission` to the session
-JSON**. The next build session must be free to retry from a clean
-state.
-
-### 4. Persist session result
-
-On `ok: true`, append to
-`<agntux project root>/.agntux-build/sessions/{session-id}.json`:
-
-```json
-{
-  ...,
-  "submission": {
-    "publish_target":  "team-private",
-    "team_slug":       "{team_context.team_slug}",
-    "org_slug":        "{team_context.org_slug}",
-    "plugin_slug":     "agntux-{slug}",
-    "plugin_version":  "{final-version-from-stage-10}",
-    "submitted_at":    "{submitted_at-from-tool-result}",
-    "zip_path":        "{absolute-zip-path}",
-    "signature_path":  "{plugin-tree}/CONTRIBUTING-SIGNATURE.md"
-  },
-  "session_status": "complete"
-}
-```
-
-**Do NOT include any commit URL, repo name, GitHub owner, or SHA**
-in the session JSON. Those values exist only in the team's
-marketplace repo and the org's `teams_marketplace_audit` table —
-not in the contributor's local data.
-
-### What this branch does NOT do
-
-- **Does not open `mailto:`.** The team-publish branch and the
-  public-submission branch are mutually exclusive.
-- **Does not retry on failure.** The build skill body surfaces
-  the failure copy and exits. The user re-runs the whole flow if
-  they want to try again.
-- **Does not read `license_jwt` itself.** The MCP tool reads it
-  from `teams.json`; the skill body never touches the JWT.
-- **Does not bypass the DCO signature.** Steps 1 and 2 above
-  (`CONTRIBUTING-SIGNATURE.md` + re-zip) run identically in both
-  branches. The backend re-validates the DCO trailer server-side.
+- Don't ask the user to install the plugin locally. Source plugins
+  can't run locally in Claude Cowork; their first real run is on
+  the remote MCP server after AgntUX deploys them.
 
 ## Why this is enough for v1
 
@@ -458,6 +296,4 @@ not in the contributor's local data.
   resulting commit's `Signed-off-by:` trailer (from the signature
   file) passes Probot's check on the public PR.
 - **No new infra**: no submit backend, no auth layer, no database.
-  v1 ships email + zip + frontmatter. The strategy doc's v2
-  (`submit.agntux.ai`) can read the same frontmatter and lift
-  the agreement into a database when that ships.
+  v1 ships email + zip + frontmatter.

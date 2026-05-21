@@ -44,10 +44,10 @@ Update mode skips:
 - **Stage 1's no-match branch** — the marketplace search already
   found the plugin in stage 1; we entered update mode from stage 2.
   Don't re-search.
-- **Stage 5's "plan the action buttons"** — the existing UI
-  handlers tell you. Read each `view_tool` description and component
-  code via the existing `mcp-server/src/tools/{name}-view.ts` and
-  `ui-handlers/{name}/component/`. Just confirm with the user which
+- **Stage 5's "plan the action buttons"** — the existing view tools
+  tell you. Read each handler from `view-tool/src/{slug}-view.ts`
+  (descriptor + handler) and the iframe entries at
+  `view-tool/src/{ui-name}-ui.tsx`. Just confirm with the user which
   existing UI(s) are the surface to fix.
 
 ## What you DO different

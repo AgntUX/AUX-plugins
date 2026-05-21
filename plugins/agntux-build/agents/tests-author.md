@@ -68,6 +68,19 @@ describe("plugin shape (inline-skill pattern, post 6aa72b8)", () => {
     // gate (the relicensing PR removed `@agntux/mcp-license` entirely).
     expect(existsSync(join(PLUGIN_ROOT, "hooks"))).toBe(false);
   });
+
+  it("does NOT ship a mcp-server/ directory — source plugins are remote-view-only", () => {
+    // Source plugins ship one compiled view-tool ESM module
+    // (`view-tool/dist/<slug>-view.js`) loaded server-side by the remote
+    // MCP server in `agntux/app`. The marketplace.json entry is auto-tagged
+    // `kind: "remote-view-only"` by scripts/regenerate-marketplace-json.ts
+    // based on the absence of mcp-server/.
+    expect(existsSync(join(PLUGIN_ROOT, "mcp-server"))).toBe(false);
+  });
+
+  it("does NOT ship a .mcp.json file — there is no local MCP server to register", () => {
+    expect(existsSync(join(PLUGIN_ROOT, ".mcp.json"))).toBe(false);
+  });
 });
 
 describe("skill prompt substitution", () => {

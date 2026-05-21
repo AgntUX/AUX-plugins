@@ -31,9 +31,10 @@ end-to-end. Iteration becomes: edit `_overrides/`, re-render, re-run
 analyze-only sync — no rebuild, no reinstall, no manual paste loop,
 no residue.
 
-The user only installs the zip later — at stage 11 (triage UI test) or
-stage 12 (final submission). Those stages run against installed-plugin
-disk writes; this stage does not.
+The plugin's first real run happens once the AgntUX team deploys it
+to the remote MCP server. Stage 12 hands the zip off via `mailto:`;
+there is no local install step for source plugins (Claude Cowork's
+local-stdio path is broken for view tools).
 
 ## The opening setup
 
@@ -215,8 +216,9 @@ specific signals:
      volume cap — sensible defaults)
    - `_overrides/{step-id}-append.md` (extra rules at named steps —
      must generalize)
-   - The view tool's structuredContent shape (UI fixes — rare here;
-     stage 11 handles those).
+   - The view tool's structuredContent shape (UI fixes — rare at this
+     stage; stage 6's headed-renderer loop is where UI iteration
+     happens. If a sync round surfaces a UI gap, loop back briefly).
 
 5. **Re-render the skill tree** so the on-disk rendered files reflect
    the override changes:
@@ -287,7 +289,7 @@ After round 5:
 > tell me what's still feeling off, or call this v0.1 and iterate
 > live after we see it in your normal use?
 
-If the user signals "good enough", advance to stage 11. If they
+If the user signals "good enough", advance to stage 12. If they
 want more rounds, do them — but watch fatigue and offer a break.
 
 ## When the sync is "good enough"
@@ -297,11 +299,12 @@ flow without flinching. Not perfect — *good enough*.
 
 > Calling it. The plugin's sync prompt is producing the right
 > entities and action items for your {connector-display-name} data —
-> based on the analyze-only runs we just walked through. Once you
-> install it, sync will actually write to your knowledge store on
-> the cadence in `recommended_ingest_cadence`. The next thing to
-> test is the action buttons themselves in the triage UI — for that
-> we'll install the zip and run it once end-to-end.
+> based on the analyze-only runs we just walked through. Once the
+> AgntUX team deploys the plugin to the remote MCP server, sync
+> will actually write to your knowledge store on the cadence in
+> `recommended_ingest_cadence`. The action buttons you designed in
+> stage 6 will be live then too. Last step: signing the submission
+> and emailing it over.
 
 ## Saved state at end of stage 10
 
@@ -338,7 +341,7 @@ is the sync output itself: entities, actions, learnings, cursors.
 
 ## Fallback: when inline sync isn't possible
 
-A small set of cases force the install-then-run flow:
+A small set of cases prevent inline sync entirely:
 
 - **The source MCP isn't reachable from Cowork** (e.g., user is on a
   host without that connector) — even though stage 3 should have caught
@@ -346,33 +349,27 @@ A small set of cases force the install-then-run flow:
 - **The sync skill needs a host capability** the build skill can't
   fake (e.g., direct host-renderer iframe interaction during sync).
 
-When this happens:
+When this happens, **escalate rather than try to install locally**.
+Source plugins are remote-view-only — Claude Cowork's local-stdio
+path is broken for view tools, so there is no path to "install the
+zip and run it locally" the way the legacy flow used to assume.
 
-1. **Warn first.** Tell the contributor honestly:
+Tell the contributor:
 
-   > I can't drive the connector from in here for {reason}, so we'll
-   > switch to install-and-run mode. **This breaks the analyze-only
-   > guarantee** — once the plugin is installed and you run
-   > `/agntux-{slug}`, sync will write entities, actions, and a
-   > cursor file to your AgntUX data directory exactly like it would
-   > for any real user. If you don't want that, point your host at a
-   > throwaway `agntux` project root before installing, or skip stage
-   > 10 entirely and rely on stage 11's triage UI test to catch
-   > issues.
+> I can't drive {connector-display-name} from in here for {reason},
+> and I can't ask you to install the zip locally (Claude Cowork's
+> local plugin host is broken for view tools right now). The
+> AgntUX team will need to deploy the plugin to the remote MCP
+> server before sync gets its first real run. Want me to flag this
+> in the submission email so the maintainers know to test
+> end-to-end on their side? Or open an issue at
+> https://github.com/AgntUX/AUX-plugins/issues with what you've got
+> so far?
 
-2. Walk the install — use the eight-click install steps documented in
-   `11-triage-ui-test.md → Regenerate and install` (stage 11 owns the
-   install walk now; load that section verbatim).
-3. Have the user run `/agntux-{slug}` in this same Cowork conversation
-   and paste the expanded run output back.
-4. Continue the iteration loop with paste rounds. Re-render after each
-   prompt edit; have the user re-zip via `node scripts/build-plugin.mjs
-   agntux-{slug}` (with a patch-version bump per stage 11's fail-closed
-   rule) and reinstall ("Reinstall from file" in Personal Plugins)
-   before each subsequent round.
-
-This fallback should be rare. If the inline path works on the first
-attempt, prefer it — it's the only mode that's strictly analyze-only.
+If the user picks "flag in submission", add a `sync_untested: true`
+field to the session JSON and surface it in stage 12's email body
+("Sync flow was not exercised inline — please test end-to-end after
+deploy"). Then advance to stage 12.
 
 ## What you do NOT do
 

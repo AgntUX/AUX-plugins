@@ -1,5 +1,17 @@
 # Workflow Testing
 
+> **Outdated below.** Source plugins now ship as remote-view-only —
+> no local MCP server, no `HTTP_MODE` spawn, no MCPJam Inspector
+> dependency. The current iteration loop runs through agntux-build's
+> own `host-renderer/` (in-process view-tool module loader + headed
+> Playwright) and `test-harness/bin/cli.mjs` (headless screenshot
+> harness against `/__test/render`). The user-facing flow lives in
+> `plugins/agntux-build/skills/build/references/06-design-and-preview.md`
+> (stage 6 headed preview) and `08-headless-test.md` (stage 8
+> regression screenshot). Read those first; treat the sections below
+> as historical context unless you're maintaining the legacy
+> MCPJam-driven path.
+
 End-to-end testing for AgntUX plugin UI handlers runs through the
 `plugin-toolkit-test` CLI (in `${CLAUDE_PLUGIN_ROOT}/test-harness/bin/cli.mjs`)
 talking to a locally-running MCPJam Inspector. The harness launches Chromium

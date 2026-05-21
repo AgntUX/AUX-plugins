@@ -1,9 +1,9 @@
 // Spawn the in-plugin host-renderer in --headless mode and wait for
-// its first stdout line — a JSON object `{ port, pluginMcpUrl }`.
+// its first stdout line — a JSON object `{ port, pluginSlug, ... }`.
 // Returns { port, dispose }.
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,10 +22,22 @@ export async function spawnHostRenderer({ pluginRoot, hostBin = HOST_BIN_DEFAULT
         `Pass --host-bin <path> if the host renderer lives elsewhere.`,
     );
   }
-  if (!existsSync(join(pluginRoot, "mcp-server", "dist", "index.js"))) {
+  // Source plugins ship a compiled view-tool ESM module (no local MCP
+  // server). Resolve the slug from the plugin manifest and ensure the
+  // matching dist artifact exists.
+  const pluginJsonPath = join(pluginRoot, ".claude-plugin", "plugin.json");
+  if (!existsSync(pluginJsonPath)) {
     throw new Error(
-      `Plugin MCP server not built at ${pluginRoot}/mcp-server/dist/index.js. ` +
-        `Run \`node scripts/build-plugin.mjs <slug>\` from the marketplace repo first.`,
+      `Plugin manifest not found at ${pluginJsonPath}. ` +
+        `Pass --plugin pointing at a plugin root that contains .claude-plugin/plugin.json.`,
+    );
+  }
+  const pluginSlug = JSON.parse(readFileSync(pluginJsonPath, "utf-8")).name;
+  const handlerEntry = join(pluginRoot, "view-tool", "dist", `${pluginSlug}-view.js`);
+  if (!existsSync(handlerEntry)) {
+    throw new Error(
+      `view-tool not built at ${handlerEntry}. ` +
+        `Run \`npm run build\` inside ${pluginRoot}/view-tool/ first.`,
     );
   }
 
@@ -85,7 +97,7 @@ export async function spawnHostRenderer({ pluginRoot, hostBin = HOST_BIN_DEFAULT
 
   return {
     port: announce.port,
-    pluginMcpUrl: announce.pluginMcpUrl,
+    pluginSlug: announce.pluginSlug,
     dispose: () => {
       try {
         child.kill("SIGTERM");

@@ -6,6 +6,83 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-20
+
+### Changed
+
+- **Remote-view-only generation by default.** The build skill now
+  scaffolds plugins that match the agntux-slack / agntux-gmail shape
+  exactly — `view-tool/` plus `skills/`, `marketplace/`, `__tests__/`,
+  and root files. No `mcp-server/`, no `hooks/`, no `.mcp.json`. The
+  marketplace.json entry is auto-tagged `kind: "remote-view-only"` by
+  `scripts/regenerate-marketplace-json.ts` based on the absence of
+  `mcp-server/` AND presence of `view-tool/`.
+- **Headed Playwright preview in stage 6.** `host-renderer/` was
+  reworked to load the plugin's compiled view-tool ESM module
+  in-process (no MCP server spawn) and launch a real Chromium window
+  via Playwright. The user clicks around the iframe; every mutation
+  tool call from `useAppsClient().callTool()` is intercepted, logged
+  to stdout + the new `/api/intercepts/stream` SSE channel, and
+  stubbed with a success envelope. Mutations never fire against a
+  real connector during iteration.
+- **Stage 8 simplified.** Repurposed as a single-screenshot
+  regression smoke pass per view tool. The stage-7.5 compile gates
+  (which targeted `mcp-server/tsconfig.json` and the embed step)
+  were removed — none of them apply to view-tool-only plugins.
+- **Stage 9 renamed to `09-zip.md`.** The "and-install" half is
+  gone. Source plugins can't be installed locally in Claude Cowork
+  (its local-stdio path is broken for view tools), so the zip is
+  now purely a snapshot for the user and an artefact for the
+  stage-12 mailto handoff.
+- **Stage 12 simplified.** Removed the team-publish branch (the
+  matching MCP tool `agntux_build_publish_to_team` was deleted with
+  the mcp-server below). The mailto flow to `plugins@agntux.ai` is
+  the sole submission path.
+
+### Removed
+
+- **Stage 11 (`11-triage-ui-test.md`) deleted entirely.** The "first
+  real install walk" can't run — Claude Cowork's local-stdio path
+  doesn't load view tools — and the iframe-shape regression it
+  guarded against is now caught by stage 6's headed preview + stage
+  8's regression screenshot. Stage 10 advances directly to stage 12.
+- **`plugins/agntux-build/mcp-server/` deleted.** Its only tool
+  (`agntux_build_publish_to_team`) was the team-publish backend
+  that stage 12 has now dropped. agntux-build itself becomes a
+  skill-only plugin.
+- **`canonical/ui-handlers/_template/` documentation updated.**
+  The README's layout diagram no longer references a sibling
+  `component/` directory (which never existed in this template
+  tree) and explicitly calls out the no-mcp-server invariant.
+
+### Why
+
+Three coordinated forces:
+
+1. **Remote MCP is the new deploy target.** Commit `8226448`
+   (agntux-core 10.0.0) moved mutation tools out of local
+   `mcp-server/` into `view-tool/` for runtime loading by the remote
+   MCP server. Source plugins (agntux-slack, agntux-gmail) had
+   already adopted the no-mcp-server shape; agntux-build was still
+   scaffolding the old one.
+2. **Claude Cowork's local-stdio path is broken for view tools.**
+   The "build → zip → install locally → click action button" loop
+   the prior stage-11 workflow assumed simply doesn't execute. The
+   only place mutation tools actually fire is on the remote MCP
+   server post-deploy.
+3. **Headed Playwright is enough.** The user doesn't need a real
+   install to validate the iframe shape and the mutation envelope
+   payload — a Chromium window driven by Playwright with intercepted
+   tool calls makes both visible during iteration.
+
+### Migration
+
+This release is for contributors who run `/agntux-build:build`.
+Existing generated plugins on disk are unaffected; the change only
+shapes new generation. If you have a plugin tree from a previous
+agntux-build that contains `mcp-server/`, delete it manually before
+re-zipping for submission.
+
 ## [0.4.1] — 2026-05-18
 
 ### Changed

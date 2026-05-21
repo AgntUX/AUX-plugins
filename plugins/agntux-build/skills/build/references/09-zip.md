@@ -1,12 +1,14 @@
-# Stage 9 — package the plugin, drop a snapshot in Downloads
+# Stage 9 — package the plugin
 
-The plugin builds. The action buttons render. Now we package it as a
-`.zip` in the user's Downloads folder. **No install required at this
-point** — stages 9.5 and 10 drive onboarding and sync iteration inline,
-so the zip is just a snapshot the user can come back to.
+The plugin builds. The action buttons render. Package it as a `.zip`
+in the user's Downloads folder so they have a snapshot to look at and
+so the final submission in stage 12 has something to attach.
 
-The first install walk happens at stage 11 (triage UI test), with the
-final regenerated zip going out at stage 12 (submission).
+**No install required.** Source plugins are remote-view-only — they
+have no local MCP server, and Claude Cowork can't host a live local
+plugin during iteration anyway. Stages 9.5 and 10 iterate on the
+prompts inline; stage 12 re-zips with the contributor's signature
+and hands the result off to AgntUX maintainers via `mailto:`.
 
 ## Generate the zip
 
@@ -39,41 +41,58 @@ location). It's a dot-folder and most users can't easily browse there;
 session state still lives at `<agntux-root>/.agntux-build/sessions/` but
 the user-facing zip belongs in Downloads.
 
-Zip contents (mirror what's in `<repo-root>/AUX-plugins/plugins/
-agntux-{slug}/` after stage 7's build):
+## Zip contents (mirror agntux-slack's shape)
 
 ```
 agntux-{slug}/
 ├── .claude-plugin/plugin.json
-├── LICENSE
-├── NOTICE
+├── LICENSE                           # Apache-2.0 (mirror of repo root)
 ├── README.md
 ├── CHANGELOG.md
-├── CONTRIBUTING-SIGNATURE.md      # NEW — written here in stage 12, but emit a placeholder now
+├── package.json                      # plugin root manifest
+├── vitest.config.ts
 ├── marketplace/
 │   ├── listing.yaml
 │   ├── icon.png
 │   └── screenshots/
 ├── skills/
-│   └── {plugin-slug}/             # rendered ingest skill tree
+│   └── {plugin-slug}/                # rendered ingest skill tree
 │       ├── SKILL.md
 │       ├── _overrides/
 │       └── reference/
-├── ui-handlers/                   # if write-capable
-│   └── {handler-name}/
-│       └── component/
-│           └── out/               # bundled JS — already built by `build-plugin.mjs`
-├── mcp-server/
-│   └── dist/                      # already built
-└── __tests__/
+├── view-tool/                        # the only runtime surface
+│   ├── src/
+│   ├── dist/                         # built bundles (handler + ui-resources + manifest)
+│   ├── scripts/                      # emit-manifest.mjs
+│   ├── __tests__/                    # payload-shape.test.ts + any other regressions
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── tailwind.config.mjs           # when Tailwind is wired (canonical scaffold default)
+└── __tests__/                        # plugin-level cold-start, render-reproducibility, etc.
 ```
+
+**Explicit excludes** (the zip must NOT contain these paths even if
+they exist on disk):
+
+- `node_modules/`
+- `mcp-server/` — remote-view-only plugins ship none. Invariant-checker
+  rejects in stage 7 if present.
+- `hooks/` — same.
+- `.mcp.json` — same.
+- `.omc/`, `.git/`, `.DS_Store`
+- `NOTICE` — agntux-slack/gmail don't ship one; the Apache-2.0
+  attribution lives in `LICENSE` alone.
+- `host-renderer/`, `test-harness/`, `agents/` — those are
+  agntux-build's own internals, never copied into a generated plugin.
+
+`CONTRIBUTING-SIGNATURE.md` is NOT included in the stage-9 snapshot —
+it's written in stage 12 with the submission timestamp and the final
+zip is regenerated then.
 
 Use `node:fs/promises` to enumerate the build tree and a zip
 library (the host typically has `archiver` or similar — fall back to
 `zip` shell if needed).
-
-`CONTRIBUTING-SIGNATURE.md` is a stage-9 placeholder; the real one
-gets written in stage 12 with the submission timestamp.
 
 ## Drop the zip into chat as an inline card (Cowork)
 
@@ -105,9 +124,9 @@ loop in stage 10:
 >
 > Size: ~{N} MB.
 >
-> No need to install it yet — we're going to iterate on the prompts
-> in this same chat for the next few rounds, then re-zip at the end.
-> The Downloads copy is your snapshot in case you want to look at it.
+> We'll iterate on the sync prompts in this same chat for the next few
+> rounds, then re-zip at the end. The Downloads copy is your snapshot
+> in case you want to look at it.
 
 ## Reveal the file in Finder/Explorer (optional)
 
@@ -124,14 +143,15 @@ Resolve via `ToolSearch`. If unavailable, just leave the path printed.
 
 Once the zip is on disk:
 
-> Right — let's test the onboarding flow first, then we'll run sync
-> against your real {connector-display-name} data.
+> Right — let's set up a realistic personalisation context, then
+> we'll run sync against your real {connector-display-name} data.
 
 Then load [`09a-onboarding-iterate.md`](09a-onboarding-iterate.md).
 
-(Stage 9.5 walks the user through the plugin's own onboarding flow —
-personalisation values that the sync skill needs to feel right.
-After 9.5, stage 10 picks up.)
+(Stage 9.5 synthesises a test persona + the source plugin's
+`listing.yaml` metadata so stage 10 has realistic inputs. No
+interview of the contributor, nothing written to disk. After 9.5,
+stage 10 picks up.)
 
 ## Saved state at end of stage 9
 
@@ -144,17 +164,16 @@ After 9.5, stage 10 picks up.)
 }
 ```
 
-(Note: no `user_install_confirmed_at` here. That field moves to
-stage 11, where install is first required.)
-
 ## What you do NOT do
 
-- Don't walk the install flow here. Stage 10's iteration is inline —
-  the user doesn't need an installed plugin to test it. Walking install
-  prematurely creates a stale install (no iterated prompts yet) and
-  risks the user testing the wrong version.
-- Don't try to install the zip programmatically anywhere — the host
-  doesn't expose that path for personal plugins.
+- Don't walk an install flow here — there is none. Source plugins
+  are loaded by the remote MCP server in `agntux/app`, and local
+  install in Claude Cowork is broken for the view-tool path.
+- Don't try to install the zip programmatically.
+- Don't include `mcp-server/`, `hooks/`, `NOTICE`, or `.mcp.json` in
+  the zip. The invariant-checker has already rejected the build if
+  any of those are present on disk; the packager re-checks to be
+  defensive.
 - Don't fudge the path. Always show the absolute path.
 - Don't write to `~/.agntux-build/` or any dot-folder for the
   user-facing zip. Downloads only.

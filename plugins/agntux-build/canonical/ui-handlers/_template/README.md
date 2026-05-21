@@ -9,10 +9,14 @@ do NOT ship a local `mcp-server/` or `.mcp.json`.
 
 ```
 _template/
-  view-tool/                    # NEW — compiled into the library module
+  view-tool/                    # Compiled into the library module (ESM handler + iframe HTML)
     src/
       __ui-name__-view.ts       # ViewTool descriptor + handler
       __ui-name__-ui.tsx        # React iframe entry (Vite-bundled into HTML)
+      components/               # iframe UI components
+      hooks/                    # apps-react hooks
+      lib/
+        apps-client/            # MIT-inlined apps client (DO NOT MOVE)
     __ui-name__.html            # HTML entry Vite resolves to a real
                                 # <!doctype html> bundle. See CLAUDE.md
                                 # lint pass 10 (E23) for the rationale.
@@ -23,23 +27,20 @@ _template/
                                 # byte-budget + frozen key-set on the
                                 # structuredContent. Marketplace linter
                                 # pass 11 (E24/E25) checks for it.
+    locales/                    # i18n stubs (en-US + locale copies)
     package.json
     tsconfig.json
     vite.config.ts
-  component/                    # Iframe bundle scaffold (apps-client/apps-react)
-    src/
-      App.tsx
-      main.tsx
-      components/
-      lib/
-        apps-client/            # MIT-inlined hooks (DO NOT MOVE)
-        apps-react/             # MIT-inlined hooks (DO NOT MOVE)
-    ...
-  fixtures.json                 # Phase 7 render-view-tool harness inputs
-  fixtures/__ui-name__-*.json
-  TESTING.md
+  fixtures/                     # In-process harness fixture inputs
+    __ui-name__-*.json
   README.md (this file)
 ```
+
+**No `mcp-server/`. No `hooks/`. No `.mcp.json`.** Source plugins ship a
+view-tool ESM module ONLY — the remote MCP server in `agntux/app` loads it.
+The marketplace.json entry is auto-tagged `kind: "remote-view-only"` by
+`scripts/regenerate-marketplace-json.ts` based on the absence of
+`mcp-server/`.
 
 ## Placeholders the scaffolder substitutes
 
