@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-21
+
+Republish to pick up the `scripts/build-plugin.mjs` fix that lets
+skill-only plugins (no `mcp-server/`, no `view-tool/`) package cleanly
+through `scripts/package-plugins.mjs --all`. No in-tree source changes.
+
 ## [0.5.0] — 2026-05-20
 
 ### Changed
