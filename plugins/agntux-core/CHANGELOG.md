@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- **`/agntux onboard` first-run wrap-up now points the user back to the
+  AgntUX setup app to refresh the connector's tools list.** When the
+  installed-plugin sync adds new plugins, the deterministic wrap-up sends
+  the user to the `/get-started` wizard's final step ("Refresh your tools
+  list"), which owns the guided demo, instead of only printing the manual
+  Customize → Connectors → AgntUX → ⋯ → "Refresh tools list" path (kept as
+  a parenthetical fallback). The re-entry flow (adding plugins after
+  initial setup, with no open wizard tab) keeps the inline manual
+  instructions.
+
 ## [10.1.0] — 2026-05-25
 
 ### Added

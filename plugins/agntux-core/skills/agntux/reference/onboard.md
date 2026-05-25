@@ -220,12 +220,16 @@ apology, no follow-up — the user never sees this tool fire.
 
 When this sync added one or more NEW plugins (i.e. plugins that were
 not in `## Installed` before this onboarding pass), include a single
-line in the deterministic wrap-up that tells the user how to make the
-new plugin's tools visible in Claude Desktop:
-`🔌 To see {slug-list}'s tools in Claude Desktop, open Settings → Connectors, find the AgntUX connector, click its three-dot menu, and choose "Refresh tools list".`
+line in the deterministic wrap-up that sends the user back to the
+AgntUX setup app to finish its final step — that step walks them
+through refreshing the connector's tools list with a guided demo:
+`🔌 Almost there — head back to the AgntUX setup tab in your browser and complete the final step, "Refresh your tools list". It walks you through making {slug-list}'s tools show up in Cowork. (Manual path: Customize → Connectors → AgntUX → three-dot menu (⋯) → "Refresh tools list".)`
 Why: the remote MCP server snapshots the user's installed-plugin set
 at session-init time, so a freshly-added plugin's view-tools won't
-appear on the live connector until the user reconnects.
+appear on the live connector until the user refreshes the tools list.
+The AgntUX `/get-started` wizard's final step (Step 7) owns this
+walkthrough — pointing the user back to it keeps the instructions and
+the looping demo in one place.
 
 ### Stage 5: Finalize user.md
 
