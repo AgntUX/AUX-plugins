@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-05-25
+
+### Changed
+
+- **Stage 0 project-root resolution now creates `~/agntux` via a tool
+  instead of asking the user to run a terminal command.** When agntux-core
+  is installed, the DCO pre-flight resolves and calls
+  `agntux_core_create_project_directory` to create `~/agntux`, then passes
+  the returned absolute path to the host's `request_cowork_directory`.
+  Falls back to the previous ask-whether-to-create behavior only when that
+  tool isn't available (agntux-core not installed). Mirrors agntux-core
+  10.1.0's onboarding change.
+
 ## [0.6.0] — 2026-05-21
 
 Republish to pick up the `scripts/build-plugin.mjs` fix that lets

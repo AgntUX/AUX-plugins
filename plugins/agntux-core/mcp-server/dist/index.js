@@ -16908,9 +16908,82 @@ var syncInstalledPluginsTool = {
   }
 };
 
+// src/tools/create-project-directory.ts
+import { mkdirSync as mkdirSync2, statSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join2 } from "node:path";
+var AGNTUX_DIR_NAME = "agntux";
+function resolveHomeRoot2() {
+  return process.env.AGNTUX_HOME_OVERRIDE ?? homedir2();
+}
+function projectRootPath() {
+  return join2(resolveHomeRoot2(), AGNTUX_DIR_NAME);
+}
+function inspect(path) {
+  try {
+    return statSync(path).isDirectory() ? { state: "directory" } : { state: "file" };
+  } catch (err) {
+    const code = err?.code;
+    if (code === "ENOENT") return { state: "missing" };
+    return { state: "error", message: err?.message ?? String(err) };
+  }
+}
+function errorEnvelope(path, error2, message) {
+  return {
+    isError: true,
+    content: [{ type: "text", text: message }],
+    structuredContent: { ok: false, path, created: false, error: error2 }
+  };
+}
+var createProjectDirectoryTool = {
+  description: "Create the AgntUX project root directory at `~/agntux` and return its absolute path. No-op (does not recreate or modify) if `~/agntux` already exists. This is the Cowork-safe way to make the project folder: the local MCP server runs outside Cowork's cwd permission guardrail, so onboarding calls this to create `~/agntux`, then passes the returned absolute path to the host's `request_cowork_directory` tool to obtain working permission. Takes no arguments \u2014 the target is always `~/agntux`.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: false
+  },
+  async handler(_args) {
+    const path = projectRootPath();
+    const inspection = inspect(path);
+    if (inspection.state === "file") {
+      return errorEnvelope(
+        path,
+        "path-is-file",
+        `Cannot create the AgntUX project directory: ${path} already exists and is not a directory. Move or remove that file, then retry.`
+      );
+    }
+    if (inspection.state === "error") {
+      return errorEnvelope(
+        path,
+        "stat-failed",
+        `Cannot inspect the AgntUX project directory at ${path}: ${inspection.message}`
+      );
+    }
+    const created = inspection.state === "missing";
+    if (created) {
+      try {
+        mkdirSync2(path, { recursive: true });
+      } catch (err) {
+        const message = err?.message ?? String(err);
+        return errorEnvelope(
+          path,
+          "mkdir-failed",
+          `Failed to create the AgntUX project directory at ${path}: ${message}`
+        );
+      }
+    }
+    const text = created ? `Created the AgntUX project directory at ${path}.` : `AgntUX project directory already exists at ${path}.`;
+    return {
+      content: [{ type: "text", text }],
+      structuredContent: { ok: true, path, created }
+    };
+  }
+};
+
 // src/index.ts
 var PLUGIN_NAME = "agntux-core";
-var PLUGIN_VERSION = "10.0.0";
+var PLUGIN_VERSION = "10.1.0";
 var server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   {
@@ -16927,6 +17000,10 @@ var TOOLS = {
   agntux_core_sync_installed_plugins: {
     ...syncInstalledPluginsTool,
     handler: syncInstalledPluginsTool.handler
+  },
+  agntux_core_create_project_directory: {
+    ...createProjectDirectoryTool,
+    handler: createProjectDirectoryTool.handler
   }
 };
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({

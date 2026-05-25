@@ -11,9 +11,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
 import { syncInstalledPluginsTool } from "./tools/sync-installed-plugins.js";
+import { createProjectDirectoryTool } from "./tools/create-project-directory.js";
 
 const PLUGIN_NAME = "agntux-core";
-const PLUGIN_VERSION = "10.0.0";
+const PLUGIN_VERSION = "10.1.0";
 
 // MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
 // section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
@@ -48,14 +49,24 @@ const server = new Server(
 //   SSE event fans out to the user's agntux-teams daemons so the
 //   resulting on-disk change lands within ~1s.
 //
-//   This local stdio server retains exactly ONE tool —
-//   `agntux_core_sync_installed_plugins`. It's HOME-scoped (writes
-//   `~/.agntux/installed-plugins.json`, not project data), and the
-//   agntux-teams daemon watches that file via chokidar.
+//   This local stdio server retains TWO HOME-scoped tools (neither
+//   touches project data, so both run outside Cowork's cwd permission
+//   guardrail):
+//     - `agntux_core_sync_installed_plugins` — writes
+//       `~/.agntux/installed-plugins.json`, which the agntux-teams daemon
+//       watches via chokidar.
+//     - `agntux_core_create_project_directory` — creates the project root
+//       at `~/agntux` (no-op if present) and returns its absolute path.
+//       Onboarding calls this so Cowork can create the folder without a
+//       terminal command, then hands the path to `request_cowork_directory`.
 const TOOLS = {
   agntux_core_sync_installed_plugins: {
     ...syncInstalledPluginsTool,
     handler: syncInstalledPluginsTool.handler,
+  },
+  agntux_core_create_project_directory: {
+    ...createProjectDirectoryTool,
+    handler: createProjectDirectoryTool.handler,
   },
 } as const;
 

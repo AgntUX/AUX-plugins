@@ -12,11 +12,11 @@ contexts; this file is the equivalent prompt-side ladder for
 entry-point skills, so a friendly redirect happens before any read or
 write is attempted outside `<agntux project root>/`.
 
-The ladder is deliberately mirrored from `personalization.md` Mode A
-Stage 0 steps 1–3, plus an additional step 4 that hands off to
-`/agntux onboard` instead of duplicating the create-and-pick flow.
-Onboarding remains the single owner of the interactive `mkdir` and
-host-picker dance.
+The ladder is deliberately mirrored from `skills/agntux/reference/onboard.md`
+Stage 0 steps 1–2 (cwd / ancestor), plus an additional step 4 that hands
+off to `/agntux onboard` instead of duplicating the create-and-pick flow.
+Onboarding remains the single owner of the directory-create-tool call
+(`agntux_core_create_project_directory`) and host-picker dance.
 
 ## Contents
 
@@ -73,9 +73,9 @@ absolute form makes one allow click hold across all runs.
 
    > I don't see an AgntUX project yet. Want me to set one up at `~/agntux` now? (yes / no)
 
-   - **yes** → invoke `/agntux onboard` (it owns the full Cowork-request /
-     `mkdir` / Glob / picker dance under personalization Mode A
-     Stage 0 step 4, plus the migration aid in step 5). Exit Check 0;
+   - **yes** → invoke `/agntux onboard` (it owns the full
+     create-then-Cowork-request / Glob / picker dance under `onboard.md`
+     Stage 0 step 4, plus the migration aid in step 3). Exit Check 0;
      `/agntux onboard` carries the conversation from there.
    - **no** → reply once and stop the original command cleanly:
 
