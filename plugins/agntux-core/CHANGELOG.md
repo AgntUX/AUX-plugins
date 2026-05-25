@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.1.0] — 2026-05-25
+
+### Added
+
+- **New local MCP tool `agntux_core_create_project_directory`.** Creates
+  the AgntUX project root at `~/agntux` (no-op if it already exists) and
+  returns the absolute path. Takes no arguments — the target is always
+  `~/agntux`, so the tool can't be used as a general-purpose `mkdir`
+  primitive. Lives on the HOME-scoped local stdio server alongside
+  `agntux_core_sync_installed_plugins`.
+
+### Changed
+
+- **Onboarding Stage 0 no longer asks the user to run a terminal command
+  to create the `agntux` folder.** `/agntux onboard` now calls
+  `agntux_core_create_project_directory` to create `~/agntux`, then passes
+  the returned absolute path to the host's `request_cowork_directory` tool
+  to obtain working permission.
+
+### Why
+
+In Claude Cowork the old flow was a dead end: Cowork's security guardrail
+won't let the agent create a directory until it has permission to work in
+the parent, and it isn't allowed to request permission for the user's home
+directory — so `~/agntux` could never be created interactively. The local
+MCP server runs outside that cwd guardrail (the same HOME-scoped seam
+`sync-installed-plugins` uses), so it can create `~/agntux` directly, and
+onboarding then requests access to the now-existing folder.
+
 ## [10.0.2] — 2026-05-21
 
 Republish at fresh tag. No source changes — pairs with the agntux/app

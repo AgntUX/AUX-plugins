@@ -30,13 +30,28 @@ trailer inside every zip the user submits.
    1. Read `process.cwd()` — if its basename matches `/agntux/i`, use
       it.
    2. If any ancestor matches `/agntux/i`, use the nearest.
-   3. Otherwise, request the cowork directory pointing at `~/agntux`
-      via the host's `request_cowork_directory` tool. On approval, the
-      host re-points cwd; resume on next turn.
-   4. If declined, ask whether to create `~/agntux`. Yes → create + re-
-      issue cowork request. No → "Let me know when you're ready" + stop.
-   5. Last-resort glob `**/agntux` (case-insensitive) below
-      `os.homedir()` with depth 4.
+   3. Otherwise there's no agntux project yet — **create it first, then
+      request access** (never ask the user to run a terminal command):
+      1. **Create `~/agntux`.** Try
+         `ToolSearch({query: "select:agntux_core_create_project_directory", max_results: 1})`.
+         - Resolves (agntux-core installed) → call it (no arguments) to
+           create `~/agntux` (no-op if present); cache the returned
+           **absolute path**.
+         - Does NOT resolve (agntux-core not installed) → ask the user
+           whether to create `~/agntux`. Yes → create it and cache the
+           absolute path. No → "Let me know when you're ready." + stop.
+      2. **Request access to the now-existing folder.** Resolve
+         `ToolSearch({query: "select:mcp__cowork__request_cowork_directory", max_results: 1})`.
+         - Resolves → call it with `{path: <absolute path from step 1>}`.
+           On approval the host re-points cwd; resume on next turn. On
+           decline, tell the user they can select the folder in the
+           project picker and re-run, then stop.
+         - Does NOT resolve (non-Cowork host) → the folder exists, so
+           tell the user "Your AgntUX project is at `{absolute path}` —
+           open or select that folder and re-run." then stop.
+   4. Last-resort glob `**/agntux` (case-insensitive) below
+      `os.homedir()` with depth 4 — only if step 3.1 failed to create
+      the directory.
 2. Once the root is resolved, expand `~` to absolute home and cache
    the absolute string for every subsequent tool call so the user only
    has to click "Allow for scheduled runs" once.
