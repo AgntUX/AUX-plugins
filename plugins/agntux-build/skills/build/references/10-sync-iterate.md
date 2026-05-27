@@ -14,8 +14,8 @@ genuinely tedious; framing it as "the work that matters" rather than
 
 ## Why inline-and-analyze-only
 
-Stage 9 dropped a snapshot zip in `~/Downloads/`. We don't need it
-yet — the rendered sync skill is on disk at
+No zip is needed for this loop — the plugin isn't packaged until
+stage 12. The rendered sync skill is already on disk at
 `plugins/agntux-{slug}/skills/agntux-{slug}/SKILL.md` (and its
 `reference/` siblings). That's exactly the same file the host would
 load if the plugin were installed. We can read it and execute its
@@ -32,8 +32,8 @@ analyze-only sync — no rebuild, no reinstall, no manual paste loop,
 no residue.
 
 The plugin's first real run happens once the AgntUX team deploys it
-to the remote MCP server. Stage 12 hands the zip off via `mailto:`;
-there is no local install step for source plugins (Claude Cowork's
+to the remote MCP server. Stage 12 hands the zip off by email; there
+is no local install step for source plugins (Claude Cowork's
 local-stdio path is broken for view tools).
 
 ## The opening setup

@@ -141,7 +141,7 @@ Branch on the answer:
 - **"Yes, but it's not working / I want to fix it."** Switch to
   update mode. Load
   [`update-mode.md`](update-mode.md) and continue from
-  there. The same stages 3–11 apply, but stage 12 frames the
+  there. The same stages 3–10 apply, but stage 12 frames the
   submission as a fix to the existing plugin.
 
 ### 2. Keyword / soft match

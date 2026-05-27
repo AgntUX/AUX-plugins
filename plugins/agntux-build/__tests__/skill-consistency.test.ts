@@ -140,6 +140,28 @@ describe("skill ↔ references consistency", () => {
       /\| 12 \|.*references\/12-submit\.md/,
     );
   });
+
+  it("12-submit.md keeps the 0.7.0 submission-UX invariants", () => {
+    // These guard the three regressions the 0.7.0 redesign exists to
+    // prevent. They are prose-level — invisible to the structural
+    // cold-start test — so assert them explicitly here.
+    const body = readFileSync(join(REF_DIR, "12-submit.md"), "utf-8");
+
+    // (a) No absolute zip path in user-facing copy — rely on the
+    // Cowork zip card + Show in Finder instead.
+    expect(body).not.toMatch(/Final zip:/);
+    expect(body).not.toMatch(/Drag the zip from/);
+
+    // (b) Parens-encode rule stays — a raw `)` ends a markdown link
+    // early, so emitted links must encode parens.
+    expect(body).toContain("%28");
+    expect(body).toContain("%29");
+
+    // (c) The verbose body blocks stay gone — the zip carries full
+    // detail; long bodies bloat the convenience links.
+    expect(body).not.toMatch(/Intercepted mutation payloads/);
+    expect(body).not.toMatch(/View tools \(N\)/);
+  });
 });
 
 function countOccurrences(haystack: string, needle: string) {

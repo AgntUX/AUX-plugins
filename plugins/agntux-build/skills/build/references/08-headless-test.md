@@ -93,7 +93,7 @@ One status line:
 > Running render checks for {N} button(s)...
 
 No "ready to install?" prompt. On all-pass, advance silently to
-stage 9.
+stage 9.5.
 
 ## On failure — self-fix, don't narrate
 
@@ -157,4 +157,4 @@ If a handler's render returns `consoleErrors.length > 0` or
 ## Path forward
 
 Once all UI handlers pass, advance to
-[`09-zip.md`](09-zip.md).
+[`09a-onboarding-iterate.md`](09a-onboarding-iterate.md).
