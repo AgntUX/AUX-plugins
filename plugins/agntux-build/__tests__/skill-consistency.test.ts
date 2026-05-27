@@ -141,26 +141,52 @@ describe("skill ↔ references consistency", () => {
     );
   });
 
-  it("12-submit.md keeps the 0.7.0 submission-UX invariants", () => {
-    // These guard the three regressions the 0.7.0 redesign exists to
-    // prevent. They are prose-level — invisible to the structural
-    // cold-start test — so assert them explicitly here.
+  it("12-submit.md keeps the 0.8.0 sync-submission invariants", () => {
+    // The 0.8.0 redesign replaced the zip + email handoff with a
+    // finalization marker the AgntUX desktop app auto-syncs. These
+    // prose-level assertions — invisible to the structural cold-start
+    // test — guard that the email/zip channel stays gone and the
+    // marker flow stays documented.
     const body = readFileSync(join(REF_DIR, "12-submit.md"), "utf-8");
 
-    // (a) No absolute zip path in user-facing copy — rely on the
-    // Cowork zip card + Show in Finder instead.
-    expect(body).not.toMatch(/Final zip:/);
-    expect(body).not.toMatch(/Drag the zip from/);
+    // (a) The zip + email channel is gone. Gmail blocked archive
+    // attachments and dead-ended submission for the target audience;
+    // no attachment/email path may return.
+    expect(body).not.toMatch(/plugins@agntux\.ai/);
+    expect(body).not.toMatch(/\.zip/);
+    expect(body).not.toMatch(/mailto:/);
 
-    // (b) Parens-encode rule stays — a raw `)` ends a markdown link
-    // early, so emitted links must encode parens.
-    expect(body).toContain("%28");
-    expect(body).toContain("%29");
+    // (b) The marker flow is documented: the finalization marker, the
+    // signature that rides with the tree, and the synced build path.
+    expect(body).toContain("SUBMISSION.json");
+    expect(body).toContain("CONTRIBUTING-SIGNATURE.md");
+    expect(body).toMatch(/\.agntux-build\/builds\//);
 
-    // (c) The verbose body blocks stay gone — the zip carries full
-    // detail; long bodies bloat the convenience links.
-    expect(body).not.toMatch(/Intercepted mutation payloads/);
-    expect(body).not.toMatch(/View tools \(N\)/);
+    // (c) Sync is hard-required — the AgntUX desktop app must be
+    // running and signed in (teams.json + daemon.lock present) before
+    // the flow may claim the plugin was submitted.
+    expect(body).toContain("daemon.lock");
+    expect(body).toContain("teams.json");
+    expect(body.toLowerCase()).toContain("desktop app");
+  });
+
+  it("update-mode.md keeps the 0.8.0 update-mode marker fields", () => {
+    // The cross-repo contract matches a fix to an existing plugin via
+    // the marker's top-level `mode` + `previous_version`, so the
+    // update-mode stage-12 prose must keep documenting both — and it
+    // must drop the old email/zip channel and reuse create mode's
+    // hard-require sync gate.
+    const body = readFileSync(join(REF_DIR, "update-mode.md"), "utf-8");
+
+    expect(body).toContain('mode: "update"');
+    expect(body).toContain("previous_version");
+
+    expect(body).not.toMatch(/plugins@agntux\.ai/);
+    expect(body).not.toMatch(/\.zip/);
+    expect(body).not.toMatch(/mailto:/);
+
+    // Same hard-require sync gate as create mode (12-submit.md step e).
+    expect(body.toLowerCase()).toContain("hard-require");
   });
 });
 

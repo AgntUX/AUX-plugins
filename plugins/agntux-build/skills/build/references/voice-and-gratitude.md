@@ -79,7 +79,7 @@ Use the name captured in stage 0:
 - After the build finishes.
 - After the user pastes the first sync run back.
 - After the user reports the action button worked from triage.
-- At the end of stage 12, in the submission email's pre-fill.
+- At the end of stage 12, when the plugin is finalized for sync.
 
 Don't pepper every turn with the name — it gets weird. Use it at the
 genuine emotional beats.
@@ -90,12 +90,13 @@ genuine emotional beats.
 - The 3–5-iteration sync loop (it's normal — say so before starting).
 - The light-mode-only rule (it's a feature).
 - The single-write-button-per-UI rule (it's a feature).
-- The fact that we're not auto-attaching the zip in stage 12 (the
-  one manual drag-and-drop is fine).
+- The hard requirement that the AgntUX desktop app be running to
+  submit in stage 12 (it's how the finished plugin reaches the team —
+  there's nothing to attach or send).
 
 ## What to say at the very end
 
-When the user emails the zip in stage 12, close with a single
+When stage 12 finalizes the plugin for sync, close with a single
 heartfelt thank-you that names what they made:
 
 > Thank you, {name}. `agntux-{slug}` will help every other AgntUX
