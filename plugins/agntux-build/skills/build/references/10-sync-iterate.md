@@ -2,7 +2,7 @@
 
 This is where the plugin gets actually good. The build skill drives
 sync against the user's real {connector-display-name} data **inline,
-in the same Cowork thread, and analyze-only** — no zip install, no
+in the same Cowork thread, and analyze-only** — no install, no
 scratch directory, no writes to disk. Each round we pull data, run
 the compose logic, summarize what sync *would* produce, identify
 issues, edit prompts on disk, re-render, and re-run. It usually takes
@@ -14,7 +14,7 @@ genuinely tedious; framing it as "the work that matters" rather than
 
 ## Why inline-and-analyze-only
 
-No zip is needed for this loop — the plugin isn't packaged until
+No install is needed for this loop — the plugin isn't packaged until
 stage 12. The rendered sync skill is already on disk at
 `plugins/agntux-{slug}/skills/agntux-{slug}/SKILL.md` (and its
 `reference/` siblings). That's exactly the same file the host would
@@ -32,9 +32,10 @@ analyze-only sync — no rebuild, no reinstall, no manual paste loop,
 no residue.
 
 The plugin's first real run happens once the AgntUX team deploys it
-to the remote MCP server. Stage 12 hands the zip off by email; there
-is no local install step for source plugins (Claude Cowork's
-local-stdio path is broken for view tools).
+to the remote MCP server. Stage 12 finalizes the plugin and the
+AgntUX desktop app syncs it to the team automatically; there is no
+local install step for source plugins (Claude Cowork's local-stdio
+path is broken for view tools).
 
 ## The opening setup
 
@@ -304,7 +305,7 @@ flow without flinching. Not perfect — *good enough*.
 > will actually write to your knowledge store on the cadence in
 > `recommended_ingest_cadence`. The action buttons you designed in
 > stage 6 will be live then too. Last step: signing the submission
-> and emailing it over.
+> and finalizing it for sync.
 
 ## Saved state at end of stage 10
 
@@ -351,25 +352,24 @@ A small set of cases prevent inline sync entirely:
 
 When this happens, **escalate rather than try to install locally**.
 Source plugins are remote-view-only — Claude Cowork's local-stdio
-path is broken for view tools, so there is no path to "install the
-zip and run it locally" the way the legacy flow used to assume.
+path is broken for view tools, so there is no path to "install and
+run it locally" the way the legacy flow used to assume.
 
 Tell the contributor:
 
 > I can't drive {connector-display-name} from in here for {reason},
-> and I can't ask you to install the zip locally (Claude Cowork's
-> local plugin host is broken for view tools right now). The
-> AgntUX team will need to deploy the plugin to the remote MCP
-> server before sync gets its first real run. Want me to flag this
-> in the submission email so the maintainers know to test
-> end-to-end on their side? Or open an issue at
-> https://github.com/AgntUX/AUX-plugins/issues with what you've got
-> so far?
+> and I can't ask you to install it locally (Claude Cowork's local
+> plugin host is broken for view tools right now). The AgntUX team
+> will need to deploy the plugin to the remote MCP server before
+> sync gets its first real run. Want me to note this so the
+> maintainers know to test end-to-end on their side? Or open an
+> issue at https://github.com/AgntUX/AUX-plugins/issues with what
+> you've got so far?
 
-If the user picks "flag in submission", add a `sync_untested: true`
-field to the session JSON and surface it in stage 12's email body
-("Sync flow was not exercised inline — please test end-to-end after
-deploy"). Then advance to stage 12.
+If the user picks "note this", add a `sync_untested: true` field to
+the session JSON and mention in stage 12's wrap-up that sync wasn't
+exercised inline so the maintainers test end-to-end after deploy.
+Then advance to stage 12.
 
 ## What you do NOT do
 
@@ -392,6 +392,6 @@ deploy"). Then advance to stage 12.
   and it carries summary counts only, not the entity/action content.
 - **Don't call source MCP write tools.** Only read tools. Same
   contract as `canonical/prompts/ingest/skills/sync/reference/ask.md`.
-- Don't ask the user to reinstall a zip between rounds in the inline
-  path. That's the legacy flow; the inline path makes reinstall
+- Don't ask the user to reinstall between rounds in the inline path.
+  That's the legacy flow; the inline path makes reinstall
   unnecessary.

@@ -29,16 +29,14 @@ data three to five times until it feels right.
 6. Builds the plugin.
 7. Tests the new screen on your machine — no extra apps to start,
    nothing to install separately.
-8. Hands you a `.zip` and walks you through installing it in
-   Claude Desktop.
-9. Iterates with you using the **real** sync output from your system —
-   you run the plugin in Cowork, paste the run back to Claude Code,
-   we read it, edit the prompts, regenerate the zip, and you re-run.
-   This usually takes 3 to 5 rounds. That's normal — not a sign of
-   failure.
-10. When the sync feels right and the action button works, packages
-    the final zip with a Developer Certificate of Origin sign-off and
-    hands you a pre-filled email to `plugins@agntux.ai`.
+8. Iterates with you using the **real** sync output from your system —
+   you run the plugin, paste the run back to Claude Code, we read it,
+   edit the prompts, and you re-run. This usually takes 3 to 5 rounds.
+   That's normal — not a sign of failure.
+9. When the sync feels right and the action button works, finalizes
+   the plugin with a Developer Certificate of Origin sign-off and
+   submits it to the AgntUX team for you — the AgntUX desktop app syncs
+   it automatically. Nothing to download, attach, or email.
 
 ## What you get
 
@@ -57,6 +55,9 @@ sensible for what your system needs.
   service (Linear, Notion, GitHub, Jira, etc.), the connector is
   almost certainly in the host's connector marketplace.
 - Claude Desktop, Cowork, and Claude Code installed.
+- The AgntUX desktop app, running and signed in. That's what carries
+  your finished plugin to the team — submission happens through it
+  automatically, with nothing to download, attach, or email.
 - About an hour, plus the patience to run the new plugin three to
   five times and paste the output back.
 

@@ -18,7 +18,7 @@ public PR.
 For technical contributors who type `git commit -s`, the trailer
 appears automatically. For knowledge workers contributing via this
 flow, we capture the agreement once at the start and embed the
-trailer inside every zip the user submits.
+trailer inside every submission the user makes.
 
 ## Pre-flight
 
@@ -207,7 +207,7 @@ After the DCO capture step completes (or was skipped because
 `contributor.json` already exists), check for team context. This
 step is **inert for solo users** — when `<agntux project root>/.agntux/
 teams.json` is absent, no team_context is recorded and Stage 12 takes
-the public mailto path verbatim as today.
+the public submission path (finalize-for-sync) verbatim as today.
 
 1. Read `<agntux project root>/.agntux/teams.json`.
    - If the file is absent → solo path. **Do not write a
@@ -259,7 +259,7 @@ the public mailto path verbatim as today.
 
    - **Public path (solo or opt-out):** do not write `team_context`.
      The session JSON's `team_context` field remains absent — Stage
-     12 will read its absence as "take the mailto path".
+     12 will read its absence as "take the public submission path".
    - **Team path:** write
      ```json
      {

@@ -6,6 +6,72 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-27
+
+A live test run dead-ended at the very last step: agntux-build built a
+plugin, zipped it, and asked the user to email the zip to
+`plugins@agntux.ai` — and **Gmail blocked the attachment** ("does not
+allow this type of file … executables and archives"). For the
+non-technical contributors this plugin exists to serve, that's a wall.
+0.8.0 removes the zip-and-email channel entirely and replaces it with
+auto-sync through the AgntUX desktop app.
+
+### Changed
+
+- **Submission is now finalize-for-sync, not zip-and-email.** Stage 12
+  (`references/12-submit.md`) writes the contributor's
+  `CONTRIBUTING-SIGNATURE.md` into the plugin tree, guarantees the tree
+  sits in the synced
+  `<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`
+  location (copying out of a marketplace clone with the existing
+  exclude list when needed), then writes a `SUBMISSION.json`
+  finalization marker — last, atomically (tmp + rename) — as a sibling
+  of the plugin dir. The AgntUX desktop daemon already syncs the whole
+  `<agntux project root>/` tree to S3 (content-addressed by sha256), so
+  no upload code is needed: the marker carries each file's sha256 (the
+  S3 blob keys) plus a `tree_sha256` dedup key, the daemon detects it
+  and POSTs it to the web app, and the submission is recorded and
+  tracked through a `queued → processing → success | error` lifecycle.
+  There is **nothing for the contributor to download, attach, or
+  email.**
+- **Sync is hard-required.** Stage 12 checks that both
+  `<agntux project root>/.agntux/teams.json` and
+  `.agntux/daemon.lock` are present (the desktop app running and signed
+  in) before claiming success. If the app isn't active, the marker is
+  still written (it syncs the moment the app starts) but the flow tells
+  the user to start/sign into the AgntUX desktop app and stops — it
+  never claims a plugin was submitted when nothing can carry it.
+- `references/update-mode.md` stage 12 follows the same marker flow
+  with `mode: "update"` and a top-level `previous_version`, plus the
+  matching `submission.mode` / `submission.previous_version` in
+  `CONTRIBUTING-SIGNATURE.md`.
+- `SKILL.md` stage-12 routing row reworded from "zip once / email
+  `plugins@agntux.ai`" to the finalize-for-sync description.
+- Saved state's `submission` block drops `zip_path` / `draft_method` /
+  `draft_connector` and adds `marker_path`, `tree_sha256`, and
+  `sync_active`.
+
+### Removed
+
+- **The zip artefact and every email path.** Gone from stage 12: the
+  Cowork zip download card, `SUBMISSION-EMAIL.txt`, the
+  Gmail-compose / `mailto:` convenience links, the entire Step A–C
+  connector-detection email flow, and the cross-platform Downloads
+  path table. No plugin file is zipped anymore.
+
+### Why
+
+The built plugin files already live under `<agntux project root>/`,
+which the AgntUX desktop app syncs to S3 today (verified end-to-end:
+the daemon watches the whole tree and excludes only the exact
+`.agntux/` dir, so `.agntux-build/` is tracked). Routing submission
+through that existing sync channel removes the attachment-type block
+that dead-ended the email flow and makes submission a no-action step
+for the contributor. The S3-pull ingestion worker that opens the PR
+into the public marketplace is deliberately deferred — the recording
+and status endpoints are built so it just pulls the queue and patches
+status.
+
 ## [0.7.0] — 2026-05-27
 
 A live test of the `/agntux-build:build` flow in Cowork surfaced three

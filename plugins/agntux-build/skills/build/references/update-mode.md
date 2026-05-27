@@ -69,39 +69,25 @@ Update mode skips:
 
 ## Stage 12 in update mode
 
-The submission is a fix, not a new plugin. Use the **same Step A–C
-draft mechanism as 12-submit.md** — draft through an installed AgntUX
-email plugin's connector when one is available (Step B), else
-convenience links + copy-paste (Step C). Only the subject and body
-copy change; the same concise shape and the same parens-encode rule
-apply.
+The submission is a fix, not a new plugin, but it ships the same way:
+finalize the tree in the synced location and drop the marker. Follow
+12-submit.md's flow verbatim, with two update-mode differences in both
+the signature and the marker:
 
-Concise update body:
+- `mode: "update"`, and
+- `previous_version: {old-version}` alongside `plugin_version:
+  {new-version}`.
 
-```
-Subject: Update: agntux-{slug} v{new-version}
+`CONTRIBUTING-SIGNATURE.md` carries the same `submission.mode: "update"`
+and `submission.previous_version` fields, and the marker carries
+`mode` + `previous_version` at top level, so the maintainer's intake
+worker can match the fix to the existing plugin.
 
-Hi AgntUX team,
-
-Submitting a fix for agntux-{slug} (now v{new-version}, was v{old-version}).
-
-Reported issue: {paraphrased-issue-summary}
-Fix: {one-line summary of the change}
-
-Contributor: {name} <{email}>
-DCO: agreed to v1.1 on {date}
-
-Signed-off-by: {name} <{email}>
-```
-
-Same guardrail as create mode: **no schema, dry-run, view-tool, or
-payload detail** — the zip carries full detail; keep the body short so
-the Step C links don't bloat.
-
-The zip carries the same `CONTRIBUTING-SIGNATURE.md` shape as a new
-plugin, with `submission.mode: "update"` and a
-`submission.previous_version` field so the maintainer's intake script
-can match the fix to an existing plugin.
+The same hard-require sync check (12-submit.md step e) applies — if the
+AgntUX desktop app isn't running and signed in, write the marker but
+don't claim the fix was submitted. There's no email and nothing for the
+user to attach or send; the desktop app carries the fix to the team
+automatically.
 
 ## What to thank the user for at the end
 

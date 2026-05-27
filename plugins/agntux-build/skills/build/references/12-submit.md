@@ -6,18 +6,22 @@ the AgntUX maintainers, who will deploy it to the remote MCP server.
 Source plugins are remote-view-only — they have no local MCP server,
 and local install in Claude Cowork is broken for the view-tool path.
 The plugin's first real run is on the remote MCP server after the
-AgntUX team deploys it. The submission is therefore a handoff to
-`plugins@agntux.ai`: a draft email (composed through an installed
-AgntUX email plugin's connector when one is available, otherwise via
-convenience links and copy-paste) plus the zip the user attaches.
+AgntUX team deploys it.
 
-This is the **first and only time the plugin gets zipped.** Earlier
-stages iterate on the prompts in place; the zip is generated here, once,
-with the contributor's signature folded in.
+The handoff no longer goes by email, and there is no file for the user
+to download or attach. The built plugin files already live under
+`<agntux project root>/`, which the AgntUX desktop app syncs to the
+team automatically. Submitting is therefore three moves: write the
+contributor's signature into the plugin tree, make sure the tree sits
+in the synced location, then drop a small finalization marker the
+desktop app picks up and forwards. Nothing for the user to send.
 
-## Two artefacts to write
+Two things must be true before you claim success: the finalized tree is
+in the synced location (steps a–b), and the AgntUX desktop app is
+running and signed in (step e, the hard requirement). If the desktop
+app isn't active, do **not** tell the user the plugin was submitted.
 
-### 1. `CONTRIBUTING-SIGNATURE.md` at the plugin root
+## Artefact — `CONTRIBUTING-SIGNATURE.md` at the plugin root
 
 Read the contributor identity from
 `<agntux project root>/.agntux-build/contributor.json`. Compose:
@@ -88,83 +92,42 @@ By making a contribution to this project, I certify that:
     involved.
 ```
 
-Write to `{build-path}/CONTRIBUTING-SIGNATURE.md`.
+Write to `{build-path}/CONTRIBUTING-SIGNATURE.md` (the plugin root).
+This file now rides to S3 with the rest of the tree and remains the
+maintainer's commit-trailer source — the `Signed-off-by:` line a
+maintainer copies into the merge commit so Probot DCO passes on the
+public PR.
 
-### 2. The final zip (with the signature)
+## a. Resolve the synced submission path
 
-Re-run the view-tool build to make sure `dist/` is fresh, then zip the
-plugin tree into the user's Downloads folder. This is the **only** zip
-the flow produces — there is no earlier snapshot.
-
-**Build location** (cross-platform — pick the first that resolves):
-
-| Platform       | Path                                                       |
-|----------------|------------------------------------------------------------|
-| Linux (XDG)    | `$(xdg-user-dir DOWNLOAD)/agntux-{slug}-v{version}.zip`    |
-| macOS / Linux  | `$HOME/Downloads/agntux-{slug}-v{version}.zip`             |
-| Windows        | `%USERPROFILE%\Downloads\agntux-{slug}-v{version}.zip`     |
-| Fallback       | `$HOME/agntux-{slug}-v{version}.zip` (no Downloads dir)    |
-
-Resolution algorithm:
-
-1. On Linux, try `xdg-user-dir DOWNLOAD` (handles non-English locales
-   and custom XDG settings). If it succeeds AND the resolved directory
-   exists, use it.
-2. Else try `$HOME/Downloads` (macOS / Linux default) or
-   `%USERPROFILE%\Downloads` (Windows). If `existsSync` returns true,
-   use it.
-3. Else fall back to `$HOME` directly. Don't create `~/Downloads/` —
-   the user's filesystem layout is theirs to set; just put the zip
-   somewhere they can find it.
-
-The version is part of the filename, so re-running the build for a
-later version accumulates a paper trail in Downloads side-by-side
-rather than overwriting. The final filename:
+The submission tree lives at:
 
 ```
-agntux-{slug}-v{final-version}.zip
+<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/
 ```
 
-Don't write to `<agntux-root>/.agntux-build/submissions/` or any
-dot-folder — most users can't easily browse there. Session state still
-lives at `<agntux-root>/.agntux-build/sessions/`; the user-facing zip
-belongs in Downloads.
+Resolve `<agntux project root>` exactly as SKILL.md stage 0 does (read
+`process.cwd()`, walk up for an ancestor named `agntux`, fall back as
+documented there). `{session-id}` is the session timestamp
+(`YYYY-MM-DD-HHmmss`); `{slug}` is the connector slug. The marker
+(step d) is written one level up — a sibling of the `agntux-{slug}/`
+dir.
 
-**Zip contents** (mirror agntux-slack's shape), with
-`CONTRIBUTING-SIGNATURE.md` added at the plugin root:
+## b. Ensure the tree is in the synced location
 
-```
-agntux-{slug}/
-├── .claude-plugin/plugin.json
-├── LICENSE                           # Apache-2.0 (mirror of repo root)
-├── README.md
-├── CHANGELOG.md
-├── CONTRIBUTING-SIGNATURE.md         # written above, this stage
-├── package.json                      # plugin root manifest
-├── vitest.config.ts
-├── marketplace/
-│   ├── listing.yaml
-│   ├── icon.png
-│   └── screenshots/
-├── skills/
-│   └── {plugin-slug}/                # rendered ingest skill tree
-│       ├── SKILL.md
-│       ├── _overrides/
-│       └── reference/
-├── view-tool/                        # the only runtime surface
-│   ├── src/
-│   ├── dist/                         # built bundles (handler + ui-resources + manifest)
-│   ├── scripts/                      # emit-manifest.mjs
-│   ├── __tests__/                    # payload-shape.test.ts + any other regressions
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── tailwind.config.mjs           # when Tailwind is wired (canonical scaffold default)
-└── __tests__/                        # plugin-level cold-start, render-reproducibility, etc.
-```
+The build location varies. When a marketplace clone exists, the build
+may have run there; only the synced
+`<agntux project root>/.agntux-build/builds/{session-id}/…` path
+reaches S3. So:
 
-**Explicit excludes** (the zip must NOT contain these paths even if
-they exist on disk):
+- **Already under the agntux project root** (the normal end-user case)
+  → no-op.
+- **Ran in a marketplace clone** (the finalized tree is not under
+  `<agntux project root>/`) → copy the finalized tree into the synced
+  path above, applying the exclude list below.
+
+**Exclude list** — never copy these into the synced tree, even if they
+exist on disk:
 
 - `node_modules/`
 - `mcp-server/` — remote-view-only plugins ship none. The build
@@ -174,193 +137,151 @@ they exist on disk):
 - `.omc/`, `.git/`, `.DS_Store`
 - `NOTICE` — agntux-slack/gmail don't ship one; the Apache-2.0
   attribution lives in `LICENSE` alone.
-- `host-renderer/`, `test-harness/`, `agents/` — those are
-  agntux-build's own internals, never copied into a generated plugin.
+- `host-renderer/`, `test-harness/`, `agents/` — agntux-build's own
+  internals, never copied into a generated plugin.
 
-Use `node:fs/promises` to enumerate the build tree and a zip library
-(the host typically has `archiver` or similar — fall back to the `zip`
-shell command if needed).
+Keep `CONTRIBUTING-SIGNATURE.md` — it belongs in the synced tree.
 
-## The submission email — best-available draft, degrading cleanly
+Use `node:fs/promises` to enumerate and copy. After this step the
+finalized, signature-carrying tree is under
+`<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`.
 
-The recipient is always `plugins@agntux.ai`. How you get the email in
-front of the user depends on what's installed.
+## c. Build the file manifest
 
-**Empirical note (don't regress this):** a bare `mailto:` link can't be
-the primary path. macOS routes `mailto:` to its registered handler,
-which is commonly Chrome; Chrome with no mail web-handler registered
-shows "create an email?" and then dead-ends. Shortening or re-encoding
-the URL does not fix it — verified. `mailto:` only works for users
-whose handler is a native client (Apple Mail / Outlook). Anyone living
-in webmail hits a silent dead end. So `mailto:` is one fallback among
-several, never the lead.
-
-### The concise body (used everywhere)
-
-```
-Subject: New plugin: agntux-{slug} v{version}
-
-Hi AgntUX team,
-
-Submitting agntux-{slug} v{version} (created via agntux-build).
-
-What it does: {one-line tagline from listing.yaml}
-Connector: {connector-display-name}
-
-Contributor: {name} <{email}>
-DCO: agreed to v1.1 on {date}
-
-Signed-off-by: {name} <{email}>
-```
-
-**Do not add schema, dry-run, view-tool, or payload detail to the
-email** — the zip carries full detail; long bodies bloat the links and
-push webmail/`mailto:` URLs past length limits.
-
-### Step A — detect installed AgntUX email plugins
-
-Mirror agntux-core onboarding's detection idiom (see
-`plugins/agntux-core/skills/_preconditions.md` check 0.5):
-
-1. Resolve `mcp__plugins__list_plugins` via
-   `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
-   If it resolves, call it for the host's installed `{slug, marketplace}`
-   list. If it doesn't resolve, best-effort read
-   `~/.agntux/installed-plugins.json`. If neither yields a list, skip to
-   **Step C**.
-2. For each installed slug (excluding `agntux-core` / `agntux-build`),
-   best-effort read
-   `${CLAUDE_PLUGIN_ROOT}/../{slug}/marketplace/listing.yaml`. Classify
-   it as **email-draft-capable** when it has all three of:
-   - `categories` containing `communication`,
-   - a compose `ui_components` entry (a `view_tool` whose purpose
-     mentions draft/compose — e.g. `agntux_gmail_compose_view`), and
-   - `requires_source_mcp.connector_slug`.
-
-   Capture `connector_slug` + `display_name` (agntux-gmail → `gmail` /
-   "Gmail"). If a plugin is malformed or a field is missing, treat it as
-   not email-draft-capable and move on — never block on a parse error.
-
-### Step B — preferred path: draft through that plugin's connector
-
-If Step A found an email-draft-capable plugin:
-
-- **Do NOT invoke the plugin's compose view tool directly.**
-  `agntux_gmail_compose_view` reads an on-disk action file's
-  `## Compose payload` and is shaped for thread *replies*; using it
-  would force a write into the user's `data/` (against this skill's
-  "never write the user's data" rule). The view ultimately calls the
-  connector's create-draft tool — call that directly instead.
-- Resolve the connector's create-draft tool via `ToolSearch` keyed on
-  the display name (e.g. query `"{display_name} create draft"`; for
-  Gmail the host tool is `mcp__claude_ai_Gmail__create_draft`). Pick a
-  resolved tool whose name matches `create_draft` / `draft`.
-- **Confirm before mutating** (voice rule #5): "Want me to draft this in
-  your {display_name}? You'll review and send it yourself." On yes, call
-  create-draft with `to: plugins@agntux.ai`, the concise subject, and
-  the concise plain-text body (no URL encoding — it's a tool arg, not a
-  URL).
-- create-draft can't attach files (see "What you do NOT do" below), so
-  the zip is still attached by hand. Tell the user: "I've drafted it in
-  {display_name} — open Drafts, attach the zip (Show in Finder on the
-  card below), and Send."
-
-### Step C — fallback when no email plugin/connector is available
-
-Present these together, labelled, so the user picks whichever fits:
-
-- **Open in Gmail compose** —
-  `https://mail.google.com/mail/?view=cm&fs=1&to=plugins@agntux.ai&su={encoded-subject}&body={encoded-body}`
-  (works for browser Gmail users, no handler needed). *Verified working
-  in the test environment.*
-- **Open in your mail app** — the `mailto:` link:
-  `mailto:plugins@agntux.ai?subject={encoded-subject}&body={encoded-body}`
-  (works for native-client users).
-- **Copy & paste** — the `SUBMISSION-EMAIL.txt` card (same concise body)
-  plus the zip card.
-
-**Parens-encode rule (load-bearing — the link breaks otherwise):**
-`encodeURIComponent` leaves `(` and `)` raw, and a literal `)` ends a
-markdown link early. Encode every emitted link body and subject with:
+Enumerate every file in the synced plugin tree (after the copy, with
+excludes applied) and, for each, compute its sha256 over the exact file
+bytes plus its byte length. Those sha256 values **are** the
+content-addressed S3 blob keys the daemon syncs, so they must be the
+raw-bytes hash:
 
 ```js
-encodeURIComponent(s).replace(/\(/g, "%28").replace(/\)/g, "%29")
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+// per file — relative path prefixed by the plugin dir name:
+const buf = await readFile(absPath);
+const sha256 = createHash("sha256").update(buf).digest("hex");
+const bytes = buf.length;
+const path = `agntux-{slug}/${relPathWithinPluginDir}`;
 ```
 
-## Drop the zip + email body into chat as cards (Cowork)
+Then derive the tree hash over the sorted manifest — sort `files` by
+`path`, join `${path}\t${sha256}` lines with `\n`, and sha256 that
+string:
 
-Before printing the prose handoff, try to render the artefacts as
-inline cards so the user can see the zip download and grab the email
-body without leaving the chat. Write the email body to a file the host
-can present — **outside the build tree** so it never ends up inside
-the submission zip:
+```js
+const treeInput = files
+  .slice()
+  .sort((a, b) => a.path.localeCompare(b.path))
+  .map((f) => `${f.path}\t${f.sha256}`)
+  .join("\n");
+const tree_sha256 = createHash("sha256").update(treeInput).digest("hex");
+```
 
-1. Write the rendered email body (subject + body, plain text) to
-   `<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt`.
-   The same concise body the links carry, unencoded. Keep it readable —
-   it's the copy-paste fallback. **Never write this file under
-   `{build-path}`**; that tree gets zipped, and the email body must not
-   travel with the plugin.
-2. Resolve the tool:
-   `ToolSearch({query: "select:mcp__cowork__present_files", max_results: 1})`.
-3. On resolve, call:
-   ```
-   mcp__cowork__present_files({files: [
-     {file_path: "{absolute-zip-path}"},
-     {file_path: "<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt"}
-   ]})
-   ```
-   The zip renders as a download card with a **Show in Finder** button —
-   that's the affordance the user clicks to attach the file. `zip_path`
-   stays in saved-state JSON (internal only); it does NOT go in
-   user-facing copy.
-4. On no resolve, skip silently — Step C's links + copy-paste body
-   carry the handoff. **Don't narrate the failed lookup.**
+`tree_sha256` is the dedup key; its first 8 hex chars go into
+`submission_id`.
 
-## What you tell the user
+## d. Write the marker LAST, atomically
 
-What you show depends on which path Step A–C resolved.
+Only after every plugin file and `CONTRIBUTING-SIGNATURE.md` are on
+disk, write the marker to:
 
-**If Step B drafted through a connector:**
+```
+<agntux project root>/.agntux-build/builds/{session-id}/SUBMISSION.json
+```
 
-> {Name}, your plugin is packaged and I've drafted the submission email
-> in your {display_name}.
+— a **sibling of** the `agntux-{slug}/` dir, so the plugin tree stays
+pristine. Write **atomically**: write a temp file in the same directory
+(e.g. `SUBMISSION.json.tmp`), then `rename` it over the target. The
+rename is what makes the marker appear all-at-once, so the desktop
+watcher's `awaitWriteFinish` never reads a half-written file. This
+mirrors how `installed-plugins.json` is written.
+
+Schema:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "kind": "agntux-build.submission",
+  "status": "final",
+  "submission_id": "agntux-{slug}@{version}+{tree_sha256[:8]}",
+  "plugin_slug": "agntux-{slug}",
+  "plugin_version": "{final-version}",
+  "mode": "create | update",
+  "previous_version": "{only when mode=update}",
+  "session_id": "{YYYY-MM-DD-HHmmss}",
+  "build_root": "agntux-{slug}",
+  "agntux_build_version": "{agntux-build plugin.json version}",
+  "contributor": { "name": "...", "email": "..." },
+  "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "Name <email>" },
+  "submitted_at": "{iso}",
+  "tree_sha256": "{sha256 over sorted `path\\tsha256` lines}",
+  "files": [ { "path": "agntux-{slug}/.claude-plugin/plugin.json", "sha256": "...", "bytes": 630 } ]
+}
+```
+
+Notes:
+
+- `submission_id` = `agntux-{slug}@{final-version}+{tree_sha256[:8]}`.
+  It's the marker's primary key downstream and the idempotency key — a
+  re-sync or boot rescan re-POSTs the same id and the app dedupes.
+- `agntux_build_version` is this plugin's own version — read it from
+  `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
+- `previous_version` is present **only** when `mode` is `"update"`.
+- `files[].sha256` are the S3 blob keys; the manifest must cover every
+  file in the synced tree, including `CONTRIBUTING-SIGNATURE.md`.
+- `dco.*` come from `contributor.json` and the signature you just
+  wrote.
+
+## e. Hard-require sync (before claiming success)
+
+The marker is only meaningful if the desktop app is running to pick it
+up. Check **both** of these under the agntux project root:
+
+- `<agntux project root>/.agntux/teams.json` exists, **and**
+- `<agntux project root>/.agntux/daemon.lock` is present.
+
+**Both present** → the desktop daemon is active. The marker you wrote
+will sync to S3 and the desktop app forwards it to AgntUX. Show the
+success copy below.
+
+**Either missing** → do **not** claim the plugin was submitted. The
+marker stays on disk (harmless — it syncs the moment the app starts),
+but tell the user the AgntUX desktop app must be running and signed in,
+then stop:
+
+> {Name}, your plugin is finalized and ready — but it reaches the
+> AgntUX team through the AgntUX desktop app, and that app isn't
+> running (or isn't signed in) right now. Open the AgntUX desktop app
+> and sign in, then run `/agntux-build:build` again and I'll finish the
+> handoff. Nothing for you to download, attach, or send.
+
+## f. What you tell the user (success)
+
+No download, no attachment, no email. The desktop app carries the
+finalized plugin to the team on its own.
+
+**Create mode:**
+
+> {Name}, your plugin is finalized and on its way. The AgntUX desktop
+> app is syncing it to the team automatically — there's nothing for you
+> to attach or send.
 >
-> To send it: open your Drafts, click **Show in Finder** on the zip
-> below to grab the file, attach it, and Send. That's it.
+> The team will review it and follow up at {captured-email} with any
+> questions. Once it's deployed to the AgntUX remote MCP server, anyone
+> who installs `agntux-{slug}` gets the live view tools you designed.
 
-**If you're on the Step C fallback:**
+**Closing gratitude (create mode):**
 
-> {Name}, your plugin is packaged and ready. Pick whichever fits how you
-> do email:
->
-> - **Open in Gmail compose** — {gmail-compose-link}
-> - **Open in your mail app** — {mailto-link}
-> - **Copy & paste** — the email card below has the full text.
->
-> Then click **Show in Finder** on the zip below, attach it to the
-> email, and Send.
-
-## The closing
-
-Once the user confirms they sent the email:
-
-> Thank you, {captured-name}. **`agntux-{slug}` will help every
-> other AgntUX user who needs to bring {connector-display-name}
-> into AgntUX.** That's the whole point of doing this — and you
-> just did it.
->
-> The team will review the submission and post back at
-> {captured-email} with any questions. Once it's deployed to the
-> AgntUX remote MCP server, anyone who installs `agntux-{slug}`
-> will get the live view tools you designed.
+> Thank you, {captured-name}. **`agntux-{slug}` will help every other
+> AgntUX user who needs to bring {connector-display-name} into
+> AgntUX.** That's the whole point of doing this — and you just did it.
 
 In update mode, change the closing:
 
 > Thank you, {captured-name}. The fix is on its way to the team.
-> `agntux-{slug}` will be a better plugin for the people already
-> using it because of this — that's the whole point of doing this
-> in the open.
+> `agntux-{slug}` will be a better plugin for the people already using
+> it because of this — that's the whole point of doing this in the
+> open.
 
 ## Saved state at end of stage 12
 
@@ -369,59 +290,63 @@ In update mode, change the closing:
   ...,
   "submission": {
     "final_version": "0.1.0",
-    "zip_path": "/Users/.../Downloads/agntux-linear-v0.1.0.zip",
-    "signature_path": "/Users/.../agntux-linear/CONTRIBUTING-SIGNATURE.md",
-    "draft_method": "connector",
-    "draft_connector": "gmail",
+    "signature_path": "/Users/.../agntux-{slug}/CONTRIBUTING-SIGNATURE.md",
+    "marker_path": "/Users/.../.agntux-build/builds/{session-id}/SUBMISSION.json",
+    "tree_sha256": "{the tree hash}",
+    "sync_active": true,
     "mode": "create",
-    "submitted_at": "2026-05-08T..."
+    "submitted_at": "2026-05-27T..."
   },
   "session_status": "complete"
 }
 ```
 
-`draft_method` records which path Step A–C resolved: `"connector"` (Step
-B drafted through an installed email plugin — `draft_connector` names
-it, e.g. `"gmail"`), or `"links"` for the Step C fallback (no email
-plugin; the user got the Gmail-compose / `mailto:` / copy-paste set, and
-`draft_connector` is `null`).
+`sync_active` records the result of step e — `true` when both
+`teams.json` and `daemon.lock` were present (you showed the success
+copy), `false` when the desktop app wasn't active (you wrote the marker
+but stopped at the hard-require message). Don't surface `marker_path`
+or `tree_sha256` in user-facing copy; they're internal.
 
 ## What you do NOT do
 
-- Don't try to attach the zip programmatically. Connector create-draft
-  tools don't accept attachments, and even on the Step B path the user
-  attaches the zip by hand (Show in Finder on the card → attach → Send).
-  That's unavoidable and fine.
-- Don't lead with `mailto:`. It dead-ends for webmail users (macOS
-  routes it to Chrome, which has no mail web-handler). It's one Step C
-  fallback among several, never the primary path.
-- Don't emit a link without parens-encoding the subject and body
-  (`%28` / `%29`) — a raw `)` ends the markdown link early.
-- Don't include the contributor's email body verbatim — the body
-  is generated by you, with the contributor's identity merged in.
-- Don't write `CONTRIBUTING-SIGNATURE.md` outside the build tree
-  (e.g., at the contributor's project root) — it travels with the
-  plugin's zip, not with the user's local data.
-- Don't skip the closing thank-you. The whole flow has been
-  building toward this moment.
-- Don't enumerate the files in the zip, the specialists that ran,
-  the schema keys, or anything mechanical. The closing message is
-  for a non-technical contributor — high-level only. The session
-  file at `<agntux project root>/.agntux-build/sessions/{id}.json`
-  has all the detail; that's where it belongs.
+- Don't ask the user to download, attach, or send anything. The whole
+  point of this stage is that the desktop app does the delivery.
+- Don't claim the plugin was submitted when step e found the desktop
+  app inactive. Write the marker, then stop at the hard-require
+  message — an unsynced marker is not a submission.
+- Don't write `CONTRIBUTING-SIGNATURE.md` outside the build tree (e.g.,
+  at the contributor's project root). It travels with the plugin, not
+  with the user's local data.
+- Don't write the marker before the plugin files and signature are all
+  on disk, and never write it non-atomically — a half-written marker
+  trips the desktop watcher.
+- Don't put the marker inside `agntux-{slug}/`. It's a sibling of the
+  plugin dir so the tree stays pristine.
+- Don't skip the closing thank-you. The whole flow has been building
+  toward this moment.
+- Don't enumerate the files in the manifest, the specialists that ran,
+  the schema keys, or anything mechanical. The closing message is for a
+  non-technical contributor — high-level only. The session file at
+  `<agntux project root>/.agntux-build/sessions/{id}.json` has all the
+  detail; that's where it belongs.
 - Don't ask the user to install the plugin locally. Source plugins
-  can't run locally in Claude Cowork; their first real run is on
-  the remote MCP server after AgntUX deploys them.
+  can't run locally in Claude Cowork; their first real run is on the
+  remote MCP server after AgntUX deploys them.
 
-## Why this is enough for v1
+## Why this is enough
 
-- **Auditable**: every submission has a per-zip signature with
-  what version of the DCO was agreed to, when, and by whom.
-- **Maintainer-side enforcement**: the intake script can refuse
-  zips without `CONTRIBUTING-SIGNATURE.md` or with stale DCO
-  versions.
+- **Auditable**: every submission carries a `CONTRIBUTING-SIGNATURE.md`
+  with the DCO version agreed to, when, and by whom, plus a marker that
+  records the same in machine-readable form.
+- **Content-addressed**: the marker's `files[].sha256` are the exact S3
+  blob keys, so the maintainer side reconstructs the tree with no
+  re-upload and `tree_sha256` dedupes re-syncs.
+- **Maintainer-side enforcement**: the intake worker can refuse a
+  submission missing `CONTRIBUTING-SIGNATURE.md` or with a stale DCO
+  version.
 - **Probot-DCO-compatible**: when the maintainer commits, the
-  resulting commit's `Signed-off-by:` trailer (from the signature
-  file) passes Probot's check on the public PR.
-- **No new infra**: no submit backend, no auth layer, no database.
-  v1 ships email + zip + frontmatter.
+  `Signed-off-by:` trailer from the signature file passes Probot's
+  check on the public PR.
+- **No attachment channel to fail**: nothing is emailed and nothing is
+  attached, so the file-type blocks that dead-ended the old flow can't
+  happen.
