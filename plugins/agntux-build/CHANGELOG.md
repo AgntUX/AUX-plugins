@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-27
+
+A live test of the `/agntux-build:build` flow in Cowork surfaced three
+rough edges in the submission stages, all now fixed.
+
+### Added
+
+- **Connector-aware submission email.** Stage 12 now detects installed
+  AgntUX email plugins (via `mcp__plugins__list_plugins`, falling back
+  to `~/.agntux/installed-plugins.json`) and, when one is
+  email-draft-capable (a `communication`-category plugin with a compose
+  `ui_components` entry and a `requires_source_mcp.connector_slug`),
+  drafts the submission to `plugins@agntux.ai` directly through that
+  connector's create-draft tool (e.g. `mcp__claude_ai_Gmail__create_draft`)
+  after an explicit confirm. The contributor reviews and sends it
+  themselves. Mirrors agntux-core onboarding's plugin-detection idiom
+  (`skills/_preconditions.md` check 0.5).
+
+### Changed
+
+- **Zip once, at submission.** Removed the stage-9 snapshot zip
+  (`references/09-zip.md` deleted) — it was written right after the UI
+  build, *before* the stage-10 sync-iteration loop edited the prompts,
+  so the snapshot was stale the moment it was made. Stage 12 is now the
+  single place that zips, with the full cross-platform Downloads
+  resolution + contents tree + excludes recipe folded inline. Flow reads
+  8 → 9.5 → 10 → 12.
+- **No absolute zip path in user-facing copy.** Stage 12 relies on
+  Cowork's auto-rendered zip card and its **Show in Finder** button
+  instead of printing the path. `zip_path` stays in saved-state JSON
+  (internal only).
+- **Slimmer submission email.** Dropped the `View tools (N):` and
+  `Intercepted mutation payloads:` blocks from the body — the zip
+  carries full detail and long bodies bloat the convenience links. Body
+  is now a short plugin summary + contributor info + DCO sign-off.
+- **Convenience links degrade cleanly and encode parens.** When no email
+  plugin is installed, stage 12 presents an Open-in-Gmail-compose link, a
+  `mailto:` link, and the copy-paste `SUBMISSION-EMAIL.txt` card
+  together. Emitted links now encode `(`/`)` as `%28`/`%29` (a raw `)`
+  ends a markdown link early). Recorded empirically: `mailto:` dead-ends
+  for webmail users (macOS routes it to Chrome, which has no mail
+  web-handler registered), so it can never be the primary path — it's
+  one fallback among several.
+- `references/update-mode.md` aligned to the same concise body and the
+  same Step A–C draft mechanism.
+
 ## [0.6.1] — 2026-05-25
 
 ### Changed

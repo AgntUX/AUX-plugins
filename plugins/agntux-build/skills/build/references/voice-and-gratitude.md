@@ -53,17 +53,14 @@ frustrating"). State it, redirect to issues, move on.
 
 ## What to say before tedious work
 
-The two genuinely tedious things this flow asks of the user:
+The one genuinely tedious thing this flow asks of the user:
 
-1. **Stage 9 — install the zip.** Eight clicks in Claude Desktop
-   (Customize → "+" beside Personal Plugins → hover Create plugin →
-   Upload plugin → drag the zip → click "+" to install). Don't skip
-   any.
-2. **Stage 10 — sync iteration.** Run `/agntux-{slug} sync` in
-   Cowork, wait for the run to finish, **expand every collapsed
-   section** (Used a skill / Result / Running command / Script / Show
-   more / connector tool Result), highlight everything top-to-bottom,
-   paste back to Claude Code. Repeat 3 to 5 times.
+1. **Stage 10 — sync iteration.** We pull the user's real source data
+   right in the chat and walk through what their plugin's sync would
+   produce — round by round, what looks right and what doesn't.
+   Analyze-only: nothing gets written to their data store. It usually
+   takes 3 to 5 rounds, and that repetition is the point, not a sign
+   of failure.
 
 Front-load the **why** before asking:
 

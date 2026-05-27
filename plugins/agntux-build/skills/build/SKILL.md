@@ -56,10 +56,9 @@ prior runs — re-load the resource so per-stage updates apply.
 | 6 | After UI scope is confirmed | [`references/06-design-and-preview.md`](references/06-design-and-preview.md) |
 | 7 | After preview iterations look right | [`references/07-build.md`](references/07-build.md) |
 | 8 | After build completes | [`references/08-headless-test.md`](references/08-headless-test.md) |
-| 9 | After headless tests pass | [`references/09-zip.md`](references/09-zip.md) |
-| 9.5 | After the snapshot zip lands in Downloads. Synthesizes a test personalization context (shipped persona + source plugin's listing.yaml metadata) so stage 10 has realistic inputs. No interview of the contributor; nothing written to disk. | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
+| 9.5 | After headless tests pass. Synthesizes a test personalization context (shipped persona + source plugin's listing.yaml metadata) so stage 10 has realistic inputs. No interview of the contributor; nothing written to disk. | [`references/09a-onboarding-iterate.md`](references/09a-onboarding-iterate.md) |
 | 10 | After stage 9.5 leaves the synthesized personalization in conversation context. Build skill drives sync against on-disk rendered prompts and real source data in **analyze-only** mode — pulls data, runs compose logic, emits would-write tables. No install, no scratch dir, no writes to the user's `data/`. | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
-| 12 | After sync iterations converge — generate signature, re-zip, hand off via `mailto:plugins@agntux.ai`. Source plugins can't run locally in Claude Cowork; first real run happens on the remote MCP server after AgntUX deploys. | [`references/12-submit.md`](references/12-submit.md) |
+| 12 | After sync iterations converge — generate signature, zip once, and hand the submission to `plugins@agntux.ai` via an installed AgntUX email plugin's connector when present (else convenience links + copy-paste). Source plugins can't run locally in Claude Cowork; first real run happens on the remote MCP server after AgntUX deploys. | [`references/12-submit.md`](references/12-submit.md) |
 
 [`references/update-mode.md`](references/update-mode.md) is loaded
 from stage 2 when the user reports an issue with an existing plugin.

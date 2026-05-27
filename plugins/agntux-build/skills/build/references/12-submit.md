@@ -6,8 +6,14 @@ the AgntUX maintainers, who will deploy it to the remote MCP server.
 Source plugins are remote-view-only — they have no local MCP server,
 and local install in Claude Cowork is broken for the view-tool path.
 The plugin's first real run is on the remote MCP server after the
-AgntUX team deploys it. The submission is therefore a one-step
-`mailto:` handoff plus a zip the user drags into the email.
+AgntUX team deploys it. The submission is therefore a handoff to
+`plugins@agntux.ai`: a draft email (composed through an installed
+AgntUX email plugin's connector when one is available, otherwise via
+convenience links and copy-paste) plus the zip the user attaches.
+
+This is the **first and only time the plugin gets zipped.** Earlier
+stages iterate on the prompts in place; the zip is generated here, once,
+with the contributor's signature folded in.
 
 ## Two artefacts to write
 
@@ -86,37 +92,111 @@ Write to `{build-path}/CONTRIBUTING-SIGNATURE.md`.
 
 ### 2. The final zip (with the signature)
 
-Re-run the view-tool build to make sure `dist/` is fresh, then re-zip
-the plugin tree into the user's Downloads folder. Use the **same
-cross-platform resolution algorithm documented in `09-zip.md →
-Generate the zip`** — Linux `xdg-user-dir DOWNLOAD` first, then
-`$HOME/Downloads` / `%USERPROFILE%\Downloads` if it exists, falling
-back to `$HOME`.
+Re-run the view-tool build to make sure `dist/` is fresh, then zip the
+plugin tree into the user's Downloads folder. This is the **only** zip
+the flow produces — there is no earlier snapshot.
 
-The final filename:
+**Build location** (cross-platform — pick the first that resolves):
+
+| Platform       | Path                                                       |
+|----------------|------------------------------------------------------------|
+| Linux (XDG)    | `$(xdg-user-dir DOWNLOAD)/agntux-{slug}-v{version}.zip`    |
+| macOS / Linux  | `$HOME/Downloads/agntux-{slug}-v{version}.zip`             |
+| Windows        | `%USERPROFILE%\Downloads\agntux-{slug}-v{version}.zip`     |
+| Fallback       | `$HOME/agntux-{slug}-v{version}.zip` (no Downloads dir)    |
+
+Resolution algorithm:
+
+1. On Linux, try `xdg-user-dir DOWNLOAD` (handles non-English locales
+   and custom XDG settings). If it succeeds AND the resolved directory
+   exists, use it.
+2. Else try `$HOME/Downloads` (macOS / Linux default) or
+   `%USERPROFILE%\Downloads` (Windows). If `existsSync` returns true,
+   use it.
+3. Else fall back to `$HOME` directly. Don't create `~/Downloads/` —
+   the user's filesystem layout is theirs to set; just put the zip
+   somewhere they can find it.
+
+The version is part of the filename, so re-running the build for a
+later version accumulates a paper trail in Downloads side-by-side
+rather than overwriting. The final filename:
 
 ```
 agntux-{slug}-v{final-version}.zip
 ```
 
-This is a **new zip** — keep the prior iteration zips around in
-Downloads so the user has a paper trail of versions. The
-version-stamped filename means snapshots accumulate naturally without
-overwriting. If the version didn't bump from the stage-9 snapshot,
-fall back to `agntux-{slug}-v{final-version}-final.zip` rather than
-overwriting.
+Don't write to `<agntux-root>/.agntux-build/submissions/` or any
+dot-folder — most users can't easily browse there. Session state still
+lives at `<agntux-root>/.agntux-build/sessions/`; the user-facing zip
+belongs in Downloads.
 
-The contents match the shape documented in `09-zip.md` (no
-`mcp-server/`, no `hooks/`, no `NOTICE`, no `.mcp.json`) with
-`CONTRIBUTING-SIGNATURE.md` added at the plugin root.
+**Zip contents** (mirror agntux-slack's shape), with
+`CONTRIBUTING-SIGNATURE.md` added at the plugin root:
 
-## The mailto link
+```
+agntux-{slug}/
+├── .claude-plugin/plugin.json
+├── LICENSE                           # Apache-2.0 (mirror of repo root)
+├── README.md
+├── CHANGELOG.md
+├── CONTRIBUTING-SIGNATURE.md         # written above, this stage
+├── package.json                      # plugin root manifest
+├── vitest.config.ts
+├── marketplace/
+│   ├── listing.yaml
+│   ├── icon.png
+│   └── screenshots/
+├── skills/
+│   └── {plugin-slug}/                # rendered ingest skill tree
+│       ├── SKILL.md
+│       ├── _overrides/
+│       └── reference/
+├── view-tool/                        # the only runtime surface
+│   ├── src/
+│   ├── dist/                         # built bundles (handler + ui-resources + manifest)
+│   ├── scripts/                      # emit-manifest.mjs
+│   ├── __tests__/                    # payload-shape.test.ts + any other regressions
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── tailwind.config.mjs           # when Tailwind is wired (canonical scaffold default)
+└── __tests__/                        # plugin-level cold-start, render-reproducibility, etc.
+```
 
-Generate a `mailto:` URL with the body pre-filled. Print as a markdown
-link directly (or use `mcp__claude_preview__preview_start` if
-available).
+**Explicit excludes** (the zip must NOT contain these paths even if
+they exist on disk):
 
-**Create mode body:**
+- `node_modules/`
+- `mcp-server/` — remote-view-only plugins ship none. The build
+  already rejected in stage 7 if present.
+- `hooks/` — same.
+- `.mcp.json` — same.
+- `.omc/`, `.git/`, `.DS_Store`
+- `NOTICE` — agntux-slack/gmail don't ship one; the Apache-2.0
+  attribution lives in `LICENSE` alone.
+- `host-renderer/`, `test-harness/`, `agents/` — those are
+  agntux-build's own internals, never copied into a generated plugin.
+
+Use `node:fs/promises` to enumerate the build tree and a zip library
+(the host typically has `archiver` or similar — fall back to the `zip`
+shell command if needed).
+
+## The submission email — best-available draft, degrading cleanly
+
+The recipient is always `plugins@agntux.ai`. How you get the email in
+front of the user depends on what's installed.
+
+**Empirical note (don't regress this):** a bare `mailto:` link can't be
+the primary path. macOS routes `mailto:` to its registered handler,
+which is commonly Chrome; Chrome with no mail web-handler registered
+shows "create an email?" and then dead-ends. Shortening or re-encoding
+the URL does not fix it — verified. `mailto:` only works for users
+whose handler is a native client (Apple Mail / Outlook). Anyone living
+in webmail hits a silent dead end. So `mailto:` is one fallback among
+several, never the lead.
+
+### The concise body (used everywhere)
+
 ```
 Subject: New plugin: agntux-{slug} v{version}
 
@@ -124,56 +204,87 @@ Hi AgntUX team,
 
 Submitting agntux-{slug} v{version} (created via agntux-build).
 
-Plugin: agntux-{slug}
-What it does: {one-sentence-from-listing-yaml-tagline}
+What it does: {one-line tagline from listing.yaml}
 Connector: {connector-display-name}
-Sync cadence: {recommended-cadence}
-View tools ({N}):
-  - {view-tool-name-1} ({verb-phrase-1})
-  - {view-tool-name-2} ({verb-phrase-2})
-  - …
 
-Intercepted mutation payloads (from stage 6 preview):
-  - {tool-1}: {sample-args-json}
-  - {tool-2}: {sample-args-json}
+Contributor: {name} <{email}>
+DCO: agreed to v1.1 on {date}
 
-Contributor: {captured-name} <{captured-email}>
-DCO: agreed to v1.1 on {dco_agreed_at-date}
-
-Signed-off-by: {captured-name} <{captured-email}>
-
---
-Generated by agntux-build/{plugin-version}
+Signed-off-by: {name} <{email}>
 ```
 
-(For read-only sources with no view tools, replace the
-`View tools (N):` block with `View tools: none — read-only source,
-sync only.` and omit the intercepted-payloads block.)
+**Do not add schema, dry-run, view-tool, or payload detail to the
+email** — the zip carries full detail; long bodies bloat the links and
+push webmail/`mailto:` URLs past length limits.
 
-**Update mode body:**
-```
-Subject: Update: agntux-{slug} v{new-version}
+### Step A — detect installed AgntUX email plugins
 
-Hi AgntUX team,
+Mirror agntux-core onboarding's detection idiom (see
+`plugins/agntux-core/skills/_preconditions.md` check 0.5):
 
-Submitting a fix for agntux-{slug} (now v{new-version}, was v{old-version}).
+1. Resolve `mcp__plugins__list_plugins` via
+   `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`.
+   If it resolves, call it for the host's installed `{slug, marketplace}`
+   list. If it doesn't resolve, best-effort read
+   `~/.agntux/installed-plugins.json`. If neither yields a list, skip to
+   **Step C**.
+2. For each installed slug (excluding `agntux-core` / `agntux-build`),
+   best-effort read
+   `${CLAUDE_PLUGIN_ROOT}/../{slug}/marketplace/listing.yaml`. Classify
+   it as **email-draft-capable** when it has all three of:
+   - `categories` containing `communication`,
+   - a compose `ui_components` entry (a `view_tool` whose purpose
+     mentions draft/compose — e.g. `agntux_gmail_compose_view`), and
+   - `requires_source_mcp.connector_slug`.
 
-Reported issue: {paraphrased-issue-summary-from-update-mode}
-Fix: {one-sentence-summary-of-the-change}
+   Capture `connector_slug` + `display_name` (agntux-gmail → `gmail` /
+   "Gmail"). If a plugin is malformed or a field is missing, treat it as
+   not email-draft-capable and move on — never block on a parse error.
 
-Contributor: {captured-name} <{captured-email}>
-DCO: agreed to v1.1 on {dco_agreed_at-date}
+### Step B — preferred path: draft through that plugin's connector
 
-Signed-off-by: {captured-name} <{captured-email}>
+If Step A found an email-draft-capable plugin:
 
---
-Generated by agntux-build/{plugin-version}
-```
+- **Do NOT invoke the plugin's compose view tool directly.**
+  `agntux_gmail_compose_view` reads an on-disk action file's
+  `## Compose payload` and is shaped for thread *replies*; using it
+  would force a write into the user's `data/` (against this skill's
+  "never write the user's data" rule). The view ultimately calls the
+  connector's create-draft tool — call that directly instead.
+- Resolve the connector's create-draft tool via `ToolSearch` keyed on
+  the display name (e.g. query `"{display_name} create draft"`; for
+  Gmail the host tool is `mcp__claude_ai_Gmail__create_draft`). Pick a
+  resolved tool whose name matches `create_draft` / `draft`.
+- **Confirm before mutating** (voice rule #5): "Want me to draft this in
+  your {display_name}? You'll review and send it yourself." On yes, call
+  create-draft with `to: plugins@agntux.ai`, the concise subject, and
+  the concise plain-text body (no URL encoding — it's a tool arg, not a
+  URL).
+- create-draft can't attach files (see "What you do NOT do" below), so
+  the zip is still attached by hand. Tell the user: "I've drafted it in
+  {display_name} — open Drafts, attach the zip (Show in Finder on the
+  card below), and Send."
 
-Recipient: `plugins@agntux.ai`. Build the URL:
+### Step C — fallback when no email plugin/connector is available
 
-```
-mailto:plugins@agntux.ai?subject={url-encoded-subject}&body={url-encoded-body}
+Present these together, labelled, so the user picks whichever fits:
+
+- **Open in Gmail compose** —
+  `https://mail.google.com/mail/?view=cm&fs=1&to=plugins@agntux.ai&su={encoded-subject}&body={encoded-body}`
+  (works for browser Gmail users, no handler needed). *Verified working
+  in the test environment.*
+- **Open in your mail app** — the `mailto:` link:
+  `mailto:plugins@agntux.ai?subject={encoded-subject}&body={encoded-body}`
+  (works for native-client users).
+- **Copy & paste** — the `SUBMISSION-EMAIL.txt` card (same concise body)
+  plus the zip card.
+
+**Parens-encode rule (load-bearing — the link breaks otherwise):**
+`encodeURIComponent` leaves `(` and `)` raw, and a literal `)` ends a
+markdown link early. Encode every emitted link body and subject with:
+
+```js
+encodeURIComponent(s).replace(/\(/g, "%28").replace(/\)/g, "%29")
 ```
 
 ## Drop the zip + email body into chat as cards (Cowork)
@@ -186,11 +297,10 @@ the submission zip:
 
 1. Write the rendered email body (subject + body, plain text) to
    `<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt`.
-   The same body that goes into the `mailto:` URL, unencoded. Keep
-   it readable — it's the fallback if the user's `mailto:` handler
-   is misconfigured. **Never write this file under `{build-path}`**;
-   that tree gets zipped, and the email body must not travel with
-   the plugin.
+   The same concise body the links carry, unencoded. Keep it readable —
+   it's the copy-paste fallback. **Never write this file under
+   `{build-path}`**; that tree gets zipped, and the email body must not
+   travel with the plugin.
 2. Resolve the tool:
    `ToolSearch({query: "select:mcp__cowork__present_files", max_results: 1})`.
 3. On resolve, call:
@@ -200,30 +310,36 @@ the submission zip:
      {file_path: "<agntux project root>/.agntux-build/sessions/{session-id}/SUBMISSION-EMAIL.txt"}
    ]})
    ```
-4. On no resolve, skip silently — the prose below carries the path
-   and the mailto link. **Don't narrate the failed lookup.**
-
-The cards don't replace the drag-and-drop step — chat cards can't be
-dragged into a third-party mail client window — so the absolute zip
-path stays in the prose either way. The cards are supplementary:
-visual confirmation, a one-click download of the email body if the
-`mailto:` link fires into a browser tab they can't easily edit.
+   The zip renders as a download card with a **Show in Finder** button —
+   that's the affordance the user clicks to attach the file. `zip_path`
+   stays in saved-state JSON (internal only); it does NOT go in
+   user-facing copy.
+4. On no resolve, skip silently — Step C's links + copy-paste body
+   carry the handoff. **Don't narrate the failed lookup.**
 
 ## What you tell the user
 
-> {Name}, your plugin is packaged and ready.
+What you show depends on which path Step A–C resolved.
+
+**If Step B drafted through a connector:**
+
+> {Name}, your plugin is packaged and I've drafted the submission email
+> in your {display_name}.
 >
-> Final zip: **{absolute-zip-path}**
+> To send it: open your Drafts, click **Show in Finder** on the zip
+> below to grab the file, attach it, and Send. That's it.
+
+**If you're on the Step C fallback:**
+
+> {Name}, your plugin is packaged and ready. Pick whichever fits how you
+> do email:
 >
-> Two steps to send it:
+> - **Open in Gmail compose** — {gmail-compose-link}
+> - **Open in your mail app** — {mailto-link}
+> - **Copy & paste** — the email card below has the full text.
 >
-> 1. **Click this link** to open a new email — subject and body
->    are filled in for you:
->    {mailto-link}
-> 2. **Drag the zip from {zip-path} into the email window** to
->    attach it, then click Send.
->
-> That's it.
+> Then click **Show in Finder** on the zip below, attach it to the
+> email, and Send.
 
 ## The closing
 
@@ -255,7 +371,8 @@ In update mode, change the closing:
     "final_version": "0.1.0",
     "zip_path": "/Users/.../Downloads/agntux-linear-v0.1.0.zip",
     "signature_path": "/Users/.../agntux-linear/CONTRIBUTING-SIGNATURE.md",
-    "mailto_link": "mailto:plugins@agntux.ai?...",
+    "draft_method": "connector",
+    "draft_connector": "gmail",
     "mode": "create",
     "submitted_at": "2026-05-08T..."
   },
@@ -263,12 +380,23 @@ In update mode, change the closing:
 }
 ```
 
+`draft_method` records which path Step A–C resolved: `"connector"` (Step
+B drafted through an installed email plugin — `draft_connector` names
+it, e.g. `"gmail"`), or `"links"` for the Step C fallback (no email
+plugin; the user got the Gmail-compose / `mailto:` / copy-paste set, and
+`draft_connector` is `null`).
+
 ## What you do NOT do
 
-- Don't try to attach the zip programmatically. The Gmail MCP
-  schema explicitly says draft creation with attachments isn't
-  supported, and we can't assume the user has Gmail MCP connected
-  anyway. The drag-and-drop is unavoidable and fine.
+- Don't try to attach the zip programmatically. Connector create-draft
+  tools don't accept attachments, and even on the Step B path the user
+  attaches the zip by hand (Show in Finder on the card → attach → Send).
+  That's unavoidable and fine.
+- Don't lead with `mailto:`. It dead-ends for webmail users (macOS
+  routes it to Chrome, which has no mail web-handler). It's one Step C
+  fallback among several, never the primary path.
+- Don't emit a link without parens-encoding the subject and body
+  (`%28` / `%29`) — a raw `)` ends the markdown link early.
 - Don't include the contributor's email body verbatim — the body
   is generated by you, with the contributor's identity merged in.
 - Don't write `CONTRIBUTING-SIGNATURE.md` outside the build tree

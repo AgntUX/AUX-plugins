@@ -194,7 +194,7 @@ directly from this conversation.
    contributor accepted, skipped, or the synthesis converged cleanly
    on the first try. A resume that finds `onboarding_mode:
    "synthesized"` and no `sync_test_skipped` falls forward to Stage 10;
-   a resume with `sync_test_skipped: true` falls forward to Stage 11.
+   a resume with `sync_test_skipped: true` falls forward to Stage 12.
 
 ## What's deliberately not here
 

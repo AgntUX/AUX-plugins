@@ -82,7 +82,6 @@ describe("agntux-build cold start", () => {
       "06-design-and-preview.md",
       "07-build.md",
       "08-headless-test.md",
-      "09-zip.md",
       "09a-onboarding-iterate.md",
       "10-sync-iterate.md",
       // No stage 11 — the "first real install walk" is gone. Claude
