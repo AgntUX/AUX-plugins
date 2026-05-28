@@ -15,3 +15,4 @@ export { ScrollablePanel, } from "./scrollable-panel.js";
 export { Spinner } from "./spinner.js";
 export { detectErrorEnvelope } from "./detect-error-envelope.js";
 export { daysSince, formatTime, safeArray, safeBoolean, safeDate, safeEnum, safeNumber, safeObject, safeString, } from "./safe-accessors.js";
+export { assertStructuredContent } from "./assert-structured-content.js";
