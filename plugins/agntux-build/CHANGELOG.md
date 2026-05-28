@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-05-28
+
+Doc/prompt cleanups surfaced by the 0.12.0 review — no behaviour change to the
+build flow's public surface.
+
+### Changed
+- **License is Apache-2.0, not ELv2.** `manifest-author.md`'s `plugin.json`
+  example + prose and `release-checker.md`'s README template / checklist now say
+  `Apache-2.0` (matching the marketplace relicensing); the stale ELv2
+  managed-service / hook-bypass checklist item is replaced with the Apache-2.0
+  `NOTICE`-retention requirement.
+- **Dropped references to the retired `agents/ui-handlers/{name}.md` operational
+  manifest.** `manifest-author.md` (intent naming), `draft-flow-author.md`
+  (§2 + verify), and `tests-author.md` (the `connector-envelope.test.ts`
+  example, which used to parse the now-deleted manifest YAML) now point at the
+  view-tool envelope builder (`view-tool/src/.../build-envelope.ts`) — the
+  current home of the connector-targeted intent contract since source plugins
+  moved to the view-only shape.
+
 ## [0.12.0] — 2026-05-28
 
 Build-time self-validation. v1 told Claude what to do in prose and hoped; v2

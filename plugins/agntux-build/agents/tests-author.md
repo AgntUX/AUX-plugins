@@ -27,7 +27,7 @@ committed example fixtures are structurally clean.
 | `render-reproducibility.test.ts` | yes (when the plugin renders from canonical) | Re-runs `node scripts/render-skill.mjs {slug}` and diffs against the committed tree. Catches the "edited the rendered file by hand instead of editing the override" regression. Coordinate with `ingest-prompt-author`. |
 | `cursor-map.test.ts` | no | Source has structured cursor (per-channel JSON map, GDrive per-folder map). Coordinate with `source-semantics-advisor`. |
 | `thread-association.test.ts` | no | Source has threads / parent-child messages. Coordinate with `source-semantics-advisor`. |
-| `connector-envelope.test.ts` | recommended | Source has a UI handler that emits connector-targeted send envelopes (the modern default per `draft-flow-author.md` §1). Asserts handler manifest `follow_up_intents` are non-empty for connector-direct plugins. Coordinate with `draft-flow-author`. |
+| `connector-envelope.test.ts` | recommended | Source has a UI handler that emits connector-targeted send envelopes (the modern default per `draft-flow-author.md` §1). Asserts the view-tool's envelope builder emits a connector-targeted envelope. Coordinate with `draft-flow-author`. |
 | `error-envelope.test.ts` | recommended | Plugin ships a UI handler. Asserts the iframe surfaces runtime error envelopes (rate limit, auth failure, upstream 5xx) cleanly. |
 | `draft-flow.test.ts` | LEGACY — only when the source is chat-only with no UI handler | Source has write tools AND the plugin ships `skills/draft/SKILL.md` (the legacy chat-confirm-then-write skill). Most modern plugins ship a UI handler instead and use `connector-envelope.test.ts` above. Coordinate with `draft-flow-author`. |
 | `idempotent.test.ts` | recommended | Asserts dedup mechanisms in the prompt + structural cleanliness of fixtures. |
@@ -221,39 +221,55 @@ Asserts the thread invariants:
 ## `connector-envelope.test.ts` (when the source has a UI handler)
 
 The modern default for any source plugin shipping a UI handler with a
-Send-style commit button (per `draft-flow-author.md` §1). Asserts the
-operational manifest's intent declarations are present and non-empty:
+Send-style commit button (per `draft-flow-author.md` §1). The old
+`agents/ui-handlers/{name}.md` operational manifest is **retired**, so this no
+longer parses manifest YAML — it asserts the view-tool's envelope builder emits
+a connector-targeted envelope. (The behavioral coverage is the view-tool's own
+`view-tool/src/.../__tests__/lib/build-envelope.test.ts`, e.g. agntux-slack's;
+this plugin-level test is the static-grep backstop.)
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
 
 const PLUGIN_ROOT = join(__dirname, "..");
 
-describe("connector-envelope intent declarations", () => {
-  it("compose handler declares connector-targeted follow_up_intents", () => {
-    const md = readFileSync(
-      join(PLUGIN_ROOT, "agents/ui-handlers/compose.md"),
-      "utf-8",
-    );
-    // Extract YAML frontmatter
-    const m = md.match(/^---\n([\s\S]+?)\n---/);
-    expect(m).not.toBeNull();
-    const fm = parseYaml(m![1]) as { operational?: { follow_up_intents?: string[] } };
-    const intents = fm.operational?.follow_up_intents ?? [];
-    expect(intents.length).toBeGreaterThan(0);
-    // At least one intent uses the {source}-connector-{verb} shape
-    expect(intents.some((k) => /-connector-/.test(k))).toBe(true);
+/** Find the view-tool envelope builder(s) — path varies by plugin shape. */
+function envelopeBuilders(root: string): string[] {
+  const out: string[] = [];
+  function walk(dir: string) {
+    if (!existsSync(dir)) return;
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name === "node_modules" || ent.name === "__tests__") continue;
+        walk(full);
+      } else if (/build-envelope\.ts$/.test(ent.name)) {
+        out.push(full);
+      }
+    }
+  }
+  walk(join(root, "view-tool", "src"));
+  return out;
+}
+
+describe("connector-envelope dispatch", () => {
+  it("ships a view-tool envelope builder that targets the connector directly", () => {
+    const builders = envelopeBuilders(PLUGIN_ROOT);
+    expect(builders.length).toBeGreaterThan(0);
+    const src = builders.map((f) => readFileSync(f, "utf-8")).join("\n");
+    // Connector-direct dispatch: the envelope addresses the user's connector
+    // (the {source}-connector-{verb} shape) and suppresses the connector's
+    // native UI. At least one anchor must be present.
+    expect(/-connector-|Connector to|NO_NATIVE_UI/.test(src)).toBe(true);
   });
 });
 ```
 
-Adjust the handler filename / connector-name for your source. The
-naming convention (`{source}-connector-{verb}` for connector-direct
-envelopes; `{verb}-{adjective}-local` for pure local actions) is owned
-by `manifest-author` § "Connector-targeted intent naming".
+Adjust for your source. The naming convention (`{source}-connector-{verb}`
+for connector-direct envelopes; `{verb}-{adjective}-local` for pure local
+actions) is owned by `manifest-author` § "Connector-targeted intent naming".
 
 ## `error-envelope.test.ts` (when the plugin ships a UI handler)
 
