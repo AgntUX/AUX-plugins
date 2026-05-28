@@ -26,7 +26,7 @@ Authored shape (modelled on `agntux-slack/README.md`):
   (`lib/public-key.mjs`, `lib/agntux-plugins.mjs`). Format from
   `agntux-slack/README.md`.
 - `## License` — single line:
-  `Elastic License v2 (ELv2). See LICENSE for details.`
+  `Apache License 2.0 (Apache-2.0). See LICENSE for details.`
 - `## Support` — link to GitHub issues filtered by the plugin's label.
 
 Length: keep under 500 lines (warning W01 fires above; not a hard
@@ -142,7 +142,7 @@ checklist by hand:
 - [ ] `recommended_ingest_cadence` is set to a non-empty string
   (ingest plugins only). The field is free-form — any phrasing that
   describes the author's intended sync cadence is acceptable.
-- [ ] ELv2 `LICENSE` stub present and unmodified.
+- [ ] Apache-2.0 `LICENSE` present and matches the root `LICENSE`.
 - [ ] For any plugin requiring `agntux-core`: `proposed_schema` block
   is present with at least one `entity_subtype` and one `action_class`.
   (The linter's E14 rule still keys off the legacy `*-ingest` suffix
@@ -181,8 +181,9 @@ checklist by hand:
 - [ ] Coordinated `agntux-core` changes are in the same PR or a linked
   sibling PR (delegate to `invariant-checker`).
 - [ ] Version bump matches the rubric (§3).
-- [ ] ELv2 limitations respected: no managed-service offering, no hook
-  bypass, no notice removal.
+- [ ] `NOTICE` retained alongside `LICENSE` (Apache-2.0 §4(d)). Apache-2.0
+  imposes no usage restrictions — the old ELv2 managed-service / hook-bypass
+  limitations no longer apply.
 
 ## Three quick scripts to run
 

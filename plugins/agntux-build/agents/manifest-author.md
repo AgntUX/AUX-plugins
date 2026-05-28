@@ -307,7 +307,7 @@ update.
   "version": "0.1.0",
   "description": "Linear issues and projects in your AgntUX knowledge store.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
-  "license": "ELv2",
+  "license": "Apache-2.0",
   "recommended_ingest_cadence": "Daily 09:00"
 }
 ```
@@ -320,7 +320,7 @@ update.
 - `description` — one sentence; the host shows this in its plugin
   manager.
 - `author` — `{name, email}`.
-- `license` — always `"ELv2"` for this marketplace.
+- `license` — always `"Apache-2.0"` (SPDX) for this marketplace.
 
 ### The single permitted custom field
 
@@ -366,10 +366,13 @@ data from every source plugin, and it does not own a sync cadence.
 
 ## Connector-targeted intent naming
 
-UI handler manifests (`agents/ui-handlers/{name}.md`) declare
-`operational.follow_up_intents` — a list of bare intent keys, one per
-send-action the component emits via `sendFollowUpMessage`. The
-naming convention (post agntux-slack 5.0.0):
+The connector-targeted **intent keys** are the dispatch contract for each
+send-action the component emits via `sendFollowUpMessage`. The old
+`agents/ui-handlers/{name}.md` operational manifest that used to declare
+`operational.follow_up_intents` is **retired** — the metadata now lives in the
+view-tool descriptor (`view-tool/src/{slug}-view.ts`) and is emitted by the
+envelope builder (`view-tool/src/.../build-envelope.ts`). The naming convention
+(post agntux-slack 5.0.0):
 
 | Pattern | Use for | Example |
 |---|---|---|
@@ -383,11 +386,11 @@ default modern path). Use the local shape for actions like Discard that
 have no host-side effect. Reserve the legacy `{verb}-{noun}` shape only
 for chat-only plugins falling back to the chat-confirm flow.
 
-The intent keys are operational metadata — they're not enforced at
-runtime, but they document the dispatch contract so reviewers can
-see at a glance what the component sends and so the
-`connector-envelope.test.ts` (per `tests-author.md`) can assert
-non-emptiness for connector-direct plugins.
+The intent keys are operational metadata — not enforced at runtime, but they
+document the dispatch contract so reviewers can see at a glance what the
+component sends. `tests-author.md`'s connector-envelope check asserts the
+view-tool emits a connector-targeted envelope (the behavioral coverage is the
+view-tool's own `build-envelope.test.ts`).
 
 ## Icon
 

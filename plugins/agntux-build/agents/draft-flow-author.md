@@ -94,14 +94,14 @@ specific responsibilities:
 
 1. **Confirm the gate decision** with the developer. The iframe Send
    click is the moment of consent; there's no chat round-trip.
-2. **Cross-check `agents/ui-handlers/{name}.md`'s
-   `operational.follow_up_intents`** — each connector-direct send action
-   must declare an intent key in the `{source}-connector-{verb}` shape
-   (e.g. `slack-connector-send`, `slack-connector-schedule`,
+2. **Cross-check the view-tool's envelope builder**
+   (`view-tool/src/.../build-envelope.ts`) — each connector-direct send action
+   uses an intent key in the `{source}-connector-{verb}` shape (e.g.
+   `slack-connector-send`, `slack-connector-schedule`,
    `slack-connector-save-draft`). Pure-local actions (Discard) use
-   `{verb}-{adjective}-local` (e.g. `compose-discard-local`). See
-   `manifest-author.md` § "Connector-targeted intent naming" for the
-   full convention.
+   `{verb}-{adjective}-local` (e.g. `compose-discard-local`). The old
+   `agents/ui-handlers/{name}.md` operational manifest is retired; see
+   `manifest-author.md` § "Connector-targeted intent naming" for the convention.
 3. **Pre-compose the body at ingest** (next subsection).
 4. **Wire the action-mutation post-commit** — after a successful send,
    call `mcp__agntux-core__agntux_core_set_status` to flip the action's
@@ -553,9 +553,10 @@ the write tools before merging — host MCP configurations vary.
 
 ### Connector-envelope lane (§2)
 
-1. The plugin's `agents/ui-handlers/{name}.md`'s
-   `operational.follow_up_intents` includes one
-   `{source}-connector-{verb}` key per send-action the component emits.
+1. The view-tool's envelope builder (`view-tool/src/.../build-envelope.ts`)
+   emits a connector-targeted envelope per send-action, using the
+   `{source}-connector-{verb}` intent shape. (The old
+   `agents/ui-handlers/{name}.md` manifest is retired.)
 2. The component's commit handler emits envelopes addressing the
    user's connector by display name (`Use the {Source} Connector to …`),
    not addressing the plugin slug (`Use the agntux-{source} plugin
