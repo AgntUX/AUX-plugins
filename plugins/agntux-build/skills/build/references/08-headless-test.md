@@ -6,6 +6,12 @@ runs one **headless** screenshot pass per view tool as a regression
 artifact — proof the build still renders cleanly after stages 6→7
 finished any last edits.
 
+**Entry note.** Stage 8 begins automatically in the same turn as the
+stage-7 build summary — no user input is required to start it, and on
+an all-pass it advances silently to stage 9.5 (see line "On all-pass,
+advance silently to stage 9.5" below). Don't yield the turn between the
+build summary and this check.
+
 ## Chromium fallback (first run on a new host)
 
 Playwright is a dev dependency of `agntux-build/host-renderer/`,

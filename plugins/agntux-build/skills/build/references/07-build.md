@@ -137,8 +137,7 @@ shows the shape.
 
 Before any of the specialists run, confirm with the user:
 
-> About to scaffold `agntux-{slug}` v0.1.0 in
-> {build-path}.
+> About to scaffold `agntux-{slug}` v0.1.0.
 >
 > Going to write:
 > - the plugin's metadata (name, version, description)
@@ -172,10 +171,12 @@ When all seven are done, summarise in plain language:
 > - the {N} button(s) you designed: {comma-list of verb phrases}
 > - tests covering the cold-start case and the basic write flow
 >
-> Building's done — running the render check next. No action needed.
+> Building's done — running the final render check now.
 
 Then load [`08-headless-test.md`](08-headless-test.md) automatically
-(no confirmation gate).
+(no confirmation gate). The build summary and the render check are one
+continuous unattended sequence: do NOT end the turn after the summary
+— immediately load and execute `08-headless-test.md` in the same turn.
 
 ## When a specialist fails
 
@@ -191,9 +192,8 @@ error messages and a "fix and continue" directive. Only if that
 third attempt also fails do you surface anything to the user, and
 even then it's a one-liner:
 
-> Hit a snag I couldn't fix on my own. Saving the session at
-> {path} so the team can look —
-> `https://github.com/AgntUX/AUX-plugins/issues`.
+> Hit a snag I couldn't fix on my own. Saving the session so the team
+> can look — `https://github.com/AgntUX/AUX-plugins/issues`.
 
 No technical detail in the surface — the session file carries the
 traceback for maintainers.

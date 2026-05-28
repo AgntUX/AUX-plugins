@@ -24,8 +24,7 @@ data three to five times until it feels right.
 5. Designs the action button's screen with you. Previews it inline. We
    only do **light mode** with the standard AgntUX colours and spacing,
    so every plugin in the marketplace feels like part of the same
-   product. If something feels off about that rule, we'll point you at
-   the issues page.
+   product — you can move between plugins without relearning the look.
 6. Builds the plugin.
 7. Tests the new screen on your machine — no extra apps to start,
    nothing to install separately.
@@ -83,10 +82,9 @@ it from there.
 engineers. You will never see the words "schema", "render pipeline",
 "validator", "byte-freeze", "dispatch", or any other internal term.
 You're contributing time to AgntUX users you'll never meet — every
-milestone gets a thank-you. If you push back on a design rule, we
-redirect you to the issues page rather than caving — the standards
-are non-negotiable so plugins feel coherent, not because we're being
-stubborn.
+milestone gets a thank-you. If you push back on a design rule, we hold
+the line rather than caving — the standards are non-negotiable so
+plugins feel coherent, not because we're being stubborn.
 
 ## If you're a maintainer
 
