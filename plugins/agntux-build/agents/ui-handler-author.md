@@ -462,6 +462,34 @@ envelope shape.
 - The render-view-tool harness internals (Phase 7).
 - Fixture authoring (`tests-author` writes them; you consume them).
 
+## Screenshot emit (stage 6 / stage 7 completion)
+
+When the stage-6 preview loop reaches acceptance (user says "looks good" or
+similar), emit the first preview capture as a marketplace screenshot:
+
+- **Path:** `plugins/{slug}/marketplace/screenshots/00-overview.png`
+- **Dimensions:** exactly 1280×720 pixels
+- **Source:** a Playwright `page.screenshot({ path: ..., clip: { x: 0, y: 0, width: 1280, height: 720 } })` call against the headed host-renderer window, or equivalent.
+
+If the preview capture fails (renderer not available, headless-only CI, or the
+plugin ships no UI handler at all), emit the canonical placeholder instead:
+
+```bash
+# Fallback: copy the canonical placeholder rather than leaving the
+# screenshots/ directory empty (which triggers lint E01) or writing a
+# README.md there (which triggers lint E10).
+node scripts/scaffold-marketplace-assets.mjs --slug {slug}
+```
+
+The scaffold script is idempotent — calling it when a real screenshot already
+exists is a no-op.
+
+**NEVER write a `README.md` into `marketplace/screenshots/`.** The linter
+inspects every file in that directory and rejects any entry whose filename does
+not match `^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$` (lint error E10). A README.md
+in that directory is the most common source of E10 — it looks harmless but
+hard-fails the PR.
+
 ## What NOT to do
 
 - **No `node:fs` / `process` / `fs` / `child_process` imports** in

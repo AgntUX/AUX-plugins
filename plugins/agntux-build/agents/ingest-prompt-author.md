@@ -295,6 +295,57 @@ loads the matching `reference/{name}.md` resource and follows its
 body. These rules are baked into canonical SKILL.md; the renderer
 preserves them. Don't override them.
 
+## Stage 7: emit `_overrides/frontmatter.yaml`
+
+After stages 1–5 have resolved the connector identity and capabilities, write
+`plugins/{plugin-slug}/skills/{plugin-slug}/_overrides/frontmatter.yaml` with
+the full substitution map before running `scripts/render-skill.mjs {slug}`.
+
+The substitution map MUST include the following keys. All values come from the
+build flow's stages 1–5 outputs — do NOT fabricate values.
+
+```yaml
+# plugins/{plugin-slug}/skills/{plugin-slug}/_overrides/frontmatter.yaml
+plugin-slug: {plugin-slug}                        # e.g. agntux-jira — from stage 1
+plugin-version: {x.y.z}                           # from plugin.json — from stage 7 manifest-author
+source-display-name: {Display Name}               # e.g. Jira — from stage 3 connector name
+source-slug: {source-slug}                        # bare name after `agntux-` — from stage 1
+recommended-cadence: "{free-form string}"          # from plugin.json recommended_ingest_cadence — stage 7
+source-cursor-semantics: "{verbatim from canonical/prompts/ingest/cursor-strategies.md plus per-plugin shape}" # stage 3/4
+source-mcp-tools: "{comma-list of source MCP tool root names}" # from stage 4 tool inventory
+thread-unit-name: {thread|channel|issue|row}      # singular form — from stage 4
+bootstrap-window-default-days: "{N}"              # from stage 4 signal analysis
+example-channel: {scope-name}                     # one source-native scope name — from stage 4
+permitted-error-kinds:                            # canonical generic kinds + source-prefixed extensions
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  - {source-slug}-cursor-evicted       # add source-prefixed extensions from stage 4 analysis
+  # … additional {source-slug}-* kinds discovered during stage 4
+```
+
+The `permitted-error-kinds:` list must include the canonical generic kinds
+shown above **plus** any source-prefixed extensions (`{source-slug}-*`) that
+the stage-4 tool inventory and cursor analysis identified. Common extensions
+follow the pattern `{source-slug}-cursor-evicted`, `{source-slug}-merged-into`,
+`{source-slug}-rate-limited`. Derive them from what the connector's read tools
+can return — do NOT invent kinds that have no corresponding error path.
+
+This key is enforced by `invariant-checker.md` §4.4 (lint sub-check 11) and
+referenced by `canonical/prompts/ingest/skills/sync/reference/runbook.md` as
+the single source of truth for valid `errors: kind:` values.
+
 ## Verify before handoff
 
 1. `_overrides/frontmatter.yaml` exists and carries every minimum substitution key (the table above).

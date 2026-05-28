@@ -35,3 +35,4 @@ export {
   safeObject,
   safeString,
 } from "./safe-accessors.js";
+export { assertStructuredContent } from "./assert-structured-content.js";

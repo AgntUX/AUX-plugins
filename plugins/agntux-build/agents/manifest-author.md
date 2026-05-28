@@ -61,6 +61,28 @@ MUST use the prefix.
 
 ## `marketplace/listing.yaml` — schema
 
+### Character caps for long-string fields (hard limits — marketplace lint fails on overrun)
+
+| Field | Cap |
+|---|---|
+| `tagline` | 80 chars |
+| `description` | 500 chars |
+| `ux_components[].purpose` | 200 chars |
+| `ux_components[].title` | 60 chars |
+| `proposed_schema.entity_subtypes[].description` | 200 chars |
+| `proposed_schema.action_classes[].description` | 200 chars |
+| `proposed_schema.cursor_semantics` | 200 chars |
+| `proposed_schema.source_id_format` | 120 chars |
+| `data_ingested[]` entries | 120 chars each |
+| `developer.name` | 40 chars |
+| `keywords[]` entries | 2–32 chars each |
+| `supported_prompts[].purpose` (if present) | 120 chars (per verb-phrases convention) |
+
+**After drafting each long-string field, re-read it and trim until it is at
+or below the cap. The marketplace lint will hard-fail an overrun.** When in
+doubt, count with `echo -n "your string" | wc -c`. A single overrun blocks
+the entire PR.
+
 ### Required top-level fields
 
 | Field | Type | Constraints |

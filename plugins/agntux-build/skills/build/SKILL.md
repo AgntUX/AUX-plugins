@@ -55,6 +55,19 @@ the plugin can apply for anyone, or leave it out. This principle steers
 ingestion (stage 4), UI design (stages 5–6), and sync iteration
 (stage 10) — the references for those stages carry the specifics.
 
+## First-token routing
+
+Before entering the stage flow, check the first whitespace-delimited token of
+`$ARGUMENTS`:
+
+| First token | Action |
+|---|---|
+| `revise` | Load [`references/revise.md`](references/revise.md) and follow its body. Do NOT run the stage flow below. |
+| anything else (including empty) | Enter the stage flow starting at stage 0. |
+
+The `:revise` path suppresses voice/gratitude/confirmations and skips stages
+1–5. See `references/revise.md` for the full flow.
+
 ## Routing — load the right reference for the current stage
 
 Each stage loads its own `references/NN-*.md` resource on entry and

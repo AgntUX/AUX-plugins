@@ -115,6 +115,48 @@ plugins/{slug}/view-tool/dist/
 These are the four artifact families the remote MCP server fetches at
 the pinned SHA. CI's `build-plugins.yml` (Phase 7) commits them back.
 
+## Stage 7: vendor the apps-client into the new plugin
+
+Before running `npm run build`, ensure the vendored `apps-client` directory is
+present at `plugins/{slug}/view-tool/src/lib/apps-client/`. This directory
+contains the MIT-inlined MCP Apps client SDK that the iframe uses to speak
+MCP-Apps JSON-RPC with the host. Without it the Vite build will fail with
+missing-import errors.
+
+Copy it from the canonical template using rsync (preferred) or node:
+
+```bash
+# Preferred — rsync with no-links flag for security
+rsync --no-links -a \
+  canonical/ui-handlers/_template/src/lib/apps-client/ \
+  plugins/{slug}/view-tool/src/lib/apps-client/
+
+# Node fallback (e.g. on Windows or when rsync is unavailable)
+node -e "
+const { cpSync } = require('node:fs');
+cpSync(
+  'canonical/ui-handlers/_template/src/lib/apps-client',
+  'plugins/{slug}/view-tool/src/lib/apps-client',
+  { recursive: true, dereference: false }
+);
+"
+```
+
+The `--no-links` / `dereference: false` flags are mandatory — symlinks in the
+vendored tree are a trust-model violation (invariant-checker §5.6 will reject
+the compiled output). The rsync must be run from the repo root so the
+`canonical/` path resolves correctly.
+
+This step is **idempotent**: if `apps-client/` is already present and matches
+the canonical source, rsync exits 0 with no changes. Re-running the build
+never regresses the vendored copy.
+
+The authoritative source (WS-1) is `canonical/ui-handlers/_template/src/lib/apps-client/`
+at the repo root. The agntux-build plugin-bundle path
+`${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/view-tool/src/lib/apps-client/`
+is a fallback used only when the repo-root path is absent. If both exist they
+must be byte-identical; prefer the repo-root copy.
+
 ## Hand-offs
 
 - On success → return `{success: true, artefacts: [...]}` to stage 7;
