@@ -8,6 +8,15 @@ the compose logic, summarize what sync *would* produce, identify
 issues, edit prompts on disk, re-render, and re-run. It usually takes
 3 to 5 rounds.
 
+**Build for everyone, not just this contributor (the over-fit
+hotspot).** This is the stage most likely to narrow the plugin to one
+person. Use the contributor's real data to surface *bugs* —
+capitalisation quirks, threading edge cases, sync volume — but do
+**not** over-fit the compose logic to their personal data shape,
+channel names, or preferences. Every fix has to generalise to other
+users of the same connector. The generalization checklist below is
+mandatory before any prompt edit; this caution is why it exists.
+
 **Set the expectation explicitly before starting.** The cycle is
 genuinely tedious; framing it as "the work that matters" rather than
 "more steps" is what gets the user through it.

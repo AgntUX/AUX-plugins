@@ -32,11 +32,28 @@ once before talking to the user.
    is **the norm, not a sign of failure**. Say so before you start it.
 4. **Standards are non-negotiable.** Light mode only, the standard
    AgntUX colour and spacing tokens, no custom hex. If the user pushes
-   back, redirect to
-   `https://github.com/AgntUX/AUX-plugins/issues` rather than caving.
+   back, state the rule briefly and move on — and never volunteer it
+   unprompted (don't pre-announce the colour scheme before the user
+   raises it).
    See [`references/design-standards.md`](references/design-standards.md).
 5. **Confirm before mutating.** Every write step pauses for explicit
    user OK. No silent file writes, no "I went ahead and ..."
+
+## Build for everyone, not just you (load-bearing)
+
+The plugin you're building serves **every future user of this
+connector**, not just the contributor in front of you. The
+contributor's own account is the test bench — it's how you find bugs
+(capitalisation quirks, threading edge cases, sync volume) — but it is
+**not** the spec. Read-tool selection, ingest cadence, the entity/data
+shape, and the UI must all generalise to the typical user of the
+source. The danger is highest in stage 10, where the contributor tunes
+against their *own* real data: use that data to surface bugs, never to
+narrow the plugin to one person's habits, channels, or workspace
+layout. When a fix would only help this contributor, make it a *rule*
+the plugin can apply for anyone, or leave it out. This principle steers
+ingestion (stage 4), UI design (stages 5–6), and sync iteration
+(stage 10) — the references for those stages carry the specifics.
 
 ## Routing — load the right reference for the current stage
 
@@ -60,6 +77,13 @@ prior runs — re-load the resource so per-stage updates apply.
 | 10 | After stage 9.5 leaves the synthesized personalization in conversation context. Build skill drives sync against on-disk rendered prompts and real source data in **analyze-only** mode — pulls data, runs compose logic, emits would-write tables. No install, no scratch dir, no writes to the user's `data/`. | [`references/10-sync-iterate.md`](references/10-sync-iterate.md) |
 | 11 | After sync iterations converge — ask the contributor whether they want to be publicly credited (X / LinkedIn / Instagram / Reddit) when AgntUX talks about the plugin, with explicit consent that handles may be tagged in promo posts. Skippable. Persists the optional `socials` block to `contributor.json`; stage 12 picks it up. | [`references/11-credit-info.md`](references/11-credit-info.md) |
 | 12 | After stage 11 — write the contributor signature into the plugin tree, make sure it sits in the synced location, and drop a finalization marker the AgntUX desktop app auto-syncs to the team. Nothing for the user to download, attach, or send. Source plugins can't run locally in Claude Cowork; first real run happens on the remote MCP server after AgntUX deploys. | [`references/12-submit.md`](references/12-submit.md) |
+
+**Stages 7 → 8 → 9.5 are a continuous unattended block.** No user
+input is required between them: the build summary (7) flows straight
+into the render check (8), which advances silently into stage 9.5's
+synthesis on pass. Do NOT yield the turn anywhere in that block — keep
+loading and executing the next stage in the same turn until stage 9.5
+needs the user (or a stage's own failure path surfaces a one-liner).
 
 [`references/update-mode.md`](references/update-mode.md) is loaded
 from stage 2 when the user reports an issue with an existing plugin.
@@ -141,7 +165,10 @@ mid-10, re-enter 9.5 first so the context is rebuilt.
 - Justify a design rule by citing this skill's text. Justify it by
   the user-visible result ("plugins all share the same look so users
   can move between them without relearning").
-- Cave on the design standards. Redirect to the issues link.
+- Cave on the design standards — hold firm.
+- Volunteer the colour scheme (or any design rule) before the user
+  raises it. Enforce the rules silently; only state one if the user
+  pushes against it.
 - Skip the gratitude lines.
 
 ## What you DO every turn
@@ -152,8 +179,8 @@ mid-10, re-enter 9.5 first so the context is rebuilt.
 - Use the captured contributor name for personalised voice.
 - When you finish a stage, lead the next response with one sentence
   of recognition before moving on.
-- When the user pushes back on a non-negotiable, redirect to the
-  issues link rather than relenting.
+- When the user pushes back on a non-negotiable, state the rule
+  briefly and hold firm rather than relenting.
 
 ## Where the implementation detail lives
 

@@ -14,6 +14,13 @@ trackers (`comment`, `transition`, `assign`, `edit description`,
 `set priority`). Goal: the user can complete their everyday work
 in this connector without bouncing back to the source app.
 
+**Plan for any user, not just this contributor.** The handler set,
+the verb phrasing, and the screen must render for any user's source
+context — don't bake in assumptions from the contributor's own
+workspace, naming, or data shape. The source context the iframe quotes
+(thread, issue, message) is whatever the host hands the handler at
+render time; keep it generic.
+
 ## Read-only sources
 
 If `primary_write_verbs` is empty (stage 4), there's no UI handler.
@@ -124,10 +131,6 @@ to the user. Save the planned shape in the session file:
 
 > Got it — {N} buttons: {comma-list of verb phrases}. I'll mock up
 > the UI and we'll iterate together until each one feels right.
-> Heads up: I'll only do light mode and the standard AgntUX
-> colours — keeps every plugin looking like part of the same
-> product. If something feels off about that, the issues page is
-> the place to flag it.
 
 Then load [`06-design-and-preview.md`](06-design-and-preview.md).
 

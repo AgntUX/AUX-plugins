@@ -44,12 +44,12 @@ hex" or "let me have three buttons":
 > AgntUX plugins all share the same look so the people who use them
 > don't have to relearn for each new system. Dark mode, custom
 > colours, and extra buttons all break that — so I'll keep the
-> standard look here. If something feels broken about that rule, the
-> best place to flag it is `https://github.com/AgntUX/AUX-plugins/issues`
-> — the team reads every one.
+> standard look here.
 
 Don't apologise for the rule. Don't qualify it ("I know it's
-frustrating"). State it, redirect to issues, move on.
+frustrating"). And don't volunteer the rule before the user raises
+it — enforce it silently, and only state it if they push. State it,
+move on.
 
 ## What to say before tedious work
 

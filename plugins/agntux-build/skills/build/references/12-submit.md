@@ -290,7 +290,11 @@ then stop:
 ## f. What you tell the user (success)
 
 No download, no attachment, no email. The desktop app carries the
-finalized plugin to the team on its own.
+finalized plugin to the team on its own. The copy below tells the user
+where to watch the review and how to install once it's live — keep it
+in non-technical voice. (All the navigation below is in-app menu
+breadcrumbs, not filesystem paths — that's fine; just keep it as menu
+names.)
 
 **Create mode:**
 
@@ -298,9 +302,26 @@ finalized plugin to the team on its own.
 > app is syncing it to the team automatically — there's nothing for you
 > to attach or send.
 >
-> The team will review it and follow up at {captured-email} with any
-> questions. Once it's deployed to the AgntUX remote MCP server, anyone
-> who installs `agntux-{slug}` gets the live view tools you designed.
+> **Track it in the AgntUX desktop app, on the "Built by you" tab.**
+> You'll watch it move from "Queued for review" to "In review" to
+> "Merged" — or, if the team needs a tweak first, "Changes requested"
+> with exactly what to fix spelled out, so you're never guessing.
+>
+> The team aims to finish review in **one business day or less.** If
+> they do ask for changes, you'll get clear instructions for what's
+> needed — you won't have to figure it out yourself.
+>
+> Once it shows **"Merged"** — live in the marketplace — here's how to
+> install it:
+>
+> 1. In Cowork, open **Customize → AgntUX Core → Marketplace
+>    (AUX-plugins) → Personal**.
+> 2. Click the **three-dot menu** on **AUX-plugins**, then **Check for
+>    updates** — the refreshed list now includes your plugin.
+> 3. Scroll to find `agntux-{slug}` and click the **+** to install it.
+> 4. Back in Cowork, run `/agntux onboard` to set it up. Type the
+>    command rather than pasting it — Cowork only recognises it when
+>    you type it and pick it from the menu.
 
 **Closing gratitude (create mode):**
 
@@ -308,7 +329,23 @@ finalized plugin to the team on its own.
 > AgntUX user who needs to bring {connector-display-name} into
 > AgntUX.** That's the whole point of doing this — and you just did it.
 
-In update mode, change the closing:
+**Update mode** — track the same way, but the install is automatic:
+
+> {Name}, your fix is finalized and on its way. The AgntUX desktop app
+> is syncing it to the team automatically — nothing to attach or send.
+>
+> **Track it in the AgntUX desktop app, on the "Built by you" tab** —
+> you'll see it move to "Merged" once it's live, or "Changes requested"
+> with exactly what to adjust. The team aims to finish review in **one
+> business day or less.**
+>
+> You already have `agntux-{slug}` installed, so there's nothing to
+> reinstall. Once the new version is published, **Check for updates**
+> (Customize → AgntUX Core → Marketplace (AUX-plugins) → Personal →
+> the three-dot menu on AUX-plugins) pulls it in automatically — no
+> re-install and no `/agntux onboard` needed; your setup carries over.
+
+**Closing gratitude (update mode):**
 
 > Thank you, {captured-name}. The fix is on its way to the team.
 > `agntux-{slug}` will be a better plugin for the people already using
@@ -363,7 +400,11 @@ or `tree_sha256` in user-facing copy; they're internal.
   detail; that's where it belongs.
 - Don't ask the user to install the plugin locally. Source plugins
   can't run locally in Claude Cowork; their first real run is on the
-  remote MCP server after AgntUX deploys them.
+  remote MCP server after AgntUX deploys them. This prohibition is
+  about the *local build tree during the flow* — it does NOT
+  contradict the §f success copy, which tells the user how to install
+  the **published** marketplace version *after* review. That
+  post-publication install is a different, legitimate action.
 
 ## Why this is enough
 

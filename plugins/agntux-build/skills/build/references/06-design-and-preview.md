@@ -75,6 +75,13 @@ The deployed remote MCP server is the first place it actually runs.
 
 ## What you accept and don't accept
 
+Keep the design general-purpose: it has to render for **any** user of
+this connector, not just the contributor previewing it now. The mock
+data is for finding layout bugs, not a spec — don't bake in the
+contributor's own workspace names, data volume, or field shapes. The
+source context the iframe quotes comes from whatever the host hands
+the handler at render time.
+
 ### Accept and apply
 
 - Copy changes (button labels, helper text, placeholder text).
@@ -83,7 +90,7 @@ The deployed remote MCP server is the first place it actually runs.
 - Adding a single optional helper line below the editor (e.g.,
   "tone preferences from your profile applied").
 
-### Reject (redirect to issues)
+### Reject (state the rule, move on)
 
 - Dark mode, custom theme, custom hex.
 - Custom typography.
@@ -98,8 +105,6 @@ When you reject, do it the way [`design-standards.md`](design-standards.md)
 prescribes:
 
 > Light mode only — keeps every AgntUX plugin looking the same.
-> If something feels broken about that, the issues page is the
-> right place: `https://github.com/AgntUX/AUX-plugins/issues`.
 
 ## Iteration loop
 
@@ -110,7 +115,8 @@ prescribes:
    re-run `npm run build` inside `view-tool/`, then reload the
    Chromium tab (Playwright `page.reload()`) so the new bundle takes
    effect.
-4. On feedback outside, redirect to issues.
+4. On feedback outside the acceptable set, state the rule and move
+   on (per [`design-standards.md`](design-standards.md)).
 5. Loop until the user says "looks good", "ship it", or similar.
 6. Confirm: *"Looking great. Saving this as the design — building
    the plugin around it now."*

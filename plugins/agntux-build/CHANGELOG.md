@@ -6,6 +6,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-28
+
+A live test of the `/agntux-build:build` flow surfaced a cluster of
+copy and voice issues plus one missing post-submission hand-off.
+0.10.0 fixes them — all hand-authored markdown in the build skill, no
+behaviour change to the connector contract, prompts, or UI components.
+
+### Changed
+
+- **Never narrate the design rules unprompted; stop the issues-page
+  redirect for design pushback.** The flow no longer pre-announces the
+  light-mode/colour-scheme rule before the user raises it, and design-
+  rule pushback is now answered with "state the rule and move on"
+  rather than a redirect to the issues page. The underlying standards
+  stay fully enforced (light mode, design tokens, one Send button) —
+  only the proactive narration and the complaint redirect are gone.
+  Touches `SKILL.md` (voice rule 4, "What you NEVER/DO" lists),
+  `references/05-plan-ui.md`, `references/06-design-and-preview.md`,
+  `references/design-standards.md`, `references/voice-and-gratitude.md`,
+  and `README.md`. The issues link stays in genuine failure/support
+  paths (installed-plugin issues, connector-auth trouble, unrecoverable
+  build crash, sync-bug reports).
+- **No filesystem paths in user-facing copy.** Stage 7's confirmation
+  gate and self-fix one-liner no longer print build paths or session
+  paths to the non-technical contributor (`references/07-build.md`).
+  Internal prose, saved-state JSON, and command snippets are
+  unchanged.
+- **Continuous build → render-check flow.** The stage-7 build summary
+  no longer reads as a turn-ending sign-off; stages 7 → 8 → 9.5 are
+  now documented as one continuous unattended block with an explicit
+  non-yield directive, so the orchestrator runs straight into the
+  render check instead of stopping. Touches `references/07-build.md`,
+  `references/08-headless-test.md`, and `SKILL.md`'s routing block.
+
+### Added
+
+- **"Build for everyone, not just you" principle.** A new load-bearing
+  section in `SKILL.md` plus reminders woven into ingestion
+  (`references/04-discover-tools.md`), UI planning/design
+  (`references/05-plan-ui.md`, `references/06-design-and-preview.md`),
+  and the sync-iteration over-fit hotspot
+  (`references/10-sync-iterate.md`): the plugin serves every future
+  user of the connector, not the contributor personally. Their data is
+  for finding bugs, not for narrowing the plugin to their habits.
+- **Post-submission tracking + install instructions.** Stage 12's §f
+  success copy (`references/12-submit.md`) now tells the contributor to
+  track review on the AgntUX desktop app's "Built by you" tab, sets a
+  ~1-business-day turnaround expectation, notes that changes may be
+  requested with clear instructions, and walks them through installing
+  the published plugin once it's merged (Customize → AgntUX Core →
+  Marketplace (AUX-plugins) → Personal → three-dot → Check for updates
+  → "+" → `/agntux onboard`). A tailored update-mode variant points at
+  the same tab but notes the install is automatic via Check for
+  updates. A clarifier next to the "don't install locally" rule
+  distinguishes the in-flow local build from the legitimate
+  post-publication marketplace install. (The matching desktop-app
+  surface — the same steps on the "Built by you" tab — ships
+  separately in the `agntux/app` repo.)
+
 ## [0.9.0] — 2026-05-28
 
 When AgntUX promotes a freshly-launched plugin on social, the

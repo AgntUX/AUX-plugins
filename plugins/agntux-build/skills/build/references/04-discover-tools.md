@@ -60,10 +60,12 @@ Group the tools into three buckets:
    Don't surface to the user; we use these only for stage 3.
 
 If the inventory is large (10+ tools per bucket), trim to the
-load-bearing ones. Bias toward what a knowledge worker actually does
-in this system — for Slack that's reading DMs/threads/mentions and
-sending replies; for Linear that's reading issues/comments/cycles
-and commenting/transitioning.
+load-bearing ones. Bias toward what *any* user of this connector
+needs — not just what you, the contributor, personally use. For Slack
+that's reading DMs/threads/mentions and sending replies; for Linear
+that's reading issues/comments/cycles and commenting/transitioning.
+Choose the read-tool coverage and the cadence for the typical user of
+this source, not for your own habits.
 
 ## Translate to plain language
 
@@ -140,13 +142,15 @@ Save:
 - Don't ask about the schema (entities + actions) yet — that's
   internal, you'll handle it during stage 7's build pass.
 - **Cover the connector's meaningful write verbs.** Default
-  posture: every distinct write verb that a knowledge worker
-  actually uses gets a UI handler. For project trackers (Linear,
-  Jira, GitHub Issues) that's typically 4–5: comment, transition
-  state, assign, edit description, set priority/labels. For chat
-  (Slack, Discord) it's typically 1–2: reply, plus thread-level
-  actions. The plugin should let the user complete their everyday
-  work *without bouncing back to the source app*.
+  posture: every distinct write verb that *any* user of this
+  connector actually uses gets a UI handler — choose for the typical
+  user of the source, not just the verbs you personally reach for.
+  For project trackers (Linear, Jira, GitHub Issues) that's typically
+  4–5: comment, transition state, assign, edit description, set
+  priority/labels. For chat (Slack, Discord) it's typically 1–2:
+  reply, plus thread-level actions. The plugin should let any user
+  complete their everyday work *without bouncing back to the source
+  app*.
 - **Collapse only when inputs collapse.** Two verbs that take the
   same input shape (e.g., "reply to thread" vs "reply with
   schedule") become tabs over one Send button, not two handlers.
