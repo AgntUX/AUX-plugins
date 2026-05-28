@@ -357,6 +357,26 @@ the single source of truth for valid `errors: kind:` values.
 7. `wc -l plugins/{slug}/skills/{slug}/reference/*.md` — every file ≤ 500 (the procedural `sync.md` body sits around 490; detail-shape siblings are smaller).
 8. Re-running the renderer produces a byte-identical tree (lint pass 8 enforces this — `invariant-checker.md`).
 
+## Self-validation (required — WS-A, hard exit)
+
+After writing `skills/{slug}/_overrides/` and before returning success, you MUST
+prove the overrides resolve. A missing or incomplete `frontmatter.yaml` is the
+E15 render-reproducibility gap — **mechanical, NEVER surfaced to the
+contributor** (see `skills/build/references/self-validation.md`).
+
+1. Run `node scripts/render-skill.mjs --validate-overrides {slug}`.
+2. On failure (`missing` / `empty` / `surviving-placeholders`): if
+   `frontmatter.yaml` is absent, copy the canonical template
+   `canonical/skills/_overrides/frontmatter.template.yaml` to
+   `skills/{slug}/_overrides/frontmatter.yaml` and substitute every value from
+   the build flow's stage-1–5 outputs (resolved connector identity, version,
+   cadence, tool inventory, cursor shape). The validator names any missing key;
+   add each from build state. Do NOT fabricate values.
+3. Re-validate. Repeat up to **5 cycles**. On success, run the full
+   `node scripts/render-skill.mjs {slug}` to emit the tree, then confirm a
+   byte-identical re-render (lint pass 8 — `invariant-checker.md`). Still
+   failing after 5 → return `{success: false, error: <validator output>}` for the maintainer. Never a contributor-facing E15.
+
 ## Hand-offs
 
 - Cursor strategy choice + transactional advance + denylist + tracked-parent registry → `source-semantics-advisor`.

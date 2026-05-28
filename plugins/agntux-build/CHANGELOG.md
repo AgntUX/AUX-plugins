@@ -6,6 +6,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-28
+
+Build-time self-validation. v1 told Claude what to do in prose and hoped; v2
+makes every specialist verify its own output with the real tooling before the
+build can advance, and the contributor never sees a mechanical failure. Plus the
+defensive fixes: a `useStructuredContent` deprecated alias and dropping the
+screenshot requirement (icon-only marketplace for now).
+
+### Added
+- **Per-specialist self-validation blocks (WS-A.1).** Each of
+  `manifest-author`, `ingest-prompt-author`, `view-tool-builder`,
+  `tests-author`, `ui-handler-author`, and `draft-flow-author` gained a
+  "Self-validation (required — hard exit)" section: it runs its specific
+  validator (lint / `render-skill.mjs --validate-overrides` / view-tool build +
+  `useStructuredContent` grep / `npm test`) immediately after writing its
+  output, iterates up to a **5-edit retry budget**, and NEVER surfaces a
+  mechanical failure to the contributor.
+- **Stage-7 final-gate verifier (WS-A.2)** in `references/07-build.md`. After
+  all seven specialists dispatch, the flow runs `npm install && lint && build
+  --if-present && test --if-present` end-to-end and re-dispatches the owning
+  specialist on any non-zero exit (up to 5 verifier→specialist loops). The build
+  never reaches "ready to submit?" with an unvalidated tree.
+- **`references/self-validation.md` (WS-A.6)** — the single source of truth for
+  the retry budgets and the strict mechanical-vs-contributor-judgment flagging
+  line. Referenced from `SKILL.md` and every specialist block.
+- **`canonical/skills/_overrides/frontmatter.template.yaml` (WS-A.5)** — the
+  canonical overrides template (ten render placeholders + the
+  `permitted-error-kinds` list) consumed by both the scaffold script and
+  `ingest-prompt-author`. One artifact, no drift.
+
+### Changed
+- **`scripts/scaffold-marketplace-assets.mjs` (WS-A.3 / WS-C.2)** is now a hard,
+  unconditional top-of-stage-7 step. It emits the icon placeholder AND the
+  `skills/{slug}/_overrides/frontmatter.yaml` **floor** (from the canonical
+  template, substituted from build state) so lint pass 8 can always reproduce
+  the skill tree (closing E15 at build time). It no longer creates
+  `marketplace/screenshots/` or a `00-overview.png` placeholder.
+- **`scripts/render-skill.mjs` gained `--validate-overrides <slug>`** — a
+  no-render pre-flight that exits non-zero naming any unresolved placeholder.
+  `ingest-prompt-author` runs it as its self-validator.
+- **`references/revise.md` non-interactivity audit (WS-B.2).** Added an explicit
+  `--mode revise` contract: every input the build flow elicits (identity, design
+  pushback, confirmation gates, voice/gratitude, listing fields) has a
+  sandbox-safe default — never prompt, never narrate. The worker dispatches the
+  revise specialists unattended. Updated the code map (dropped the screenshot
+  E10 row; added `BUILD-useStructuredContent`).
+- **`useStructuredContent` deprecated alias (WS-C.1).**
+  `@agntux/ui-primitives` now re-exports `assertStructuredContent` as
+  `useStructuredContent` so older/scaffolded view-tools compile cleanly; the
+  view-tool-builder grep nudges new code onto the canonical name.
+- **UI designs are presented as inline HTML prototypes, never ASCII.** Stage 5
+  (`05-plan-ui.md`), stage 6 (`06-design-and-preview.md`), and `SKILL.md` now
+  explicitly require the pre-build wireframe to be an HTML prototype Cowork
+  renders inline — fixing a case where the flow emitted hard-to-read ASCII
+  mockups. Both the stage-5 wireframe and the stage-6 live Chromium preview are
+  HTML; a plain-text layout is never shown to the contributor.
+- Internal defect-routing prose across the specialists and `self-validation.md`
+  now says "for the maintainer" rather than a personal name (matches the
+  marketplace worker's no-name-in-generated-notes rule).
+
+### Removed
+- **The screenshot requirement (WS-C.2).** Screenshots are no longer scaffolded
+  or required anywhere in the build flow (`06-design-and-preview.md`,
+  `ui-handler-author.md`, `manifest-author.md`, `release-checker.md`, the
+  scaffold script). The marketplace ships icon-only listings until a
+  real-screenshot capture pipeline lands. (The stage-8 headless render still
+  captures a debugging screenshot to the session dir — unrelated to marketplace
+  collateral.)
+
 ## [0.11.0] — 2026-05-28
 
 Pre-emptive scaffolder fixes so freshly built plugins clear marketplace

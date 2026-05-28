@@ -19,13 +19,13 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 // @ts-expect-error — .mjs has no types
-import { renderSkill } from "./render-skill.mjs";
+import { renderSkill, validateOverrides } from "./render-skill.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -166,5 +166,70 @@ describe("render-skill: failure modes", () => {
     });
     const skill = readFileSync(join(outputDir, "SKILL.md"), "utf8");
     expect(skill).toContain("{{plugin-slug}}");
+  });
+});
+
+describe("render-skill: validateOverrides (--validate-overrides core)", () => {
+  it("returns ok for a complete frontmatter.yaml (with-overrides fixture)", () => {
+    const fxRoot = join(FIXTURES, "with-overrides");
+    const result = validateOverrides({
+      canonicalDir: join(fxRoot, "canonical"),
+      overridesDir: join(fxRoot, "_overrides"),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.surviving).toEqual([]);
+  });
+
+  it("reports `missing` when frontmatter.yaml is absent", () => {
+    const fxRoot = join(FIXTURES, "with-overrides");
+    const emptyOverrides = mkTmp("validate-missing");
+    const result = validateOverrides({
+      canonicalDir: join(fxRoot, "canonical"),
+      overridesDir: emptyOverrides,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("missing");
+  });
+
+  it("reports `empty` when frontmatter.yaml parses to zero keys", () => {
+    const fxRoot = join(FIXTURES, "with-overrides");
+    const emptyKeyOverrides = mkTmp("validate-emptykeys");
+    // A comment-only file → parseSimpleYaml yields no keys.
+    writeFileSync(join(emptyKeyOverrides, "frontmatter.yaml"), "# no keys here\n");
+    const result = validateOverrides({
+      canonicalDir: join(fxRoot, "canonical"),
+      overridesDir: emptyKeyOverrides,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("empty");
+  });
+
+  it("reports `no-canonical` when the canonical SKILL.md is absent", () => {
+    const noCanonical = mkTmp("validate-nocanonical"); // empty dir, no SKILL.md
+    const overrides = mkTmp("validate-nocanonical-ov");
+    writeFileSync(join(overrides, "frontmatter.yaml"), "some-key: value\n");
+    const result = validateOverrides({
+      canonicalDir: noCanonical,
+      overridesDir: overrides,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("no-canonical");
+  });
+
+  it("reports surviving-placeholders (naming the keys) when keys are absent", () => {
+    // Write a frontmatter.yaml that omits at least one canonical placeholder.
+    const fxRoot = join(FIXTURES, "with-overrides");
+    const partialOverrides = mkTmp("validate-partial");
+    // A single unrelated key — none of the canonical placeholders resolve.
+    writeFileSync(join(partialOverrides, "frontmatter.yaml"), "unrelated-key: value\n");
+    const result = validateOverrides({
+      canonicalDir: join(fxRoot, "canonical"),
+      overridesDir: partialOverrides,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("surviving-placeholders");
+    expect(result.surviving.length).toBeGreaterThan(0);
+    // detail names the missing keys.
+    expect(result.detail).toContain(result.surviving[0]);
   });
 });

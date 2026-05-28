@@ -33,6 +33,29 @@ to work.
 
 ---
 
+## `--mode revise` non-interactivity contract (WS-B.2)
+
+`:revise` runs in the Cowork scheduled sandbox with **no interactive Claude**.
+EVERY input the full build flow would elicit from the user MUST have a
+sandbox-safe default in `--mode revise` — never prompt, never narrate. The rule
+per input:
+
+| Input the build flow elicits | `--mode revise` default |
+|---|---|
+| Contributor identity (name / email / DCO) | Read from the prior submission's marker / `contributor.json` already on file — never re-elicit. |
+| Step 1 feedback (which codes to fix) | Read from `--fixes`, else `last-submission.json.blockers_summary`. If neither is present, exit with a logged defect — do NOT prompt. |
+| Stage 6 design-rule pushback | Silent. The standards stay enforced; never narrate them. |
+| Stage 7 "about to scaffold" / "ready to submit?" confirmation gates | Auto-yes. No confirmation turn. |
+| Voice rules + gratitude lines (every specialist) | Suppressed globally. |
+| Listing fields / version-bump confirmations | Read from the existing plugin tree + marker; never ask. (`:revise` never bumps the version.) |
+
+If any input has no reasonable sandbox default, that code class is **not
+auto-revisable**: surface it to the maintainer (a logged defect) rather than
+hanging on a prompt. The historically-interactive Step-1 "paste the feedback"
+turn only applies to an interactive (non-`--mode revise`) invocation.
+
+---
+
 ## Step 0 — read `last-submission.json`
 
 Read `<agntux project root>/.agntux-build/last-submission.json`:
@@ -79,11 +102,13 @@ translate each bullet into the error code(s) it addresses using this map:
 | "CHANGELOG" / "no versioned section" | E03 |
 | "frontmatter.yaml" / "_overrides" / "substitution map" | E15 |
 | "apps-client" / "vendored" / "missing import" | E27 |
-| "screenshot" / "README.md in screenshots" | E10 |
+| "useStructuredContent" / "deprecated import" | BUILD-useStructuredContent |
 
-If neither `--fixes` nor inline feedback is present, ask the user to paste the
-feedback from the marketplace review card. This is the only interactive turn
-in the `:revise` flow.
+If neither `--fixes` nor inline feedback is present: in an **interactive**
+invocation, ask the user to paste the feedback from the marketplace review card.
+**In `--mode revise` (sandbox), do NOT prompt** — read the blockers from
+`last-submission.json.blockers_summary`; if that is also empty, exit and log a
+defect for the maintainer rather than hanging on a prompt.
 
 ---
 
@@ -95,13 +120,16 @@ skill tree).
 
 | Code | Specialist | What it does |
 |---|---|---|
-| E01 | `scripts/scaffold-marketplace-assets.mjs --slug {slug}` | Emits icon placeholder if still absent. |
+| E01 | `scripts/scaffold-marketplace-assets.mjs --slug {slug}` | Emits the icon placeholder (and the `_overrides/frontmatter.yaml` floor) if still absent. |
 | E03 | `release-checker` | Seeds the versioned CHANGELOG section. |
-| E05 | `manifest-author` | Trims overlong fields using the char-cap table. |
-| E10 | `ui-handler-author` / scaffold script | Removes `screenshots/README.md`; emits `00-overview.png` placeholder. |
-| E15 | `ingest-prompt-author` | Emits `_overrides/frontmatter.yaml` with full substitution map per §4.4. |
-| E27 | view-tool-builder rsync step | Vendors `apps-client` from canonical template. |
+| E05 | `manifest-author` | Trims overlong fields with the word-boundary trim (char-cap table). |
+| E15 | `ingest-prompt-author` | Emits/repairs `_overrides/frontmatter.yaml`, then `render-skill.mjs --validate-overrides {slug}` to confirm. |
+| E27 | `view-tool-builder` rsync step | Vendors `apps-client` from the canonical template. |
+| BUILD-useStructuredContent | `view-tool-builder` | Rewrites `useStructuredContent` → `assertStructuredContent` and rebuilds. |
 | Other | surface as-is | Log the code and the plain-English description; do not attempt to fix. |
+
+Screenshots are no longer scaffolded (WS-C.2), so there is no E10 row — the
+marketplace ships icon-only listings.
 
 Do NOT attempt to fix security findings (`S-*`), content-policy findings
 (`CP*`), or test failures. Surface those to the user verbatim with:
@@ -148,8 +176,11 @@ original build:
 Skip specialists whose files were not touched by step 2. The goal is the
 smallest diff from the prior submission tree — only the fixed files change.
 
-If a specialist fails, apply the same retry rule as `07-build.md`: re-dispatch
-with the error attached; after two failures escalate to `executor` (model=opus).
+If a specialist fails, apply the same retry discipline as `07-build.md` +
+[`self-validation.md`](self-validation.md): each specialist self-validates up to
+**5** edit-and-revalidate cycles within its own dispatch; if it still can't
+converge, the orchestrator escalates to `executor` (model=opus). Mechanical
+failures never reach the contributor — they're logged for the maintainer.
 
 ---
 
@@ -178,5 +209,6 @@ the submission is confirmed (same rule as `07-build.md`).
 - Don't greet, thank, or run stages 1–5.
 - Don't bump `plugin.version`.
 - Don't fix security or content-policy findings automatically.
-- Don't run more than two specialist retries per code before escalating.
+- Don't exceed the 5-cycle self-validation budget per specialist before
+  escalating to `executor` (per [`self-validation.md`](self-validation.md)).
 - Don't modify `last-submission.json` until the new submission is confirmed.

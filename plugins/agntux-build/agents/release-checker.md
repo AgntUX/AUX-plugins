@@ -97,7 +97,8 @@ npm run lint:marketplace -- --plugin {slug}
 Exit code 0 means CI's `lint.yml` will pass. Common error codes:
 
 - E01 — missing required file (listing.yaml, icon.png, README,
-  CHANGELOG, screenshots dir).
+  CHANGELOG). Screenshots are no longer required (WS-C.2 / v2 — icon-only
+  listings).
 - E02 — image dimensions out of range.
 - E03 — CHANGELOG format invalid.
 - E04 — invalid enum value (categories, available_on).
@@ -106,8 +107,8 @@ Exit code 0 means CI's `lint.yml` will pass. Common error codes:
   on disk; `requires_plugins` slug not present).
 - E07 — image format mismatch.
 - E08 — image file too large.
-- E09 — screenshot aspect ratio out of range.
-- E10 — screenshot filename pattern wrong.
+- E09 — screenshot aspect ratio out of range (only when screenshots present).
+- E10 — screenshot filename pattern wrong (only when screenshots present).
 - E11 — reserved field at top level.
 - E12 — operational frontmatter validation failure (UI-handler files;
   ingest-only plugins skip).
@@ -131,8 +132,8 @@ checklist by hand:
 - [ ] Hook files byte-identical to `canonical/hooks/` except the two
   documented substitutions; `shasum -c` confirms (delegate to
   `invariant-checker`).
-- [ ] Screenshots present, ≥1, dimensions in range, names match the
-  filename regex.
+- [ ] Screenshots are optional (icon-only listings per WS-C.2); if any are
+  present, dimensions are in range and names match the filename regex.
 - [ ] `icon.png` is 512×512, ≤ 512 KB.
 - [ ] `README.md` ≤ 500 lines, renders cleanly via `react-markdown` +
   `remark-gfm`.

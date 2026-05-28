@@ -16,3 +16,8 @@ export { Spinner } from "./spinner.js";
 export { detectErrorEnvelope } from "./detect-error-envelope.js";
 export { daysSince, formatTime, safeArray, safeBoolean, safeDate, safeEnum, safeNumber, safeObject, safeString, } from "./safe-accessors.js";
 export { assertStructuredContent } from "./assert-structured-content.js";
+// Deprecated alias — older view-tool sources (and contributor plugins scaffolded
+// before the rename) import `useStructuredContent`. Kept so they compile cleanly;
+// new code should import `assertStructuredContent`. WS-A view-tool-builder grep +
+// WS-D rewrite-imports.mjs both nudge new code toward the canonical name.
+export { assertStructuredContent as useStructuredContent } from "./assert-structured-content.js";

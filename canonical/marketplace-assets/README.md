@@ -18,11 +18,12 @@ renders this glyph.
 
 ## screenshots/
 
-The scaffold script also ensures at least one file exists at
-`plugins/{slug}/marketplace/screenshots/00-overview.png`. It copies
-`icon.placeholder.png` as a stand-in when the stage-6 preview did not
-emit a real screenshot. Plugin authors should replace it with a 1280×720
-capture of the real UI.
+Screenshots are **not required** for the marketplace (WS-C.2 / v2). The
+scaffold script no longer creates `marketplace/screenshots/` or emits a
+placeholder `00-overview.png`; the listing renders icon-only until a real
+screenshot-capture pipeline lands (see the v2 plan "Out of scope"). If a
+plugin author adds real screenshots, the linter validates their filenames,
+dimensions, and size — but their absence is no longer a lint error.
 
 ## What belongs here vs. elsewhere
 

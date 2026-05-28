@@ -107,28 +107,11 @@ function pass1RequiredFiles(
     }
   }
 
-  // screenshots dir must exist and contain >= 1 file
-  const screenshotsDir = path.join(pluginDir, "marketplace", "screenshots");
-  if (!isDirectory(screenshotsDir)) {
-    emit(findings, {
-      code: "E01",
-      severity: "error",
-      plugin: pluginSlug,
-      file: rel(screenshotsDir),
-      message: `missing required directory: ${rel(screenshotsDir)} (must contain >= 1 screenshot)`,
-    });
-  } else {
-    const files = fs.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
-    if (files.length === 0) {
-      emit(findings, {
-        code: "E01",
-        severity: "error",
-        plugin: pluginSlug,
-        file: rel(screenshotsDir),
-        message: `${rel(screenshotsDir)} must contain at least 1 screenshot`,
-      });
-    }
-  }
+  // Screenshots are no longer required (WS-C.2 / v2). The marketplace ships
+  // icon-only listings until a real-screenshot capture pipeline lands
+  // (see the v2 plan "Out of scope"). `marketplace/screenshots/` is optional;
+  // when present, pass 3 still validates each file's filename, dimensions, and
+  // size, and pass 2 still cross-checks any declared `screenshot_order`.
 }
 
 // ---------------------------------------------------------------------------

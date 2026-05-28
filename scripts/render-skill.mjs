@@ -154,6 +154,117 @@ export function renderSkill({ canonicalDir, overridesDir, outputDir, flags = {} 
   return { written, substitutionMap: subs };
 }
 
+/**
+ * Validate a plugin's `_overrides/frontmatter.yaml` WITHOUT rendering any
+ * files. Runs the override-frontmatter validation half of the render
+ * pipeline: confirms the yaml exists, is well-formed, and that a canonical
+ * render would leave no surviving `{{...}}` placeholders. This is the
+ * `--validate-overrides` flag's core (WS-A.4) — a fast pre-flight the
+ * agntux-build specialists and the worker's Track-B revise can run to prove
+ * the overrides are complete before a full build.
+ *
+ * @param {object} opts
+ * @param {string} opts.canonicalDir  absolute path to canonical/.../sync/
+ * @param {string} opts.overridesDir  absolute path to .../_overrides/
+ * @returns {{ ok: boolean, reason?: string, detail?: string, surviving: string[] }}
+ *   ok=true → frontmatter.yaml is present, well-formed, and resolves every
+ *   canonical placeholder. ok=false → `reason` is one of `missing`, `empty`,
+ *   `no-canonical`, `surviving-placeholders` (plus `malformed` as a defensive
+ *   branch — the current `parseSimpleYaml` is non-throwing, so an unparseable
+ *   map surfaces in practice as `empty` or `surviving-placeholders`); `detail`
+ *   names the specific problem (e.g. the missing keys), `surviving` lists any
+ *   unresolved placeholder keys.
+ */
+export function validateOverrides({ canonicalDir, overridesDir }) {
+  const fmPath = join(overridesDir, "frontmatter.yaml");
+  if (!existsSync(fmPath)) {
+    return {
+      ok: false,
+      reason: "missing",
+      detail: `_overrides/frontmatter.yaml not found at ${fmPath}`,
+      surviving: [],
+    };
+  }
+
+  let subs;
+  try {
+    subs = parseSimpleYaml(readFileSync(fmPath, "utf8"));
+  } catch (e) {
+    return {
+      ok: false,
+      reason: "malformed",
+      detail: `cannot parse frontmatter.yaml: ${e.message}`,
+      surviving: [],
+    };
+  }
+  if (!subs || Object.keys(subs).length === 0) {
+    return {
+      ok: false,
+      reason: "empty",
+      detail: "frontmatter.yaml parsed to zero keys",
+      surviving: [],
+    };
+  }
+
+  const canonicalSkill = join(canonicalDir, "SKILL.md");
+  if (!existsSync(canonicalSkill)) {
+    return {
+      ok: false,
+      reason: "no-canonical",
+      detail: `canonical SKILL.md not found: ${canonicalSkill}`,
+      surviving: [],
+    };
+  }
+
+  // Collect every canonical surface (SKILL.md + reference/*.md), prefer the
+  // override replacement when one exists, dry-render in memory, and gather
+  // surviving placeholders. Mirrors renderSkill's file selection exactly so
+  // the validation result matches what an actual render would produce.
+  const overrideRef = join(overridesDir, "reference");
+  const survivingSet = new Set();
+
+  const renderOne = (srcPath) => {
+    let src = readFileSync(srcPath, "utf8");
+    src = applyAppendMarkers(src, overridesDir, subs);
+    src = applySubstitutions(src, subs);
+    for (const m of src.matchAll(/\{\{([\w-]+)\}\}/g)) survivingSet.add(m[1]);
+  };
+
+  // SKILL.md
+  renderOne(canonicalSkill);
+
+  // canonical reference/*.md (override-replaced where present)
+  const canonicalRef = join(canonicalDir, "reference");
+  const canonicalRefNames = existsSync(canonicalRef)
+    ? readdirSync(canonicalRef).filter((n) => n.endsWith(".md")).sort()
+    : [];
+  for (const name of canonicalRefNames) {
+    const overridePath = join(overrideRef, name);
+    renderOne(existsSync(overridePath) ? overridePath : join(canonicalRef, name));
+  }
+
+  // per-plugin extra reference files (no canonical counterpart)
+  if (existsSync(overrideRef)) {
+    const seen = new Set(canonicalRefNames);
+    for (const name of readdirSync(overrideRef).filter((n) => n.endsWith(".md")).sort()) {
+      if (seen.has(name)) continue;
+      renderOne(join(overrideRef, name));
+    }
+  }
+
+  const surviving = [...survivingSet].sort();
+  if (surviving.length) {
+    return {
+      ok: false,
+      reason: "surviving-placeholders",
+      detail: `unresolved placeholders (add to frontmatter.yaml): ${surviving.join(", ")}`,
+      surviving,
+    };
+  }
+
+  return { ok: true, surviving: [] };
+}
+
 // ── core mechanics ──────────────────────────────────────────────────────────
 
 function loadFrontmatterOverrides(overridesDir) {
@@ -272,6 +383,7 @@ function parseArgs(argv) {
     _: [],
     toStdout: false,
     selfTest: false,
+    validateOverrides: false,
     canonical: null,
     overrides: null,
     output: null,
@@ -281,6 +393,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === "--to-stdout") out.toStdout = true;
     else if (a === "--self-test") out.selfTest = true;
+    else if (a === "--validate-overrides") out.validateOverrides = true;
     else if (a === "--canonical") out.canonical = argv[++i];
     else if (a === "--overrides") out.overrides = argv[++i];
     else if (a === "--output") out.output = argv[++i];
@@ -297,6 +410,8 @@ function usage() {
     "  node scripts/render-skill.mjs <slug>             render plugins/<slug>/skills/<slug>/",
     "  node scripts/render-skill.mjs --to-stdout <slug> write SKILL.md to stdout",
     "  node scripts/render-skill.mjs --self-test        smoke-test (canonical, no overrides)",
+    "  node scripts/render-skill.mjs --validate-overrides <slug>",
+    "                                                   check _overrides/frontmatter.yaml resolves (no render)",
     "  node scripts/render-skill.mjs --canonical PATH --overrides PATH --output PATH",
     "                                                   explicit paths (tests/fixtures)",
   ].join("\n");
@@ -385,6 +500,25 @@ function runCli(rawArgs) {
   const slug = args._[0];
   const pluginSkillDir = join(REPO_ROOT, "plugins", slug, "skills", slug);
   const overridesDir = join(pluginSkillDir, "_overrides");
+
+  // --validate-overrides: check frontmatter.yaml only; do not render anything.
+  // Exit 0 when the overrides resolve every canonical placeholder; exit 1
+  // (naming the offending keys) otherwise.
+  if (args.validateOverrides) {
+    const result = validateOverrides({
+      canonicalDir: CANONICAL_SYNC_DIR,
+      overridesDir,
+    });
+    if (result.ok) {
+      console.log(
+        `render-skill: ${slug} — _overrides/frontmatter.yaml valid (canonical render resolves cleanly)`,
+      );
+      process.exit(0);
+    }
+    console.error(`render-skill: ${slug} — overrides invalid [${result.reason}]: ${result.detail}`);
+    process.exit(1);
+  }
+
   if (!existsSync(overridesDir)) {
     fail(
       `plugins/${slug}/skills/${slug}/_overrides/ not found — ` +
