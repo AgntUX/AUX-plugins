@@ -44,14 +44,24 @@ All notable changes to {plugin-name} are documented here.
 
 ## [Unreleased]
 
-### Added
-- {entry}
-
-## [0.1.0] — 2026-05-02
+## [0.1.0] — {today-iso-date}
 
 ### Added
 - Initial release.
 ```
+
+**Initial scaffold rule (v0.1.0 only):** when generating the `CHANGELOG.md`
+for a brand-new plugin, seed BOTH the `## [Unreleased]` section AND the
+first versioned section `## [{plugin_version}] — {today-iso-date}` with
+`### Added\n- Initial release.` immediately below it. Use today's date in
+`YYYY-MM-DD` form for `{today-iso-date}`. The `## [Unreleased]` section
+stays empty at initial scaffold — future changes accumulate there before the
+next `bump-version` run.
+
+Subsequent version bumps use the existing `/bump-version {slug}
+{major|minor|patch}` slash command (§3), which moves the `[Unreleased]`
+entries under the new versioned header. Do NOT manually duplicate this
+pattern on subsequent bumps.
 
 Header regex: `^## \[(\d+\.\d+\.\d+)\] — \d{4}-\d{2}-\d{2}$`. The
 most-recent version section MUST match `plugin.json.version` exactly

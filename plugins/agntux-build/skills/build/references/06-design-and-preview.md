@@ -147,6 +147,31 @@ Don't push through user fatigue. A handler designed by an exhausted
 contributor is worse than the same handler designed two hours
 later.
 
+## Screenshot emit at acceptance
+
+Once the user confirms the design ("looks good", "ship it", or similar),
+emit the first preview capture as `marketplace/screenshots/00-overview.png`
+(1280×720) before closing the renderer:
+
+```bash
+# Playwright capture against the open renderer window
+page.screenshot({
+  path: "plugins/{slug}/marketplace/screenshots/00-overview.png",
+  clip: { x: 0, y: 0, width: 1280, height: 720 }
+})
+```
+
+If the capture fails for any reason (renderer not available, headless-only
+host, or the plugin ships no UI handler), fall back to the scaffold script so
+the screenshots directory is never empty and never contains a README.md:
+
+```bash
+node scripts/scaffold-marketplace-assets.mjs --slug {slug}
+```
+
+**Never write a `README.md` into `marketplace/screenshots/`** — it triggers
+lint error E10. The scaffold script handles the placeholder correctly.
+
 ## Saved state at end of stage 6
 
 ```json
@@ -158,6 +183,7 @@ later.
       ...,
       "preview_iterations": 3,
       "preview_accepted_at": "2026-05-08T...",
+      "screenshot_path": "marketplace/screenshots/00-overview.png",
       "intercepted_payloads": [
         {"tool": "slack_send_message", "args": {"channel": "#general", "text": "..."}}
       ]

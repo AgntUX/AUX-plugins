@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-28
+
+Pre-emptive scaffolder fixes so freshly built plugins clear marketplace
+lint on the first try, plus a new `:revise` subcommand the submission
+worker invokes to apply review feedback without restarting the build.
+
+### Added
+- `:revise` subcommand (`/agntux-build:revise <slug> [--fixes <code,code>] [--mode revise]`) — routes review feedback directly to the relevant specialist agent (E05 → manifest-author, E15 → ingest-prompt-author, etc.) without re-running stages 1–5. Reads `<project>/.agntux-build/last-submission.json` to capture `revision_of` for the new SUBMISSION.json; does NOT bump `plugin.version` (revisions stay on the same version since the prior submission never shipped). In `--mode revise`, suppresses voice/gratitude and the conversational stages — designed to be invoked non-interactively by the submission worker.
+- `scripts/scaffold-marketplace-assets.mjs` — idempotent stage-7 helper that copies a 512×512 icon placeholder to `marketplace/icon.png` if absent, ensures `marketplace/screenshots/00-overview.png` exists, removes any rogue `marketplace/screenshots/README.md` (the source of E10 misnames), and emits a placeholder-note marketplace README.
+- `canonical/marketplace-assets/icon.placeholder.png` — 512×512 PNG used by the scaffold helper.
+- `canonical/ui-handlers/_template/src/lib/apps-client/` — authoritative vendored copy of the apps-client TypeScript module. The plugin-bundle path under `${CLAUDE_PLUGIN_ROOT}/canonical/` is now a fallback only; when both exist they must be byte-identical.
+- `packages/agntux-ui-primitives` — `assertStructuredContent<T>()` typed accessor over already-unwrapped tool output (closes the E27 missing-import build failure surfaced in the first live submission).
+
+### Changed
+- `agents/manifest-author.md` — char-cap reference table now inlined at the top of the listing.yaml authoring section (description ≤500, ui_components[].purpose ≤200, proposed_schema.cursor_semantics ≤200) with an explicit "draft under the cap, re-read and trim" instruction per long-string field.
+- `agents/release-checker.md` — initial-scaffold CHANGELOG template now seeds both `## [Unreleased]` and the first versioned section `## [{plugin_version}] — {today-iso-date}` with `### Added\n- Initial release.` underneath.
+- `agents/ingest-prompt-author.md` — new "Stage 7: emit `_overrides/frontmatter.yaml`" section with the full substitution map (`plugin-slug`, `source-slug`, `source-display-name`, `example-channel`, `permitted-error-kinds`); closes the E15 render-reproducibility gap at scaffold time.
+- `agents/view-tool-builder.md` — stage 7 now vendors `apps-client` via `rsync --no-links -a canonical/ui-handlers/_template/src/lib/apps-client/ plugins/{slug}/view-tool/src/lib/apps-client/` (or node equivalent); closes E27.
+- `agents/ui-handler-author.md` + `skills/build/references/06-design-and-preview.md` — stage-6 preview capture now emits `marketplace/screenshots/00-overview.png` (1280×720). The flow never writes `README.md` into `screenshots/` — the fallback path is the scaffold helper's placeholder, not a text file.
+- `skills/build/references/07-build.md` — invokes `scripts/scaffold-marketplace-assets.mjs --slug {slug}` as a pre-build scaffold step; writes `<project>/.agntux-build/last-submission.json` at end of stage 12 (so `:revise` can read it next time).
+- `skills/build/SKILL.md` — first-token routing now recognises `revise` → `references/revise.md`.
+
 ## [0.10.0] — 2026-05-28
 
 A live test of the `/agntux-build:build` flow surfaced a cluster of

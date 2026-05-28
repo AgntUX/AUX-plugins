@@ -133,6 +133,19 @@ HTML next to it. The canonical template at
 `canonical/ui-handlers/_template/view-tool/{__ui-name__.html,vite.config.ts}`
 shows the shape.
 
+## Pre-build scaffold step (runs before specialist dispatch)
+
+Before dispatching any specialist, run the marketplace-asset scaffold so the
+icon and screenshots directory are in place:
+
+```bash
+node scripts/scaffold-marketplace-assets.mjs --slug agntux-{slug}
+```
+
+This is idempotent — if stage 6 already emitted a real `00-overview.png`, the
+script detects it and exits cleanly. It removes any `screenshots/README.md`
+that may have been written by an earlier draft step (source of lint E10).
+
 ## Confirmation gate
 
 Before any of the specialists run, confirm with the user:
@@ -209,6 +222,31 @@ traceback for maintainers.
   "build_completed_at": "2026-05-08T..."
 }
 ```
+
+### `last-submission.json` — written on every successful build
+
+After all seven specialists complete without error, write
+`<agntux project root>/.agntux-build/last-submission.json`:
+
+```json
+{
+  "submission_id": "{submission_id}",
+  "slug": "agntux-{slug}",
+  "version": "{plugin_version}",
+  "blockers_summary": []
+}
+```
+
+- `submission_id` comes from stage 12's `SUBMISSION.json` `id` field once the
+  submission is created; at end of stage 7 (pre-submission) write a sentinel
+  value of `"pending-{session-id}"` so the file exists and `:revise` can
+  detect an in-progress build.
+- After stage 12 completes and the submission is confirmed, overwrite
+  `last-submission.json` with the real `submission_id` from `SUBMISSION.json`.
+- `blockers_summary` is an empty array at a clean build; the marketplace worker
+  populates it during review. `:revise` reads this file and uses the
+  `submission_id` as `marker.revision_of` for the next submission.
+- This file is read-only for `:revise`; only the build flow writes it.
 
 ## What you do NOT do
 
