@@ -74,9 +74,10 @@ All plugins and shared packages in this repository are licensed under the
 `LICENSE` for the canonical text and `NOTICE` for attributions.
 
 Solo use is unconditionally free — no license key, no pairing prompt, no
-nag, no degradation. Sync, cross-team rollup, and the private team
-marketplace are part of the proprietary AgntUX Teams product, distributed
-separately.
+nag, no degradation. Your personal workspace syncs to AgntUX's cloud so your
+AI assistant can serve your action items back to you. Shared team workspaces,
+cross-team rollup, and the private team marketplace are part of the
+proprietary AgntUX Teams product, distributed separately.
 
 ---
 
@@ -84,3 +85,12 @@ separately.
 
 - GitHub Issues: <https://github.com/AgntUX/AUX-plugins/issues>
 - Email: <support@agntux.ai>
+
+---
+
+## Legal
+
+All plugins are Apache License 2.0. Contributors who submit via `agntux-build`
+are subject to the [Marketplace Contributor Terms](https://agntux.ai/terms).
+See the [Privacy Policy](https://agntux.ai/privacy) for how AgntUX handles
+contributor data.

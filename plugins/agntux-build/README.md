@@ -100,4 +100,6 @@ file under the `agntux-build` label.
 
 ## License
 
-Apache License 2.0.
+Apache License 2.0. Plugins submitted via this flow are governed by the
+[Marketplace Contributor Terms](https://agntux.ai/terms) and
+[Privacy Policy](https://agntux.ai/privacy).

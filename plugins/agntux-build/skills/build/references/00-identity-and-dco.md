@@ -142,6 +142,19 @@ If the file is missing or stale:
    Accept exactly: `I agree`, `i agree`, `agree`, `yes`, `confirmed`.
    Anything else → loop back to whichever field they want to revise.
 
+## Publication notice
+
+By completing this flow and submitting, you acknowledge that:
+
+- Your finished plugin will be published publicly under the **Apache License 2.0**.
+- Your **name and email** will appear in the public commit history and in the
+  `CONTRIBUTING-SIGNATURE.md` file distributed with the plugin.
+- You must not include secrets, API keys, or other people's personal data anywhere
+  in the plugin files.
+- Submission is governed by the [Marketplace Contributor Terms](https://agntux.ai/terms).
+
+We'll repeat the key points at the moment of submission so nothing is a surprise.
+
 ## Persist
 
 On confirmation, write
