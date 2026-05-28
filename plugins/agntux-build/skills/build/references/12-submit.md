@@ -3,6 +3,13 @@
 The plugin works. Sync surfaces the right things. Time to ship it to
 the AgntUX maintainers, who will deploy it to the remote MCP server.
 
+> **Before finalizing:** By submitting you confirm that your plugin will be
+> published publicly under the Apache License 2.0, your name and email will
+> appear in public commit history and in `CONTRIBUTING-SIGNATURE.md`, you have
+> not included secrets or other people's personal data, and submission is
+> governed by the [Marketplace Contributor Terms](https://agntux.ai/terms) and
+> [Privacy Policy](https://agntux.ai/privacy).
+
 Source plugins are remote-view-only — they have no local MCP server,
 and local install in Claude Cowork is broken for the view-tool path.
 The plugin's first real run is on the remote MCP server after the

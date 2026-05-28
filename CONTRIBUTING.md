@@ -32,6 +32,20 @@ rejected.
 
 ---
 
+## Marketplace Contributor Terms
+
+Plugins submitted via the `agntux-build` flow are published to the **public
+AgntUX marketplace** under the **Apache License 2.0**. By submitting you also
+agree to the [Marketplace Contributor Terms](https://agntux.ai/terms) (§7 —
+Plugin Marketplace), which cover publication, review, and takedown.
+
+Your **real name and email** (from the DCO sign-off) will appear in the public
+commit history and in the `CONTRIBUTING-SIGNATURE.md` file shipped with the
+plugin. See the [Privacy Policy](https://agntux.ai/privacy) for how AgntUX
+handles contributor data.
+
+---
+
 ## For AgntUX Engineers
 
 All authoring conventions are documented in `CLAUDE.md` at the repo root.
