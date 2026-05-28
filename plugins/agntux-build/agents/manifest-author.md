@@ -399,18 +399,14 @@ non-emptiness for connector-direct plugins.
 Use a placeholder during initial PR; commission a real icon before
 launch.
 
-## Screenshots
+## Screenshots (optional — not required)
 
-- Path: `plugins/{slug}/marketplace/screenshots/`.
-- Count: 1–8.
-- Filename pattern: `^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$`.
-- Dimensions: 1280×720 to 2560×1440 (inclusive).
-- Aspect ratio: 1.33 to 2.33 (width / height).
-- Max size: 2 MB per file.
-- Recommended count: 3.
-
-If you specify `screenshot_order`, every entry must reference an
-existing file (lint code E06).
+Screenshots are no longer required by the marketplace (WS-C.2 / v2): listings
+ship icon-only until a real-screenshot capture pipeline lands. Do NOT scaffold
+placeholder screenshots and do NOT create `marketplace/screenshots/`. If a real
+screenshot is supplied, name it `NN-name.{png,jpg}` (the linter validates
+filename/dimensions/size only when files are present). If you specify
+`screenshot_order`, every entry must reference an existing file (lint E06).
 
 ## Verify before handoff
 
@@ -423,3 +419,27 @@ existing file (lint code E06).
 For the slash-command shortcut: `/lint-plugin {slug}` runs the linter
 and explains each finding. Use it for any tricky finding before
 hand-fixing.
+
+## Self-validation (required — WS-A, hard exit)
+
+After writing `marketplace/listing.yaml` and `plugin.json`, you MUST validate
+before returning success. Lint failures are **mechanical** and NEVER reach the
+contributor — see `skills/build/references/self-validation.md` for the budgets +
+the strict mechanical-vs-judgment line.
+
+1. Run `npm run lint:marketplace -- --plugin {slug}`.
+2. On **E05** (char-cap overrun): parse the offending field name(s) from
+   stderr, trim each to its cap using the word-boundary trim (budget cap − 1,
+   cut back to the last space, strip trailing whitespace, append `…` — the same
+   algorithm as the worker's `scripts/auto-fix/trim-listing-yaml.mjs`), then
+   re-lint. The char-cap table at the top of this file is the cap reference.
+3. On **E11** (reserved field) / **E04** (bad enum) / **E14** (missing
+   `proposed_schema`): fix the specific field the linter names; re-lint.
+4. Repeat up to **5 edit-and-relint cycles**. Lint exits 0 → return success.
+   Still failing after 5 → return `{success: false, error: <lint output>}`; the
+   orchestrator logs an agntux-build defect for the maintainer. NEVER surface a lint code
+   to the contributor.
+
+This is the build-time guarantee that a plugin never reaches the submission
+handler carrying an E05/E11/E04/E14 the contributor would otherwise be asked to
+fix.

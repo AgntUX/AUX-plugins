@@ -5,6 +5,11 @@ view-tool bundle, then preview it in a **real Chromium window** the
 user can click in. They see the real iframe — they don't see internal
 stage names or scaffold filenames.
 
+Every design the contributor sees is **HTML rendered inline/in Chromium** — the
+live iframe here, and the pre-build wireframe back in stage 5. **Never** present
+a UI as ASCII art or a plain-text layout; if a quick sketch is needed before the
+live preview, emit an inline HTML prototype, not text.
+
 ## What happens internally (silent)
 
 You — the orchestrator — dispatch `ui-handler-author` (one of the
@@ -147,30 +152,15 @@ Don't push through user fatigue. A handler designed by an exhausted
 contributor is worse than the same handler designed two hours
 later.
 
-## Screenshot emit at acceptance
+## Screenshots (no longer emitted — WS-C.2)
 
-Once the user confirms the design ("looks good", "ship it", or similar),
-emit the first preview capture as `marketplace/screenshots/00-overview.png`
-(1280×720) before closing the renderer:
-
-```bash
-# Playwright capture against the open renderer window
-page.screenshot({
-  path: "plugins/{slug}/marketplace/screenshots/00-overview.png",
-  clip: { x: 0, y: 0, width: 1280, height: 720 }
-})
-```
-
-If the capture fails for any reason (renderer not available, headless-only
-host, or the plugin ships no UI handler), fall back to the scaffold script so
-the screenshots directory is never empty and never contains a README.md:
-
-```bash
-node scripts/scaffold-marketplace-assets.mjs --slug {slug}
-```
-
-**Never write a `README.md` into `marketplace/screenshots/`** — it triggers
-lint error E10. The scaffold script handles the placeholder correctly.
+Do not capture or emit a marketplace screenshot at acceptance. Screenshots are
+no longer required — the marketplace ships icon-only listings until a
+real-screenshot pipeline lands — so this step no longer writes
+`marketplace/screenshots/00-overview.png`. The stage-7 scaffold handles the icon
+placeholder; nothing here touches `marketplace/screenshots/`. (The headless
+render pass in stage 8 still captures a debugging screenshot into the session
+dir — that's unrelated to marketplace collateral.)
 
 ## Saved state at end of stage 6
 
@@ -183,7 +173,6 @@ lint error E10. The scaffold script handles the placeholder correctly.
       ...,
       "preview_iterations": 3,
       "preview_accepted_at": "2026-05-08T...",
-      "screenshot_path": "marketplace/screenshots/00-overview.png",
       "intercepted_payloads": [
         {"tool": "slack_send_message", "args": {"channel": "#general", "text": "..."}}
       ]

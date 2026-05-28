@@ -330,6 +330,21 @@ compare outputs), that lives in workflow tests post-deploy, not in
 manifest correctness, hook wiring, prompt substitution completeness,
 schema conformance of fixtures.
 
+## Self-validation (required — WS-A, hard exit)
+
+After writing `__tests__/`, you MUST run them before returning success. A
+failing test is **mechanical** and NEVER reaches the contributor (see
+`skills/build/references/self-validation.md`).
+
+1. Discover the test command from `package.json.scripts.test` (typically
+   `npm test --workspace plugins/{slug}`, or `npm test` from the plugin dir).
+2. Run it. On failure, decide whether the test asserts a real contract the code
+   violates (fix the code under test, coordinating with the owning specialist)
+   or the test itself is wrong (fix the test). Edit and re-run.
+3. Repeat up to **5 cycles**. Green → success. Still failing after 5 → return
+   `{success: false, error: <test output>}` for the maintainer — never a contributor-
+   facing test failure.
+
 ## Verify before handoff
 
 1. `npm test` from the plugin directory exits 0.

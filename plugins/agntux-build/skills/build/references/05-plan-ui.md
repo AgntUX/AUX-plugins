@@ -127,10 +127,28 @@ to the user. Save the planned shape in the session file:
 }
 ```
 
+## Show the design as an HTML prototype — never ASCII
+
+When you present the planned UI to the contributor (a wireframe of each action
+button's screen, or any layout sketch), render it as an **HTML prototype that
+Cowork displays inline** — not as an ASCII/text drawing. Cowork renders HTML
+artifacts inline natively, and an HTML wireframe is far easier for a
+non-technical contributor to read and react to than a text box-drawing.
+
+- Emit a small self-contained HTML mock (light mode, the standard AgntUX design
+  tokens) for each handler's screen and let Cowork show it inline.
+- **NEVER** present the design as ASCII art, box-drawing characters, or a
+  plain-text layout description. If you catch yourself sketching the UI in text,
+  stop and emit HTML instead.
+- This is the pre-build wireframe; stage 6 then builds the real component and
+  previews it live in a Chromium window. Both are HTML — the contributor never
+  sees a text mockup of the UI.
+
 ## What you say to advance
 
-> Got it — {N} buttons: {comma-list of verb phrases}. I'll mock up
-> the UI and we'll iterate together until each one feels right.
+> Got it — {N} buttons: {comma-list of verb phrases}. I'll put together a quick
+> HTML wireframe of each one so you can see the layout, and we'll iterate
+> together until each feels right.
 
 Then load [`06-design-and-preview.md`](06-design-and-preview.md).
 

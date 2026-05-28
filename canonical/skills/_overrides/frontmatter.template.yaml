@@ -1,0 +1,58 @@
+# Canonical _overrides/frontmatter.yaml template — single source of truth.
+#
+# This is the substitution map every ingest plugin's render pipeline consumes
+# (canonical/prompts/ingest/skills/sync/ → plugins/{slug}/skills/{slug}/).
+# The ten {{...}} keys below are EXACTLY the placeholders the canonical sync
+# template references; the renderer's surviving-placeholder guard fails the
+# build if any are missing. Keep this list in lockstep with the canonical
+# template (scripts/render-skill.mjs --self-test surfaces drift).
+#
+# Consumed by:
+#   - scripts/scaffold-marketplace-assets.mjs (WS-A.3) — emits a baseline
+#     frontmatter.yaml during agntux-build stage 7, substituting the ten keys
+#     from build state (deriving source-slug/display-name from the slug and
+#     reading version/cadence from plugin.json). This is the E15 floor: the
+#     file always exists and always renders.
+#   - agntux-build's ingest-prompt-author specialist (WS-A.1) — copies this
+#     template and substitutes every value from stages 1–5 outputs, then runs
+#     `render-skill.mjs --validate-overrides {slug}` to confirm completeness.
+#
+# A single canonical artifact prevents drift between the scaffold script and
+# the specialist prompt.
+
+plugin-slug: {{plugin-slug}}                        # e.g. agntux-jira
+plugin-version: {{plugin-version}}                  # match .claude-plugin/plugin.json
+source-display-name: {{source-display-name}}        # e.g. Jira
+source-slug: {{source-slug}}                        # bare name after `agntux-`
+recommended-cadence: "{{recommended-cadence}}"      # match plugin.json recommended_ingest_cadence
+source-cursor-semantics: "{{source-cursor-semantics}}"
+source-mcp-tools: "{{source-mcp-tools}}"            # comma-list of source MCP tool root names
+thread-unit-name: {{thread-unit-name}}              # singular: thread | channel | issue | row
+bootstrap-window-default-days: "{{bootstrap-window-default-days}}"
+example-channel: {{example-channel}}                # one source-native scope name
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed canonical extensions (add the {{source-slug}}-* kinds the
+  # stage-4 tool inventory and cursor analysis actually surface — do NOT invent
+  # kinds that have no corresponding error path):
+  - {{source-slug}}-cursor-evicted
+  - {{source-slug}}-merged-into

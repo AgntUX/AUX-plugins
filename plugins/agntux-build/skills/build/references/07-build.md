@@ -12,7 +12,8 @@ In order:
 1. **`manifest-author`** — generates `plugin.json`, `LICENSE` (mirror
    of root Apache-2.0), `NOTICE`, `marketplace/listing.yaml` (with
    `proposed_schema` block), `marketplace/icon.png` (placeholder),
-   `marketplace/screenshots/` (placeholder), `README.md`, `CHANGELOG.md`.
+   `README.md`, `CHANGELOG.md`. (No screenshots — the marketplace ships
+   icon-only listings per WS-C.2.)
 2. **`ingest-prompt-author`** — generates
    `skills/{plugin-slug}/_overrides/frontmatter.yaml` and the
    wholesale `_overrides/reference/fetch.md` for the connector's
@@ -133,18 +134,31 @@ HTML next to it. The canonical template at
 `canonical/ui-handlers/_template/view-tool/{__ui-name__.html,vite.config.ts}`
 shows the shape.
 
-## Pre-build scaffold step (runs before specialist dispatch)
+## Hard pre-flight scaffold (unconditional — runs before specialist dispatch)
 
-Before dispatching any specialist, run the marketplace-asset scaffold so the
-icon and screenshots directory are in place:
+Before dispatching any specialist, run the marketplace-asset scaffold. This is
+**unconditional and load-bearing** — capture its exit code and halt stage 7 on a
+non-zero exit (a scaffold failure is an agntux-build defect, not a contributor
+problem):
 
 ```bash
 node scripts/scaffold-marketplace-assets.mjs --slug agntux-{slug}
+# non-zero exit → STOP. Do not dispatch specialists. Log the defect for the maintainer.
 ```
 
-This is idempotent — if stage 6 already emitted a real `00-overview.png`, the
-script detects it and exits cleanly. It removes any `screenshots/README.md`
-that may have been written by an earlier draft step (source of lint E10).
+The script (per WS-A.3 / WS-C.2) is idempotent and:
+
+- copies the 512×512 icon placeholder to `marketplace/icon.png` if absent;
+- emits the `skills/agntux-{slug}/_overrides/frontmatter.yaml` **floor** from the
+  canonical template (`canonical/skills/_overrides/frontmatter.template.yaml`),
+  substituting the ten render placeholders from build state. This guarantees
+  lint pass 8 can reproduce the skill tree (closing E15) even before
+  `ingest-prompt-author` writes the real substitution map — which overwrites the
+  floor on a normal build;
+- writes a placeholder `marketplace/README.md` note.
+
+It does **not** create `marketplace/screenshots/` — screenshots are no longer
+required (WS-C.2).
 
 ## Confirmation gate
 
@@ -210,6 +224,44 @@ even then it's a one-liner:
 
 No technical detail in the surface — the session file carries the
 traceback for maintainers.
+
+## Stage-7 final gate (end-to-end verifier — WS-A.2)
+
+After all seven specialists dispatch and before the build summary, run ONE
+end-to-end verifier against the contributor's plugin tree on the same machine
+that built it. The build flow does NOT advance to the summary / stage 8 until
+this exits 0:
+
+```bash
+cd plugins/agntux-{slug} && npm install && \
+  npm run lint:marketplace -- --plugin agntux-{slug} && \
+  npm run build --if-present && \
+  npm test --if-present
+```
+
+(When the working tree is the `.agntux-build/builds/{id}/agntux-{slug}/` copy
+rather than an AUX-plugins clone, run the equivalent there — the intent is
+"install + lint + build + test all return zero on the same machine that built
+the plugin.")
+
+On any non-zero exit, parse the failing command + error and re-dispatch the
+owning specialist:
+
+| Failing command | Re-dispatch |
+|---|---|
+| `lint:marketplace` (E05 / E11 / E04 / E14) | `manifest-author` |
+| `lint:marketplace` pass 8 / render drift (E15) | `ingest-prompt-author` |
+| `npm run build` (view-tool compile) | `view-tool-builder` |
+| `npm test` | `tests-author` |
+
+Loop the verifier up to **5 times** after specialist-driven fixes (budgets +
+the mechanical-vs-judgment line live in
+[`self-validation.md`](self-validation.md)). These are **mechanical** failures —
+the user NEVER sees a lint code or a traceback. If still failing after 5 cycles,
+log an agntux-build defect for the maintainer (the saved session file + the one-line "hit
+a snag" message above) and stop. Do NOT surface lint/build/test detail to the
+contributor, and do NOT let the flow reach "ready to submit?" with an
+unvalidated tree.
 
 ## Saved state at end of stage 7
 

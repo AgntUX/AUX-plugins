@@ -591,6 +591,24 @@ the write tools before merging — host MCP configurations vary.
 
 ---
 
+## Self-validation (required — WS-A, hard exit)
+
+After emitting any code artifact (the connector-envelope builder in
+`view-tool/src/.../build-envelope.ts`, or the legacy `skills/draft/SKILL.md`),
+validate it compiles / renders before returning. Build and lint failures are
+**mechanical** and NEVER reach the contributor (see
+`skills/build/references/self-validation.md`):
+
+- Connector-envelope lane: the envelope builder is part of `view-tool/src/`, so
+  `npm run build --prefix view-tool/` is the gate — confirm your edits compile
+  there, and `grep -rn 'useStructuredContent' view-tool/src/` rewriting any hit
+  to `assertStructuredContent`.
+- Legacy chat-only lane: `node scripts/render-skill.mjs {slug}` (when the draft
+  skill renders from canonical) or a direct lint of the skill shape.
+
+Up to **5 edit-and-revalidate cycles**; after 5, return `{success: false,
+error: <tooling output>}` for the maintainer — never a contributor-facing build error.
+
 ## See also
 
 - `${CLAUDE_PLUGIN_ROOT}/canonical/prompts/agntux-core-hub-contract.md`

@@ -105,12 +105,15 @@ describe("E01 — missing required files", () => {
     expect(e01.some((f) => f.message.includes("CHANGELOG.md"))).toBe(true);
   });
 
-  it("reports E01 when screenshots directory is empty", () => {
+  it("does NOT report E01 when screenshots are absent (screenshots no longer required — WS-C.2)", () => {
+    // Screenshots became optional in v2: the marketplace ships icon-only
+    // listings until a real-screenshot capture pipeline lands. A plugin with
+    // no screenshots/ directory must NOT trip E01 on that basis.
     const findings = lintFixture(invalidDir, "e01-no-screenshots");
-    const errs = errors(findings);
-    expect(codes(errs)).toContain("E01");
-    const e01 = errs.filter((f) => f.code === "E01");
-    expect(e01.some((f) => f.message.includes("screenshot"))).toBe(true);
+    const e01 = errors(findings).filter((f) => f.code === "E01");
+    expect(
+      e01.some((f) => f.message.toLowerCase().includes("screenshot")),
+    ).toBe(false);
   });
 
   it("all E01 findings have the correct plugin slug", () => {

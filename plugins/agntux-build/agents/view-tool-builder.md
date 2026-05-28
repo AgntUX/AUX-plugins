@@ -157,6 +157,24 @@ at the repo root. The agntux-build plugin-bundle path
 is a fallback used only when the repo-root path is absent. If both exist they
 must be byte-identical; prefer the repo-root copy.
 
+## Self-validation (required — WS-A, hard exit)
+
+The `npm run build` you run above IS your validator — make the loop explicit and
+add the deprecated-import sweep. Compile and import errors are **mechanical** and
+NEVER reach the contributor (see `skills/build/references/self-validation.md`).
+
+1. `npm install --prefix view-tool/` (one-shot, idempotent), then
+   `npm run build --prefix view-tool/`.
+2. On compile failure, parse the error (import names, missing exports, type
+   errors), edit the offending source file, rebuild.
+3. Run `grep -rn 'useStructuredContent' view-tool/src/`. Any hit is the
+   deprecated alias — rewrite it to `assertStructuredContent` (the canonical
+   `@agntux/ui-primitives` export) and rebuild. The alias still compiles via the
+   WS-C.1 deprecated re-export and the worker's `rewrite-imports.mjs` is the
+   belt-and-suspenders net, but author the canonical name here.
+4. Repeat up to **5 build cycles**. A clean build + manifest emit → success.
+   Still failing after 5 → return `{success: false, error: <build output>}` for the maintainer. Never a contributor-facing build error.
+
 ## Hand-offs
 
 - On success → return `{success: true, artefacts: [...]}` to stage 7;

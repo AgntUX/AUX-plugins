@@ -462,33 +462,30 @@ envelope shape.
 - The render-view-tool harness internals (Phase 7).
 - Fixture authoring (`tests-author` writes them; you consume them).
 
-## Screenshot emit (stage 6 / stage 7 completion)
+## Screenshots (no longer emitted — WS-C.2)
 
-When the stage-6 preview loop reaches acceptance (user says "looks good" or
-similar), emit the first preview capture as a marketplace screenshot:
+Do NOT emit marketplace screenshots. Screenshots are no longer required by the
+marketplace (v2 ships icon-only listings until a real-screenshot capture
+pipeline lands), and the stage-6 preview no longer captures one. Do not create
+`marketplace/screenshots/`, do not write a `00-overview.png` placeholder, and
+never write a `README.md` into `marketplace/screenshots/`. The stage-7 scaffold
+(`scripts/scaffold-marketplace-assets.mjs`) handles the icon placeholder and the
+`_overrides/frontmatter.yaml` floor; it no longer touches screenshots.
 
-- **Path:** `plugins/{slug}/marketplace/screenshots/00-overview.png`
-- **Dimensions:** exactly 1280×720 pixels
-- **Source:** a Playwright `page.screenshot({ path: ..., clip: { x: 0, y: 0, width: 1280, height: 720 } })` call against the headed host-renderer window, or equivalent.
+## Self-validation (required — WS-A, hard exit)
 
-If the preview capture fails (renderer not available, headless-only CI, or the
-plugin ships no UI handler at all), emit the canonical placeholder instead:
+After writing `view-tool/src/{slug}-view.ts` + `{resource}-ui.tsx` (and any
+`ui-handlers/{name}/component/` sources), validate before handing to
+view-tool-builder. Compile / import errors are **mechanical** and NEVER reach
+the contributor (see `skills/build/references/self-validation.md`):
 
-```bash
-# Fallback: copy the canonical placeholder rather than leaving the
-# screenshots/ directory empty (which triggers lint E01) or writing a
-# README.md there (which triggers lint E10).
-node scripts/scaffold-marketplace-assets.mjs --slug {slug}
-```
-
-The scaffold script is idempotent — calling it when a real screenshot already
-exists is a no-op.
-
-**NEVER write a `README.md` into `marketplace/screenshots/`.** The linter
-inspects every file in that directory and rejects any entry whose filename does
-not match `^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$` (lint error E10). A README.md
-in that directory is the most common source of E10 — it looks harmless but
-hard-fails the PR.
+1. `npm install --prefix view-tool/` then `npm run build --prefix view-tool/`.
+2. On a TypeScript / missing-import / descriptor-regex failure, edit the
+   offending source and rebuild. Run `grep -rn 'useStructuredContent'
+   view-tool/src/` and rewrite any hit to `assertStructuredContent`.
+3. Repeat up to **5 cycles**. Clean build → hand off to view-tool-builder (which
+   re-runs the build + manifest emit as the authoritative gate). Still failing
+   after 5 → return `{success: false, error: <build output>}` for the maintainer.
 
 ## What NOT to do
 

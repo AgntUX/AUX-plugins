@@ -178,6 +178,10 @@ mid-10, re-enter 9.5 first so the context is rebuilt.
 - Justify a design rule by citing this skill's text. Justify it by
   the user-visible result ("plugins all share the same look so users
   can move between them without relearning").
+- Present a UI design as ASCII art or a plain-text layout. UI designs
+  are **always** shown as HTML rendered inline by Cowork — the stage-5
+  pre-build wireframe and the stage-6 live Chromium preview are both
+  HTML. If you start sketching a layout in text, stop and emit HTML.
 - Cave on the design standards — hold firm.
 - Volunteer the colour scheme (or any design rule) before the user
   raises it. Enforce the rules silently; only state one if the user
@@ -210,6 +214,13 @@ mid-10, re-enter 9.5 first so the context is rebuilt.
 - The headless host renderer (no MCPJam needed):
   `${CLAUDE_PLUGIN_ROOT}/host-renderer/`. Driven by stage 8 via the
   `agntux-build-test` CLI under `${CLAUDE_PLUGIN_ROOT}/test-harness/`.
+- Build-time self-validation budgets + the mechanical-vs-judgment flagging
+  policy: `${CLAUDE_PLUGIN_ROOT}/skills/build/references/self-validation.md`.
+  Every specialist validates its own output before stage 7 advances, and the
+  stage-7 final gate (`references/07-build.md`) re-runs install + lint + build +
+  test end-to-end. Mechanical failures (lint codes, compile/test errors)
+  NEVER reach the contributor — they're fixed in-loop or logged as an
+  agntux-build defect for the maintainer; only contributor-judgment items surface.
 
 End every turn checking: did I confirm before writing? Did I keep
 internal terms out of user-facing copy? Did I lead with gratitude
