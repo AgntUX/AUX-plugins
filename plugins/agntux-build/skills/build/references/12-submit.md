@@ -24,7 +24,14 @@ app isn't active, do **not** tell the user the plugin was submitted.
 ## Artefact — `CONTRIBUTING-SIGNATURE.md` at the plugin root
 
 Read the contributor identity from
-`<agntux project root>/.agntux-build/contributor.json`. Compose:
+`<agntux project root>/.agntux-build/contributor.json`. The signature
+file is the DCO record only — **do not include the `socials` block in
+the signature**. The signature ends up on a public-facing PR; the
+social handles are credit metadata that lives in the
+`SUBMISSION.json` marker instead (step d) and never lands in a commit
+message or PR body.
+
+Compose:
 
 ```markdown
 ---
@@ -200,7 +207,7 @@ Schema:
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "kind": "agntux-build.submission",
   "status": "final",
   "submission_id": "agntux-{slug}@{version}+{tree_sha256[:8]}",
@@ -211,7 +218,21 @@ Schema:
   "session_id": "{YYYY-MM-DD-HHmmss}",
   "build_root": "agntux-{slug}",
   "agntux_build_version": "{agntux-build plugin.json version}",
-  "contributor": { "name": "...", "email": "..." },
+  "contributor": {
+    "name": "...",
+    "email": "...",
+    "socials": {
+      // Only the handle keys the contributor actually filled in
+      // appear here — never emit `"x": ""` placeholders for skipped
+      // fields. LinkedIn is stored as a full URL; the other three
+      // (x / instagram / reddit) are stored as bare handles. The
+      // `socials` block as a whole is absent when stage 11 was
+      // skipped — never write `"socials": null` or `{}`.
+      "x": "jane",
+      "linkedin": "https://www.linkedin.com/in/jane/",
+      "credit_consent_at": "{iso timestamp from stage 11}"
+    }
+  },
   "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "Name <email>" },
   "submitted_at": "{iso}",
   "tree_sha256": "{sha256 over sorted `path\\tsha256` lines}",
@@ -231,6 +252,17 @@ Notes:
   file in the synced tree, including `CONTRIBUTING-SIGNATURE.md`.
 - `dco.*` come from `contributor.json` and the signature you just
   wrote.
+- `contributor.socials` is present **only** when a `socials` block
+  exists on `contributor.json` (the contributor consented to public
+  credit at some point — possibly in a previous session). Copy the
+  block verbatim — only the handle keys the contributor provided,
+  plus the `credit_consent_at` timestamp. **Read from
+  `contributor.json` on disk**, not from the session-state
+  `credit_info` field: a `credit_info.skipped: true` session record
+  means the user opted out *this session*, but does NOT clear
+  consent the user gave previously. If `contributor.json` has no
+  `socials` block, omit the whole `socials` key from the marker
+  (don't write `"socials": null` or `{}`).
 
 ## e. Hard-require sync (before claiming success)
 
