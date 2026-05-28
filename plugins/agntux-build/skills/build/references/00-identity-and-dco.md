@@ -157,6 +157,12 @@ On confirmation, write
 }
 ```
 
+Stage 11 may later append an optional `socials` block to this same
+file with the contributor's public handles + a `credit_consent_at`
+timestamp. Stage 0 doesn't write `socials`; if a previous session
+already left one, preserve it on re-write (merge rather than
+overwrite).
+
 Use `node:fs/promises` `writeFile` with `mode: 0o600` (owner read/
 write only). Confirm to the user:
 

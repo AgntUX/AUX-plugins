@@ -6,6 +6,54 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-28
+
+When AgntUX promotes a freshly-launched plugin on social, the
+contributor deserves the credit. 0.9.0 adds a final step to the
+build flow that asks the contributor — once, at the end, after
+sync iterations have converged — whether they want to be tagged
+in promo posts, and which handles to use.
+
+### Added
+
+- **Stage 11 — credit-info capture.** A new stage between
+  sync-iterate (10) and submit (12) that asks the contributor for
+  optional public-credit handles: X / Twitter, LinkedIn,
+  Instagram, Reddit. The prompt lays out explicit consent up front
+  — "we may publish these on the agntux.ai plugin page and tag you
+  in social posts promoting your plugin" — and skipping is a
+  fully supported answer. Lenient normalisation: any of `@jane`,
+  `jane`, `https://x.com/jane` resolves to the bare handle `jane`.
+  See [`references/11-credit-info.md`](skills/build/references/11-credit-info.md).
+- **Optional `socials` block on `contributor.json`.** Stage 11
+  appends a `socials` block carrying the provided handles plus a
+  `credit_consent_at` ISO timestamp. The block is only written
+  when the contributor provided at least one handle; skipping the
+  step leaves the file untouched. Stage 0's spec was updated to
+  document the field; future re-writes of `contributor.json` must
+  preserve a pre-existing `socials` block (merge, don't overwrite).
+- **`contributor.socials` in the submission marker.** Stage 12's
+  `SUBMISSION.json` now embeds the `socials` block verbatim from
+  `contributor.json` when present, alongside the existing
+  `contributor.name` / `contributor.email`. The marker is stored
+  verbatim in `plugin_submissions.marker` jsonb on the AgntUX
+  side, so the credit handles ride into the submission record
+  without a database migration. Marker `schema_version` bumped
+  `1.0.0 → 1.1.0` (additive: the new field is optional, old
+  markers without it still validate).
+
+### Notes
+
+- Stage 11 only ever asks knowledge-worker channels (X, LinkedIn,
+  Instagram, Reddit). GitHub / Bluesky / Mastodon / personal
+  website are deliberately not asked — the contributor pool this
+  flow exists for isn't engineers, and a five-field wizard at the
+  end of a long session is bad UX. If the contributor volunteers
+  other links, accept them politely but don't persist them.
+- `CONTRIBUTING-SIGNATURE.md` is unchanged — the signature is the
+  DCO record only and never carries social handles. Credit
+  metadata lives exclusively in the `SUBMISSION.json` marker.
+
 ## [0.8.0] — 2026-05-27
 
 A live test run dead-ended at the very last step: agntux-build built a
