@@ -22,6 +22,15 @@ export default defineConfig({
       "**/ui-handlers/*/component/**",
       // Same for plugin MCP server packages — run via their own vitest config.
       "**/mcp-server/**",
+      // Same for view-tool tests (post-P7 source plugins): their UI tests live
+      // under view-tool/{src/__tests__,__tests__}/ and need jsdom + the
+      // view-tool's own setupFiles (vitest.setup.ts) + @vitejs/plugin-react.
+      // The root vitest has none of that and would fail to import their JSX /
+      // mock window — exactly like the component exclusion above. Each runs via
+      // its own config: `cd plugins/{slug}/view-tool && npm test` (and the
+      // submit-time validator runs them too). Also covers the scaffold
+      // _template's view-tool tests, which are validated when instantiated.
+      "**/view-tool/**",
       // Don't pick up compiled output of workspace packages.
       "packages/*/dist/**",
     ],
