@@ -70,10 +70,16 @@ the same way by editing the specific line.
 | `manifest-author` | `npm run lint:marketplace -- --plugin {slug}` (parse + trim E05; re-lint) |
 | `ingest-prompt-author` | `node scripts/render-skill.mjs --validate-overrides {slug}` |
 | `view-tool-builder` | `npm install --prefix view-tool/` → `npm run build --prefix view-tool/`; grep + rewrite `useStructuredContent` |
-| `tests-author` | `npm test --workspace plugins/{slug}` (discover via `package.json.scripts.test`) |
+| `tests-author` | vitest in **both** the plugin root (`__tests__/**`) **and** `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`) — the plugin-root `vitest.config.ts` globs only `__tests__/**`, so the old `npm test --workspace plugins/{slug}` note missed the view-tool suite entirely. Run both, or just let the gate below do it. |
 | `ui-handler-author` / `draft-flow-author` | lint / build / test as relevant to the artifacts they emit |
 
-The stage-7 final gate (`07-build.md`) re-runs the whole-tree end-to-end:
-`npm install && npm run lint:marketplace -- --plugin {slug} && npm run build
---if-present && npm test --if-present`. The build flow does not reach the
-"ready to submit?" confirmation until that gate exits 0.
+The stage-7 final gate (`07-build.md`) is the single deterministic script
+`scripts/validate-plugin.mjs <slug>` — it runs build → lint → view-tool
+typecheck → tests (plugin-root **and** view-tool) → `claude plugin validate` →
+render (best-effort) in order and aborts non-zero on the first hard failure.
+**"Hard exit" means the script's exit code, not a prose promise** — the build
+flow does not reach the "ready to submit?" confirmation until the validator
+exits 0 and has written a green `validation-receipt.json`. Each specialist's own
+per-artifact check above is the fast inner loop; the validator is the
+authoritative whole-tree gate, and the same script (re-bound to the finalized
+tree) is what gates submission at stage 12.

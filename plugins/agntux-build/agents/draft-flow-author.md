@@ -107,6 +107,10 @@ specific responsibilities:
    call `mcp__agntux-core__agntux_core_set_status` to flip the action's
    status to `done` (see §4 "Action-item mutations go through agntux-core
    MCP" below).
+5. **Author a payload-schema reference file for every non-`compose` payload
+   header you emit** (see §2a.1 below). This is a required deliverable, not
+   optional — a missing per-verb reference file is the defect-2 class that
+   the stage-7 gate now hard-blocks on.
 
 ### 2a. Pre-compose at ingest into a body section
 
@@ -196,6 +200,41 @@ status updates), the pre-composed body is stale. Two mitigations:
   payload and the live source-side state, falling back to the on-disk
   copy when the source-side fetch fails (auth, rate limits, etc.). See
   §2b "Dual-mode view tools".
+
+### 2a.1 Author a payload-schema reference file per verb (required deliverable)
+
+`compose-payload.md` is the canonical default body schema — it ships in
+agntux-gmail and agntux-slack and is rendered from canonical, so you do NOT
+author it. But the moment your write-back emits a body section whose header is
+**not** `## Compose payload` — e.g. `## RSVP payload`, `## Schedule payload`,
+`## Canvas payload`, `## Meeting prep` — you MUST author a matching sibling
+schema file under `_overrides/reference/`, one per header:
+
+| Body-section header you emit | Reference file you author |
+|---|---|
+| `## RSVP payload` | `_overrides/reference/rsvp-payload.md` |
+| `## Schedule payload` | `_overrides/reference/schedule-payload.md` |
+| `## Canvas payload` | `_overrides/reference/canvas-payload.md` |
+| `## {Verb} payload` / `## {Verb}` | `_overrides/reference/{verb-kebab}-payload.md` (or `{verb-kebab}.md`) |
+
+Derivation rule: lowercase the header, drop the leading `##`, kebab-case the
+words. `## RSVP payload` → `rsvp-payload.md`; `## Schedule payload` →
+`schedule-payload.md`. These are **additive per-verb reference files** with no
+canonical counterpart, so the renderer passes them through verbatim (see
+`ingest-prompt-author.md` §3 "Wholesale reference replacement").
+
+Model each on the canonical `compose-payload.md`
+(`canonical/prompts/ingest/skills/sync/reference/compose-payload.md`) and on
+Slack's `canvas-payload.md`
+(`plugins/agntux-slack/skills/agntux-slack/_overrides/reference/canvas-payload.md`):
+document the JSON/YAML keys the verb's connector envelope needs, with types and
+a worked example. This is the gap that produced defect 2 — google-calendar
+emitted `## RSVP payload` / `## Schedule payload` / `## Meeting prep` headers but
+the matching `reference/*.md` files were never authored, so its generated tests
+failed. Coordinate with `ingest-prompt-author` (who owns the
+`_overrides/reference/` directory) and `tests-author` (whose draft-flow test
+**derives** the expected filename set from the headers you emit — so the two
+stay in lock-step).
 
 ### 2b. Dual-mode view tools
 

@@ -165,6 +165,56 @@ Use `node:fs/promises` to enumerate and copy. After this step the
 finalized, signature-carrying tree is under
 `<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`.
 
+> **Run this copy AFTER the §b.5 validator, not before.** The validator's build
+> step is the last thing that can touch the working tree's bytes, so copy the
+> *post-validation* tree — that is what guarantees the synced copy the marker
+> program hashes is byte-identical to the tree the receipt bound. See the
+> ordering list in §b.5.
+
+## b.5. Validate the working tree — the deterministic gate
+
+This is the **gate.** Run the deterministic validator against the working tree
+(`plugins/agntux-{slug}/` in the AUX-plugins checkout — the tree stage 7 built
+and where the Artefact step just wrote `CONTRIBUTING-SIGNATURE.md`) so it writes
+a `validation-receipt.json` whose `tree_sha256` binds THIS exact tree. The marker
+program in step (c) refuses to write `SUBMISSION.json` unless that receipt exists
+and matches — no green receipt, no submission.
+
+```bash
+node scripts/validate-plugin.mjs agntux-{slug} --session-dir "{SESSION_DIR}"
+# {SESSION_DIR} = <agntux root>/.agntux-build/builds/{session-id}/  (the receipt lands
+#                 here, a sibling of the agntux-{slug}/ synced copy step (c) hashes)
+```
+
+The validator builds → lints → typechecks → tests → `claude plugin validate` →
+renders (best-effort) the working tree's `plugins/agntux-{slug}/` — the only tree
+the repo-root build/lint tooling can target — hashes it, and writes the receipt
+to `{SESSION_DIR}`. **Do NOT pass `--plugin-dir` at the synced-copy path:** build
++ lint cannot target an arbitrary tree, so the validator hard-fails
+(`failed_stage: "usage"`) rather than silently validate a tree it never built.
+
+**Ordering matters** — this is why the receipt's hash equals the marker's hash:
+
+1. Write `CONTRIBUTING-SIGNATURE.md` into the working tree (the Artefact step,
+   above).
+2. Run the validator (here) on the working tree → it builds the tree, then
+   hashes it → receipt with `tree_sha256`.
+3. **Then** perform the §b sync-copy of the *validated* working tree into
+   `{SESSION_DIR}/agntux-{slug}/`. The copy uses the SAME exclude list as the
+   hash, so the synced copy is byte-identical on hashed files — its
+   `tree_sha256` matches the receipt's. (Copy AFTER validation: the validator's
+   build step is the last thing that can touch the tree, so copy the
+   post-validation bytes.)
+4. Run the marker program (step c): it hashes the synced copy → equals
+   `receipt.tree_sha256` → the gate passes.
+
+It MUST exit 0. If it doesn't, the tree is not submittable — the failure is
+**mechanical** (see `self-validation.md`); route it back to the owning specialist
+per the stage-7 re-dispatch table in `07-build.md` (a `failed_stage: "usage"`
+means an operator/environment error — fix the invocation, don't re-dispatch a
+specialist) and **do not** proceed to step (c). Any edit after validation (even
+a one-byte fix) invalidates the receipt; re-run the validator before retrying.
+
 ## c. Build the manifest + write the marker — run this program, don't hand-author
 
 > **This is the one step you must not improvise.** The marker is a precise
@@ -174,9 +224,11 @@ finalized, signature-carrying tree is under
 > placed *inside* the `agntux-{slug}/` dir instead of as its sibling, never
 > reaches the queue and the contributor is told "submitted" when nothing was.
 > Fill in the constants at the top and **run the program below verbatim**. It
-> enumerates the tree, computes every sha256, derives `tree_sha256`, assembles
-> the full marker, writes it atomically to the session root, and self-checks
-> the result. Do not transcribe its output into a marker by hand.
+> enumerates the tree, computes every sha256, derives `tree_sha256`, reads the
+> step-(b.5) `validation-receipt.json` and **refuses to write a marker unless a
+> green receipt binds this exact tree**, assembles the full marker, writes it
+> atomically to the session root, and self-checks the result. Do not transcribe
+> its output into a marker by hand.
 
 ```js
 import { createHash } from "node:crypto";
@@ -214,6 +266,11 @@ const EXCLUDE_DIRS = new Set([
 ]);
 const EXCLUDE_NAMES = new Set([
   "SUBMISSION.json", "SUBMISSION.json.tmp", ".DS_Store", ".mcp.json",
+  // The validation receipt lives in SESSION_DIR (a sibling of PLUGIN_DIR), so
+  // it is already outside this walk — excluded here belt-and-suspenders so the
+  // tree_sha256 the receipt records and the tree_sha256 the marker records can
+  // never diverge by the receipt hashing itself.
+  "validation-receipt.json", "validation-receipt.json.tmp",
 ]);
 
 function walk(dir, acc = []) {
@@ -240,6 +297,17 @@ const tree_sha256 = createHash("sha256")
   .update(files.map((f) => `${f.path}\t${f.sha256}`).join("\n"))
   .digest("hex");
 const submission_id = `${SLUG}@${PLUGIN_VERSION}+${tree_sha256.slice(0, 8)}`;
+
+// Read the validation receipt that scripts/validate-plugin.mjs wrote into
+// SESSION_DIR (step b.5). Read it now so its result can be BOTH gated on (the
+// receipt gate further below) AND surfaced into the marker so a "skipped"
+// render reaches the maintainer. A null here is handled by the gate.
+let receipt = null;
+try {
+  receipt = JSON.parse(readFileSync(join(SESSION_DIR, "validation-receipt.json"), "utf8"));
+} catch {
+  /* the receipt gate below throws if it is missing or stale */
+}
 
 // contributor + dco + optional socials come from contributor.json ON DISK
 // (not session state — see the socials note below).
@@ -270,6 +338,16 @@ const marker = {
     agreed_at: contrib.dco_agreed_at,
     signed_off_by: `${contrib.name} <${contrib.email}>`,
   },
+  ...(receipt
+    ? {
+        validation: {
+          build: receipt.build,
+          lint: receipt.lint,
+          tests: receipt.tests,
+          render: receipt.render, // "pass" | "skipped" — surfaced for the maintainer
+        },
+      }
+    : {}),
   submitted_at: new Date().toISOString(),
   tree_sha256,
   files,
@@ -296,6 +374,24 @@ const okShape =
 const okLocation = !MARKER_PATH.endsWith(`${SLUG}/SUBMISSION.json`);
 if (!okShape || !okLocation) {
   throw new Error("SUBMISSION.json failed self-check — daemon would skip it");
+}
+
+// Receipt gate — the single CODE gate that makes submission impossible without
+// a green validation for THIS exact tree. validate-plugin.mjs (step b.5) is the
+// last mutation before submit; any later edit changes tree_sha256 and
+// invalidates the receipt (the intended forcing function). build/lint/tests
+// MUST be "pass"; render may be "pass" or "skipped" (soft, per the user's
+// best-effort decision).
+const validated =
+  receipt &&
+  receipt.tree_sha256 === tree_sha256 &&
+  receipt.build === "pass" &&
+  receipt.lint === "pass" &&
+  receipt.tests === "pass";
+if (!validated) {
+  throw new Error(
+    "plugin not validated for THIS tree — run validate-plugin.mjs; refusing to submit",
+  );
 }
 
 // Only now write — atomically: temp in the SAME dir, then rename over the
@@ -354,6 +450,7 @@ This section documents the shape it emits so you can sanity-read the result —
     }
   },
   "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "Name <email>" },
+  "validation": { "build": "pass", "lint": "pass", "tests": "pass", "render": "pass | skipped" },
   "submitted_at": "{iso}",
   "tree_sha256": "{sha256 over sorted `path\\tsha256` lines}",
   "files": [ { "path": "agntux-{slug}/.claude-plugin/plugin.json", "sha256": "...", "bytes": 630 } ]
@@ -372,6 +469,11 @@ Notes:
   file in the synced tree, including `CONTRIBUTING-SIGNATURE.md`.
 - `dco.*` come from `contributor.json` and the signature you just
   wrote.
+- `validation` mirrors the green `validation-receipt.json` from step (b.5)
+  so a `"skipped"` render (no Chromium available) reaches the maintainer.
+  The block is absent only when no receipt was found — in which case the
+  receipt gate in step (c) throws before the marker is ever written, so a
+  shipped marker always carries it.
 - `contributor.socials` is present **only** when a `socials` block
   exists on `contributor.json` (the contributor consented to public
   credit at some point — possibly in a previous session). Copy the

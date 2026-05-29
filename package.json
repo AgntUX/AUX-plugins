@@ -14,6 +14,7 @@
     "lint:marketplace": "tsx scripts/lint-marketplace-metadata.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "validate:plugin": "node scripts/validate-plugin.mjs",
     "render:skill": "node scripts/render-skill.mjs",
     "regenerate-indexes": "tsx scripts/regenerate-marketplace-json.ts && tsx scripts/regenerate-aggregate-index.ts"
   },
