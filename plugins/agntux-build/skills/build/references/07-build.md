@@ -134,26 +134,34 @@ HTML next to it. The canonical template at
 `canonical/ui-handlers/_template/view-tool/{__ui-name__.html,vite.config.ts}`
 shows the shape.
 
-## Hard pre-flight A — toolchain present (unconditional — before any "built" claim)
+## Hard pre-flight A — MCP tools callable (unconditional — before any "built" claim)
 
-The build + validation toolchain now ships **inside this plugin** so it runs in a
-contributor sandbox with no marketplace clone (`bin/validate-plugin.mjs`,
-`bin/build-plugin.mjs`, `scripts/`, the built `canonical/packages/`, the
-canonical templates). Before dispatching any specialist, assert the toolchain is
-actually present and runnable — if it isn't, the build can never honestly reach a
-green gate, and the ONLY correct move is to STOP and log an agntux-build defect.
-**Never proceed to a hand-written receipt or a "built" claim when the toolchain
-is absent** — that is exactly the forgery path this plan closes.
+Build, validation, and submission run through the **`agntux-build` MCP server**
+(declared in this plugin's `.mcp.json`, launched at `mcp-server/dist/index.js`).
+That server runs **natively in the host process** — full filesystem, real
+Chromium — so it works in a contributor sandbox with no marketplace clone, unlike
+the restricted Bash sandbox where the toolchain can't run. The operative
+pre-flight is therefore **"are the MCP tools callable?"**, not "do the toolchain
+files exist on disk."
 
-```bash
-test -f "$CLAUDE_PLUGIN_ROOT/bin/validate-plugin.mjs" \
-  && test -f "$CLAUDE_PLUGIN_ROOT/scripts/check-view-tool-imports.mjs" \
-  && test -d "$CLAUDE_PLUGIN_ROOT/canonical/packages/agntux-ui-primitives/dist" \
-  || { echo "agntux-build toolchain missing from \$CLAUDE_PLUGIN_ROOT — STOP (agntux-build defect)"; exit 1; }
-# non-zero exit → STOP. Do NOT dispatch specialists. Do NOT write a receipt or
-# claim "built". Log the defect for the maintainer (saved session + the one-line
-# "hit a snag" message).
-```
+Before dispatching any specialist, assert the `agntux-build` MCP server is up and
+its tools — `agntux_validate`, `agntux_write_submission`,
+`agntux_confirm_submission` — are available to call. If they are NOT callable,
+the build can never honestly reach a green gate, and the ONLY correct move is to
+STOP and log an agntux-build defect (the MCP server didn't start). **Never fall
+back to a prose/bash program, a hand-written receipt, or a "built" claim when the
+MCP tools are absent** — that fallback IS the forgery/bypass path this design
+closes.
+
+(The toolchain files still ship in-bundle under `$CLAUDE_PLUGIN_ROOT` — that's
+how the MCP server runs them natively — but the bundle's presence on disk is no
+longer the pre-flight: the tools being *callable* is. Do not shell out to
+`bin/validate-plugin.mjs` yourself; invoke the MCP tool.)
+
+- **Tools callable** → proceed to Hard pre-flight B.
+- **Tools not callable** → STOP. Do NOT dispatch specialists. Do NOT shell out to
+  a validator, write a receipt, or claim "built". Log the defect for the
+  maintainer (saved session + the one-line "hit a snag" message).
 
 ## Hard pre-flight B — marketplace-asset scaffold (unconditional — before specialist dispatch)
 
@@ -251,13 +259,15 @@ traceback for maintainers.
 ## Stage-7 verification — specialists self-validate; the authoritative gate runs at submit (WS-A.2)
 
 The single authoritative build → lint → typecheck → tests → `claude plugin
-validate` → render gate is `bin/validate-plugin.mjs`, and it now runs **once, at
-submit** (`12-submit.md` step b.5), fail-closed, against the exact tree being
-submitted. The stage-12 submit program *itself* runs it and refuses to write
-`SUBMISSION.json` on a non-zero exit — there is no trusted receipt to forge.
+validate` → render gate is the **`agntux-build` MCP server's tools**
+(`agntux_validate`, and `agntux_write_submission` which re-validates internally),
+and it now runs **once, at submit** (`12-submit.md` step b.5), fail-closed,
+against the exact tree being submitted. `agntux_write_submission` re-validates
+internally and refuses to write `SUBMISSION.json` on any failure — there is no
+trusted receipt to forge, and no caller verdict is trusted.
 
-Running the full validator HERE too would just double-build the same gate within
-one submit attempt. So stage 7 does NOT re-run the full validator; it relies on
+Running the full validation HERE too would just double-build the same gate within
+one submit attempt. So stage 7 does NOT re-run the full validation; it relies on
 each specialist's own fast self-validation, which is enough to carry the tree
 through preview (stage 8) and sync-iterate (stages 9–11):
 
@@ -271,11 +281,14 @@ through preview (stage 8) and sync-iterate (stages 9–11):
   shape invariants.
 - **`manifest-author`** re-lints its own output (`lint:marketplace`).
 
-When the submit-time validator (stage 12) fails, it prints a single-line JSON
-diagnostic to stdout — `{"ok":false,"failed_stage":"<stage>","detail":"..."}` —
-and exits 1. Parse `failed_stage` and re-dispatch the owning specialist, then
-retry submit (the validator runs **once per submit attempt, never twice within
-one**):
+When the submit-time gate (stage 12) fails, `agntux_write_submission` returns
+`ok:false` with a structured verdict — `{ failed_stage, routing, blocking,
+error_kind, detail, stages }` — and writes nothing. Read `failed_stage` (from the
+tool's RETURN value, not a parsed stdout line) and re-dispatch the owning
+specialist, then re-call the tool (validation runs **once per submit attempt,
+never twice within one**). A `blocking:false` verdict (e.g. `error_kind:
+"environment"`) means an environment/usage limit — stop honestly, do NOT
+re-dispatch a specialist. The `failed_stage` → specialist mapping is unchanged:
 
 | `failed_stage` | Re-dispatch |
 |---|---|
@@ -289,12 +302,14 @@ one**):
 | `usage` (bad flag, missing `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |
 
 Loop submit→fix up to **5 times** (budgets + the mechanical-vs-judgment line live
-in [`self-validation.md`](self-validation.md)). These are **mechanical** failures
-— the user NEVER sees a lint code or a traceback. If still failing after 5
-cycles, log an agntux-build defect for the maintainer (the saved session file +
-the one-line "hit a snag" message above) and stop. Do NOT surface
-lint/build/test detail to the contributor, and do NOT let the flow claim
-"submitted" with an unvalidated tree.
+in [`self-validation.md`](self-validation.md)) — each iteration is a fresh
+`agntux_write_submission` call after the specialist's fix. These are
+**mechanical** failures — the user NEVER sees a lint code or a traceback. If
+still failing after 5 cycles, log an agntux-build defect for the maintainer (the
+saved session file + the one-line "hit a snag" message above) and stop. Do NOT
+surface lint/build/test detail to the contributor, do NOT hand-write a marker to
+get past a failure, and do NOT let the flow claim "submitted" with an
+unvalidated tree.
 
 ## Saved state at end of stage 7
 
@@ -309,11 +324,12 @@ lint/build/test detail to the contributor, and do NOT let the flow claim
 
 Record `build_path` (the exact tree every later stage builds + validates) and
 `specialists_run`. The authoritative validation gate is no longer a stage-7
-receipt — it runs at submit (`12-submit.md` step b.5), where the submit program
-itself runs `bin/validate-plugin.mjs` against the final, signature-carrying tree
-and writes the tree-bound `validation-receipt.json` then. There is nothing for
-stage 7 to record as proof and nothing for a later stage to trust — the proof is
-produced at the moment of submission, against the exact bytes submitted.
+receipt — it runs at submit (`12-submit.md` step b.5), where
+`agntux_write_submission` re-validates the final, signature-carrying tree
+internally and refuses to write `SUBMISSION.json` on any failure. There is
+nothing for stage 7 to record as proof and nothing for a later stage to trust —
+the proof is produced by the tool at the moment of submission, against the exact
+bytes submitted.
 
 ### `last-submission.json` — written on every successful build
 
@@ -329,13 +345,13 @@ After all seven specialists complete without error, write
 }
 ```
 
-- `submission_id` comes from stage 12's `SUBMISSION.json` `submission_id`
-  field once the submission is created (the marker key is `submission_id`, not
-  `id` — see `12-submit.md` step d); at end of stage 7 (pre-submission) write a
-  sentinel value of `"pending-{session-id}"` so the file exists and `:revise` can
-  detect an in-progress build.
+- `submission_id` comes from the `agntux_write_submission` return's
+  `submission_id` field once the submission is created (the marker key is
+  `submission_id`, not `id` — see `12-submit.md` step d); at end of stage 7
+  (pre-submission) write a sentinel value of `"pending-{session-id}"` so the file
+  exists and `:revise` can detect an in-progress build.
 - After stage 12 completes and the submission is confirmed, overwrite
-  `last-submission.json` with the real `submission_id` from `SUBMISSION.json`.
+  `last-submission.json` with the real `submission_id` the tool returned.
 - `blockers_summary` is an empty array at a clean build; the marketplace worker
   populates it during review. `:revise` reads this file and uses the
   `submission_id` as `marker.revision_of` for the next submission.

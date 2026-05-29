@@ -152,8 +152,8 @@ at this point. If `SUBMISSION.json` is absent (e.g. `:revise` was called after
 a build failure that occurred before stage 12 ran), fall through to a normal
 `:build` with the same slug instead of continuing the revise flow.
 
-Pass `revision_of` forward to step 5, which writes `SUBMISSION.json` from
-scratch during stage 12.
+Pass `revision_of` forward to step 5, which passes it to
+`agntux_write_submission` (the marker writer) during stage 12.
 
 **Do NOT bump `plugin.version`.** The prior submission never shipped to users;
 bumping the version would create a version gap. The new submission carries the
@@ -187,17 +187,17 @@ failures never reach the contributor — they're logged for the maintainer.
 ## Step 5 — advance to submission
 
 Once the build passes all gates, proceed directly to stage 12 (`12-submit.md`).
-Stage 12 creates `SUBMISSION.json` from scratch; when writing it, include the
-`revision_of` value captured in step 3:
+Stage 12 calls `agntux_write_submission` to write `SUBMISSION.json`; pass the
+`revision_of` value captured in step 3 as the tool's `revision_of` argument — the
+tool emits it into the marker. **You never hand-write the marker.**
 
-```json
-{
-  "revision_of": "<submission_id captured in step 3>"
-}
+```jsonc
+// the value you pass to the tool:
+agntux_write_submission({ /* …, */ revision_of: "<submission_id from step 3>" })
 ```
 
-This chains the new submission to the prior one in the marketplace worker's
-database. Do not run stages 1–11 again.
+The tool chains the new submission to the prior one in the marketplace worker's
+database via that field. Do not run stages 1–11 again.
 
 Write the updated `last-submission.json` with the new `submission_id` once
 the submission is confirmed (same rule as `07-build.md`).

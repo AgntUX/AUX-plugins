@@ -155,285 +155,143 @@ exist on disk:
 Ship everything else the finalized tree contains, **including `NOTICE`
 when the plugin has one** (most do; agntux-slack/gmail are the exception —
 they carry their Apache-2.0 attribution in `LICENSE` alone and simply have
-no `NOTICE` to copy). This exclude list and the step-(c) program's
-`EXCLUDE_DIRS` / `EXCLUDE_NAMES` are the **same** set and must stay in
-sync — the program is the authoritative implementation.
+no `NOTICE` to copy). This exclude list mirrors the one
+`agntux_write_submission` applies internally when it enumerates and hashes the
+tree — the tool is the authoritative implementation, so this copy step only has
+to get the same files *into* the synced location.
 
 Keep `CONTRIBUTING-SIGNATURE.md` — it belongs in the synced tree.
 
-Use `node:fs/promises` to enumerate and copy. After this step the
-finalized, signature-carrying tree is under
+After this copy the finalized, signature-carrying tree is under
 `<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`.
 
 > **This copy is only for a marketplace-clone build.** In the normal contributor
 > case the build already ran in the synced location, so there is nothing to copy.
-> When a clone build *does* need copying, copy BEFORE the marker program — the
-> program's first act is to run the validator against the synced
-> `{PLUGIN_DIR}`, which rebuilds `dist/` in place, so the validated+hashed bytes
-> are produced there regardless of where the pre-build happened. See §b.5.
+> When a clone build *does* need copying, copy BEFORE calling
+> `agntux_write_submission` — the tool's first act is to re-validate the synced
+> plugin dir, which rebuilds `dist/` in place, so the validated+hashed bytes are
+> produced there regardless of where the pre-build happened. See §b.5.
 
-## b.5. The submit gate — the validator runs INSIDE the marker program
+## b.5. The submit gate — `agntux_write_submission` re-validates internally
 
-This is the **gate**, and it lives **inside** the step-(c) marker program. There
-is no separate, agent-written `validation-receipt.json` to trust — and therefore
-none to forge (the round-1 failure: a hand-typed green receipt sailed a broken
-plugin past the gate because the toolchain wasn't present to run for real). The
-program itself, before it computes `tree_sha256` or writes `SUBMISSION.json`,
-shells out to the bundled validator against the **exact tree being submitted**
-and refuses to proceed on any non-zero exit:
+This is the **gate**, and it lives **inside** the `agntux_write_submission` MCP
+tool (step c). There is no separate, agent-written `validation-receipt.json` to
+trust — and therefore none to forge (the round-1 failure: a hand-typed green
+receipt sailed a broken plugin past the gate because the toolchain wasn't present
+to run for real). `agntux_write_submission` **re-runs validation internally**
+against the **exact tree being submitted** and **refuses to write
+`SUBMISSION.json` on any failure** — no verdict the caller passes in is trusted,
+and the tool writes NOTHING when validation fails.
 
-```bash
-node "$CLAUDE_PLUGIN_ROOT/bin/validate-plugin.mjs" agntux-{slug} \
-  --plugin-dir "{PLUGIN_DIR}" --session-dir "{SESSION_DIR}"
-# {PLUGIN_DIR}  = <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/  (the synced tree)
-# {SESSION_DIR} = its parent (where the validator drops a record receipt)
-# non-zero exit → the program THROWS; NO SUBMISSION.json is written.
-```
-
-The validator builds → lints → typechecks → tests → `claude plugin validate` →
-renders (best-effort) **`{PLUGIN_DIR}` in place** (vite writes `dist/` into the
-tree; the import gate may re-route an apps-hook import). The bytes it validates
-are byte-for-byte the bytes the program then hashes — there is nothing to keep
-"in sync" and no trusted receipt. The toolchain ships in the plugin bundle
-(`$CLAUDE_PLUGIN_ROOT/bin` + `scripts` + `canonical/packages`), so this runs in a
-contributor sandbox with **no marketplace clone**.
+The validation it runs builds → lints → typechecks → tests → `claude plugin
+validate` → renders (best-effort) the synced plugin dir **in place** (vite writes
+`dist/` into the tree; the import gate may re-route an apps-hook import). The
+bytes it validates are byte-for-byte the bytes it then hashes into `tree_sha256`
+— there is nothing to keep "in sync" and no trusted receipt. The tool runs
+**natively in the host process** (full filesystem, real Chromium), so it works in
+a contributor sandbox with **no marketplace clone** — unlike the restricted Bash
+sandbox, where the toolchain can't run. Do NOT attempt to run the validator
+yourself via Bash; call the tool.
 
 **Ordering** (why the validated bytes == the submitted bytes):
 
-1. Write `CONTRIBUTING-SIGNATURE.md` into `{PLUGIN_DIR}` (the Artefact step) — so
+1. Write `CONTRIBUTING-SIGNATURE.md` into the plugin dir (the Artefact step) — so
    the signed tree is what gets validated and hashed.
-2. Ensure `{PLUGIN_DIR}` is the synced tree (§b). For the normal contributor case
+2. Ensure the plugin dir is the synced tree (§b). For the normal contributor case
    the build already ran there (the sandbox *is* the synced location), so this is
    a no-op; only a marketplace-clone build needs the copy, and it copies BEFORE
-   the program (the program rebuilds in place anyway).
-3. Run the marker program (step c). It runs the validator on `{PLUGIN_DIR}`
+   calling `agntux_write_submission` (the tool rebuilds in place anyway).
+3. Call `agntux_write_submission` (step c). It re-validates the synced plugin dir
    (which rebuilds dist + may re-route an import), THEN walks + hashes the
    post-validation tree → `tree_sha256` over the exact validated bytes, THEN
-   writes the marker.
+   writes the marker. It is the ONLY writer of `SUBMISSION.json`.
 
-It MUST exit 0. If it doesn't, the tree is not submittable — the failure is
-**mechanical** (see `self-validation.md`); route it back to the owning specialist
-per the stage-7 re-dispatch table in `07-build.md` (a `failed_stage: "usage"`
-means an operator/environment error — fix the invocation, don't re-dispatch a
-specialist), fix, and re-run the program. The validator runs **once per submit
-attempt, never twice within one.**
+It MUST return `ok:true`. If it returns `ok:false`, the tree is not submittable —
+the failure is **mechanical** (see `self-validation.md`); read the returned
+`failed_stage`/`routing` and route it back to the owning specialist per the
+stage-7 re-dispatch table in `07-build.md` (a `failed_stage: "usage"` /
+`error_kind: "usage"` means an operator/environment error — fix the call, don't
+re-dispatch a specialist; a `blocking:false` verdict means an environment limit —
+stop honestly, no specialist re-dispatch), fix, and re-call the tool. Validation
+runs **once per submit attempt, never twice within one.**
 
-## c. Build the manifest + write the marker — run this program, don't hand-author
+## c. Write the marker — call `agntux_write_submission`, don't hand-author
 
-> **This is the one step you must not improvise.** The marker is a precise
-> machine wire-shape: the desktop daemon validates `schema_version`, `kind`,
-> and `status` and **silently skips** (logs a `warn`, never POSTs) any marker
-> missing them — so a hand-written "summary" with the wrong keys, or a marker
-> placed *inside* the `agntux-{slug}/` dir instead of as its sibling, never
-> reaches the queue and the contributor is told "submitted" when nothing was.
-> Fill in the constants at the top and **run the program below verbatim**. It
-> **runs the bundled validator against this exact tree and refuses to write a
-> marker unless the validator exits 0** (build + lint + typecheck + tests +
-> structural validate + best-effort render — no trusted receipt to forge), then
-> enumerates the post-validation tree, computes every sha256, derives
-> `tree_sha256`, assembles the full marker, writes it atomically to the session
-> root, and self-checks the result. Do not transcribe its output into a marker by
-> hand.
+> **NEVER hand-author `SUBMISSION.json` or `validation-receipt.json`. The ONLY
+> writer is the `agntux_write_submission` tool.** If the tool is not callable,
+> STOP and report an agntux-build defect — do **not** improvise a marker, a
+> receipt, or a hand-typed "summary". (A hand-written marker is exactly the
+> forgery path this design closes: the marker is a precise machine wire-shape;
+> the desktop daemon validates `schema_version`, `kind`, and `status` and
+> **silently skips** — logs a `warn`, never POSTs — any marker missing them, or
+> any marker placed *inside* the `agntux-{slug}/` dir instead of as its sibling,
+> so a hand-written summary with the wrong keys never reaches the queue while the
+> contributor is told "submitted" when nothing was.)
 
-```js
-import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { join, relative } from "node:path";
+`agntux_write_submission` is the one step you must not improvise. It
+**re-validates the submitted tree internally** (build + lint + typecheck + tests
++ structural validate + best-effort render — no caller verdict is trusted) and
+**refuses to write a marker on any failure**, then enumerates the post-validation
+tree, computes every sha256, derives `tree_sha256`, assembles the full marker
+(the wire-shape documented in §d — `schema_version`, `kind`,
+`kind: "agntux-build.submission"`, `status: "final"`, the file manifest, etc.),
+self-checks it against the daemon's gates, and writes it atomically to the session
+root as a **sibling of** the plugin dir. The tool does the self-check; you do not
+transcribe its output into a marker by hand.
 
-// ---- fill these in from session state (stage 0 / stage 10 / revise step 3) ----
-const ROOT = "<agntux project root>";       // the stage-0 resolver result (absolute)
-const SESSION = "{session-id}";             // YYYY-MM-DD-HHmmss
-const SLUG = "agntux-{slug}";
-const PLUGIN_VERSION = "{final-version}";   // stage 10 / the plugin's own plugin.json
-const MODE = "create";                      // "create" | "update"
-const PREVIOUS_VERSION = null;              // string ONLY when MODE === "update", else null
-const REVISION_OF = null;                   // submission_id when :revise (step 3), else null
-if (!process.env.CLAUDE_PLUGIN_ROOT) {
-  throw new Error(
-    "CLAUDE_PLUGIN_ROOT is not set — run this inside the agntux-build plugin context",
-  );
-}
-const AGNTUX_BUILD_VERSION = JSON.parse(    // THIS plugin's own version
-  readFileSync(join(process.env.CLAUDE_PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf8"),
-).version;
-// -------------------------------------------------------------------------------
+Call it with the resolved args:
 
-const SESSION_DIR = join(ROOT, ".agntux-build", "builds", SESSION);
-const PLUGIN_DIR = join(SESSION_DIR, SLUG);
-// SIBLING of the plugin dir — NEVER `${PLUGIN_DIR}/SUBMISSION.json`.
-const MARKER_PATH = join(SESSION_DIR, "SUBMISSION.json");
-
-// ── THE GATE — runs against the EXACT tree being submitted ──────────────────
-// The bundled validator builds (in place), lints, typechecks, tests,
-// structurally-validates, and best-effort renders PLUGIN_DIR. A non-zero exit
-// means the tree is not submittable: THROW before anything is hashed or written.
-// There is no trusted receipt — validation happens here, now, against these
-// bytes, so it cannot be forged. The validator's build step is the last thing to
-// touch the tree, so we hash AFTER it returns.
-const _v = spawnSync(
-  "node",
-  [
-    join(process.env.CLAUDE_PLUGIN_ROOT, "bin", "validate-plugin.mjs"),
-    SLUG, "--plugin-dir", PLUGIN_DIR, "--session-dir", SESSION_DIR,
-  ],
-  { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" },
-);
-// Echo the validator's captured stdout to STDERR (diagnostic) so this program's
-// own stdout stays a single clean JSON line (the marker summary).
-process.stderr.write(_v.stdout || "");
-if (_v.status !== 0) {
-  throw new Error(
-    `validation failed (exit ${_v.status}) for ${SLUG} — refusing to write SUBMISSION.json. ` +
-      `Parse the validator's {"failed_stage":...} line, route per 07-build.md, fix, and re-run.`,
-  );
-}
-// The validator's final stdout line is { ok, slug, tree_sha256, render, validate, … }.
-// Exit 0 already proves build/lint/tests passed; parse render/validate for the
-// marker's validation block (informational, surfaced to the maintainer).
-let _vr = {};
-try {
-  _vr = JSON.parse((_v.stdout || "").trim().split("\n").filter(Boolean).pop() || "{}");
-} catch { /* exit 0 is the gate; the block is best-effort */ }
-
-// Mirror the step-b exclude list + the marker itself + OS cruft. The sha256
-// of each kept file IS its content-addressed S3 blob key.
-const EXCLUDE_DIRS = new Set([
-  "node_modules", ".git", ".omc", "mcp-server", "hooks", "host-renderer",
-  "test-harness", "agents",
-]);
-const EXCLUDE_NAMES = new Set([
-  "SUBMISSION.json", "SUBMISSION.json.tmp", ".DS_Store", ".mcp.json",
-  // The validation receipt lives in SESSION_DIR (a sibling of PLUGIN_DIR), so
-  // it is already outside this walk — excluded here belt-and-suspenders so the
-  // tree_sha256 the receipt records and the tree_sha256 the marker records can
-  // never diverge by the receipt hashing itself.
-  "validation-receipt.json", "validation-receipt.json.tmp",
-]);
-
-function walk(dir, acc = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) { if (!EXCLUDE_DIRS.has(e.name)) walk(join(dir, e.name), acc); }
-    else if (e.isFile() && !EXCLUDE_NAMES.has(e.name)) acc.push(join(dir, e.name));
-  }
-  return acc;
-}
-
-const files = walk(PLUGIN_DIR)
-  .map((abs) => {
-    const buf = readFileSync(abs);
-    return {
-      path: `${SLUG}/${relative(PLUGIN_DIR, abs)}`,
-      sha256: createHash("sha256").update(buf).digest("hex"),
-      bytes: buf.length,
-    };
-  })
-  .sort((a, b) => a.path.localeCompare(b.path));
-
-// tree_sha256 = sha256 over sorted `path\tsha256` lines joined by \n.
-const tree_sha256 = createHash("sha256")
-  .update(files.map((f) => `${f.path}\t${f.sha256}`).join("\n"))
-  .digest("hex");
-const submission_id = `${SLUG}@${PLUGIN_VERSION}+${tree_sha256.slice(0, 8)}`;
-
-// contributor + dco + optional socials come from contributor.json ON DISK
-// (not session state — see the socials note below).
-const contrib = JSON.parse(
-  readFileSync(join(ROOT, ".agntux-build", "contributor.json"), "utf8"),
-);
-
-const marker = {
-  schema_version: "1.1.0",
-  kind: "agntux-build.submission",
-  status: "final",
-  submission_id,
-  ...(REVISION_OF ? { revision_of: REVISION_OF } : {}),
-  plugin_slug: SLUG,
-  plugin_version: PLUGIN_VERSION,
-  mode: MODE,
-  ...(MODE === "update" ? { previous_version: PREVIOUS_VERSION } : {}),
-  session_id: SESSION,
-  build_root: SLUG,
-  agntux_build_version: AGNTUX_BUILD_VERSION,
-  contributor: {
-    name: contrib.name,
-    email: contrib.email,
-    ...(contrib.socials ? { socials: contrib.socials } : {}),
-  },
-  dco: {
-    version: contrib.dco_text_version,
-    agreed_at: contrib.dco_agreed_at,
-    signed_off_by: `${contrib.name} <${contrib.email}>`,
-  },
-  // The validator already exited 0 above (the gate), so build/lint/tests passed.
-  // render/validate come from its stdout (best-effort: "pass" | "skipped").
-  validation: {
-    build: "pass",
-    lint: "pass",
-    tests: "pass",
-    validate: _vr.validate ?? "pass",
-    render: _vr.render ?? "pass", // "pass" | "skipped" — surfaced for the maintainer
-  },
-  submitted_at: new Date().toISOString(),
-  tree_sha256,
-  files,
-};
-
-// Self-check the IN-MEMORY marker against the exact gates the daemon + the
-// server schema apply — BEFORE writing, so a marker that would be skipped or
-// 400-rejected is never left on disk and the flow can't claim "submitted".
-const okContrib =
-  typeof contrib.name === "string" && contrib.name.length > 0 &&
-  typeof contrib.email === "string" && contrib.email.length > 0 &&
-  typeof contrib.dco_text_version === "string" && contrib.dco_text_version.length > 0 &&
-  typeof contrib.dco_agreed_at === "string" && contrib.dco_agreed_at.length > 0;
-if (!okContrib) {
-  throw new Error(
-    "contributor.json is missing name/email/dco fields — fix it, do NOT claim submitted",
-  );
-}
-const okShape =
-  marker.schema_version && marker.kind === "agntux-build.submission" &&
-  marker.status === "final" && marker.submission_id &&
-  Array.isArray(marker.files) && marker.files.length > 0 &&
-  marker.files.length <= 4096; // server + worker both cap at 4096
-const okLocation = !MARKER_PATH.endsWith(`${SLUG}/SUBMISSION.json`);
-if (!okShape || !okLocation) {
-  throw new Error("SUBMISSION.json failed self-check — daemon would skip it");
-}
-
-// The gate already ran at the top of this program — the validator exited 0
-// against THIS exact tree (which it built in place, the last thing to touch the
-// bytes), and the walk above hashed the post-validation tree. There is no
-// separate receipt to re-check: a green validation for these exact bytes is a
-// precondition of reaching this line.
-
-// Only now write — atomically: temp in the SAME dir, then rename over the
-// target so the desktop watcher's awaitWriteFinish never sees a half-written
-// file.
-const tmp = `${MARKER_PATH}.tmp`;
-writeFileSync(tmp, JSON.stringify(marker, null, 2));
-renameSync(tmp, MARKER_PATH);
-
-console.log(JSON.stringify(
-  { submission_id, tree_sha256, files: files.length, marker_path: MARKER_PATH },
-  null, 2,
-));
+```
+agntux_write_submission({
+  slug:             "agntux-{slug}",        // the connector slug, agntux-prefixed
+  session:          "{session-id}",         // YYYY-MM-DD-HHmmss (the session timestamp)
+  agntux_root:      "<agntux project root>",// the stage-0 resolver result (absolute)
+  plugin_version:   "{final-version}",      // stage 10 / the plugin's own plugin.json
+  mode:             "create",               // "create" | "update"
+  previous_version: "{prev}",               // ONLY when mode === "update", else omit
+  revision_of:      "{submission_id}"       // ONLY when :revise (revise.md step 3), else omit
+})
 ```
 
-`tree_sha256` is the dedup key; its first 8 hex chars are the `submission_id`
-suffix. Record the printed `submission_id` into `last-submission.json` per
-`07-build.md` (its `submission_id` field — that exact key).
+Branch on the result:
 
-## d. Marker shape — field reference
+- **`ok:true`** → the tool validated, hashed, and wrote the marker. Its return
+  carries `{ submission_id, tree_sha256, files, marker_path, validation }`.
+  Record the returned `submission_id` into `last-submission.json` per
+  `07-build.md` (its `submission_id` field — that exact key), then proceed to the
+  hard-require-sync gate (§e) and confirm (§e·confirm). `tree_sha256` is the
+  dedup key; its first 8 hex chars are the `submission_id` suffix.
+- **`ok:false`** → the tool re-validated and **wrote nothing**. The return
+  carries `{ failed_stage, routing, blocking, error_kind, detail, verdict }`
+  (the per-stage detail is in `verdict.stages`). The failure is
+  **mechanical** (see `self-validation.md`): read `failed_stage`/`routing` and
+  re-dispatch the owning specialist per the stage-7 re-dispatch TABLE in
+  `07-build.md`, fix, and **re-call `agntux_write_submission`** — do NOT
+  hand-write a marker to "get past" the failure. A `blocking:false` /
+  `error_kind` of `"environment"` means an environment limit (honest stop, no
+  specialist re-dispatch); a `failed_stage: "usage"` means an operator error in
+  the call (fix the args, don't burn a specialist cycle).
 
-The program in step (c) already wrote the marker — atomically (temp +
+If `agntux_write_submission` is not available as a callable tool at all, STOP:
+that is an agntux-build defect (the MCP server didn't start). Log it for the
+maintainer (saved session + the one-line "hit a snag" message) and do **not**
+fall back to writing a marker yourself.
+
+## d. Marker shape — field reference (emitted by the tool, NOT authored by hand)
+
+`agntux_write_submission` (step c) already wrote the marker — atomically (temp +
 `rename`, so the desktop watcher's `awaitWriteFinish` never reads a
 half-written file), at the session root
 (`<agntux project root>/.agntux-build/builds/{session-id}/SUBMISSION.json`, a
 **sibling of** the `agntux-{slug}/` dir so the plugin tree stays pristine).
-This section documents the shape it emits so you can sanity-read the result —
-**you do not author it by hand.** The emitted JSON is:
+This section documents the shape the **tool emits**, purely so you can
+sanity-read the result — **you do not author it by hand.** Before it writes, the
+tool self-checks the in-memory marker against the exact gates the daemon + server
+schema apply (a marker that would be skipped or 400-rejected is never left on
+disk — it would surface as `failed self-check` and the tool refuses to write,
+so the flow can't claim "submitted"). The required wire-shape literals the daemon
+validates are `schema_version`, `kind: "agntux-build.submission"`, and
+`status: "final"`. The emitted JSON is:
 
 ```json
 {
@@ -441,6 +299,7 @@ This section documents the shape it emits so you can sanity-read the result —
   "kind": "agntux-build.submission",
   "status": "final",
   "submission_id": "agntux-{slug}@{version}+{tree_sha256[:8]}",
+  "revision_of": "{only on :revise — the prior submission_id this chains to}",
   "plugin_slug": "agntux-{slug}",
   "plugin_version": "{final-version}",
   "mode": "create | update",
@@ -478,17 +337,20 @@ Notes:
   re-sync or boot rescan re-POSTs the same id and the app dedupes.
 - `agntux_build_version` is this plugin's own version — read it from
   `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
-- `previous_version` is present **only** when `mode` is `"update"`.
+- `previous_version` is present **only** when `mode` is `"update"`; `revision_of`
+  is present **only** on a `:revise` submission (it chains to the prior
+  `submission_id`).
 - `files[].sha256` are the S3 blob keys; the manifest must cover every
   file in the synced tree, including `CONTRIBUTING-SIGNATURE.md`.
 - `dco.*` come from `contributor.json` and the signature you just
   wrote.
-- `validation` records the just-run validator's result. `build`/`lint`/`tests`
-  are `"pass"` by construction (the validator exited 0 — the gate at the top of
-  the program), and `validate`/`render` come from the validator's stdout so a
-  `"skipped"` render (no Chromium) reaches the maintainer. A shipped marker
-  ALWAYS carries this block: the program throws before writing if the validator
-  exited non-zero.
+- `validation` records the just-run validation result. `build`/`lint`/`tests`
+  are `"pass"` by construction (the tool re-validated and only reached the write
+  step on a green verdict — the gate inside `agntux_write_submission`), and
+  `validate`/`render` carry the per-stage status so a `"skipped"` render (no
+  Chromium yet — the renderer may be `installing`) reaches the maintainer. A
+  shipped marker ALWAYS carries this block: the tool returns `ok:false` and
+  writes nothing on any non-green stage.
 - `contributor.socials` is present **only** when a `socials` block
   exists on `contributor.json` (the contributor consented to public
   credit at some point — possibly in a previous session). Copy the
@@ -531,38 +393,29 @@ Writing the marker is not the same as the submission being queued: the
 daemon validates the marker and POSTs it asynchronously, and only a
 server-accepted marker becomes a review-queue row. The daemon records the
 outcome in a `.submission-status.json` sidecar next to the marker (same
-session dir). Poll for it before claiming success — this is what stops the
-flow reporting "submitted" for a marker that was actually dropped:
+session dir). Confirm via the tool before claiming success — this is what stops
+the flow reporting "submitted" for a marker that was actually dropped. Call:
 
-```js
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-const STATUS_PATH = join(SESSION_DIR, ".submission-status.json");
-let status = null;
-// The daemon writes within ~1–2s of the POST resolving; poll ~30s.
-await (async () => {
-  for (let i = 0; i < 30; i++) {
-    try { status = JSON.parse(readFileSync(STATUS_PATH, "utf8")); return; }
-    catch { await new Promise((r) => setTimeout(r, 1000)); }
-  }
-})();
-console.log(JSON.stringify(status));
+```
+agntux_confirm_submission({ session_dir: "<agntux project root>/.agntux-build/builds/{session-id}" })
 ```
 
-Branch on the result:
+The tool polls the daemon's `.submission-status.json` sidecar and checks the
+desktop daemon is active. It is the **ONLY basis for telling the user
+"submitted."** Branch on the result:
 
-- **`status?.ok === true`** → the row is queued. Show the success copy in
-  (f).
-- **`status?.ok === false`** → the daemon dropped the marker; surface
-  `status.reason` to the user and do **NOT** claim success. A
-  `missing_schema_version` / location-class reason means the step-(c)
-  program didn't run correctly — re-run it; `server_rejected` /
-  `invalid_revision_of` is a server-side reason worth showing verbatim.
-- **No sidecar after the timeout (`status === null`)** → the daemon saw the
-  marker but hasn't confirmed yet — most often the auth gate (signed out or
-  onboarding incomplete). Tell the user it's finalized and will queue the
-  moment the desktop app is signed in; do **not** assert it's submitted.
+- **`{ queued: true, ... }`** → the row is queued. Show the success copy in (f).
+  This is the only result that licenses a "submitted" claim.
+- **`{ queued: false, reason, ... }`** → the daemon dropped the marker; surface
+  `reason` to the user and do **NOT** claim success. A `missing_schema_version` /
+  location-class reason means step (c) didn't write a valid marker — re-call
+  `agntux_write_submission`; a `server_rejected` / `invalid_revision_of` reason
+  is a server-side reason worth showing verbatim.
+- **`{ queued: null, reason: "daemon_inactive" | "timeout_signed_out", ... }`** →
+  the marker is finalized but not yet queued — most often the auth gate (the
+  desktop app isn't open or isn't signed in). Tell the user to open / sign in to
+  the AgntUX desktop app; it will queue the moment that happens. Do **not**
+  assert it's submitted.
 
 ## f. What you tell the user (success)
 
@@ -647,10 +500,14 @@ names.)
 }
 ```
 
-`sync_active` records the result of step e — `true` when both
-`teams.json` and `daemon.lock` were present (you showed the success
-copy), `false` when the desktop app wasn't active (you wrote the marker
-but stopped at the hard-require message). Don't surface `marker_path`
+`marker_path` and `tree_sha256` come from the `agntux_write_submission`
+return (its `marker_path` / `tree_sha256` fields), as does the
+`submission_id` you record into `last-submission.json` — never hand-compute or
+hand-write any of them. `sync_active` records the result of step e·confirm —
+`true` when `agntux_confirm_submission` returned `queued:true` (you showed the
+success copy), `false` when the desktop app wasn't active or the daemon dropped
+the marker (the tool wrote the marker but the submission wasn't queued, so you
+stopped at the hard-require / not-queued message). Don't surface `marker_path`
 or `tree_sha256` in user-facing copy; they're internal.
 
 ## What you do NOT do
@@ -663,11 +520,12 @@ or `tree_sha256` in user-facing copy; they're internal.
 - Don't write `CONTRIBUTING-SIGNATURE.md` outside the build tree (e.g.,
   at the contributor's project root). It travels with the plugin, not
   with the user's local data.
-- Don't write the marker before the plugin files and signature are all
-  on disk, and never write it non-atomically — a half-written marker
-  trips the desktop watcher.
-- Don't put the marker inside `agntux-{slug}/`. It's a sibling of the
-  plugin dir so the tree stays pristine.
+- Don't hand-author the marker (or a `validation-receipt.json`) — ever.
+  `agntux_write_submission` is the only writer; it writes after the signature and
+  plugin files are on disk, atomically, as a sibling of the plugin dir. If the
+  tool isn't callable, STOP and report an agntux-build defect — don't improvise.
+- Don't call `agntux_write_submission` before the plugin files and signature are
+  all on disk; the tool validates and hashes whatever tree is present.
 - Don't skip the closing thank-you. The whole flow has been building
   toward this moment.
 - Don't enumerate the files in the manifest, the specialists that ran,

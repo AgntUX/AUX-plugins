@@ -1,166 +1,57 @@
-# Stage 8 — final render check
+# Stage 8 — final render check (now part of the validate tool)
 
 The plugin is built. The user already iterated against the headed
-host-renderer in stage 6, so the iframe shape is known good. Stage 8
-runs one **headless** screenshot pass per view tool as a regression
-artifact — proof the build still renders cleanly after stages 6→7
-finished any last edits.
+host-renderer in stage 6, so the iframe shape is known good.
 
-**Entry note.** Stage 8 begins automatically in the same turn as the
-stage-7 build summary — no user input is required to start it, and on
-an all-pass it advances silently to stage 9.5 (see line "On all-pass,
-advance silently to stage 9.5" below). Don't yield the turn between the
-build summary and this check.
+**The authoritative render now runs inside the validation tool.** Both
+`agntux_validate` and `agntux_write_submission` (the submit gate, `12-submit.md`
+step b.5) drive a headless screenshot pass per view tool **natively in the host
+process** with real Chromium, as one stage of validation — there is no separate
+Bash-driven render step to run here, and the model must NOT try to render via its
+Bash sandbox (the restricted Linux sandbox has no Chromium; the three prior
+submission attempts failed there).
 
-## Chromium fallback (first run on a new host)
+So this stage is now a **short, optional, non-blocking preview**. The
+regression-grade render is the one the validate tool performs at submit; running
+a preview here is allowed but never required, and never gates advancement.
 
-Playwright is a dev dependency of `agntux-build/host-renderer/`,
-but the Chromium binary is downloaded separately on first install.
-Some hosts (Cowork's sandbox is the canonical example) run the
-harness without ever having had Chromium installed.
+## What the render check is (for reference)
 
-Before the first render attempt of a session, probe:
+When the validate tool reaches its render stage it, per view tool:
 
-```
-${CLAUDE_PLUGIN_ROOT}/test-harness/bin/cli.mjs probe-chromium
-```
+- loads the view-tool bundle and drives Chromium to trigger the tool and wait
+  for `tool-result`;
+- captures `{ screenshot, logs, consoleErrors, structuredContent }`;
+- treats any `consoleError`, a `renderState !== "tool-result"`, a
+  structuredContent shape that drifts from the stage-5 schema, or a failed
+  content check as a render failure.
 
-The probe returns `{ installed: bool, version?: string }`. If
-`installed` is false:
-
-1. Run `npx --prefix ${CLAUDE_PLUGIN_ROOT}/host-renderer playwright install chromium`.
-2. Surface one status line to the user:
-
-   > Setting up the render check (one-time, ~1 min)...
-
-3. On install success, proceed to render.
-4. On install failure (offline / disk / permissions), surface the
-   same one-liner from the self-fix path (saving session, link to
-   issues). Don't dump the install log.
-
-The probe + install runs once per machine. After that the binary
-is cached at `~/Library/Caches/ms-playwright/` (macOS) and the
-probe short-circuits.
-
-## Read-only-host fallback (Cowork sandbox)
-
-If `${CLAUDE_PLUGIN_ROOT}` is read-only, the harness can't
-`npm install` in place. The orchestrator's fallback: copy
-`${CLAUDE_PLUGIN_ROOT}/host-renderer/` and
-`${CLAUDE_PLUGIN_ROOT}/test-harness/` to a writable scratch dir
-under `os.tmpdir()/agntux-headless-tools-{plugin-version}/`,
-chmod writable, run `npm install` once there, and pass
-`--host-bin {scratch}/host-renderer/bin/host.mjs` to the harness
-on subsequent calls. The first run incurs the install cost; later
-runs hit the cached scratch dir.
-
-## What you do
-
-For each UI handler in the session's `ui_handlers` array:
-
-1. Run the test harness:
-   ```
-   ${CLAUDE_PLUGIN_ROOT}/test-harness/bin/cli.mjs render \
-     --plugin {build-path} \
-     --tool {view-tool-name} \
-     --headless \
-     --screenshot {session-dir}/headless-{ui-name}.png
-   ```
-
-2. The CLI:
-   - Dynamically imports `view-tool/dist/{slug}-view.js` in-process
-     (no MCP server spawn — source plugins ship none).
-   - Spawns the in-plugin host renderer in headless mode (no port-8080
-     web server; serves to Playwright directly via the internal
-     `/__test/render` endpoint).
-   - Drives Chromium to load the host page, trigger the view tool,
-     wait for `tool-result`, and capture `{screenshot, logs,
-     consoleErrors, structuredContent}`.
-   - Returns the result as JSON.
-
-3. Read the result. Inspect:
-   - **`consoleErrors`** — must be empty. Any error is a fail.
-   - **`renderState`** — must be `tool-result`.
-   - **`structuredContent`** — must match the schema declared in
-     stage 5.
-   - **`contentChecks.failed`** — must be empty. The harness
-     verifies the rendered DOM contains the source-side context
-     (issue key, draft body, verb-labelled button) per the
-     content rubric in `playwright-driver.mjs`.
-
-   The screenshot is captured for the session file (debugging
-   surface for maintainers); it is NOT shown inline to the user.
-   The user already saw the live iframe in stage 6.
+The verdict surfaces as the `render` stage in `agntux_validate`'s `stages` (or in
+`agntux_write_submission`'s internal re-validation). `render` may be
+`{ status: "skipped", reason }` — most often because the renderer is still
+**`installing`** (first-ever use self-installs Chromium in the background,
+~1–2 min). A skipped render is **still `ok:true`**: validation passes, and the
+render is folded in automatically on a later re-call once the renderer is
+`ready`. There is nothing to install or probe by hand.
 
 ## What you say to the user
 
-One status line:
+If you surface anything during this step, keep it to the one status line:
 
 > Running render checks for {N} button(s)...
 
-No "ready to install?" prompt. On all-pass, advance silently to
-stage 9.5.
+No "ready to install?" prompt. There is no pass/fail to narrate here — the render
+result lives in the validate tool's verdict at submit. On a clean build, advance
+silently to stage 9.5.
 
-## On failure — self-fix, don't narrate
+## On a render failure (surfaced by the validate tool at submit)
 
-If a handler's render returns `consoleErrors.length > 0` or
-`renderState !== "tool-result"`:
-
-1. **Do not surface the error to the user.** No "hit something",
-   no plain-language translation, no choice prompt.
-2. Dispatch `executor` (model=sonnet) with the failing handler's
-   name, the console-error array, and the structuredContent diff
-   against the schema declared in stage 5. Directive: "fix the
-   handler so the next render is clean." `executor` edits the
-   view-tool source, re-runs `npm run build` inside `view-tool/`,
-   and re-tests.
-3. Re-run the test. If the second attempt also fails, escalate to
-   `executor` with model=opus and one more retry.
-4. Only after three failed attempts on the same handler do you
-   surface anything, and it's the same one-liner from stage 7
-   (saving the session, link to issues).
-
-## Common failure modes (used internally to direct the self-fix)
-
-| Console error | What `executor` should target |
-|---|---|
-| `Refused to execute inline script because it violates the following Content Security Policy directive: 'script-src ...'` | Component is using a CSP-incompatible feature; switch to a permitted primitive. |
-| `Cannot read properties of undefined (reading '...')` | structuredContent shape drift; reconcile with the schema declared in stage 5. |
-| `Maximum update depth exceeded` (React) | Infinite render loop; patch the offending hook. |
-| `Failed to fetch dynamically imported module` for `dist/{slug}-view.js` | View-tool bundle missing — `npm run build` didn't complete; re-run from `view-tool/`. |
-| `_meta.ui.resourceUri is not set` on tool descriptor | `emit-manifest.mjs` didn't run or didn't propagate `_meta.ui` into the manifest; re-run the build. |
-
-## Saved state at end of stage 8
-
-```json
-{
-  ...,
-  "headless_tests": [
-    {
-      "ui_handler": "reply",
-      "passed": true,
-      "screenshot_path": ".agntux-build/sessions/{id}/headless-reply.png",
-      "console_errors_count": 0,
-      "structured_content_keys": ["issue_url", "issue_title", "draft_body"]
-    }
-  ],
-  "stage_8_completed_at": "2026-05-08T..."
-}
-```
-
-## What you do NOT do
-
-- Don't surface raw stack traces — self-fix per the rule above.
-- Don't let the user skip the headless check — it catches the
-  cheapest class of bug we can.
-- Don't show the screenshot inline. The user already saw the live
-  iframe in stage 6; this pass is a regression guard, not a UX
-  review.
-- Don't run the headless check in parallel with anything else.
-  The spawned Playwright process is resource-heavy; per-handler
-  serial is fine.
+You do not self-fix renders in this stage anymore. If the validate tool reports a
+`render` failure at submit time (`12-submit.md` / `07-build.md`), it comes back as
+`failed_stage: "render"` in the tool verdict; route it per the stage-7
+re-dispatch table (`executor`, model=sonnet) and re-call the validate/submit
+tool. Do NOT hand-run a renderer or claim a render passed without the tool.
 
 ## Path forward
 
-Once all UI handlers pass, advance to
-[`09a-onboarding-iterate.md`](09a-onboarding-iterate.md).
+Advance to [`09a-onboarding-iterate.md`](09a-onboarding-iterate.md).
