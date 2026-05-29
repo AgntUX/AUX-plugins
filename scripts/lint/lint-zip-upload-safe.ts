@@ -31,6 +31,15 @@
  *         to handle non-ASCII paths consistently. Warning, not error —
  *         currently observed to work but fragile.
  *
+ *   E29 — Path nested too deep
+ *         Any shipped file whose path is more than 10 folders deep (relative
+ *         to the plugin root = the zip root). Claude Desktop's upload
+ *         validator rejects the zip with "Zip file contains path more than
+ *         10 folders deep". Hit by agntux-build 0.15.0, whose `canonical/
+ *         repo-mirror/plugins/agntux-build/.../apps-client/` ran 11 folders
+ *         deep. Counts the same shipped set as E20/E22 (node_modules etc. are
+ *         excluded from the zip and from this walk).
+ *
  * Notes:
  *   - Walks the plugin directory and excludes the same paths the packager
  *     excludes (node_modules/, __tests__/, .omc/, etc.) so we only flag
@@ -80,6 +89,10 @@ const NON_ASCII = /[^\x20-\x7e]/;
 
 const RESERVED_PREFIXES = ["claude-", "anthropic-"];
 
+// Claude Desktop's upload validator rejects a zip with any path "more than 10
+// folders deep". Depth is counted relative to the plugin root (the zip root).
+const MAX_ZIP_FOLDER_DEPTH = 10;
+
 export function pass9ZipUploadSafe(
   pluginSlug: string,
   pluginDir: string,
@@ -88,8 +101,8 @@ export function pass9ZipUploadSafe(
 ): void {
   const rel = (p: string): string => path.relative(repoRoot, p);
 
-  // ── E20 / E22 — walk every shipped path and inspect each segment ──────────
-  walk(pluginDir, (entryPath, basename) => {
+  // ── E20 / E22 / E29 — walk every shipped path and inspect each segment ────
+  walk(pluginDir, (entryPath, basename, isDirectory) => {
     // E20 hard fail
     if (FORBIDDEN_CHARS.test(basename)) {
       findings.push({
@@ -117,6 +130,25 @@ export function pass9ZipUploadSafe(
           `Cross-platform zip readers handle UTF-8 inconsistently; ` +
           `prefer ASCII-only filenames in the shipped tree.`,
       });
+    }
+    // E29 hard fail — path nested too deep. Count folders for files (the zip's
+    // members); depth is relative to the plugin root (the zip root).
+    if (!isDirectory) {
+      const folderDepth =
+        path.relative(pluginDir, entryPath).split(path.sep).length - 1;
+      if (folderDepth > MAX_ZIP_FOLDER_DEPTH) {
+        findings.push({
+          code: "E29",
+          severity: "error",
+          plugin: pluginSlug,
+          file: rel(entryPath),
+          message:
+            `path is ${folderDepth} folders deep (max ${MAX_ZIP_FOLDER_DEPTH}). ` +
+            `Claude Desktop's plugin-zip upload validator rejects the whole zip ` +
+            `with "contains path more than 10 folders deep". Flatten the tree ` +
+            `(depth is counted from the plugin root = the zip root).`,
+        });
+      }
     }
   });
 
@@ -150,7 +182,7 @@ export function pass9ZipUploadSafe(
 
 function walk(
   root: string,
-  onEntry: (entryPath: string, basename: string) => void,
+  onEntry: (entryPath: string, basename: string, isDirectory: boolean) => void,
 ): void {
   const stack: string[] = [root];
   while (stack.length > 0) {
@@ -164,8 +196,9 @@ function walk(
     for (const ent of entries) {
       if (SKIP_BASENAMES.has(ent.name)) continue;
       const full = path.join(cur, ent.name);
-      onEntry(full, ent.name);
-      if (ent.isDirectory()) stack.push(full);
+      const isDir = ent.isDirectory();
+      onEntry(full, ent.name, isDir);
+      if (isDir) stack.push(full);
     }
   }
 }
