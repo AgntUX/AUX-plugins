@@ -287,7 +287,6 @@ export function pass10ViewToolBundlesInZip(
 
       const buf = extract.stdout;
       const head = buf.subarray(0, HEAD_BYTES).toString("utf8");
-      const entryName = entry.slice("view-tool/dist/ui-resources/".length);
 
       if (head.length === 0) {
         findings.push({
