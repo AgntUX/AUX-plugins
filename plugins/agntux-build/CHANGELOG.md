@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-05-29
+
+Ship `chromium-headless-shell` for the render gate — the size optimization
+deferred in 0.16.0 — now that it's verified end-to-end.
+
+### Changed
+- The render gate installs **`chromium-headless-shell`** (~190 MB incl ffmpeg)
+  instead of full `chromium` (~533 MB incl ffmpeg). Verified in a clean-room: a
+  shell-only browser dir renders the gmail view-tool with `consoleErrors=0`. No
+  launch-channel change is needed — a plain `chromium.launch({ headless: true })`
+  resolves to the shell when it's the only binary installed
+  (`mcp-server/bootstrap-worker.js` + the `bin/validate-plugin.mjs` render gate).
+
+### Fixed
+- **`probe-chromium` is now a FUNCTIONAL probe** — a real headless launch +
+  blank-page render — instead of stat-ing `chromium.executablePath()`. The old
+  probe pointed at the FULL chromium path and returned a false negative when
+  only the headless shell was installed, which would have made the render gate
+  silently skip a renderable plugin. The functional probe reports exactly what
+  render can do (proven: shell-only dir → `installed:true`).
+
 ## [0.16.0] — 2026-05-29
 
 Move the build/validate/render/submit pipeline behind an **MCP server's atomic

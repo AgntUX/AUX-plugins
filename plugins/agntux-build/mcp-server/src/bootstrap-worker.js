@@ -9,12 +9,13 @@
  *      download skipped (we place it in the managed dir explicitly in step 2).
  *   2. `playwright install chromium` into the managed PLAYWRIGHT_BROWSERS_PATH.
  *
- * Full chromium (NOT chromium-headless-shell): the Phase-0 cold-bootstrap proof
- * used `playwright install chromium` + `chromium.launch({headless:true})` and
- * rendered successfully (mode default, no --no-sandbox). headless-shell would
- * shave the one-time download but needs probe-chromium + the launch channel
- * changed in lockstep, unverifiable without a live Playwright run — deferred as
- * a size follow-up; correctness first.
+ * Installs `chromium-headless-shell` (the headless-only binary, ~190 MB incl
+ * ffmpeg vs ~533 MB for full chromium+ffmpeg). Verified end-to-end in a
+ * clean-room: a shell-only install renders the gmail view-tool with
+ * consoleErrors=0, and the functional probe-chromium (a real headless launch)
+ * detects it correctly. No launch-channel change is needed — a plain
+ * `chromium.launch({headless:true})` resolves to the shell when it's the only
+ * binary present.
  *
  * Pure Node built-ins only. NEVER throws uncaught — every step is wrapped; on
  * error it records phase:"error", ok:false and still flushes progress. Human
@@ -156,10 +157,10 @@ function main() {
     let args;
     if (existsSync(cliJs)) {
       cmd = process.execPath;
-      args = [cliJs, "install", "chromium"];
+      args = [cliJs, "install", "chromium-headless-shell"];
     } else {
       cmd = cliBin;
-      args = ["install", "chromium"];
+      args = ["install", "chromium-headless-shell"];
     }
     const s = Date.now();
     const r = spawnSync(cmd, args, {
