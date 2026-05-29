@@ -6,6 +6,73 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-05-29
+
+Move the build/validate/render/submit pipeline behind an **MCP server's atomic
+tools** so it runs in the host-spawned server's native context (full filesystem,
+real Chromium) instead of the model's restricted Bash sandbox — the root cause of
+three prior submissions that were "submitted" but never registered. The build
+skill now only ORCHESTRATES by calling tools it cannot partial-run, emulate, or
+fabricate around. Also fixes the two toolchain bugs (L1/L2) that made an
+otherwise-correct plugin unbuildable.
+
+### Added
+- **MCP server (`mcp-server/`)** — a zero-dependency stdio JSON-RPC 2.0 server
+  (no `@modelcontextprotocol/sdk`; modelled on the proven `cowork-env-probe`
+  reference the plan points at) exposing three atomic tools:
+  - `agntux_validate` — build → lint → typecheck → tests → structural validate →
+    faithful headless render, run in-process. Returns a structured verdict;
+    **never throws** and **never `process.exit`s**. `render:"skipped"` is a
+    success (a browserless machine still passes the hard gates), so no
+    unpassable-yet-mandatory gate exists to fabricate around.
+  - `agntux_write_submission` — re-validates internally (the gate — no
+    caller-supplied verdict is trusted), then pure-fs+crypto writes
+    `SUBMISSION.json` as a SIBLING of the plugin dir. The ONLY writer of the
+    marker; nothing to hand-author.
+  - `agntux_confirm_submission` — polls the daemon `.submission-status.json`
+    sidecar; `queued:true` is the ONLY basis for a "submitted" claim.
+- **Self-bootstrapping renderer** — on first use the server installs the
+  host-renderer deps + Chromium into a managed dir
+  (`~/agntux/.agntux-build/.headless-tools/`) **detached + polled**, so a tool
+  call never blocks on the one-time install. `AGNTUX_BUILD_SKIP_RENDER` opts out
+  (CI/tests).
+- **`runValidation()` export** in `validate-plugin.mjs` — the staged pipeline as
+  an importable, never-throwing function returning a structured verdict; the CLI
+  is now a thin wrapper over it.
+- **L2 regression guard `BUILD-types-react-dup`** — `build-plugin.mjs` asserts a
+  single `@types/react` is reachable from the view-tool after install, failing
+  with a routable code instead of a cryptic tsc TS2786.
+- Test coverage for the L1/L2 vendoring helpers, the `runValidation`
+  never-throws contract, and the MCP server's JSON-RPC failure semantics.
+
+### Fixed
+- **L1 — per-session writable package vendoring.** `build-plugin.mjs` vendored
+  `@agntux/*` into a dir SHARED across build sessions
+  (`…/.agntux-build/builds/packages`), which is immutable in the Cowork sandbox
+  (`EPERM` on rmdir) — the in-place build could never start. It now vendors into
+  a per-session sibling (`…/builds/{session-id}/packages`) it owns, never
+  touching a shared dir. The scaffold's view-tool `file:` deps point at
+  `../../packages` to match.
+- **L2 — duplicate `@types/react` crashed tsc.** Vendoring is now **dist-only**
+  (package.json with scripts/devDeps stripped, plus `dist/`/`src/`/README — never
+  `node_modules`), so the vendored primitives contribute zero `@types/react`. The
+  old blanket recursive copy dragged in a nested `node_modules/@types/react` that
+  made `tsc --noEmit` fail with TS2786 on a correct plugin.
+
+### Changed
+- The build skill (`07-build.md`, `08-headless-test.md`, `12-submit.md`) now
+  CALLS the MCP tools instead of embedding "run this verbatim" JS/bash programs.
+  The stage-7 pre-flight asserts the MCP tools are callable and refuses to fall
+  back to a prose program (that fallback was the exploited bypass). Hand-authoring
+  `SUBMISSION.json`/`validation-receipt.json` is forbidden.
+
+### Notes
+- Render currently installs **full Chromium** (the Phase-0-proven path), not
+  `chromium-headless-shell`; the headless-shell size optimisation needs the
+  probe + launch-channel changed in lockstep and is deferred as a follow-up.
+- The on-disk `validation-receipt.json` is a convenience record only — the MCP
+  tools re-derive the verdict and never trust it.
+
 ## [0.15.1] — 2026-05-29
 
 Fix: the 0.15.0 bundle exceeded Claude Desktop's zip-upload limit. The

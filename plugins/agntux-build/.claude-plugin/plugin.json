@@ -1,6 +1,6 @@
 {
   "name": "agntux-build",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "description": "Build a new AgntUX plugin for a system AgntUX doesn't yet support — guided end-to-end through search, connect, design, headed preview, sync iteration, and submit.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0"

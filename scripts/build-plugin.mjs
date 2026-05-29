@@ -45,10 +45,9 @@ import {
   realpathSync,
   rmSync,
   statSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveToolchain } from "./toolchain-layout.mjs";
 
@@ -78,6 +77,10 @@ const { renderSkill, RenderSkillError } = await import(
   pathToFileURL(tc.renderSkillScript).href
 );
 
+// CLI dispatch lives in main(), guarded below so this module can be imported
+// (by tests) without running a build. Function declarations above/below are
+// hoisted and side-effect-free on import.
+async function main() {
 const argv = parseArgs(process.argv.slice(2));
 
 if (argv._.length === 0 && !argv.all) {
@@ -152,6 +155,13 @@ if (argv.serve) {
   log(`built ${slugs.length} plugin(s) successfully.`);
   process.exit(0);
 }
+}
+
+// Run the CLI only when invoked directly — keeps ensurePackagesAvailable +
+// the vendoring/dedup helpers importable from tests without a real build.
+if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+  await main();
+}
 
 // ── steps ────────────────────────────────────────────────────────────────────
 
@@ -168,18 +178,19 @@ async function buildPlugin(slug, pluginDir, skipInstall) {
     runOrFail("node", [join(tc.base, "scripts", "sync-agntux-build-toolchain.mjs")], tc.base);
   }
 
-  // C2 — `@agntux/ui-primitives` is a workspace dep declared via the
-  // file:../../../../../packages/agntux-ui-primitives path. When the
-  // build runs inside AUX-plugins/ (the normal case) that path resolves
-  // to packages/agntux-ui-primitives — already there, no-op. When the
-  // build runs in a scaffolded location outside AUX-plugins/ (the
-  // agntux-build stage 7 case), the path doesn't resolve. ensurePackages
-  // creates a symlink (or copies on filesystems that don't allow them)
-  // from a sourceable location, picking in this order:
-  //   1. AGNTUX_PACKAGES_DIR env var (explicit override)
-  //   2. <REPO_ROOT>/packages (internal AUX-plugins build — already there)
-  //   3. <CLAUDE_PLUGIN_ROOT>/canonical/packages (agntux-build scaffold)
-  // If none resolve and the file: target is missing, log a clear error.
+  // C2 — `@agntux/ui-primitives` + `@agntux/plugin-runtime` are workspace deps
+  // declared via file: paths. When the build runs inside AUX-plugins/ (the
+  // maintainer clone) the deps already resolve to <repo>/packages — no-op. When
+  // the build runs in a scaffolded sandbox location (the agntux-build stage-7
+  // case) ensurePackagesAvailable vendors dist-only copies of the packages into
+  // a PER-SESSION writable dir (…/builds/{session-id}/packages), which the
+  // scaffold's view-tool file: deps (../../packages) resolve to. The canonical
+  // source is read-only and picked in this order:
+  //   1. AGNTUX_PACKAGES_DIR env var (explicit override; the validator sets it)
+  //   2. <REPO_ROOT>/packages (maintainer clone)
+  //   3. <CLAUDE_PLUGIN_ROOT>/canonical/packages (agntux-build bundle)
+  // A shared dir is NEVER mutated (the L1 fix); the copy is dist-only (the L2
+  // fix). If none resolve, fail with a clear error.
   ensurePackagesAvailable(slug, pluginDir);
 
   // npm 10.9+ crashes ("Cannot read properties of null (reading 'package')")
@@ -271,6 +282,11 @@ async function buildPlugin(slug, pluginDir, skipInstall) {
     if (memberInstall) {
       runOrFail("npm", ["install", "--no-audit", "--no-fund"], viewToolDir);
     }
+    // L2 — after node_modules is populated, assert a single @types/react graph
+    // reachable from the view-tool. A duplicate is what made tsc fail with
+    // TS2786 (ComponentErrorBoundary "cannot be used as a JSX component") on an
+    // otherwise-correct plugin; fail loudly + routable here instead.
+    assertSingleReactTypes(slug, pluginDir);
     // C1 — data-driven @agntux/ui-primitives import gate, BEFORE vite. Auto-
     // re-routes apps hooks (useHostStyleVariables, …) to ./lib/apps-react and
     // renames the deprecated useStructuredContent; HARD-fails on a symbol
@@ -410,16 +426,10 @@ function pipeWithPrefix(src, slug, dst) {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function ensurePackagesAvailable(slug, pluginDir) {
-  // Resolve the `@agntux/ui-primitives` workspace path via the canonical
-  // `file:../../../../../packages/agntux-ui-primitives` declaration:
-  // 5 levels up from {plugin}/ui-handlers/{name}/component/ lands at
-  // {pluginDir}/../../packages. Same calculation from {pluginDir} alone.
-  const expected = resolve(pluginDir, "..", "..", "packages");
-  const expectedPrimitive = join(expected, "agntux-ui-primitives");
-
-  // Source candidates, in priority order. The first one whose
-  // agntux-ui-primitives child exists wins. tc.packagesDir is <repo>/packages
-  // in the maintainer clone and <plugin>/canonical/packages in the bundle.
+  // Source candidates for the canonical (READ-ONLY) @agntux/* packages, in
+  // priority order. The first one whose agntux-ui-primitives child exists wins.
+  // tc.packagesDir is <repo>/packages in the maintainer clone and
+  // <plugin>/canonical/packages in the contributor bundle.
   const candidates = [
     process.env.AGNTUX_PACKAGES_DIR,
     tc.packagesDir,
@@ -428,25 +438,38 @@ function ensurePackagesAvailable(slug, pluginDir) {
       : null,
   ].filter(Boolean);
 
-  if (existsSync(expectedPrimitive)) {
-    // Already resolvable. In a plain build (no validator) never disturb it. When
-    // the validator pins the bundled packages via AGNTUX_PACKAGES_DIR, refresh
-    // `expected` UNLESS it already IS that pinned source — so a stale vendoring a
-    // prior session left at <builds>/packages (symlink to an old source, OR a
-    // copy from the EPERM/EXDEV fallback) can't shadow the bundle. The
-    // realpath equality keeps the maintainer clone safe: there `expected` is the
-    // real <repo>/packages which equals tc.packagesDir, so it is never deleted.
-    const pin = process.env.AGNTUX_PACKAGES_DIR;
-    if (!pin) return;
-    let samePin = false;
+  // ── Maintainer-clone fast path ─────────────────────────────────────────────
+  // In the AUX-plugins clone, packages already live two levels up from the
+  // plugin (<repo>/plugins/<slug> → <repo>/packages) and each repo plugin's own
+  // view-tool file: dep already resolves there. If that dir exists AND is
+  // (realpath-)the same tree as our canonical source, there is nothing to
+  // vendor — NEVER disturb the repo's own packages/ (or a workspace symlink).
+  const repoPackages = resolve(pluginDir, "..", "..", "packages");
+  if (existsSync(join(repoPackages, "agntux-ui-primitives"))) {
+    let sameAsCanonical = false;
     try {
-      samePin = realpathSync(expected) === realpathSync(pin);
+      sameAsCanonical =
+        realpathSync(repoPackages) === realpathSync(tc.packagesDir);
     } catch {
-      /* one side unreadable — treat as different and refresh */
+      /* one side unreadable — treat as different and vendor per-session */
     }
-    if (samePin) return;
-    rmSync(expected, { recursive: true, force: true });
+    if (sameAsCanonical) {
+      log(`[${slug}] packages resolved in place (maintainer clone) — no vendoring`);
+      return;
+    }
   }
+
+  // ── Contributor / sandbox path: per-session WRITABLE vendoring (L1) ─────────
+  // The prior code vendored to resolve(pluginDir,"..","..","packages") — a dir
+  // SHARED across every build session (…/.agntux-build/builds/packages). In the
+  // Cowork sandbox that shared dir is immutable (EPERM on rmdir), so the in-place
+  // rebuild could never start. Vendor instead into a PER-SESSION dir that is a
+  // sibling of the plugin dir, inside the writable {session-id}/ dir:
+  //   …/.agntux-build/builds/{session-id}/packages
+  // The scaffold's view-tool file: deps point at ../../packages (from
+  // view-tool/) which resolves to exactly this path. We only ever create or
+  // replace this per-session copy — never a shared dir.
+  const sessionPackages = resolve(pluginDir, "..", "packages");
 
   let source = null;
   for (const cand of candidates) {
@@ -458,28 +481,176 @@ function ensurePackagesAvailable(slug, pluginDir) {
   if (!source) {
     fail(
       `[${slug}] @agntux/ui-primitives not resolvable. Expected ` +
-        `${expectedPrimitive} or one of: ${candidates.join(", ") || "<no candidates>"}. ` +
+        `${join(sessionPackages, "agntux-ui-primitives")} or one of: ` +
+        `${candidates.join(", ") || "<no candidates>"}. ` +
         `Set AGNTUX_PACKAGES_DIR to point at a directory containing ` +
         `agntux-ui-primitives/, or run inside the AUX-plugins repo where ` +
         `packages/ already lives.`,
     );
   }
 
-  log(`[${slug}] linking packages/ from ${source}`);
-  mkdirSync(dirname(expected), { recursive: true });
+  // Defensive: never let the per-session target collide with the read-only
+  // source (a misconfigured layout) — replacing it would delete the source.
+  let collides = false;
   try {
-    symlinkSync(source, expected, "dir");
-  } catch (err) {
-    // EPERM on Windows or some sandboxed filesystems — fall back to copy.
-    if (err.code === "EPERM" || err.code === "EXDEV") {
-      log(
-        `[${slug}] symlink failed (${err.code}); copying packages/ instead`,
+    collides =
+      existsSync(sessionPackages) &&
+      realpathSync(sessionPackages) === realpathSync(source);
+  } catch {
+    /* unreadable — treat as no collision */
+  }
+  if (collides) {
+    log(`[${slug}] per-session packages dir IS the source — leaving in place`);
+    return;
+  }
+
+  // Copy package.json (lifecycle scripts + devDependencies stripped) + dist/ +
+  // src/ + README — NEVER node_modules. A blanket recursive copy (the old
+  // `cpSync(..., {dereference:true})` fallback) dragged a nested
+  // node_modules/@types/react into the vendored tree, which made tsc fail with
+  // TS2786 — duplicate React type identities — on a correct plugin (L2). A
+  // dist-only copy guarantees the vendored primitives contribute ZERO
+  // @types/react. Copy (not symlink) because the sandbox FS rejects cross-dir
+  // symlinks (EPERM) and a copy keeps a single types graph.
+  log(`[${slug}] vendoring packages/ → ${sessionPackages} (dist-only) from ${source}`);
+  vendorPackagesDistOnly(source, sessionPackages);
+}
+
+/**
+ * Copy each package directory under `sourceDir` into `destDir`, taking ONLY
+ * package.json (with lifecycle scripts + devDependencies stripped so a
+ * contributor's `npm install` of the file: dep never rebuilds the pre-built
+ * dist) plus dist/ and README.md. node_modules is never copied — that is the L2
+ * fix. Only each package's own per-session copy is replaced; nothing outside
+ * destDir is touched.
+ */
+export function vendorPackagesDistOnly(sourceDir, destDir) {
+  for (const e of readdirSync(sourceDir, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const srcPkg = join(sourceDir, e.name);
+    const srcPkgJson = join(srcPkg, "package.json");
+    if (!existsSync(srcPkgJson)) continue;
+    const destPkg = join(destDir, e.name);
+    rmSync(destPkg, { recursive: true, force: true });
+    mkdirSync(destPkg, { recursive: true });
+    let pkg = null;
+    try {
+      pkg = JSON.parse(readFileSync(srcPkgJson, "utf8"));
+    } catch {
+      /* fall back to a raw copy below */
+    }
+    if (pkg) {
+      // Strip scripts (so `npm install` of the file: dep never runs tsc/prepare
+      // — absent in the sandbox) and devDependencies (build-only). INVARIANT:
+      // vendored @agntux/* packages must have NO registry-only runtime
+      // `dependencies` (only peerDependencies the view-tool already satisfies),
+      // or an offline contributor install would fail to fetch them.
+      delete pkg.scripts;
+      delete pkg.devDependencies;
+      writeFileSync(
+        join(destPkg, "package.json"),
+        JSON.stringify(pkg, null, 2) + "\n",
       );
-      cpSync(source, expected, { recursive: true, dereference: true });
     } else {
-      throw err;
+      cpSync(srcPkgJson, join(destPkg, "package.json"));
+    }
+    // dist/ is what's imported (main/types); README rides along to match the
+    // package's "files". src/ is intentionally NOT copied — consumers resolve
+    // dist only, and the in-bundle canonical/packages/* ship dist-only anyway,
+    // so copying src would just add surface.
+    const distDir = join(srcPkg, "dist");
+    if (existsSync(distDir)) cpSync(distDir, join(destPkg, "dist"), { recursive: true });
+    const readme = join(srcPkg, "README.md");
+    if (existsSync(readme)) cpSync(readme, join(destPkg, "README.md"));
+  }
+}
+
+/**
+ * L2 regression guard. After the view-tool's node_modules is populated, assert
+ * exactly one @types/react is reachable from the plugin tree (the view-tool's
+ * node_modules + the per-session vendored packages). More than one re-creates
+ * the TS2786 duplicate-identity crash; fail with a routable
+ * `BUILD-types-react-dup` code instead of a cryptic tsc error. `skipLibCheck`
+ * does NOT mask TS2786 (it fires on the consuming file), so dedup must happen at
+ * resolution.
+ */
+function assertSingleReactTypes(slug, pluginDir) {
+  const viewTool = join(pluginDir, "view-tool");
+  if (!existsSync(viewTool)) return;
+  const roots = [
+    join(viewTool, "node_modules"),
+    resolve(pluginDir, "..", "packages"),
+  ];
+  const hits = findReactTypesCopies(roots);
+  if (hits.length > 1) {
+    fail(
+      `[${slug}] BUILD-types-react-dup: ${hits.length} copies of @types/react are ` +
+        `reachable from the view-tool, which makes tsc fail with TS2786 ` +
+        `(duplicate React type identities). Vendoring must be dist-only (no ` +
+        `node_modules). Copies:\n${hits.map((h) => `  - ${h}`).join("\n")}`,
+    );
+  }
+}
+
+/**
+ * Find every `@types/react/package.json` under the given roots, de-duplicated
+ * by realpath (a single physical copy reachable via two link paths counts
+ * once). Symlinked directories are not traversed (dirent.isDirectory() is false
+ * for a symlink), which avoids cycles and keeps the walk bounded to the real
+ * node_modules / packages trees.
+ */
+export function findReactTypesCopies(roots) {
+  const byReal = new Map(); // realpath(@types/react/package.json) → first path
+  const visited = new Set(); // realpath(dir) → cycle + already-walked guard
+  const stack = roots.filter((r) => existsSync(r));
+  while (stack.length) {
+    const dir = stack.pop();
+    let real;
+    try {
+      real = realpathSync(dir);
+    } catch {
+      real = dir;
+    }
+    if (visited.has(real)) continue; // symlink cycle or already walked
+    visited.add(real);
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      // statSync FOLLOWS symlinks (unlike dirent.isDirectory()): npm/pnpm
+      // routinely symlink package dirs, and a duplicate @types/react reachable
+      // only behind a symlink must still count — a missed dup re-creates the
+      // very TS2786 crash this guard exists to prevent. The visited-realpath set
+      // keeps the symlink-following walk cycle-safe.
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue; // dangling symlink / unreadable
+      }
+      if (st.isDirectory()) {
+        stack.push(full);
+      } else if (
+        st.isFile() &&
+        e.name === "package.json" &&
+        basename(dir) === "react" &&
+        basename(dirname(dir)) === "@types"
+      ) {
+        let key = full;
+        try {
+          key = realpathSync(full);
+        } catch {
+          /* keep raw path */
+        }
+        if (!byReal.has(key)) byReal.set(key, full);
+      }
     }
   }
+  return [...byReal.values()];
 }
 
 async function runComponentBuildWithFallback(slug, component) {

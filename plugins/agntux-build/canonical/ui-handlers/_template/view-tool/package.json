@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@agntux/plugin-runtime": "file:../../../../packages/plugin-runtime",
-    "@agntux/ui-primitives": "file:../../../../packages/agntux-ui-primitives",
+    "@agntux/plugin-runtime": "file:../../packages/plugin-runtime",
+    "@agntux/ui-primitives": "file:../../packages/agntux-ui-primitives",
     "jose": "^5.10.0"
   },
   "devDependencies": {

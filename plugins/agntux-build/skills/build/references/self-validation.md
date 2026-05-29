@@ -73,20 +73,24 @@ the same way by editing the specific line.
 | `tests-author` | vitest in **both** the plugin root (`__tests__/**`) **and** `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`) — the plugin-root `vitest.config.ts` globs only `__tests__/**`, so the old `npm test --workspace plugins/{slug}` note missed the view-tool suite entirely. Run both, or just let the gate below do it. |
 | `ui-handler-author` / `draft-flow-author` | lint / build / test as relevant to the artifacts they emit |
 
-The single authoritative whole-tree gate is the deterministic
-`bin/validate-plugin.mjs <slug> --plugin-dir <tree>` — it runs build → lint →
-view-tool typecheck → tests (plugin-root **and** view-tool) → `claude plugin
-validate` → render (best-effort) in order and aborts non-zero on the first hard
-failure. **"Hard exit" means the script's exit code, not a prose promise.** It
-runs **once, at submit** (`12-submit.md` step b.5): the stage-12 marker program
-itself runs it against the exact tree being submitted and refuses to write
-`SUBMISSION.json` on any non-zero exit — there is **no trusted receipt** an agent
-could hand-write to forge a pass. The build + validate toolchain ships inside the
-plugin bundle, so this runs in a contributor sandbox with no marketplace clone.
+The single authoritative whole-tree gate is the agntux-build MCP server's
+**`agntux_validate`** tool (and **`agntux_write_submission`**, which re-runs it
+internally before writing the marker). It runs build → lint → view-tool
+typecheck → tests (plugin-root **and** view-tool) → `claude plugin validate` →
+render (best-effort) in the host-spawned server's NATIVE context (full
+filesystem, real Chromium) and returns a structured **verdict** — `ok:false`
+with a `failed_stage` + `routing` on a hard failure, never a thrown error. **The
+gate is the verdict the tool RETURNS** — not a prose promise, and not an on-disk
+receipt: `agntux_write_submission` re-validates the exact tree being submitted
+and refuses to write `SUBMISSION.json` on any failure, so there is **no trusted
+receipt** an agent could hand-write to forge a pass. The model only orchestrates
+by calling the tools — it never runs the build/validate logic via Bash (the
+restricted sandbox that broke prior attempts), and there is no embedded program
+to hand-emulate.
 
 Stage 7 does NOT re-run the full validator (that would double-build the same gate
 within one submit attempt); each specialist's own per-artifact check above is the
 fast inner loop that carries the tree through preview + sync-iterate. On a
 submit-time failure the flow re-enters the specialist fix loop per the
-`failed_stage` table in `07-build.md` and retries submit — the validator runs
-**once per submit attempt, never twice within one.**
+`failed_stage` table in `07-build.md` and retries — the validator runs **once per
+submit attempt, never twice within one.**

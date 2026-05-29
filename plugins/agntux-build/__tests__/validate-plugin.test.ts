@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // @ts-expect-error — .mjs has no .d.ts
-import { computeTreeSha256, walkTree, EXCLUDE_DIRS, EXCLUDE_NAMES } from "../../../scripts/validate-plugin.mjs";
+import { computeTreeSha256, walkTree, EXCLUDE_DIRS, EXCLUDE_NAMES, runValidation } from "../../../scripts/validate-plugin.mjs";
 
 const SLUG = "agntux-testcal";
 
@@ -117,5 +117,38 @@ describe("validate-plugin.mjs tree hashing", () => {
     writeFileSync(join(pluginDir, ".DS_Store"), "junk");
     const after = computeTreeSha256(pluginDir, SLUG);
     expect(after).toBe(before);
+  });
+});
+
+// runValidation is the in-process verdict surface the MCP server calls. Its
+// load-bearing contract: it NEVER throws and NEVER process.exits — every
+// failure (including usage errors) is folded into a returned verdict. These
+// cases return before any subprocess spawn, so they're fast + deterministic.
+describe("runValidation verdict contract (never throws / never exits)", () => {
+  it("returns a usage verdict (not a throw) when slug is missing", async () => {
+    const v = await runValidation({ plugin_dir: "/tmp/whatever-xyz" } as never);
+    expect(v.ok).toBe(false);
+    expect(v.error_kind).toBe("usage");
+    expect(v.failed_stage).toBe("usage");
+    expect(v.blocking).toBe(false);
+  });
+
+  it("returns a usage verdict when pluginDir is missing", async () => {
+    const v = await runValidation({ slug: SLUG } as never);
+    expect(v.ok).toBe(false);
+    expect(v.error_kind).toBe("usage");
+    expect(v.blocking).toBe(false);
+  });
+
+  it("returns a usage verdict (not a throw) when the plugin dir does not exist", async () => {
+    const missing = join(tmpdir(), `validate-missing-${process.pid}-${Date.now()}`);
+    const v = await runValidation({ slug: SLUG, pluginDir: missing });
+    expect(v.ok).toBe(false);
+    expect(v.error_kind).toBe("usage");
+    expect(v.failed_stage).toBe("usage");
+    expect(typeof v.detail).toBe("string");
+    // Shape sanity: a verdict always carries stages + a timestamp.
+    expect(v.stages).toBeTypeOf("object");
+    expect(typeof v.validated_at).toBe("string");
   });
 });
