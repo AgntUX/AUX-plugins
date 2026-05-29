@@ -271,6 +271,62 @@ Adjust for your source. The naming convention (`{source}-connector-{verb}`
 for connector-direct envelopes; `{verb}-{adjective}-local` for pure local
 actions) is owned by `manifest-author` § "Connector-targeted intent naming".
 
+### Per-verb payload reference files — DERIVE the expected names, never hardcode
+
+When a UI-handler plugin's write-back emits non-`compose` body headers
+(`## RSVP payload`, `## Schedule payload`, `## Meeting prep`, …),
+`draft-flow-author` §2a.1 + `ingest-prompt-author` author a sibling
+`_overrides/reference/{verb-kebab}-payload.md` per header. If you generate a
+test that asserts those reference files are present, you **MUST derive** the
+expected filename set from the plugin's own artifacts — **never hardcode**
+plugin-specific names like `["meeting-prep", "rsvp-payload", "schedule-payload"]`.
+Hardcoding IS the defect-2 regression: google-calendar shipped a test with
+hardcoded reference names that didn't match the (missing) files, so the whole
+suite failed at the worker. Derive from the plugin's own ground truth instead:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+
+const PLUGIN_ROOT = join(__dirname, "..");
+const SLUG = "{your-slug}";
+const OVERRIDES_REF = join(PLUGIN_ROOT, `skills/${SLUG}/_overrides/reference`);
+
+/** `## RSVP payload` → `rsvp-payload.md` (lowercase, drop `##`, kebab-case). */
+function headerToRefFile(header: string): string {
+  const name = header
+    .replace(/^##\s+/, "").trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${name}.md`;
+}
+
+describe("per-verb payload reference files", () => {
+  it("every `## * payload` body header has a matching _overrides/reference/*.md", () => {
+    // Read the headers the write-back actually emits from your example action
+    // bodies — DERIVED, not a hardcoded list.
+    const exampleBodies: string[] = [/* readFileSync each example action file */];
+    const expected = new Set(
+      exampleBodies
+        .flatMap((b) => [...b.matchAll(/^##\s+.*payload\s*$/gim)].map((m) => m[0]))
+        .map(headerToRefFile),
+    );
+    const present = new Set(
+      existsSync(OVERRIDES_REF) ? readdirSync(OVERRIDES_REF).filter((n) => n.endsWith(".md")) : [],
+    );
+    for (const f of expected) {
+      if (f === "compose-payload.md") continue; // canonical-rendered, not an override
+      expect(present.has(f), `missing _overrides/reference/${f}`).toBe(true);
+    }
+  });
+});
+```
+
+The assertion set comes from the plugin's own headers/overrides, so it can never
+drift from what the plugin actually emits. Leave `render-reproducibility.test.ts`
+alone — it is already filename-agnostic (it compares the rendered `reference/`
+directory set against the renderer's output, not a hardcoded list).
+
 ## `error-envelope.test.ts` (when the plugin ships a UI handler)
 
 Asserts the iframe surfaces runtime error envelopes cleanly. The
@@ -352,9 +408,14 @@ After writing `__tests__/`, you MUST run them before returning success. A
 failing test is **mechanical** and NEVER reaches the contributor (see
 `skills/build/references/self-validation.md`).
 
-1. Discover the test command from `package.json.scripts.test` (typically
-   `npm test --workspace plugins/{slug}`, or `npm test` from the plugin dir).
-2. Run it. On failure, decide whether the test asserts a real contract the code
+1. Run vitest in **both** suites — the plugin root (`__tests__/**`, via
+   `npm test` from the plugin dir / the scaffolded root `package.json`) **and**
+   `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`). The plugin-root
+   `vitest.config.ts` globs only `__tests__/**`, so a single
+   `npm test --workspace plugins/{slug}` would silently skip the view-tool
+   suite — run both, or let the stage-7 gate (`scripts/validate-plugin.mjs`,
+   which runs both) be the authoritative check.
+2. On failure, decide whether the test asserts a real contract the code
    violates (fix the code under test, coordinating with the owning specialist)
    or the test itself is wrong (fix the test). Edit and re-run.
 3. Repeat up to **5 cycles**. Green → success. Still failing after 5 → return

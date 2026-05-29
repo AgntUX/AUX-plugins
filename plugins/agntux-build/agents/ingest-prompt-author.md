@@ -125,6 +125,21 @@ Per-plugin extras (no canonical counterpart) drop into the same
 `canvas-payload.md`, Gmail's `denylist.md` and `email-context.md` are
 the canonical examples.
 
+**Per-verb payload reference files are additive extras you must author.**
+When the write-back flow emits a body section whose header is not `## Compose
+payload` (e.g. `## RSVP payload`, `## Schedule payload`, `## Meeting prep`),
+`draft-flow-author` §2a.1 requires a sibling schema file at
+`_overrides/reference/{verb-kebab}-payload.md` (or `{verb-kebab}.md`) for each
+one. Authoring those additive files is part of your `_overrides/reference/`
+ownership: derive the filename from the header (lowercase, drop `##`,
+kebab-case → `## RSVP payload` ⇒ `rsvp-payload.md`), model each on the canonical
+`compose-payload.md`, and let the renderer pass them through verbatim. The
+gap where these files were specified-but-never-written is exactly the defect-2
+class the stage-7 gate now hard-blocks; `tests-author` derives the expected
+filename set from the emitted headers so the test and the tree stay in
+lock-step. Do this whenever `draft-flow-author` reports non-`compose` payload
+headers for the plugin.
+
 ## The render pipeline — `scripts/render-skill.mjs`
 
 The renderer ships in the consumer repo (e.g. AUX-plugins), not the
@@ -230,7 +245,12 @@ the view tool can lift drafted content from disk at click time without
 re-fetching source-side context. The full shape, freshness tradeoffs,
 and dual-mode view-tool resolution are owned by `draft-flow-author.md`
 §2a–§2b — substitute `compose-payload.md` per-plugin (wholesale
-override) when your source has a non-trivial body schema.
+override) when your source has a non-trivial body schema. For every
+**non-`compose`** body header the write-back emits (`## RSVP payload`,
+`## Schedule payload`, etc.), also author the matching additive
+`_overrides/reference/{verb-kebab}-payload.md` schema file per §3
+"Per-verb payload reference files" above — these are required deliverables,
+not optional, and `tests-author` derives the expected filename set from them.
 
 The pre-existing rule "do NOT pre-fill orchestrator-authored content"
 applies to the `suggested_actions[].host_prompt` strings — those stay

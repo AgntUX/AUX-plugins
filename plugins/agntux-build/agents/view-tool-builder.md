@@ -160,18 +160,33 @@ must be byte-identical; prefer the repo-root copy.
 ## Self-validation (required — WS-A, hard exit)
 
 The `npm run build` you run above IS your validator — make the loop explicit and
-add the deprecated-import sweep. Compile and import errors are **mechanical** and
-NEVER reach the contributor (see `skills/build/references/self-validation.md`).
+add the deterministic import-resolution sweep. Compile and import errors are
+**mechanical** and NEVER reach the contributor (see
+`skills/build/references/self-validation.md`). The stage-7 final gate
+(`scripts/validate-plugin.mjs`, see `07-build.md`) re-runs the whole-tree build
+as the authoritative exit-code gate — "hard exit" means that script's exit
+code, not a prose promise.
 
 1. `npm install --prefix view-tool/` (one-shot, idempotent), then
    `npm run build --prefix view-tool/`.
-2. On compile failure, parse the error (import names, missing exports, type
-   errors), edit the offending source file, rebuild.
-3. Run `grep -rn 'useStructuredContent' view-tool/src/`. Any hit is the
-   deprecated alias — rewrite it to `assertStructuredContent` (the canonical
-   `@agntux/ui-primitives` export) and rebuild. The alias still compiles via the
-   WS-C.1 deprecated re-export and the worker's `rewrite-imports.mjs` is the
-   belt-and-suspenders net, but author the canonical name here.
+2. **Deterministic import-source resolution — run this FIRST on any
+   `Cannot resolve` / `has no exported member` / unresolved-import error,
+   before any freehand edit.** The canonical
+   `canonical/prompts/ui/host-api.md` § "Where imports come from" is the single
+   authoritative source for where each symbol resolves. Apply this exact
+   mapping to the offending import (it covers the two recurring hallucinated-
+   import defects), then rebuild:
+
+   | Symptom in the error / source | Deterministic fix |
+   |---|---|
+   | An apps hook (`useAppsClient`, `useToolResult`, `useToolInput`, `useOnToolInputPartial`, `useHostContext`, `useHostCapabilities`, `useWidgetState`, `useDisplayMode`, `useSafeAreaInsets`, `useDocumentTheme`, `useHostStyleVariables`, …) imported from `@agntux/ui-primitives` **or** from `@mcp-apps-kit/ui-react` | Move it to `import { … } from "./lib/apps-react/index.js"` (adjust the `./`/`../` depth for the file's location). `@mcp-apps-kit/ui-react` is the upstream package the vendored lib was inlined from — it is NOT a view-tool dependency. |
+   | `StickyFooter` imported from anywhere | Remove the import — it does not exist. Use `ScrollablePanel`'s `footer` prop, or a `className="sticky bottom-0"` div. |
+   | `SimpleMcpApp` imported into component code | Remove it — internal transport in `./lib/apps-client/`, wired by the scaffold, never imported by component code. |
+   | `useStructuredContent` (the deprecated alias) | Rewrite to `assertStructuredContent` (the canonical `@agntux/ui-primitives` export). `grep -rn 'useStructuredContent' view-tool/src/` to find every hit; the alias still compiles via the WS-C.1 re-export and the worker's `rewrite-imports.mjs` is the belt-and-suspenders net, but author the canonical name here. |
+
+3. For any compile error the mapping above does NOT cover (genuine type errors,
+   missing data_paths, descriptor-regex mismatch), parse the error, edit the
+   offending source file, and rebuild.
 4. Repeat up to **5 build cycles**. A clean build + manifest emit → success.
    Still failing after 5 → return `{success: false, error: <build output>}` for the maintainer. Never a contributor-facing build error.
 

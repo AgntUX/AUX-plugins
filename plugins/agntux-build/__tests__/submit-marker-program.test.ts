@@ -24,6 +24,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+// The marker program's tree_sha256 MUST match what scripts/validate-plugin.mjs
+// records in the receipt. Import the validator's own hasher so the test proves
+// the two stay byte-identical (same walk + exclude lists).
+// @ts-expect-error — .mjs has no .d.ts
+import { computeTreeSha256 } from "../../../scripts/validate-plugin.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REF = join(
@@ -94,8 +99,37 @@ afterEach(() => {
 const SESSION = "2026-01-01-000000";
 const SLUG = "agntux-testcal";
 
+function sessionDir(): string {
+  return join(tmpRoot, ".agntux-build", "builds", SESSION);
+}
+
 function pluginDir(): string {
-  return join(tmpRoot, ".agntux-build", "builds", SESSION, SLUG);
+  return join(sessionDir(), SLUG);
+}
+
+/**
+ * Write a validation-receipt.json into the session dir (sibling of the plugin
+ * dir) so the marker program's receipt gate passes. `treeSha` defaults to the
+ * real hash of the current plugin tree — pass a wrong value to simulate a
+ * stale receipt.
+ */
+function writeReceipt(treeSha?: string, overrides: Record<string, unknown> = {}): void {
+  const tree_sha256 = treeSha ?? computeTreeSha256(pluginDir(), SLUG);
+  writeFileSync(
+    join(sessionDir(), "validation-receipt.json"),
+    JSON.stringify({
+      schema_version: "1.0.0",
+      slug: SLUG,
+      tree_sha256,
+      build: "pass",
+      lint: "pass",
+      tests: "pass",
+      render: "skipped",
+      agntux_build_version: "0.13.0",
+      validated_at: "2026-01-01T00:00:00Z",
+      ...overrides,
+    }),
+  );
 }
 
 function writePluginTree(): void {
@@ -129,6 +163,7 @@ function run(program: string): { stdout: string; code: number; stderr: string } 
 describe("stage-12 marker program (extracted from 12-submit.md)", () => {
   it("emits a daemon/server-valid marker at the session root, excluding node_modules + cruft, shipping NOTICE", () => {
     writePluginTree();
+    writeReceipt(); // green receipt for THIS tree — the gate requires it
     const program = fillProgram(extractMarkerProgram(), {
       root: tmpRoot,
       session: SESSION,
@@ -181,6 +216,17 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
       .digest("hex");
     expect(marker.tree_sha256).toBe(recomputed);
     expect(out.submission_id.endsWith(marker.tree_sha256.slice(0, 8))).toBe(true);
+
+    // The receipt's hash and the marker's hash were computed by independent
+    // code paths (validate-plugin.mjs vs the marker program) — they must agree.
+    expect(computeTreeSha256(pluginDir(), SLUG)).toBe(marker.tree_sha256);
+    // The validation block from the receipt rides into the marker for the maintainer.
+    expect(marker.validation).toEqual({
+      build: "pass",
+      lint: "pass",
+      tests: "pass",
+      render: "skipped",
+    });
   });
 
   it("throws and writes NO marker when the tree has no shippable files (self-check before write)", () => {
@@ -219,5 +265,81 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     const { code, stderr } = run(program);
     expect(code).not.toBe(0);
     expect(stderr).toContain("contributor.json");
+  });
+
+  it("refuses to submit when no validation-receipt.json exists (receipt gate)", () => {
+    writePluginTree();
+    // deliberately NO writeReceipt() — the gate must refuse.
+    const { code, stderr } = run(
+      fillProgram(extractMarkerProgram(), {
+        root: tmpRoot,
+        session: SESSION,
+        slug: SLUG,
+        version: "0.1.0",
+      }),
+    );
+    expect(code).not.toBe(0);
+    expect(stderr).toContain("not validated");
+    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
+  });
+
+  it("refuses to submit when the receipt binds a different tree (stale receipt)", () => {
+    writePluginTree();
+    writeReceipt("0".repeat(64)); // tree_sha256 that does not match this tree
+    const { code, stderr } = run(
+      fillProgram(extractMarkerProgram(), {
+        root: tmpRoot,
+        session: SESSION,
+        slug: SLUG,
+        version: "0.1.0",
+      }),
+    );
+    expect(code).not.toBe(0);
+    expect(stderr).toContain("not validated");
+    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
+  });
+
+  it("re-validating after an edit (matching receipt) lets submit proceed", () => {
+    writePluginTree();
+    writeReceipt("0".repeat(64)); // stale receipt first — submit must fail
+    let r = run(
+      fillProgram(extractMarkerProgram(), {
+        root: tmpRoot,
+        session: SESSION,
+        slug: SLUG,
+        version: "0.1.0",
+      }),
+    );
+    expect(r.code).not.toBe(0);
+    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
+
+    // Re-validate (write a matching receipt) and retry → now it submits.
+    writeReceipt();
+    r = run(
+      fillProgram(extractMarkerProgram(), {
+        root: tmpRoot,
+        session: SESSION,
+        slug: SLUG,
+        version: "0.1.0",
+      }),
+    );
+    expect(r.code, r.stderr).toBe(0);
+    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(true);
+  });
+
+  it("blocks submit when the receipt records a failing build/lint/tests", () => {
+    writePluginTree();
+    writeReceipt(undefined, { tests: "fail" }); // hash matches, but tests failed
+    const { code, stderr } = run(
+      fillProgram(extractMarkerProgram(), {
+        root: tmpRoot,
+        session: SESSION,
+        slug: SLUG,
+        version: "0.1.0",
+      }),
+    );
+    expect(code).not.toBe(0);
+    expect(stderr).toContain("not validated");
+    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
   });
 });

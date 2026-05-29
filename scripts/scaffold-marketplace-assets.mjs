@@ -72,6 +72,8 @@ const ICON_DEST = join(MARKETPLACE_DIR, "icon.png");
 const MARKETPLACE_README = join(MARKETPLACE_DIR, "README.md");
 const OVERRIDES_DIR = join(PLUGIN_DIR, "skills", slug, "_overrides");
 const FRONTMATTER_DEST = join(OVERRIDES_DIR, "frontmatter.yaml");
+const PACKAGE_JSON_DEST = join(PLUGIN_DIR, "package.json");
+const VITEST_CONFIG_DEST = join(PLUGIN_DIR, "vitest.config.ts");
 
 // ---------------------------------------------------------------------------
 // Validate inputs
@@ -200,6 +202,61 @@ if (!existsSync(MARKETPLACE_README)) {
   anyWrite = true;
 } else {
   console.log(`  README.md      ✓ already present`);
+}
+
+// 4. Emit the plugin-root package.json if absent. Without it, the stage-7
+//    `npm run build --if-present` / `npm test --if-present` legacy commands
+//    silently no-op (the script doesn't exist), so a broken view-tool build or
+//    a failing vitest suite escapes the gate. Modeled on
+//    plugins/agntux-gmail/package.json: `build` shells out to build-plugin.mjs,
+//    `test` is `vitest run`, and `view-tool` is declared as a workspace so the
+//    build's single plugin-root `npm install` hoists deps to it (npm 10.9+
+//    crashes on per-member installs). The deterministic gate
+//    (scripts/validate-plugin.mjs) is what actually enforces build+lint+test;
+//    this file just makes the per-plugin `npm` surface real.
+if (!existsSync(PACKAGE_JSON_DEST)) {
+  const pkg = {
+    name: `@agntux/${slug}-plugin`,
+    version: "0.0.0",
+    description: `Build + test harness for the ${slug} plugin`,
+    private: true,
+    type: "module",
+    engines: { node: ">=20" },
+    scripts: {
+      build: `node ../../scripts/build-plugin.mjs ${slug}`,
+      test: "vitest run",
+      "test:watch": "vitest",
+    },
+    devDependencies: {
+      "@types/node": "^20.0.0",
+      typescript: "^5.4.0",
+      vitest: "^1.6.0",
+    },
+    workspaces: ["view-tool"],
+  };
+  writeFileSync(PACKAGE_JSON_DEST, JSON.stringify(pkg, null, 2) + "\n", "utf8");
+  console.log(`  package.json   ← written (build→build-plugin.mjs, test→vitest run)`);
+  anyWrite = true;
+} else {
+  console.log(`  package.json   ✓ already present`);
+}
+
+// 5. Emit the plugin-root vitest.config.ts if absent. The plugin-root suite
+//    globs only __tests__/** (the view-tool suite is run separately by the
+//    validator), modeled on plugins/agntux-gmail/vitest.config.ts.
+if (!existsSync(VITEST_CONFIG_DEST)) {
+  const vitestConfig =
+    `import { defineConfig } from "vitest/config";\n\n` +
+    `export default defineConfig({\n` +
+    `  test: {\n` +
+    `    include: ["__tests__/**/*.test.{ts,mjs}"],\n` +
+    `  },\n` +
+    `});\n`;
+  writeFileSync(VITEST_CONFIG_DEST, vitestConfig, "utf8");
+  console.log(`  vitest.config.ts ← written (globs __tests__/**)`);
+  anyWrite = true;
+} else {
+  console.log(`  vitest.config.ts ✓ already present`);
 }
 
 // ---------------------------------------------------------------------------

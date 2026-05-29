@@ -225,36 +225,52 @@ even then it's a one-liner:
 No technical detail in the surface — the session file carries the
 traceback for maintainers.
 
-## Stage-7 final gate (end-to-end verifier — WS-A.2)
+## Stage-7 final gate (deterministic verifier — WS-A.2)
 
-After all seven specialists dispatch and before the build summary, run ONE
-end-to-end verifier against the contributor's plugin tree on the same machine
-that built it. The build flow does NOT advance to the summary / stage 8 until
-this exits 0:
+After all seven specialists dispatch and before the build summary, run the ONE
+deterministic gate against the contributor's plugin tree on the same machine
+that built it. The gate is a single script — `scripts/validate-plugin.mjs` —
+NOT a prose checklist the agent is trusted to run by hand. It runs build → lint
+→ view-tool typecheck → tests (plugin-root **and** view-tool) → `claude plugin
+validate` → render (best-effort), in order, aborting non-zero on the first hard
+failure. The build flow does NOT advance to the summary / stage 8 until it
+exits 0:
 
 ```bash
-cd plugins/agntux-{slug} && npm install && \
-  npm run lint:marketplace -- --plugin agntux-{slug} && \
-  npm run build --if-present && \
-  npm test --if-present
+node scripts/validate-plugin.mjs agntux-{slug}
+# Runs in the AUX-plugins working tree against plugins/agntux-{slug}/ (where the
+# build ran). build + lint can only target that tree, so do NOT point
+# --plugin-dir elsewhere — to land the receipt next to a stage-12 marker, pass
+# only --session-dir (the synced copy is byte-identical on hashed files):
+#   node scripts/validate-plugin.mjs agntux-{slug} --session-dir <agntux root>/.agntux-build/builds/{session-id}
 ```
 
-(When the working tree is the `.agntux-build/builds/{id}/agntux-{slug}/` copy
-rather than an AUX-plugins clone, run the equivalent there — the intent is
-"install + lint + build + test all return zero on the same machine that built
-the plugin.")
+Why a script and not the old `cd plugins/{slug} && npm install && npm run
+lint:marketplace && npm run build --if-present && npm test --if-present` block:
+that block was broken three ways — `lint:marketplace` does not exist inside
+`plugins/{slug}/` (it lives only at the repo root), `npm run build --if-present`
+silently no-ops when the plugin ships no root `package.json`, and `npm test
+--if-present` never reaches the view-tool's own vite build or its vitest suite.
+The validator closes all three holes deterministically (the scaffold in this
+stage's pre-flight now emits the root `package.json` + `vitest.config.ts`, and
+the validator runs the view-tool build + both vitest suites explicitly).
 
-On any non-zero exit, parse the failing command + error and re-dispatch the
-owning specialist:
+On a hard failure the validator prints a single-line JSON diagnostic to stdout —
+`{"ok":false,"failed_stage":"<stage>","detail":"..."}` — and exits 1. Parse
+`failed_stage` and re-dispatch the owning specialist:
 
-| Failing command | Re-dispatch |
+| `failed_stage` | Re-dispatch |
 |---|---|
-| `lint:marketplace` (E05 / E11 / E04 / E14) | `manifest-author` |
-| `lint:marketplace` pass 8 / render drift (E15) | `ingest-prompt-author` |
-| `npm run build` (view-tool compile) | `view-tool-builder` |
-| `npm test` | `tests-author` |
+| `build` (view-tool vite / tsc / esbuild / emit-manifest) | `view-tool-builder` |
+| `typecheck` (view-tool `tsc --noEmit`) | `view-tool-builder` |
+| `lint` (E05 / E11 / E04 / E14 in `detail`) | `manifest-author` |
+| `lint` (pass 8 / render-drift E15 in `detail`) | `ingest-prompt-author` |
+| `tests` | `tests-author` |
+| `validate` (`claude plugin validate` — plugin.json / manifest shape) | `manifest-author` |
+| `render` (console errors / handler `tool error:` / harness crash) | `executor` (model=sonnet, per `08-headless-test.md` self-fix) |
+| `usage` (bad flag, missing/divergent `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |
 
-Loop the verifier up to **5 times** after specialist-driven fixes (budgets +
+Loop the gate up to **5 times** after specialist-driven fixes (budgets +
 the mechanical-vs-judgment line live in
 [`self-validation.md`](self-validation.md)). These are **mechanical** failures —
 the user NEVER sees a lint code or a traceback. If still failing after 5 cycles,
@@ -263,17 +279,36 @@ a snag" message above) and stop. Do NOT surface lint/build/test detail to the
 contributor, and do NOT let the flow reach "ready to submit?" with an
 unvalidated tree.
 
+On a clean (exit-0) run the validator writes `validation-receipt.json` to the
+session dir (sibling of the plugin tree). That receipt is re-bound to the final,
+signature-carrying tree at stage 12 (`12-submit.md` step b.5) and is what makes
+`SUBMISSION.json` impossible to emit without a matching green validation.
+
 ## Saved state at end of stage 7
 
 ```json
 {
   ...,
-  "build_status": "success",
+  "validation_receipt": {
+    "path": "/Users/.../.agntux-build/builds/{session-id}/validation-receipt.json",
+    "tree_sha256": "{the hash the gate validated}",
+    "build": "pass",
+    "lint": "pass",
+    "tests": "pass",
+    "render": "pass"
+  },
   "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-linear",
   "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "draft-flow", "tests", "view-tool-builder", "invariant-checker"],
   "build_completed_at": "2026-05-08T..."
 }
 ```
+
+Record the gate's result as `validation_receipt` (read it back from the
+`validation-receipt.json` the validator wrote) rather than a bare
+`build_status: "success"` string — the receipt is the tree-bound proof the
+stage-12 submit gate checks, so the session state should carry the same fields
+(`tree_sha256`, `build`, `lint`, `tests`, `render`). `render` may be `"skipped"`
+when no Chromium was available; that is still a passing gate.
 
 ### `last-submission.json` — written on every successful build
 

@@ -1,11 +1,89 @@
 # Host API Reference
 
-IMPORTANT: Component code should use @mcp-apps-kit/ui-react hooks which abstract these APIs.
-This documentation is for understanding the underlying protocol.
+IMPORTANT: Component code uses host hooks that abstract the postMessage
+JSON-RPC protocol. This documentation is for understanding the underlying
+protocol; the **import sources** are pinned authoritatively below.
+
+## Where imports come from (authoritative — read before writing any import)
+
+This section is the SINGLE source of truth for where a view-tool component's
+imports resolve from. Every `*-ui.tsx` / component file imports from exactly two
+places. Do not invent a third.
+
+1. **Apps hooks → the vendored `./lib/apps-react/index.js`.** The hooks
+   (`useAppsClient`, `useToolResult`, …) are an MIT-inlined copy that ships
+   inside every view-tool at `view-tool/src/lib/apps-react/`. Import them
+   path-relatively:
+
+   ```ts
+   import { useAppsClient, useToolResult } from "./lib/apps-react/index.js";
+   ```
+
+   **Never import from `@mcp-apps-kit/ui-react`.** That is the *upstream*
+   package the vendored copy was inlined from — it is NOT a dependency of the
+   view-tool and will fail to resolve at build time. The only hooks that exist
+   are the ones `apps-react/index.js` actually exports:
+
+   ```ts
+   import {
+     useAppsClient,              // callTool, sendFollowUpMessage, openLink, etc.
+     useToolResult,              // structured content (populates on tool-result)
+     useToolInput,               // final tool input args (populates on tool-input)
+     useOnToolInputPartial,      // streaming partials — fires 0..N before tool-input
+     useHostContext,             // theme, locale, viewport, platform
+     useHostCapabilities,        // hostCapabilities.partialToolInput, openLinks, etc.
+     useHostVersion,
+     useWidgetState,             // [state, setState] for UI state
+     useDisplayMode,             // { mode, availableModes, requestMode }
+     useSafeAreaInsets,          // mobile safe areas
+     useDocumentTheme,           // applies light/dark class to document
+     useHostStyleVariables,      // applies host-provided CSS variables
+     useSizeChangedNotifications,
+     useUpdateModelContext,
+     useOnToolCancelled,
+     useOnTeardown,
+     useResourceMeta,
+     useDebugLogger,
+     AppsProvider,
+     useAppsContext,
+   } from "./lib/apps-react/index.js";
+   ```
+
+   There is **no `useIntrinsicHeight`, `useModal`, `useView`, or `useFileUpload`**
+   in the vendored lib — do not import them (they were draft-spec names that
+   never shipped). `SimpleMcpApp` is internal transport in
+   `./lib/apps-client/` and is wired up by the scaffold; **component code never
+   imports it.**
+
+2. **Shared primitives → `@agntux/ui-primitives`** (the workspace package). The
+   EXACT export set is:
+
+   ```ts
+   import {
+     AgntuxLogo,
+     ComponentErrorBoundary,
+     ServerErrorScreen,
+     ScrollablePanel,            // sticky header + scrolling body + sticky `footer` prop
+     Spinner,
+     detectErrorEnvelope,
+     assertStructuredContent,    // canonical name
+     useStructuredContent,       // DEPRECATED alias of assertStructuredContent — prefer the canonical name
+     // safe accessors + date/time helpers:
+     safeArray, safeBoolean, safeDate, safeEnum, safeNumber, safeObject, safeString,
+     daysSince, formatTime,
+   } from "@agntux/ui-primitives";
+   ```
+
+   **There is no `StickyFooter`** — it does not exist anywhere. For a pinned
+   footer use `ScrollablePanel`'s `footer` prop, or a `className="sticky
+   bottom-0"` div inside your own scroll container. Importing `StickyFooter`,
+   `SimpleMcpApp`, or `useAppsClient` from `@agntux/ui-primitives` is the
+   classic hallucinated-import bug — none of those live there.
 
 ## Host API (Summary)
 
-Components communicate with MCP Apps hosts using postMessage JSON-RPC. The @mcp-apps-kit/ui-react library abstracts the protocol.
+Components communicate with MCP Apps hosts using postMessage JSON-RPC; the
+vendored `apps-react` hooks abstract the protocol.
 
 **Abstracted via hooks (use these in components):**
 - `useToolResult()` - Get tool output data (read-only)
@@ -20,33 +98,8 @@ Components communicate with MCP Apps hosts using postMessage JSON-RPC. The @mcp-
 **Underlying protocol:**
 - **MCP Apps**: postMessage JSON-RPC (standard MCP protocol)
 
-**Key principle:** Write protocol-agnostic code using hooks.
-
-## Host API Reference
-
-Components run on MCP Apps hosts. Use @mcp-apps-kit/ui-react hooks for host communication.
-
-### Abstraction Layer (Recommended)
-
-Use these hooks from @mcp-apps-kit/ui-react:
-
-```typescript
-import {
-  useAppsClient,        // callTool, sendFollowUpMessage, openLink, etc.
-  useToolResult,        // Structured content from tool (populates on tool-result)
-  useToolInput,         // Final tool input arguments (populates on tool-input)
-  useOnToolInputPartial,// Streaming tool args — fires 0..N times before tool-input
-  useHostContext,       // theme, locale, viewport, platform
-  useHostCapabilities,  // Check hostCapabilities.partialToolInput, openLinks, etc.
-  useWidgetState,       // [state, setState] for UI state
-  useDisplayMode,       // { mode, availableModes, requestMode }
-  useSafeAreaInsets,    // Mobile safe areas
-  useIntrinsicHeight,   // Report dynamic heights
-  // useFileUpload,     // Draft spec — not yet supported by hosts
-  // useFileDownload,   // Draft spec — not yet supported by hosts
-  // useModal,          // Draft spec — not yet supported by hosts
-} from '@mcp-apps-kit/ui-react';
-```
+**Key principle:** Write protocol-agnostic code using hooks; import them from
+`./lib/apps-react/index.js` (see "Where imports come from" above).
 
 ### Opening External Links
 

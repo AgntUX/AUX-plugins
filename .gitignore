@@ -2,6 +2,13 @@ node_modules/
 .DS_Store
 .omc/
 dist-zips/
+# Tree-bound validation receipt written by scripts/validate-plugin.mjs as a
+# sibling of the validated plugin dir. Never a tracked artifact — it binds a
+# specific tree at validate time and is consumed by the stage-12 submit gate.
+validation-receipt.json
+validation-receipt.json.tmp
+# Render-harness output (screenshots + metadata) — transient, never tracked.
+test-results/
 # Ignore dist by default, but track built plugin & shared-package outputs.
 # CI builds these on push to main and commits them back so users get
 # runnable plugins on a fresh `/plugin install` (no host-side build step).

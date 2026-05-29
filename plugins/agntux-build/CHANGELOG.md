@@ -6,6 +6,98 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-05-28
+
+Deterministic pre-submission validation gate — turn the build+lint+test+render
+checks from prose the build agent was *trusted* to run into a single enforced
+script, so a plugin that fails any of them can no longer reach the review queue.
+Motivated by a google-calendar submission where the worker (not the build) had
+to discover a broken view-tool import and 5 failing tests that should never have
+escaped stage 7.
+
+### Added
+- **`scripts/validate-plugin.mjs` — the deterministic gate.** One script runs,
+  in order and aborting on the first hard failure: build (`build-plugin.mjs`),
+  lint (`lint:marketplace --plugin`, from the repo root where the script
+  actually lives), view-tool typecheck (`tsc --noEmit`), tests (vitest in
+  **both** the plugin root **and** `view-tool/` — the plugin-root config globs
+  only `__tests__/**`, so the view-tool suite was previously never run),
+  `claude plugin validate` (hard when the binary is present, recorded
+  `skipped` otherwise), and a best-effort headless render. On success it writes
+  a tree-bound `validation-receipt.json` (sibling of the plugin dir) whose
+  `tree_sha256` uses the **exact** walk + exclude lists of the stage-12 submit
+  program. On a hard failure it prints `{"ok":false,"failed_stage":"…"}` for the
+  stage-7 loop to route to the owning specialist. Added `validate:plugin` to the
+  repo-root `package.json`. Build + lint + test hard-block; render is
+  best-effort (a genuine inability to obtain Chromium downgrades to
+  `"skipped"`; a real render error hard-blocks).
+- **`scripts/scaffold-marketplace-assets.mjs`** now also emits the plugin-root
+  `package.json` (build → `build-plugin.mjs`, test → `vitest run`,
+  `workspaces: ["view-tool"]`) and `vitest.config.ts` (globs `__tests__/**`)
+  when absent — closing the `npm run build --if-present` / `npm test
+  --if-present` silent-no-op hole that let a broken build/test sail through.
+
+### Changed
+- **`references/12-submit.md` — submission is impossible without a matching
+  green receipt.** New step (b.5) runs the validator against the finalized,
+  signature-carrying tree (the last mutation before submit); the step-(c)
+  marker program now reads `validation-receipt.json` and **refuses to write
+  `SUBMISSION.json`** unless `receipt.tree_sha256 === tree_sha256` and
+  build/lint/tests are all `pass` (render may be `pass` or `skipped`). The
+  receipt's result rides into the marker as a `validation` block so a
+  `"skipped"` render reaches the maintainer. `validation-receipt.json` added to
+  `EXCLUDE_NAMES` belt-and-suspenders.
+- **`references/07-build.md`** — the stage-7 final gate is now a single
+  `node scripts/validate-plugin.mjs agntux-{slug}` call, replacing the
+  three-ways-broken `cd plugins/{slug} && npm install && npm run lint:marketplace
+  && npm run build --if-present && npm test --if-present` block (lint didn't
+  exist in the plugin dir; `--if-present` no-op'd without a root package.json;
+  the view-tool suite was never reached). The 5-cycle re-dispatch loop is kept,
+  now keyed on the validator's `failed_stage`. Saved state records the
+  `validation_receipt` instead of a bare `build_status` string.
+- **`references/self-validation.md`** and **`agents/view-tool-builder.md`** —
+  per-specialist checks now reference the single `validate-plugin.mjs` gate;
+  "hard exit" means the script's exit code. Fixed the stale
+  `npm test --workspace plugins/{slug}` note (it missed the view-tool suite).
+
+### Fixed (authoring — so the two google-calendar defects stop recurring)
+- **`canonical/prompts/ui/host-api.md` is now the single authoritative
+  import-source reference.** It previously told component authors to import
+  hooks from `@mcp-apps-kit/ui-react` — which is the *upstream* package the
+  vendored lib was inlined from, not a view-tool dependency — directly seeding
+  the hallucinated-import defect. It now pins apps hooks to the vendored
+  `./lib/apps-react/index.js` (curated to the hooks that actually export),
+  enumerates the exact `@agntux/ui-primitives` export set once, and states
+  plainly that **there is no `StickyFooter`** (use `ScrollablePanel`'s `footer`
+  prop) and that `SimpleMcpApp` is internal transport never imported by
+  component code. `agents/ui-handler-author.md` now points at it (no duplicated
+  list); `agents/view-tool-builder.md` gained a deterministic
+  known-wrong-import → real-source remediation step run before the generic
+  build loop.
+- **Per-verb payload reference files are now a required deliverable.**
+  `agents/draft-flow-author.md` (§2a.1) + `agents/ingest-prompt-author.md`: for
+  every non-`compose` body header the write-back emits (`## RSVP payload`,
+  `## Schedule payload`, …), author the matching additive
+  `_overrides/reference/{verb-kebab}-payload.md`. `agents/tests-author.md`: a
+  test asserting those files exist must **derive** the expected filenames from
+  the plugin's own `_overrides/reference/*.md` / `## * payload` headers, never
+  hardcode plugin-specific names (the google-calendar test hardcoded names that
+  didn't match the missing files). `render-reproducibility.test.ts` is left
+  as-is (already filename-agnostic).
+
+### Tested
+- New `__tests__/validate-plugin.test.ts` proves the validator's `tree_sha256`
+  is byte-identical to an independent reimplementation of the stage-12 marker
+  algorithm, that the exclude lists drop `node_modules`/cruft/the receipt while
+  keeping `view-tool/dist`, and that the hash moves when a tracked file changes
+  but not when only an excluded file is added.
+- `__tests__/submit-marker-program.test.ts` extended for the receipt gate:
+  the happy path now writes a matching receipt and asserts the `validation`
+  block rides into the marker; new cases prove submission is refused on a
+  missing receipt, a stale receipt (different tree), and a receipt recording a
+  failing build/lint/tests — and that re-validating after an edit lets submit
+  proceed.
+
 ## [0.13.0] — 2026-05-28
 
 Stage-12 submission reliability — close the silent-failure gap where a build

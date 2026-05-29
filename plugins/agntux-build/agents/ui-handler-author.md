@@ -319,16 +319,23 @@ to `plugins/{slug}/ui-handlers/{name}/component/`. Substitute the same
 placeholders the template README documents.
 
 Make sure these primitives are present and wired correctly (the template
-already wires them; restore if a developer's edits removed one):
+already wires them; restore if a developer's edits removed one).
+
+**Where each import resolves from is owned by `canonical/prompts/ui/host-api.md`
+§ "Where imports come from" — that doc is authoritative; do not guess an import
+source.** In short: apps hooks come from the vendored `./lib/apps-react/index.js`
+(never `@mcp-apps-kit/ui-react`); the shared primitives below come from the
+`@agntux/ui-primitives` workspace package; there is no `StickyFooter`. The table
+is which primitives to wire, not a second source of import paths:
 
 | Primitive | Where | Why |
 |---|---|---|
-| `ComponentErrorBoundary` | `view-tool/src/components/error-boundary.tsx`, wrapping the tree in the iframe entry | Mandatory tree-root with retry. From `briefing-learnings.md` §1.8. |
-| `safe-accessors.ts` | `view-tool/src/lib/safe-accessors.ts` | Mandatory typed coercion. §1.1. |
-| `Spinner` | `view-tool/src/components/spinner.tsx` | Inline-SVG, no icon dep. §1.9. |
-| `ScrollablePanel` | `@agntux/ui-primitives` (workspace package) | Sticky header + scrolling body + sticky footer primitive. **`ScrollableModal` is retired.** |
+| `ComponentErrorBoundary` | `@agntux/ui-primitives` (wrap the iframe entry tree) | Mandatory tree-root with retry. From `briefing-learnings.md` §1.8. |
+| `safeArray` / `safeString` / … | `@agntux/ui-primitives` | Mandatory typed coercion. §1.1. |
+| `Spinner` | `@agntux/ui-primitives` | Inline-SVG, no icon dep. §1.9. |
+| `ScrollablePanel` | `@agntux/ui-primitives` (workspace package) | Sticky header + scrolling body + sticky `footer` prop. **`ScrollableModal` and `StickyFooter` do not exist — use the `footer` prop.** |
 | `ServerErrorScreen` + `detectErrorEnvelope` | `@agntux/ui-primitives` | Short-circuit on MCP-layer error envelopes. |
-| `apps-react/`, `apps-client/` | `view-tool/src/lib/` | MIT-inlined hooks. **DO NOT modify; DO NOT move into @agntux/plugin-runtime.** |
+| `apps-react/`, `apps-client/` | `view-tool/src/lib/` (imported as `./lib/apps-react/index.js`) | MIT-inlined hooks/transport. **DO NOT modify; DO NOT move into @agntux/plugin-runtime; DO NOT import `SimpleMcpApp` from component code.** |
 
 Now walk through `briefing-learnings.md` §1 with the developer as a
 checklist; flag §2 anti-patterns explicitly ("we are NOT using fire-and-poll;
