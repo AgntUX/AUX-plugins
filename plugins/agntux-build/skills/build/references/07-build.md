@@ -289,9 +289,10 @@ After all seven specialists complete without error, write
 }
 ```
 
-- `submission_id` comes from stage 12's `SUBMISSION.json` `id` field once the
-  submission is created; at end of stage 7 (pre-submission) write a sentinel
-  value of `"pending-{session-id}"` so the file exists and `:revise` can
+- `submission_id` comes from stage 12's `SUBMISSION.json` `submission_id`
+  field once the submission is created (the marker key is `submission_id`, not
+  `id` — see `12-submit.md` step d); at end of stage 7 (pre-submission) write a
+  sentinel value of `"pending-{session-id}"` so the file exists and `:revise` can
   detect an in-progress build.
 - After stage 12 completes and the submission is confirmed, overwrite
   `last-submission.json` with the real `submission_id` from `SUBMISSION.json`.
