@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-05-29
+
+Fix: the 0.15.0 bundle exceeded Claude Desktop's zip-upload limit. The
+`canonical/repo-mirror/` (added in 0.15.0 so lint pass 12 can resolve the
+apps-client canonical without a clone) preserved full repo-relative paths,
+nesting `plugins/agntux-build/canonical/ui-handlers/_template/.../apps-client/`
+**11 folders deep** — uploads failed with "Zip file contains path more than 10
+folders deep".
+
+### Fixed
+- Drop the agntux-build `_template` apps-client copy from `canonical/repo-mirror/`.
+  It was dead weight in the bundle: lint pass 12's EXTRA_COPIES check is gated on
+  `pluginSlug === "agntux-build"`, which never fires when the bundled linter runs
+  (it only ever lints *contributor* plugins). Only the agntux-core canonical
+  remains (8 folders deep). Deepest bundle path is now 9 (unchanged
+  host-renderer dep), under the limit.
+- **New lint guard E29** (`scripts/lint/lint-zip-upload-safe.ts`, pass 9): error
+  on any shipped file more than 10 folders deep (relative to the zip root), so
+  this class is caught at PR time instead of at upload.
+
 ## [0.15.0] — 2026-05-29
 
 Ship the validation toolchain *inside* the plugin bundle + move the gate to

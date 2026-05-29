@@ -8415,9 +8415,10 @@ var FORBIDDEN_CHARS = /[{}:?*<>|"\x00-\x1f]/;
 var FORBIDDEN_CHARS_DESCRIPTION = `{ } : ? * < > | " or control chars`;
 var NON_ASCII = /[^\x20-\x7e]/;
 var RESERVED_PREFIXES = ["claude-", "anthropic-"];
+var MAX_ZIP_FOLDER_DEPTH = 10;
 function pass9ZipUploadSafe(pluginSlug, pluginDir, repoRoot, findings) {
   const rel2 = (p) => path3.relative(repoRoot, p);
-  walk(pluginDir, (entryPath, basename3) => {
+  walk(pluginDir, (entryPath, basename3, isDirectory3) => {
     if (FORBIDDEN_CHARS.test(basename3)) {
       findings.push({
         code: "E20",
@@ -8435,6 +8436,18 @@ function pass9ZipUploadSafe(pluginSlug, pluginDir, repoRoot, findings) {
         file: rel2(entryPath),
         message: `path segment "${basename3}" contains non-ASCII characters. Cross-platform zip readers handle UTF-8 inconsistently; prefer ASCII-only filenames in the shipped tree.`
       });
+    }
+    if (!isDirectory3) {
+      const folderDepth = path3.relative(pluginDir, entryPath).split(path3.sep).length - 1;
+      if (folderDepth > MAX_ZIP_FOLDER_DEPTH) {
+        findings.push({
+          code: "E29",
+          severity: "error",
+          plugin: pluginSlug,
+          file: rel2(entryPath),
+          message: `path is ${folderDepth} folders deep (max ${MAX_ZIP_FOLDER_DEPTH}). Claude Desktop's plugin-zip upload validator rejects the whole zip with "contains path more than 10 folders deep". Flatten the tree (depth is counted from the plugin root = the zip root).`
+        });
+      }
     }
   });
   const manifestPath = path3.join(pluginDir, ".claude-plugin", "plugin.json");
@@ -8471,8 +8484,9 @@ function walk(root, onEntry) {
     for (const ent of entries) {
       if (SKIP_BASENAMES.has(ent.name)) continue;
       const full = path3.join(cur, ent.name);
-      onEntry(full, ent.name);
-      if (ent.isDirectory()) stack.push(full);
+      const isDir = ent.isDirectory();
+      onEntry(full, ent.name, isDir);
+      if (isDir) stack.push(full);
     }
   }
 }

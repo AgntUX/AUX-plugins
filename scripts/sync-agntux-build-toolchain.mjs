@@ -48,8 +48,6 @@ const BUNDLE = join(REPO_ROOT, "plugins", "agntux-build");
 const APPS_CLIENT_REQUIRED = ["simple-mcp-app.ts", "constants.ts"];
 const APPS_CLIENT_CANONICAL_REL =
   "plugins/agntux-core/view-tool/src/lib/apps-client";
-const APPS_CLIENT_TEMPLATE_REL =
-  "plugins/agntux-build/canonical/ui-handlers/_template/view-tool/src/lib/apps-client";
 
 // ── manifest ─────────────────────────────────────────────────────────────────
 
@@ -79,15 +77,16 @@ function fileCopies() {
     // (built @agntux/* package manifests are vendored via transformPackageJson
     //  below — their lifecycle scripts must be stripped, see main())
   ];
-  // apps-client repo-mirror (pass 12)
+  // apps-client repo-mirror (pass 12). ONLY the agntux-core canonical is
+  // mirrored: pass 12's EXTRA_COPIES check (the agntux-build _template copy) is
+  // gated on `pluginSlug === "agntux-build"`, which never fires in the bundle
+  // (it only ever lints CONTRIBUTOR plugins), so that copy is dead weight here —
+  // and mirroring it at its full repo-relative path pushed the tree to 11
+  // folders deep, past Claude Desktop's 10-folder zip-upload limit.
   for (const name of APPS_CLIENT_REQUIRED) {
     copies.push([
       `${APPS_CLIENT_CANONICAL_REL}/${name}`,
       `canonical/repo-mirror/${APPS_CLIENT_CANONICAL_REL}/${name}`,
-    ]);
-    copies.push([
-      `${APPS_CLIENT_TEMPLATE_REL}/${name}`,
-      `canonical/repo-mirror/${APPS_CLIENT_TEMPLATE_REL}/${name}`,
     ]);
   }
   return copies;
