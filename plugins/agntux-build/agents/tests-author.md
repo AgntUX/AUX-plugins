@@ -379,6 +379,15 @@ Asserts `skills/draft/SKILL.md` prompt structure:
 - The prompt does NOT direct-Edit action frontmatter; `set_status` MCP
   tool reference appears for status mutations.
 
+If the generated draft-flow test ALSO asserts the presence of per-verb
+payload reference files, it MUST follow the derive-don't-hardcode rule from §
+"Per-verb payload reference files" above: enumerate the expected
+`reference/*.md` filenames from the plugin's own artifacts (glob the emitted
+`## * payload` headers / the `_overrides/reference/` set) rather than baking in
+a fixed list like `["compose-payload.md"]`. A plugin that adds a
+`## Schedule payload` header (hence a `schedule-payload.md`) must not break a
+test whose expectation was hardcoded to `compose-payload.md`.
+
 ## `idempotent.test.ts` (recommended)
 
 Static assertions that the dedup mechanisms in the prompt and the
@@ -413,8 +422,9 @@ failing test is **mechanical** and NEVER reaches the contributor (see
    `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`). The plugin-root
    `vitest.config.ts` globs only `__tests__/**`, so a single
    `npm test --workspace plugins/{slug}` would silently skip the view-tool
-   suite — run both, or let the stage-7 gate (`scripts/validate-plugin.mjs`,
-   which runs both) be the authoritative check.
+   suite — run both, or let the submit-time validator
+   (`bin/validate-plugin.mjs`, which runs both suites) be the authoritative
+   check.
 2. On failure, decide whether the test asserts a real contract the code
    violates (fix the code under test, coordinating with the owning specialist)
    or the test itself is wrong (fix the test). Edit and re-run.

@@ -108,27 +108,23 @@ function pluginDir(): string {
 }
 
 /**
- * Write a validation-receipt.json into the session dir (sibling of the plugin
- * dir) so the marker program's receipt gate passes. `treeSha` defaults to the
- * real hash of the current plugin tree — pass a wrong value to simulate a
- * stale receipt.
+ * Install a fake `$CLAUDE_PLUGIN_ROOT/bin/validate-plugin.mjs`. The marker
+ * program shells out to it as THE gate (B1): exit 0 → proceed; non-zero →
+ * refuse. The fake prints the same final JSON line the real validator does (so
+ * the program can lift render/validate into the marker's validation block) and
+ * deliberately does NOT touch the plugin tree, so the marker's
+ * post-validation tree hash stays predictable for the consistency assertion.
  */
-function writeReceipt(treeSha?: string, overrides: Record<string, unknown> = {}): void {
-  const tree_sha256 = treeSha ?? computeTreeSha256(pluginDir(), SLUG);
+function installFakeValidator(
+  opts: { exit?: number; render?: string; validate?: string } = {},
+): void {
+  const { exit = 0, render = "skipped", validate = "skipped" } = opts;
+  const binDir = join(pluginEnvRoot, "bin");
+  mkdirSync(binDir, { recursive: true });
   writeFileSync(
-    join(sessionDir(), "validation-receipt.json"),
-    JSON.stringify({
-      schema_version: "1.0.0",
-      slug: SLUG,
-      tree_sha256,
-      build: "pass",
-      lint: "pass",
-      tests: "pass",
-      render: "skipped",
-      agntux_build_version: "0.13.0",
-      validated_at: "2026-01-01T00:00:00Z",
-      ...overrides,
-    }),
+    join(binDir, "validate-plugin.mjs"),
+    `console.log(JSON.stringify({ ok: ${exit === 0}, render: ${JSON.stringify(render)}, validate: ${JSON.stringify(validate)} }));\n` +
+      `process.exit(${exit});\n`,
   );
 }
 
@@ -163,7 +159,7 @@ function run(program: string): { stdout: string; code: number; stderr: string } 
 describe("stage-12 marker program (extracted from 12-submit.md)", () => {
   it("emits a daemon/server-valid marker at the session root, excluding node_modules + cruft, shipping NOTICE", () => {
     writePluginTree();
-    writeReceipt(); // green receipt for THIS tree — the gate requires it
+    installFakeValidator(); // exit 0 → the gate passes
     const program = fillProgram(extractMarkerProgram(), {
       root: tmpRoot,
       session: SESSION,
@@ -217,14 +213,16 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     expect(marker.tree_sha256).toBe(recomputed);
     expect(out.submission_id.endsWith(marker.tree_sha256.slice(0, 8))).toBe(true);
 
-    // The receipt's hash and the marker's hash were computed by independent
-    // code paths (validate-plugin.mjs vs the marker program) — they must agree.
+    // validate-plugin.mjs's hasher and the marker program's hasher are
+    // independent code paths over the same tree — they must agree.
     expect(computeTreeSha256(pluginDir(), SLUG)).toBe(marker.tree_sha256);
-    // The validation block from the receipt rides into the marker for the maintainer.
+    // build/lint/tests are "pass" by construction (the validator exited 0);
+    // validate/render come from the validator's stdout, surfaced for the maintainer.
     expect(marker.validation).toEqual({
       build: "pass",
       lint: "pass",
       tests: "pass",
+      validate: "skipped",
       render: "skipped",
     });
   });
@@ -236,6 +234,7 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     mkdirSync(join(dir, "node_modules"), { recursive: true });
     writeFileSync(join(dir, "node_modules", "x.js"), "x");
     writeFileSync(join(dir, ".DS_Store"), "junk");
+    installFakeValidator(); // gate passes; the self-check is what must catch this
 
     const program = fillProgram(extractMarkerProgram(), {
       root: tmpRoot,
@@ -252,6 +251,7 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
 
   it("throws when contributor.json is missing required fields", () => {
     writePluginTree();
+    installFakeValidator(); // gate passes; the contributor self-check must catch this
     writeFileSync(
       join(tmpRoot, ".agntux-build", "contributor.json"),
       JSON.stringify({ name: "Test User" }), // missing email + dco fields
@@ -267,9 +267,9 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     expect(stderr).toContain("contributor.json");
   });
 
-  it("refuses to submit when no validation-receipt.json exists (receipt gate)", () => {
+  it("refuses to submit when the validator exits non-zero (the gate)", () => {
     writePluginTree();
-    // deliberately NO writeReceipt() — the gate must refuse.
+    installFakeValidator({ exit: 1 }); // the bundled validator failed
     const { code, stderr } = run(
       fillProgram(extractMarkerProgram(), {
         root: tmpRoot,
@@ -279,13 +279,15 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
       }),
     );
     expect(code).not.toBe(0);
-    expect(stderr).toContain("not validated");
+    expect(stderr).toContain("validation failed");
     expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
   });
 
-  it("refuses to submit when the receipt binds a different tree (stale receipt)", () => {
+  it("refuses to submit when the validator binary is absent (toolchain missing)", () => {
     writePluginTree();
-    writeReceipt("0".repeat(64)); // tree_sha256 that does not match this tree
+    // deliberately NO installFakeValidator() — $CLAUDE_PLUGIN_ROOT/bin/
+    // validate-plugin.mjs does not exist, so the spawn exits non-zero and the
+    // program throws BEFORE writing a marker. There is no receipt to forge.
     const { code, stderr } = run(
       fillProgram(extractMarkerProgram(), {
         root: tmpRoot,
@@ -295,13 +297,13 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
       }),
     );
     expect(code).not.toBe(0);
-    expect(stderr).toContain("not validated");
+    expect(stderr).toContain("validation failed");
     expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
   });
 
-  it("re-validating after an edit (matching receipt) lets submit proceed", () => {
+  it("submits again after a failed gate is fixed (validator now exits 0)", () => {
     writePluginTree();
-    writeReceipt("0".repeat(64)); // stale receipt first — submit must fail
+    installFakeValidator({ exit: 1 }); // first attempt: gate fails
     let r = run(
       fillProgram(extractMarkerProgram(), {
         root: tmpRoot,
@@ -313,8 +315,7 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     expect(r.code).not.toBe(0);
     expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
 
-    // Re-validate (write a matching receipt) and retry → now it submits.
-    writeReceipt();
+    installFakeValidator({ exit: 0 }); // fixed → retry submit
     r = run(
       fillProgram(extractMarkerProgram(), {
         root: tmpRoot,
@@ -325,21 +326,5 @@ describe("stage-12 marker program (extracted from 12-submit.md)", () => {
     );
     expect(r.code, r.stderr).toBe(0);
     expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(true);
-  });
-
-  it("blocks submit when the receipt records a failing build/lint/tests", () => {
-    writePluginTree();
-    writeReceipt(undefined, { tests: "fail" }); // hash matches, but tests failed
-    const { code, stderr } = run(
-      fillProgram(extractMarkerProgram(), {
-        root: tmpRoot,
-        session: SESSION,
-        slug: SLUG,
-        version: "0.1.0",
-      }),
-    );
-    expect(code).not.toBe(0);
-    expect(stderr).toContain("not validated");
-    expect(existsSync(join(sessionDir(), "SUBMISSION.json"))).toBe(false);
   });
 });

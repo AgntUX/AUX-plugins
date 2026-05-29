@@ -216,11 +216,13 @@ mid-10, re-enter 9.5 first so the context is rebuilt.
   `agntux-build-test` CLI under `${CLAUDE_PLUGIN_ROOT}/test-harness/`.
 - Build-time self-validation budgets + the mechanical-vs-judgment flagging
   policy: `${CLAUDE_PLUGIN_ROOT}/skills/build/references/self-validation.md`.
-  Every specialist validates its own output before stage 7 advances, and the
-  stage-7 final gate (`references/07-build.md`) re-runs install + lint + build +
-  test end-to-end. Mechanical failures (lint codes, compile/test errors)
-  NEVER reach the contributor — they're fixed in-loop or logged as an
-  agntux-build defect for the maintainer; only contributor-judgment items surface.
+  Every specialist validates its own output before stage 7 advances; the single
+  authoritative build → lint → test → render gate runs once at submit
+  (`references/12-submit.md` step b.5), fail-closed — the marker program runs
+  `bin/validate-plugin.mjs` and refuses to write `SUBMISSION.json` on a non-zero
+  exit. Mechanical failures (lint codes, compile/test errors) NEVER reach the
+  contributor — they're fixed in-loop or logged as an agntux-build defect for the
+  maintainer; only contributor-judgment items surface.
 
 End every turn checking: did I confirm before writing? Did I keep
 internal terms out of user-facing copy? Did I lead with gratitude

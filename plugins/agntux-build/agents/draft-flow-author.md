@@ -231,10 +231,19 @@ document the JSON/YAML keys the verb's connector envelope needs, with types and
 a worked example. This is the gap that produced defect 2 — google-calendar
 emitted `## RSVP payload` / `## Schedule payload` / `## Meeting prep` headers but
 the matching `reference/*.md` files were never authored, so its generated tests
-failed. Coordinate with `ingest-prompt-author` (who owns the
-`_overrides/reference/` directory) and `tests-author` (whose draft-flow test
-**derives** the expected filename set from the headers you emit — so the two
-stay in lock-step).
+failed.
+
+**This is a required deliverable, not optional.** Any Send handler that emits a
+non-`compose` payload header MUST have the matching
+`_overrides/reference/{verb-kebab}-payload.md` override authored — an emitted
+payload header with no backing override file is a **render-drift defect**
+(E15), the same class the stage-7 gate hard-blocks on. Coordinate with
+`ingest-prompt-author` (who **owns** the `_overrides/reference/` directory, so
+the file lands there — flag every non-`compose` header you emit to them as a
+checked deliverable) and `tests-author` (whose draft-flow test **derives** the
+expected filename set from the headers you emit — so the two stay in
+lock-step). Don't emit a header and leave the override unwritten on the
+assumption the renderer or some other agent will backfill it; nothing does.
 
 ### 2b. Dual-mode view tools
 

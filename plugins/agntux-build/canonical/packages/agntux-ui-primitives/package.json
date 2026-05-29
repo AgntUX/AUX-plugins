@@ -1,0 +1,27 @@
+{
+  "name": "@agntux/ui-primitives",
+  "version": "0.1.1",
+  "description": "Shared React UI primitives consumed by every AgntUX plugin's UI-handler component bundle (ScrollablePanel, AgntuxLogo, Spinner, ComponentErrorBoundary, ServerErrorScreen, detectErrorEnvelope, safe-accessors). Internal AgntUX workspace package — never published.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  }
+}

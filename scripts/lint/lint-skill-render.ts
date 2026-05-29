@@ -170,14 +170,16 @@ function checkRenderReproducibility(
   pluginDir: string,
   repoRoot: string,
   findings: Finding[],
+  canonicalRoot: string = repoRoot,
+  tmpRoot: string = repoRoot,
 ): void {
   const syncDir = path.join(pluginDir, "skills", pluginSlug);
   const overridesDir = path.join(syncDir, "_overrides");
-  const tmpOut = tmpRenderDir(repoRoot, pluginSlug);
+  const tmpOut = tmpRenderDir(tmpRoot, pluginSlug);
   rmDirSync(tmpOut);
   try {
     renderSkill({
-      canonicalDir: canonicalSyncDir(repoRoot),
+      canonicalDir: canonicalSyncDir(canonicalRoot),
       overridesDir,
       outputDir: tmpOut,
     });
@@ -755,6 +757,13 @@ export function pass8SkillRender(
   pluginDir: string,
   repoRoot: string,
   findings: Finding[],
+  // Where the canonical ingest sync templates live (canonicalRoot) and where
+  // the reproducibility render writes its scratch tree (tmpRoot). Both default
+  // to repoRoot (maintainer clone). In the contributor bundle the validator
+  // passes the bundled canonical root and an OS tmp dir (the plugin bundle is
+  // read-only, so scratch can't live under it).
+  canonicalRoot: string = repoRoot,
+  tmpRoot: string = repoRoot,
 ): void {
   const skillsDir = path.join(pluginDir, "skills");
   const syncDir = path.join(skillsDir, pluginSlug);
@@ -764,7 +773,7 @@ export function pass8SkillRender(
   // Sync-skill render drift (#1–#4) — mandatory for any plugin shipping
   // skills/{plugin-slug}/SKILL.md. The _overrides/frontmatter.yaml is
   // required so the renderer can reproduce the committed tree byte-for-byte.
-  if (fileExists(skillFile) && isDirectory(canonicalSyncDir(repoRoot))) {
+  if (fileExists(skillFile) && isDirectory(canonicalSyncDir(canonicalRoot))) {
     if (!isDirectory(overridesDir)) {
       emit(findings, {
         code: "E15",
@@ -779,7 +788,14 @@ export function pass8SkillRender(
       });
     } else {
       checkNoSurvivingPlaceholders(pluginSlug, pluginDir, repoRoot, findings);
-      checkRenderReproducibility(pluginSlug, pluginDir, repoRoot, findings);
+      checkRenderReproducibility(
+        pluginSlug,
+        pluginDir,
+        repoRoot,
+        findings,
+        canonicalRoot,
+        tmpRoot,
+      );
       checkLineBudget(pluginSlug, pluginDir, repoRoot, findings);
       checkOneLevelDeepReferences(pluginSlug, pluginDir, repoRoot, findings);
       // Semantic invariants (PR #6).

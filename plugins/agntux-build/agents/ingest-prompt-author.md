@@ -10,10 +10,28 @@ model: sonnet
 You drive the **render pipeline** that produces a plugin's
 `skills/{plugin-slug}/SKILL.md` plus `reference/*.md` siblings from the
 canonical template at `canonical/prompts/ingest/skills/sync/` plus a
-per-plugin `_overrides/` directory. **You never hand-edit a rendered
-file.** Every per-plugin specialisation goes through one of three
-override mechanisms, then `node scripts/render-skill.mjs {slug}`
-re-emits the rendered tree.
+per-plugin `_overrides/` directory. **You never hand-author, partially
+edit, or short-render any file under `skills/<slug>/**`** — every file
+there (the `SKILL.md` and every `reference/*.md`) is a *rendered output*.
+Every per-plugin specialisation goes through one of three override
+mechanisms under `_overrides/` (or a canonical edit), then **you MUST run
+the renderer** to re-emit the rendered tree. Two invocation forms,
+depending on where you're running:
+
+```bash
+# Contributor bundle (this agent runs from the agntux-build plugin bundle):
+node $CLAUDE_PLUGIN_ROOT/scripts/render-skill.mjs <slug> --plugin-dir <plugin-tree>
+
+# Maintainer clone (running inside the AUX-plugins repo checkout):
+node scripts/render-skill.mjs <slug>
+```
+
+Hand-writing or eyeballing a `SKILL.md` / `reference/*.md` instead of
+running the renderer is the E15 render-reproducibility defect — the
+single largest recurring failure (the 14× E15 class). The rendered tree
+must be byte-identical to what the renderer produces; lint pass 8 and
+`render-reproducibility.test.ts` both fail loud when it isn't. Edit
+`_overrides/` + canonical, then render. Never the other way around.
 
 The legacy patterns are retired:
 
@@ -380,11 +398,20 @@ the single source of truth for valid `errors: kind:` values.
 ## Self-validation (required — WS-A, hard exit)
 
 After writing `skills/{slug}/_overrides/` and before returning success, you MUST
-prove the overrides resolve. A missing or incomplete `frontmatter.yaml` is the
-E15 render-reproducibility gap — **mechanical, NEVER surfaced to the
-contributor** (see `skills/build/references/self-validation.md`).
+prove the overrides resolve **and you MUST render the tree by running the
+renderer** — never by hand-authoring or partially editing any file under
+`skills/<slug>/**`. A missing/incomplete `frontmatter.yaml`, an un-rendered
+(hand-written) skill file, or an orphan `_overrides/reference/{verb}-payload.md`
+with no matching emitted header all collapse to the same E15
+render-reproducibility gap — **mechanical, NEVER surfaced to the
+contributor** (see `skills/build/references/self-validation.md`). This is the
+14× E15 class; the two recurring root causes are (1) short-rendering the skill
+instead of running the renderer, and (2) not authoring the per-verb payload
+reference files for non-`compose` write-backs.
 
-1. Run `node scripts/render-skill.mjs --validate-overrides {slug}`.
+1. Run `node scripts/render-skill.mjs --validate-overrides {slug}` (contributor
+   bundle: `node $CLAUDE_PLUGIN_ROOT/scripts/render-skill.mjs
+   --validate-overrides <slug> --plugin-dir <plugin-tree>`).
 2. On failure (`missing` / `empty` / `surviving-placeholders`): if
    `frontmatter.yaml` is absent, copy the canonical template
    `canonical/skills/_overrides/frontmatter.template.yaml` to
@@ -392,10 +419,22 @@ contributor** (see `skills/build/references/self-validation.md`).
    the build flow's stage-1–5 outputs (resolved connector identity, version,
    cadence, tool inventory, cursor shape). The validator names any missing key;
    add each from build state. Do NOT fabricate values.
-3. Re-validate. Repeat up to **5 cycles**. On success, run the full
-   `node scripts/render-skill.mjs {slug}` to emit the tree, then confirm a
-   byte-identical re-render (lint pass 8 — `invariant-checker.md`). Still
-   failing after 5 → return `{success: false, error: <validator output>}` for the maintainer. Never a contributor-facing E15.
+3. **Per-verb payload files are a REQUIRED, CHECKED deliverable.** Whenever
+   `draft-flow-author` reports the write-back emits a non-`compose` payload
+   header (`## RSVP payload`, `## Schedule payload`, `## Meeting prep`, …),
+   confirm a matching `_overrides/reference/{verb-kebab}-payload.md` exists for
+   *each* header before you render (per §3 "Per-verb payload reference files"
+   and Step 10.1). An emitted header with no backing override file — or a
+   stray override file with no emitted header — is render drift = E15.
+   `tests-author`'s draft-flow test derives the expected filename set from the
+   emitted headers, so a missing file fails that test too.
+4. Re-validate, then **render the tree with the renderer**
+   (`node scripts/render-skill.mjs {slug}`, or the `--plugin-dir` form in the
+   contributor bundle) — do NOT write the rendered files yourself. Confirm a
+   byte-identical re-render (lint pass 8 — `invariant-checker.md`). Repeat the
+   resolve→render loop up to **5 cycles**. Still failing after 5 → return
+   `{success: false, error: <validator output>}` for the maintainer. Never a
+   contributor-facing E15.
 
 ## Hand-offs
 

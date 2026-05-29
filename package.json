@@ -16,11 +16,14 @@
     "test": "vitest run",
     "validate:plugin": "node scripts/validate-plugin.mjs",
     "render:skill": "node scripts/render-skill.mjs",
+    "sync:agntux-build-toolchain": "node scripts/sync-agntux-build-toolchain.mjs",
+    "check:agntux-build-toolchain": "node scripts/sync-agntux-build-toolchain.mjs --check",
     "regenerate-indexes": "tsx scripts/regenerate-marketplace-json.ts && tsx scripts/regenerate-aggregate-index.ts"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
     "@types/node": "22.15.3",
+    "esbuild": "0.25.12",
     "image-size": "2.0.2",
     "js-yaml": "4.1.0",
     "tsx": "4.19.3",
