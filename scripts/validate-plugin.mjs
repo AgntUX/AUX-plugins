@@ -448,8 +448,8 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
       log("       no Chromium and installBrowser:false — render:skipped (browser bootstrapping elsewhere)");
       return { status: "skipped", reason: "browser_not_ready", browser_resolved: "none" };
     }
-    log("       Chromium not installed — attempting one-time playwright install");
-    const inst = run("npx", ["--prefix", hostRenderer, "playwright", "install", "chromium"], tc.base, {
+    log("       Chromium not installed — attempting one-time chromium-headless-shell install");
+    const inst = run("npx", ["--prefix", hostRenderer, "playwright", "install", "chromium-headless-shell"], tc.base, {
       capture: true,
     });
     if (inst.status !== 0) {
