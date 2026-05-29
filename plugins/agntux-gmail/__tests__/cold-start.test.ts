@@ -93,7 +93,9 @@ describe("plugin manifest", () => {
     const manifest = JSON.parse(readFile(manifestPath)) as Record<string, unknown>;
     expect(manifest.recommended_ingest_cadence).toBeTruthy();
     expect(typeof manifest.recommended_ingest_cadence).toBe("string");
-    expect(String(manifest.recommended_ingest_cadence).toLowerCase()).toMatch(/hour/);
+    // "hourly" cadence is phrased as "every 60 min" in the shipped manifest —
+    // accept both spellings (the value is the human-readable cadence copy).
+    expect(String(manifest.recommended_ingest_cadence).toLowerCase()).toMatch(/hour|60 ?min/);
   });
 
   it("plugin.json carries no custom fields beyond host spec + recommended_ingest_cadence", () => {

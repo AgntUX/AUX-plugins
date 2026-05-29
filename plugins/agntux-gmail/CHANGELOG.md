@@ -6,6 +6,18 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.2.3] — 2026-05-28
+
+### Fixed
+
+- **`cold-start.test.ts` no longer fails on the shipped cadence copy.** The
+  `recommended_ingest_cadence describes hourly cadence` test asserted the value
+  matched `/hour/`, but the shipped manifest phrases the hourly rhythm as
+  `"Every 60 min, …"`, so the assertion was red. Broadened the matcher to
+  `/hour|60 ?min/` so the human-readable cadence copy and the test agree. No
+  behaviour change — test-only. Surfaced by agntux-build 0.14.0's new
+  deterministic submission gate, which runs each plugin's full vitest suite.
+
 ## [4.2.2] — 2026-05-21
 
 Republish at fresh tag. No source changes — pairs with the agntux/app
