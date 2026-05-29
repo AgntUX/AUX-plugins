@@ -165,55 +165,58 @@ Use `node:fs/promises` to enumerate and copy. After this step the
 finalized, signature-carrying tree is under
 `<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`.
 
-> **Run this copy AFTER the §b.5 validator, not before.** The validator's build
-> step is the last thing that can touch the working tree's bytes, so copy the
-> *post-validation* tree — that is what guarantees the synced copy the marker
-> program hashes is byte-identical to the tree the receipt bound. See the
-> ordering list in §b.5.
+> **This copy is only for a marketplace-clone build.** In the normal contributor
+> case the build already ran in the synced location, so there is nothing to copy.
+> When a clone build *does* need copying, copy BEFORE the marker program — the
+> program's first act is to run the validator against the synced
+> `{PLUGIN_DIR}`, which rebuilds `dist/` in place, so the validated+hashed bytes
+> are produced there regardless of where the pre-build happened. See §b.5.
 
-## b.5. Validate the working tree — the deterministic gate
+## b.5. The submit gate — the validator runs INSIDE the marker program
 
-This is the **gate.** Run the deterministic validator against the working tree
-(`plugins/agntux-{slug}/` in the AUX-plugins checkout — the tree stage 7 built
-and where the Artefact step just wrote `CONTRIBUTING-SIGNATURE.md`) so it writes
-a `validation-receipt.json` whose `tree_sha256` binds THIS exact tree. The marker
-program in step (c) refuses to write `SUBMISSION.json` unless that receipt exists
-and matches — no green receipt, no submission.
+This is the **gate**, and it lives **inside** the step-(c) marker program. There
+is no separate, agent-written `validation-receipt.json` to trust — and therefore
+none to forge (the round-1 failure: a hand-typed green receipt sailed a broken
+plugin past the gate because the toolchain wasn't present to run for real). The
+program itself, before it computes `tree_sha256` or writes `SUBMISSION.json`,
+shells out to the bundled validator against the **exact tree being submitted**
+and refuses to proceed on any non-zero exit:
 
 ```bash
-node scripts/validate-plugin.mjs agntux-{slug} --session-dir "{SESSION_DIR}"
-# {SESSION_DIR} = <agntux root>/.agntux-build/builds/{session-id}/  (the receipt lands
-#                 here, a sibling of the agntux-{slug}/ synced copy step (c) hashes)
+node "$CLAUDE_PLUGIN_ROOT/bin/validate-plugin.mjs" agntux-{slug} \
+  --plugin-dir "{PLUGIN_DIR}" --session-dir "{SESSION_DIR}"
+# {PLUGIN_DIR}  = <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/  (the synced tree)
+# {SESSION_DIR} = its parent (where the validator drops a record receipt)
+# non-zero exit → the program THROWS; NO SUBMISSION.json is written.
 ```
 
 The validator builds → lints → typechecks → tests → `claude plugin validate` →
-renders (best-effort) the working tree's `plugins/agntux-{slug}/` — the only tree
-the repo-root build/lint tooling can target — hashes it, and writes the receipt
-to `{SESSION_DIR}`. **Do NOT pass `--plugin-dir` at the synced-copy path:** build
-+ lint cannot target an arbitrary tree, so the validator hard-fails
-(`failed_stage: "usage"`) rather than silently validate a tree it never built.
+renders (best-effort) **`{PLUGIN_DIR}` in place** (vite writes `dist/` into the
+tree; the import gate may re-route an apps-hook import). The bytes it validates
+are byte-for-byte the bytes the program then hashes — there is nothing to keep
+"in sync" and no trusted receipt. The toolchain ships in the plugin bundle
+(`$CLAUDE_PLUGIN_ROOT/bin` + `scripts` + `canonical/packages`), so this runs in a
+contributor sandbox with **no marketplace clone**.
 
-**Ordering matters** — this is why the receipt's hash equals the marker's hash:
+**Ordering** (why the validated bytes == the submitted bytes):
 
-1. Write `CONTRIBUTING-SIGNATURE.md` into the working tree (the Artefact step,
-   above).
-2. Run the validator (here) on the working tree → it builds the tree, then
-   hashes it → receipt with `tree_sha256`.
-3. **Then** perform the §b sync-copy of the *validated* working tree into
-   `{SESSION_DIR}/agntux-{slug}/`. The copy uses the SAME exclude list as the
-   hash, so the synced copy is byte-identical on hashed files — its
-   `tree_sha256` matches the receipt's. (Copy AFTER validation: the validator's
-   build step is the last thing that can touch the tree, so copy the
-   post-validation bytes.)
-4. Run the marker program (step c): it hashes the synced copy → equals
-   `receipt.tree_sha256` → the gate passes.
+1. Write `CONTRIBUTING-SIGNATURE.md` into `{PLUGIN_DIR}` (the Artefact step) — so
+   the signed tree is what gets validated and hashed.
+2. Ensure `{PLUGIN_DIR}` is the synced tree (§b). For the normal contributor case
+   the build already ran there (the sandbox *is* the synced location), so this is
+   a no-op; only a marketplace-clone build needs the copy, and it copies BEFORE
+   the program (the program rebuilds in place anyway).
+3. Run the marker program (step c). It runs the validator on `{PLUGIN_DIR}`
+   (which rebuilds dist + may re-route an import), THEN walks + hashes the
+   post-validation tree → `tree_sha256` over the exact validated bytes, THEN
+   writes the marker.
 
 It MUST exit 0. If it doesn't, the tree is not submittable — the failure is
 **mechanical** (see `self-validation.md`); route it back to the owning specialist
 per the stage-7 re-dispatch table in `07-build.md` (a `failed_stage: "usage"`
 means an operator/environment error — fix the invocation, don't re-dispatch a
-specialist) and **do not** proceed to step (c). Any edit after validation (even
-a one-byte fix) invalidates the receipt; re-run the validator before retrying.
+specialist), fix, and re-run the program. The validator runs **once per submit
+attempt, never twice within one.**
 
 ## c. Build the manifest + write the marker — run this program, don't hand-author
 
@@ -224,14 +227,17 @@ a one-byte fix) invalidates the receipt; re-run the validator before retrying.
 > placed *inside* the `agntux-{slug}/` dir instead of as its sibling, never
 > reaches the queue and the contributor is told "submitted" when nothing was.
 > Fill in the constants at the top and **run the program below verbatim**. It
-> enumerates the tree, computes every sha256, derives `tree_sha256`, reads the
-> step-(b.5) `validation-receipt.json` and **refuses to write a marker unless a
-> green receipt binds this exact tree**, assembles the full marker, writes it
-> atomically to the session root, and self-checks the result. Do not transcribe
-> its output into a marker by hand.
+> **runs the bundled validator against this exact tree and refuses to write a
+> marker unless the validator exits 0** (build + lint + typecheck + tests +
+> structural validate + best-effort render — no trusted receipt to forge), then
+> enumerates the post-validation tree, computes every sha256, derives
+> `tree_sha256`, assembles the full marker, writes it atomically to the session
+> root, and self-checks the result. Do not transcribe its output into a marker by
+> hand.
 
 ```js
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -257,6 +263,38 @@ const SESSION_DIR = join(ROOT, ".agntux-build", "builds", SESSION);
 const PLUGIN_DIR = join(SESSION_DIR, SLUG);
 // SIBLING of the plugin dir — NEVER `${PLUGIN_DIR}/SUBMISSION.json`.
 const MARKER_PATH = join(SESSION_DIR, "SUBMISSION.json");
+
+// ── THE GATE — runs against the EXACT tree being submitted ──────────────────
+// The bundled validator builds (in place), lints, typechecks, tests,
+// structurally-validates, and best-effort renders PLUGIN_DIR. A non-zero exit
+// means the tree is not submittable: THROW before anything is hashed or written.
+// There is no trusted receipt — validation happens here, now, against these
+// bytes, so it cannot be forged. The validator's build step is the last thing to
+// touch the tree, so we hash AFTER it returns.
+const _v = spawnSync(
+  "node",
+  [
+    join(process.env.CLAUDE_PLUGIN_ROOT, "bin", "validate-plugin.mjs"),
+    SLUG, "--plugin-dir", PLUGIN_DIR, "--session-dir", SESSION_DIR,
+  ],
+  { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" },
+);
+// Echo the validator's captured stdout to STDERR (diagnostic) so this program's
+// own stdout stays a single clean JSON line (the marker summary).
+process.stderr.write(_v.stdout || "");
+if (_v.status !== 0) {
+  throw new Error(
+    `validation failed (exit ${_v.status}) for ${SLUG} — refusing to write SUBMISSION.json. ` +
+      `Parse the validator's {"failed_stage":...} line, route per 07-build.md, fix, and re-run.`,
+  );
+}
+// The validator's final stdout line is { ok, slug, tree_sha256, render, validate, … }.
+// Exit 0 already proves build/lint/tests passed; parse render/validate for the
+// marker's validation block (informational, surfaced to the maintainer).
+let _vr = {};
+try {
+  _vr = JSON.parse((_v.stdout || "").trim().split("\n").filter(Boolean).pop() || "{}");
+} catch { /* exit 0 is the gate; the block is best-effort */ }
 
 // Mirror the step-b exclude list + the marker itself + OS cruft. The sha256
 // of each kept file IS its content-addressed S3 blob key.
@@ -298,17 +336,6 @@ const tree_sha256 = createHash("sha256")
   .digest("hex");
 const submission_id = `${SLUG}@${PLUGIN_VERSION}+${tree_sha256.slice(0, 8)}`;
 
-// Read the validation receipt that scripts/validate-plugin.mjs wrote into
-// SESSION_DIR (step b.5). Read it now so its result can be BOTH gated on (the
-// receipt gate further below) AND surfaced into the marker so a "skipped"
-// render reaches the maintainer. A null here is handled by the gate.
-let receipt = null;
-try {
-  receipt = JSON.parse(readFileSync(join(SESSION_DIR, "validation-receipt.json"), "utf8"));
-} catch {
-  /* the receipt gate below throws if it is missing or stale */
-}
-
 // contributor + dco + optional socials come from contributor.json ON DISK
 // (not session state — see the socials note below).
 const contrib = JSON.parse(
@@ -338,16 +365,15 @@ const marker = {
     agreed_at: contrib.dco_agreed_at,
     signed_off_by: `${contrib.name} <${contrib.email}>`,
   },
-  ...(receipt
-    ? {
-        validation: {
-          build: receipt.build,
-          lint: receipt.lint,
-          tests: receipt.tests,
-          render: receipt.render, // "pass" | "skipped" — surfaced for the maintainer
-        },
-      }
-    : {}),
+  // The validator already exited 0 above (the gate), so build/lint/tests passed.
+  // render/validate come from its stdout (best-effort: "pass" | "skipped").
+  validation: {
+    build: "pass",
+    lint: "pass",
+    tests: "pass",
+    validate: _vr.validate ?? "pass",
+    render: _vr.render ?? "pass", // "pass" | "skipped" — surfaced for the maintainer
+  },
   submitted_at: new Date().toISOString(),
   tree_sha256,
   files,
@@ -376,23 +402,11 @@ if (!okShape || !okLocation) {
   throw new Error("SUBMISSION.json failed self-check — daemon would skip it");
 }
 
-// Receipt gate — the single CODE gate that makes submission impossible without
-// a green validation for THIS exact tree. validate-plugin.mjs (step b.5) is the
-// last mutation before submit; any later edit changes tree_sha256 and
-// invalidates the receipt (the intended forcing function). build/lint/tests
-// MUST be "pass"; render may be "pass" or "skipped" (soft, per the user's
-// best-effort decision).
-const validated =
-  receipt &&
-  receipt.tree_sha256 === tree_sha256 &&
-  receipt.build === "pass" &&
-  receipt.lint === "pass" &&
-  receipt.tests === "pass";
-if (!validated) {
-  throw new Error(
-    "plugin not validated for THIS tree — run validate-plugin.mjs; refusing to submit",
-  );
-}
+// The gate already ran at the top of this program — the validator exited 0
+// against THIS exact tree (which it built in place, the last thing to touch the
+// bytes), and the walk above hashed the post-validation tree. There is no
+// separate receipt to re-check: a green validation for these exact bytes is a
+// precondition of reaching this line.
 
 // Only now write — atomically: temp in the SAME dir, then rename over the
 // target so the desktop watcher's awaitWriteFinish never sees a half-written
@@ -450,7 +464,7 @@ This section documents the shape it emits so you can sanity-read the result —
     }
   },
   "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "Name <email>" },
-  "validation": { "build": "pass", "lint": "pass", "tests": "pass", "render": "pass | skipped" },
+  "validation": { "build": "pass", "lint": "pass", "tests": "pass", "validate": "pass | skipped", "render": "pass | skipped" },
   "submitted_at": "{iso}",
   "tree_sha256": "{sha256 over sorted `path\\tsha256` lines}",
   "files": [ { "path": "agntux-{slug}/.claude-plugin/plugin.json", "sha256": "...", "bytes": 630 } ]
@@ -469,11 +483,12 @@ Notes:
   file in the synced tree, including `CONTRIBUTING-SIGNATURE.md`.
 - `dco.*` come from `contributor.json` and the signature you just
   wrote.
-- `validation` mirrors the green `validation-receipt.json` from step (b.5)
-  so a `"skipped"` render (no Chromium available) reaches the maintainer.
-  The block is absent only when no receipt was found — in which case the
-  receipt gate in step (c) throws before the marker is ever written, so a
-  shipped marker always carries it.
+- `validation` records the just-run validator's result. `build`/`lint`/`tests`
+  are `"pass"` by construction (the validator exited 0 — the gate at the top of
+  the program), and `validate`/`render` come from the validator's stdout so a
+  `"skipped"` render (no Chromium) reaches the maintainer. A shipped marker
+  ALWAYS carries this block: the program throws before writing if the validator
+  exited non-zero.
 - `contributor.socials` is present **only** when a `socials` block
   exists on `contributor.json` (the contributor consented to public
   credit at some point — possibly in a previous session). Copy the

@@ -162,8 +162,13 @@ export function pass12AppsClientDrift(
   pluginDir: string,
   repoRoot: string,
   findings: Finding[],
+  // Where the apps-client canonical (and the agntux-build _template copy)
+  // resolve. Defaults to repoRoot (maintainer clone). In the contributor
+  // bundle the validator passes a "repo-mirror" dir under the plugin so the
+  // canonical it never had a clone for is still present.
+  appsClientCanonicalRoot: string = repoRoot,
 ): void {
-  const canonicalDir = path.join(repoRoot, CANONICAL_REL);
+  const canonicalDir = path.join(appsClientCanonicalRoot, CANONICAL_REL);
   const canonicalHashes = new Map<string, string>();
   for (const name of REQUIRED_FILES) {
     const h = sha256(path.join(canonicalDir, name));
@@ -259,7 +264,7 @@ export function pass12AppsClientDrift(
   // only run it when its `plugin` matches the slug we're linting.
   for (const extra of EXTRA_COPIES) {
     if (extra.plugin !== pluginSlug) continue;
-    const extraDir = path.join(repoRoot, extra.relPath);
+    const extraDir = path.join(appsClientCanonicalRoot, extra.relPath);
     if (!fs.existsSync(extraDir)) continue;
     for (const name of REQUIRED_FILES) {
       const filePath = path.join(extraDir, name);

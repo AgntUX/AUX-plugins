@@ -241,8 +241,12 @@ function pass2Schema(
       }
     }
 
-    // requires_plugins cross-check
-    if (listing.requires_plugins) {
+    // requires_plugins cross-check. This needs the sibling-plugin corpus, which
+    // only exists in a maintainer clone — skip when pluginsDir isn't a real
+    // plugins/ directory (the contributor bundle lints a single --plugin-dir
+    // with no clone). The maintainer / CI / worker re-lint catches a
+    // genuinely-unknown dependency against the full clone.
+    if (listing.requires_plugins && isDirectory(pluginsDir)) {
       for (const slug of listing.requires_plugins) {
         const depDir = path.join(pluginsDir, slug);
         if (!isDirectory(depDir)) {
@@ -610,6 +614,24 @@ export interface LintOptions {
   repoRoot: string;
   /** Absolute path to the directory containing all plugin subdirs (e.g. repoRoot/plugins). */
   pluginsDir: string;
+  /**
+   * Where the canonical ingest sync templates resolve (pass 8). Defaults to
+   * repoRoot. In the contributor bundle the validator points this at the
+   * bundled canonical root so render-reproducibility can run with no clone.
+   */
+  canonicalRoot?: string;
+  /**
+   * Where the apps-client canonical resolves (pass 12). Defaults to repoRoot.
+   * In the bundle the validator points this at a "repo-mirror" dir that carries
+   * the agntux-core + agntux-build apps-client canonical at their repo-relative
+   * paths.
+   */
+  appsClientCanonicalRoot?: string;
+  /**
+   * Writable scratch root for pass 8's reproducibility render. Defaults to
+   * repoRoot; the bundle (read-only) passes an OS tmp dir.
+   */
+  tmpRoot?: string;
 }
 
 export function lintPlugin(
@@ -618,6 +640,9 @@ export function lintPlugin(
   opts: LintOptions,
 ): Finding[] {
   const findings: Finding[] = [];
+  const canonicalRoot = opts.canonicalRoot ?? opts.repoRoot;
+  const appsClientCanonicalRoot = opts.appsClientCanonicalRoot ?? opts.repoRoot;
+  const tmpRoot = opts.tmpRoot ?? opts.repoRoot;
   pass1RequiredFiles(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass2Schema(pluginSlug, pluginDir, opts.pluginsDir, opts.repoRoot, findings);
   pass3Images(pluginSlug, pluginDir, opts.repoRoot, findings);
@@ -627,7 +652,7 @@ export function lintPlugin(
   // Pass 8 — sync-skill render drift (mandatory for any plugin shipping
   // skills/sync/SKILL.md) plus always-on cross-plugin skill-quality
   // invariants (line budgets, chain-depth).
-  pass8SkillRender(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass8SkillRender(pluginSlug, pluginDir, opts.repoRoot, findings, canonicalRoot, tmpRoot);
   // Pass 9 — zip-upload-safety. Catches forbidden filename chars,
   // reserved plugin-name prefixes, and non-ASCII paths that fail
   // Claude Desktop's manual plugin-upload validator.
@@ -653,7 +678,7 @@ export function lintPlugin(
   // location) MUST be byte-identical to the canonical at
   // plugins/agntux-core/view-tool/src/lib/apps-client/. Drift here
   // re-introduces the 9.5.4 iframe-protocol bug silently.
-  pass12AppsClientDrift(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass12AppsClientDrift(pluginSlug, pluginDir, opts.repoRoot, findings, appsClientCanonicalRoot);
   // Pass 13 — every view-tool whose source uses className= MUST emit
   // an HTML resource that contains a non-empty inline <style> block.
   // Catches the 9.5.7-class bug where the iframe renders as unstyled
@@ -696,11 +721,29 @@ if (isMain) {
   }
 
   const pluginFilter = getFlag("--plugin");
+  // --plugin-dir lints exactly that one tree (the contributor build sandbox, or
+  // any out-of-clone path) instead of resolving plugins/<slug>. The
+  // *-canonical-root / --tmp-root flags let the canonical-coupled passes (8, 12)
+  // resolve their sources + scratch dir when there is no clone under the tree.
+  const pluginDirFlag = getFlag("--plugin-dir");
+  const canonicalRootFlag = getFlag("--canonical-root");
+  const appsClientCanonicalRootFlag = getFlag("--apps-client-canonical-root");
+  const tmpRootFlag = getFlag("--tmp-root");
   const jsonMode = cliArgs.includes("--json");
 
   const __dirname = path.dirname(__filename);
   const repoRoot = path.resolve(__dirname, "..");
   const pluginsDir = path.join(repoRoot, "plugins");
+
+  // Roots default to repoRoot (maintainer clone); the validator overrides them
+  // for the contributor bundle.
+  const lintRoots = {
+    canonicalRoot: canonicalRootFlag ? path.resolve(canonicalRootFlag) : repoRoot,
+    appsClientCanonicalRoot: appsClientCanonicalRootFlag
+      ? path.resolve(appsClientCanonicalRootFlag)
+      : repoRoot,
+    tmpRoot: tmpRootFlag ? path.resolve(tmpRootFlag) : repoRoot,
+  };
 
   function relPath(absPath: string): string {
     return path.relative(repoRoot, absPath);
@@ -724,8 +767,21 @@ if (isMain) {
     });
   }
 
+  // --plugin-dir lints exactly this tree. The slug is --plugin when given, else
+  // the tree's basename (the build sandbox is agntux-{slug}). The validator
+  // always passes both.
+  const explicitPluginDir = pluginDirFlag ? path.resolve(pluginDirFlag) : null;
+
   let slugs: string[];
-  if (pluginFilter) {
+  if (explicitPluginDir) {
+    if (!isDirectory(explicitPluginDir)) {
+      process.stderr.write(
+        `Error: --plugin-dir not found: ${explicitPluginDir}\n`,
+      );
+      process.exit(1);
+    }
+    slugs = [pluginFilter ?? path.basename(explicitPluginDir)];
+  } else if (pluginFilter) {
     const pluginDir = path.join(pluginsDir, pluginFilter);
     if (!isDirectory(pluginDir)) {
       process.stderr.write(
@@ -759,8 +815,12 @@ if (isMain) {
   const failedPlugins = new Set<string>();
 
   for (const slug of slugs) {
-    const pluginDir = path.join(pluginsDir, slug);
-    const findings = lintPlugin(slug, pluginDir, { repoRoot, pluginsDir });
+    const pluginDir = explicitPluginDir ?? path.join(pluginsDir, slug);
+    const findings = lintPlugin(slug, pluginDir, {
+      repoRoot,
+      pluginsDir,
+      ...lintRoots,
+    });
     for (const f of findings) {
       allFindings.push(f);
       if (jsonMode) {
@@ -775,8 +835,8 @@ if (isMain) {
   }
 
   // Pass 7 on canonical ui-handlers (not per-plugin slugs).
-  // Only run when not filtering to a specific plugin slug.
-  if (!pluginFilter) {
+  // Only run a full-repo scan — skip when filtering to one plugin/tree.
+  if (!pluginFilter && !explicitPluginDir) {
     const canonicalFindings: Finding[] = [];
     pass7CanonicalHandlers(repoRoot, canonicalFindings);
     for (const f of canonicalFindings) {

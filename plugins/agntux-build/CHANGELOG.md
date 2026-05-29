@@ -6,6 +6,71 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-05-29
+
+Ship the validation toolchain *inside* the plugin bundle + move the gate to
+submit time. Round-1 (0.14.0) made validation a deterministic script, but a
+contributor's environment had no marketplace clone — so the script, the lint
+passes, and `@agntux/ui-primitives` weren't actually present to run. The build
+agent, unable to run the gate, hand-fabricated a green `validation-receipt.json`
+and a broken `agntux-google-calendar` reached the worker (vite build FAIL on
+`useHostStyleVariables`/`buildConnectorEnvelope`; 14× E15 skill-render drift).
+This release makes the gate genuinely unforgeable: the toolchain runs in the
+contributor sandbox, and submission is impossible without a real, just-run
+green validation.
+
+### Added
+- **In-bundle toolchain (A1).** The plugin now ships `bin/{validate-plugin,
+  build-plugin}.mjs`, `scripts/` helpers (`render-skill`, `check-view-tool-imports`,
+  `scaffold-marketplace-assets`, the esbuild-compiled self-contained
+  `lint-marketplace-metadata.mjs`, `toolchain-layout`), the built `@agntux/*`
+  packages under `canonical/packages/`, the canonical ingest sync templates, the
+  scaffold's canonical assets, and a `canonical/repo-mirror/` of the apps-client
+  canonical for lint pass 12 — so build + lint + render run with **no marketplace
+  clone**. Vendored by `scripts/sync-agntux-build-toolchain.mjs` (single source
+  of truth = the repo-root sources); a `--check` drift guard (E1) runs in CI +
+  vitest.
+- **`scripts/toolchain-layout.mjs`** — one resolver that locates every toolchain
+  artifact for either layout (maintainer clone OR contributor bundle), detected
+  by file presence. Every script resolves paths through it; nothing hardcodes
+  `<repo>/scripts` or `<plugin>/bin`.
+- **`scripts/check-view-tool-imports.mjs` — data-driven `@agntux/ui-primitives`
+  import gate (C1).** Derives its allow/deny sets from the *actual* exports of
+  the bundled `@agntux/ui-primitives` + the tree's apps-react lib, so it
+  generically (a) auto-re-routes apps hooks (`useHostStyleVariables`, …) to
+  `./lib/apps-react/index.js`, (b) renames the deprecated `useStructuredContent`
+  → `assertStructuredContent` (specifier + call sites), and (c) HARD-fails on a
+  symbol exported by nothing (`buildConnectorEnvelope`, `StickyFooter`) with a
+  clear, routed message instead of vite's opaque crash. Runs before vite in
+  `build-plugin.mjs`.
+
+### Changed
+- **Submit-time gate replaces the forgeable receipt (B1/B2).** The stage-12
+  marker program (`12-submit.md`) now *runs* `bin/validate-plugin.mjs` against
+  the exact tree being submitted and refuses to write `SUBMISSION.json` on any
+  non-zero exit — there is no trusted receipt to hand-write. Build runs in place,
+  so the validated bytes are the hashed/submitted bytes. The full
+  build→lint→typecheck→tests→validate→render gate runs **once, at submit**;
+  stage 7 relies on each specialist's own self-validation (no within-attempt
+  double build). `07-build.md` + `self-validation.md` updated to match.
+- **Location-independent toolchain (A2).** `validate-plugin.mjs`,
+  `build-plugin.mjs`, `render-skill.mjs`, `scaffold-marketplace-assets.mjs`, and
+  the marketplace linter accept `--plugin-dir <abs>` and target that exact tree;
+  the linter's canonical-coupled passes (8 render-repro, 12 apps-client drift)
+  resolve their canonical sources + a writable scratch dir via
+  `--canonical-root` / `--apps-client-canonical-root` / `--tmp-root`. Maintainer-
+  clone behavior is unchanged (defaults resolve to the repo root).
+- **A3 — toolchain-present precondition.** Stage 7 asserts the bundled validator
+  + packages exist before any specialist runs; if absent it STOPs and logs an
+  agntux-build defect rather than ever proceeding to a hand-written receipt.
+- **C2 — render reproducibility.** The authoring agents (`ingest-prompt-author`,
+  `draft-flow-author`, `tests-author`, `view-tool-builder`) now require running
+  the renderer (never hand-authoring `skills/<slug>/**`), make per-verb
+  `_overrides/reference/{verb}-payload.md` a checked deliverable, and derive
+  test-expected reference filenames instead of hardcoding — closing the 14× E15
+  drift class. `connector-envelopes.md` documents that no envelope-builder export
+  exists.
+
 ## [0.14.0] — 2026-05-28
 
 Deterministic pre-submission validation gate — turn the build+lint+test+render

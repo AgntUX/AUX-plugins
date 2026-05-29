@@ -25,6 +25,23 @@ or skip the write-back path entirely (read-only ingest plugins emit
 suggested-action `host_prompt`s with `Open in {Source}` style buttons that
 deep-link via the `url` field).
 
+## There is no envelope-builder export — build the string by hand
+
+Before you reach for an import: **no package exports a
+`buildConnectorEnvelope` (or any other "envelope-builder") symbol — it does
+not exist anywhere.** Treat it exactly like `StickyFooter` and
+`SimpleMcpApp`: a hallucinated import the build gate will hard-fail on. The
+connector envelope is a **hand-built string** assembled in a plugin-local
+helper. The real pattern is agntux-slack's
+`view-tool/src/apps/compose/lib/build-envelope.ts` — a per-plugin
+`buildEnvelope()` that concatenates the prose instruction, the inline
+arguments, and the guillemet-delimited body from current form state.
+Don't import an envelope builder from `@agntux/ui-primitives`,
+`@agntux/plugin-runtime`, or anywhere else; copy the agntux-slack
+`build-envelope.ts` shape into your own `view-tool/src/.../lib/` and adapt
+it. (The build runs `scripts/check-view-tool-imports.mjs` before vite and
+will hard-fail on any import of a symbol exported by nothing.)
+
 ## The shape
 
 A connector-targeted envelope is a natural-language instruction the host's

@@ -180,9 +180,19 @@ code, not a prose promise.
    | Symptom in the error / source | Deterministic fix |
    |---|---|
    | An apps hook (`useAppsClient`, `useToolResult`, `useToolInput`, `useOnToolInputPartial`, `useHostContext`, `useHostCapabilities`, `useWidgetState`, `useDisplayMode`, `useSafeAreaInsets`, `useDocumentTheme`, `useHostStyleVariables`, …) imported from `@agntux/ui-primitives` **or** from `@mcp-apps-kit/ui-react` | Move it to `import { … } from "./lib/apps-react/index.js"` (adjust the `./`/`../` depth for the file's location). `@mcp-apps-kit/ui-react` is the upstream package the vendored lib was inlined from — it is NOT a view-tool dependency. |
-   | `StickyFooter` imported from anywhere | Remove the import — it does not exist. Use `ScrollablePanel`'s `footer` prop, or a `className="sticky bottom-0"` div. |
+   | A symbol exported by **NOTHING** — `buildConnectorEnvelope` (or any other "envelope-builder"), `StickyFooter` — imported from any package | There is no such export anywhere. Remove the import and build it by hand. For `buildConnectorEnvelope`: the connector envelope is a hand-built string assembled in a plugin-local helper — copy the agntux-slack `view-tool/src/apps/compose/lib/build-envelope.ts` `buildEnvelope()` shape into your own tree (see `canonical/prompts/ui/connector-envelopes.md` § "There is no envelope-builder export"). For `StickyFooter`: use `ScrollablePanel`'s `footer` prop, or a `className="sticky bottom-0"` div. |
    | `SimpleMcpApp` imported into component code | Remove it — internal transport in `./lib/apps-client/`, wired by the scaffold, never imported by component code. |
    | `useStructuredContent` (the deprecated alias) | Rewrite to `assertStructuredContent` (the canonical `@agntux/ui-primitives` export). `grep -rn 'useStructuredContent' view-tool/src/` to find every hit; the alias still compiles via the WS-C.1 re-export and the worker's `rewrite-imports.mjs` is the belt-and-suspenders net, but author the canonical name here. |
+
+   The build runs the data-driven `scripts/check-view-tool-imports.mjs` gate
+   (bundled as `$CLAUDE_PLUGIN_ROOT/scripts/check-view-tool-imports.mjs`)
+   before vite: it derives its allow/deny sets from the *actual*
+   `@agntux/ui-primitives` + `apps-react` exports, so it auto-re-routes apps
+   hooks to `./lib/apps-react/index.js`, renames `useStructuredContent` →
+   `assertStructuredContent`, and HARD-FAILS on any import of a symbol
+   exported by nothing (with a clear message routed back to you). Rely on it
+   — never invent a symbol to satisfy an import, and never silence the gate
+   by stubbing a missing export.
 
 3. For any compile error the mapping above does NOT cover (genuine type errors,
    missing data_paths, descriptor-regex mismatch), parse the error, edit the

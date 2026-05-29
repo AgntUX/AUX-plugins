@@ -18,3 +18,8 @@ dist/
 !plugins/*/view-tool/dist/
 !plugins/*/view-tool/dist/ui-resources/
 !packages/*/dist/
+# agntux-build ships the build/validate toolchain in-bundle so validation runs
+# in a contributor sandbox with no marketplace clone. The bundled @agntux/*
+# package dist trees under canonical/packages/ are tracked artifacts
+# (sync-agntux-build-toolchain.mjs vendors them from packages/*/dist).
+!plugins/agntux-build/canonical/packages/*/dist/

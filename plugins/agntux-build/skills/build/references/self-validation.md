@@ -13,7 +13,7 @@ stage-7 final gate (`07-build.md`) loops the whole tree.
 | Scope | Budget |
 |---|---|
 | Each specialist's own validator, within its dispatch | **5 edit-and-revalidate cycles** |
-| Stage-7 final-gate verifier → specialist re-dispatch loop | **5 verifier-to-specialist loops** |
+| Submit-time validator (`12-submit.md`) → specialist re-dispatch loop | **5 submit→fix loops** |
 
 The bounds stop infinite spinning but are generous enough for genuinely-hard
 convergence (a view-tool with cascading TS errors, a listing.yaml with several
@@ -69,17 +69,24 @@ the same way by editing the specific line.
 |---|---|
 | `manifest-author` | `npm run lint:marketplace -- --plugin {slug}` (parse + trim E05; re-lint) |
 | `ingest-prompt-author` | `node scripts/render-skill.mjs --validate-overrides {slug}` |
-| `view-tool-builder` | `npm install --prefix view-tool/` → `npm run build --prefix view-tool/`; grep + rewrite `useStructuredContent` |
+| `view-tool-builder` | `node $CLAUDE_PLUGIN_ROOT/scripts/check-view-tool-imports.mjs --plugin-dir <tree> --fix` (data-driven @agntux/ui-primitives import gate: auto-re-routes apps hooks to `./lib/apps-react`, renames `useStructuredContent`, hard-fails on a symbol exported by nothing) → `npm run build --prefix view-tool/` |
 | `tests-author` | vitest in **both** the plugin root (`__tests__/**`) **and** `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`) — the plugin-root `vitest.config.ts` globs only `__tests__/**`, so the old `npm test --workspace plugins/{slug}` note missed the view-tool suite entirely. Run both, or just let the gate below do it. |
 | `ui-handler-author` / `draft-flow-author` | lint / build / test as relevant to the artifacts they emit |
 
-The stage-7 final gate (`07-build.md`) is the single deterministic script
-`scripts/validate-plugin.mjs <slug>` — it runs build → lint → view-tool
-typecheck → tests (plugin-root **and** view-tool) → `claude plugin validate` →
-render (best-effort) in order and aborts non-zero on the first hard failure.
-**"Hard exit" means the script's exit code, not a prose promise** — the build
-flow does not reach the "ready to submit?" confirmation until the validator
-exits 0 and has written a green `validation-receipt.json`. Each specialist's own
-per-artifact check above is the fast inner loop; the validator is the
-authoritative whole-tree gate, and the same script (re-bound to the finalized
-tree) is what gates submission at stage 12.
+The single authoritative whole-tree gate is the deterministic
+`bin/validate-plugin.mjs <slug> --plugin-dir <tree>` — it runs build → lint →
+view-tool typecheck → tests (plugin-root **and** view-tool) → `claude plugin
+validate` → render (best-effort) in order and aborts non-zero on the first hard
+failure. **"Hard exit" means the script's exit code, not a prose promise.** It
+runs **once, at submit** (`12-submit.md` step b.5): the stage-12 marker program
+itself runs it against the exact tree being submitted and refuses to write
+`SUBMISSION.json` on any non-zero exit — there is **no trusted receipt** an agent
+could hand-write to forge a pass. The build + validate toolchain ships inside the
+plugin bundle, so this runs in a contributor sandbox with no marketplace clone.
+
+Stage 7 does NOT re-run the full validator (that would double-build the same gate
+within one submit attempt); each specialist's own per-artifact check above is the
+fast inner loop that carries the tree through preview + sync-iterate. On a
+submit-time failure the flow re-enters the specialist fix loop per the
+`failed_stage` table in `07-build.md` and retries submit — the validator runs
+**once per submit attempt, never twice within one.**

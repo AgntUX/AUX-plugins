@@ -134,15 +134,38 @@ HTML next to it. The canonical template at
 `canonical/ui-handlers/_template/view-tool/{__ui-name__.html,vite.config.ts}`
 shows the shape.
 
-## Hard pre-flight scaffold (unconditional — runs before specialist dispatch)
+## Hard pre-flight A — toolchain present (unconditional — before any "built" claim)
 
-Before dispatching any specialist, run the marketplace-asset scaffold. This is
-**unconditional and load-bearing** — capture its exit code and halt stage 7 on a
-non-zero exit (a scaffold failure is an agntux-build defect, not a contributor
-problem):
+The build + validation toolchain now ships **inside this plugin** so it runs in a
+contributor sandbox with no marketplace clone (`bin/validate-plugin.mjs`,
+`bin/build-plugin.mjs`, `scripts/`, the built `canonical/packages/`, the
+canonical templates). Before dispatching any specialist, assert the toolchain is
+actually present and runnable — if it isn't, the build can never honestly reach a
+green gate, and the ONLY correct move is to STOP and log an agntux-build defect.
+**Never proceed to a hand-written receipt or a "built" claim when the toolchain
+is absent** — that is exactly the forgery path this plan closes.
 
 ```bash
-node scripts/scaffold-marketplace-assets.mjs --slug agntux-{slug}
+test -f "$CLAUDE_PLUGIN_ROOT/bin/validate-plugin.mjs" \
+  && test -f "$CLAUDE_PLUGIN_ROOT/scripts/check-view-tool-imports.mjs" \
+  && test -d "$CLAUDE_PLUGIN_ROOT/canonical/packages/agntux-ui-primitives/dist" \
+  || { echo "agntux-build toolchain missing from \$CLAUDE_PLUGIN_ROOT — STOP (agntux-build defect)"; exit 1; }
+# non-zero exit → STOP. Do NOT dispatch specialists. Do NOT write a receipt or
+# claim "built". Log the defect for the maintainer (saved session + the one-line
+# "hit a snag" message).
+```
+
+## Hard pre-flight B — marketplace-asset scaffold (unconditional — before specialist dispatch)
+
+Then run the marketplace-asset scaffold. This is **unconditional and
+load-bearing** — capture its exit code and halt stage 7 on a non-zero exit (a
+scaffold failure is an agntux-build defect, not a contributor problem):
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/scripts/scaffold-marketplace-assets.mjs" --slug agntux-{slug} --plugin-dir {build-path}
+# {build-path} = the tree from "Where the build runs" (the sandbox under
+#   <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/, or the
+#   AUX-plugins clone's plugins/agntux-{slug}/ when a clone exists).
 # non-zero exit → STOP. Do not dispatch specialists. Log the defect for the maintainer.
 ```
 
@@ -225,90 +248,72 @@ even then it's a one-liner:
 No technical detail in the surface — the session file carries the
 traceback for maintainers.
 
-## Stage-7 final gate (deterministic verifier — WS-A.2)
+## Stage-7 verification — specialists self-validate; the authoritative gate runs at submit (WS-A.2)
 
-After all seven specialists dispatch and before the build summary, run the ONE
-deterministic gate against the contributor's plugin tree on the same machine
-that built it. The gate is a single script — `scripts/validate-plugin.mjs` —
-NOT a prose checklist the agent is trusted to run by hand. It runs build → lint
-→ view-tool typecheck → tests (plugin-root **and** view-tool) → `claude plugin
-validate` → render (best-effort), in order, aborting non-zero on the first hard
-failure. The build flow does NOT advance to the summary / stage 8 until it
-exits 0:
+The single authoritative build → lint → typecheck → tests → `claude plugin
+validate` → render gate is `bin/validate-plugin.mjs`, and it now runs **once, at
+submit** (`12-submit.md` step b.5), fail-closed, against the exact tree being
+submitted. The stage-12 submit program *itself* runs it and refuses to write
+`SUBMISSION.json` on a non-zero exit — there is no trusted receipt to forge.
 
-```bash
-node scripts/validate-plugin.mjs agntux-{slug}
-# Runs in the AUX-plugins working tree against plugins/agntux-{slug}/ (where the
-# build ran). build + lint can only target that tree, so do NOT point
-# --plugin-dir elsewhere — to land the receipt next to a stage-12 marker, pass
-# only --session-dir (the synced copy is byte-identical on hashed files):
-#   node scripts/validate-plugin.mjs agntux-{slug} --session-dir <agntux root>/.agntux-build/builds/{session-id}
-```
+Running the full validator HERE too would just double-build the same gate within
+one submit attempt. So stage 7 does NOT re-run the full validator; it relies on
+each specialist's own fast self-validation, which is enough to carry the tree
+through preview (stage 8) and sync-iterate (stages 9–11):
 
-Why a script and not the old `cd plugins/{slug} && npm install && npm run
-lint:marketplace && npm run build --if-present && npm test --if-present` block:
-that block was broken three ways — `lint:marketplace` does not exist inside
-`plugins/{slug}/` (it lives only at the repo root), `npm run build --if-present`
-silently no-ops when the plugin ships no root `package.json`, and `npm test
---if-present` never reaches the view-tool's own vite build or its vitest suite.
-The validator closes all three holes deterministically (the scaffold in this
-stage's pre-flight now emits the root `package.json` + `vitest.config.ts`, and
-the validator runs the view-tool build + both vitest suites explicitly).
+- **`view-tool-builder`** runs the view-tool build (`vite → tsc → esbuild →
+  emit-manifest`) **and** the data-driven `check-view-tool-imports.mjs` gate
+  before it — so dist/ exists for stage 8's headless render and wrong-source /
+  hallucinated `@agntux/ui-primitives` imports are caught (and apps hooks
+  auto-re-routed) up front.
+- **`tests-author`** runs vitest in the plugin root **and** the view-tool.
+- **`invariant-checker`** runs pass-8 render-reproducibility + the source-plugin
+  shape invariants.
+- **`manifest-author`** re-lints its own output (`lint:marketplace`).
 
-On a hard failure the validator prints a single-line JSON diagnostic to stdout —
-`{"ok":false,"failed_stage":"<stage>","detail":"..."}` — and exits 1. Parse
-`failed_stage` and re-dispatch the owning specialist:
+When the submit-time validator (stage 12) fails, it prints a single-line JSON
+diagnostic to stdout — `{"ok":false,"failed_stage":"<stage>","detail":"..."}` —
+and exits 1. Parse `failed_stage` and re-dispatch the owning specialist, then
+retry submit (the validator runs **once per submit attempt, never twice within
+one**):
 
 | `failed_stage` | Re-dispatch |
 |---|---|
-| `build` (view-tool vite / tsc / esbuild / emit-manifest) | `view-tool-builder` |
+| `build` (view-tool vite / tsc / esbuild / emit-manifest / import gate) | `view-tool-builder` |
 | `typecheck` (view-tool `tsc --noEmit`) | `view-tool-builder` |
 | `lint` (E05 / E11 / E04 / E14 in `detail`) | `manifest-author` |
 | `lint` (pass 8 / render-drift E15 in `detail`) | `ingest-prompt-author` |
 | `tests` | `tests-author` |
 | `validate` (`claude plugin validate` — plugin.json / manifest shape) | `manifest-author` |
 | `render` (console errors / handler `tool error:` / harness crash) | `executor` (model=sonnet, per `08-headless-test.md` self-fix) |
-| `usage` (bad flag, missing/divergent `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |
+| `usage` (bad flag, missing `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |
 
-Loop the gate up to **5 times** after specialist-driven fixes (budgets +
-the mechanical-vs-judgment line live in
-[`self-validation.md`](self-validation.md)). These are **mechanical** failures —
-the user NEVER sees a lint code or a traceback. If still failing after 5 cycles,
-log an agntux-build defect for the maintainer (the saved session file + the one-line "hit
-a snag" message above) and stop. Do NOT surface lint/build/test detail to the
-contributor, and do NOT let the flow reach "ready to submit?" with an
-unvalidated tree.
-
-On a clean (exit-0) run the validator writes `validation-receipt.json` to the
-session dir (sibling of the plugin tree). That receipt is re-bound to the final,
-signature-carrying tree at stage 12 (`12-submit.md` step b.5) and is what makes
-`SUBMISSION.json` impossible to emit without a matching green validation.
+Loop submit→fix up to **5 times** (budgets + the mechanical-vs-judgment line live
+in [`self-validation.md`](self-validation.md)). These are **mechanical** failures
+— the user NEVER sees a lint code or a traceback. If still failing after 5
+cycles, log an agntux-build defect for the maintainer (the saved session file +
+the one-line "hit a snag" message above) and stop. Do NOT surface
+lint/build/test detail to the contributor, and do NOT let the flow claim
+"submitted" with an unvalidated tree.
 
 ## Saved state at end of stage 7
 
 ```json
 {
   ...,
-  "validation_receipt": {
-    "path": "/Users/.../.agntux-build/builds/{session-id}/validation-receipt.json",
-    "tree_sha256": "{the hash the gate validated}",
-    "build": "pass",
-    "lint": "pass",
-    "tests": "pass",
-    "render": "pass"
-  },
   "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-linear",
   "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "draft-flow", "tests", "view-tool-builder", "invariant-checker"],
   "build_completed_at": "2026-05-08T..."
 }
 ```
 
-Record the gate's result as `validation_receipt` (read it back from the
-`validation-receipt.json` the validator wrote) rather than a bare
-`build_status: "success"` string — the receipt is the tree-bound proof the
-stage-12 submit gate checks, so the session state should carry the same fields
-(`tree_sha256`, `build`, `lint`, `tests`, `render`). `render` may be `"skipped"`
-when no Chromium was available; that is still a passing gate.
+Record `build_path` (the exact tree every later stage builds + validates) and
+`specialists_run`. The authoritative validation gate is no longer a stage-7
+receipt — it runs at submit (`12-submit.md` step b.5), where the submit program
+itself runs `bin/validate-plugin.mjs` against the final, signature-carrying tree
+and writes the tree-bound `validation-receipt.json` then. There is nothing for
+stage 7 to record as proof and nothing for a later stage to trust — the proof is
+produced at the moment of submission, against the exact bytes submitted.
 
 ### `last-submission.json` — written on every successful build
 
