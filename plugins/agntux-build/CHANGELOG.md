@@ -6,6 +6,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-05-28
+
+Stage-12 submission reliability — close the silent-failure gap where a build
+could report "submitted" while the desktop daemon silently skipped a
+non-conforming marker and nothing reached the review queue.
+
+### Fixed
+- **Stage 12 now writes `SUBMISSION.json` via a deterministic program, not by
+  hand.** `references/12-submit.md` step (c) replaces the prior hand-authored
+  marker (which could regress into a slim "summary" with the wrong keys, or be
+  written *inside* the `agntux-{slug}/` dir) with a single copy-and-run program
+  that enumerates the tree, computes every `sha256` + `tree_sha256`, assembles
+  the full wire-shape marker, writes it atomically to the **session root**
+  (sibling of the plugin dir), and **self-checks** the exact gates the daemon
+  applies (`schema_version`, `kind: "agntux-build.submission"`, `status:
+  "final"`, non-empty `files[]`, correct location). The self-check runs on the
+  in-memory marker **before** the atomic write, so a marker the daemon would
+  skip is never left on disk; it also validates the `contributor.json` fields
+  and the 4096-file cap, and guards a missing `CLAUDE_PLUGIN_ROOT`. If any
+  check fails the program throws — the flow can no longer claim success on a
+  marker that wouldn't queue.
+- **Stage 12 now confirms the submission was actually queued before claiming
+  success.** New step (e·confirm) polls the daemon's `.submission-status.json`
+  sidecar: success copy only on `ok: true`; surfaces the `reason` on
+  `ok: false` (incl. server-side rejections like `invalid_revision_of`); on no
+  sidecar it reports "finalized, will queue once signed in" rather than
+  asserting submission. This closes the silent-failure gap for server-rejected
+  markers, not just malformed ones.
+- **`references/07-build.md`** corrected: the marker's primary-key field is
+  `submission_id` (not `id`) — the prior wording could seed the malformed-marker
+  regression when `last-submission.json` was reconciled.
+
+### Changed
+- `references/12-submit.md` step (d) is now a field reference for the shape the
+  step-(c) program emits, rather than instructions to author the marker.
+- `references/12-submit.md` step (b): the copy-exclude list and the step-(c)
+  program's `EXCLUDE_DIRS`/`EXCLUDE_NAMES` are now explicitly the same set;
+  dropped the stale "exclude `NOTICE`" bullet (a plugin's `NOTICE` ships when
+  present — only agntux-slack/gmail lack one).
+
+### Tested
+- New `__tests__/submit-marker-program.test.ts` extracts the step-(c) program
+  from the markdown and runs it against a synthetic tree: asserts node_modules
+  + `.DS_Store` exclusion, `NOTICE` inclusion, session-root placement,
+  `tree_sha256` round-trip, and that an empty tree / bad `contributor.json`
+  throws and writes no marker. The behavior, not just the prose, is now locked.
+
 ## [0.12.1] — 2026-05-28
 
 Doc/prompt cleanups surfaced by the 0.12.0 review — no behaviour change to the

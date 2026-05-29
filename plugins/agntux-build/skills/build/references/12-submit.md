@@ -149,10 +149,15 @@ exist on disk:
 - `hooks/` — same.
 - `.mcp.json` — same.
 - `.omc/`, `.git/`, `.DS_Store`
-- `NOTICE` — agntux-slack/gmail don't ship one; the Apache-2.0
-  attribution lives in `LICENSE` alone.
 - `host-renderer/`, `test-harness/`, `agents/` — agntux-build's own
   internals, never copied into a generated plugin.
+
+Ship everything else the finalized tree contains, **including `NOTICE`
+when the plugin has one** (most do; agntux-slack/gmail are the exception —
+they carry their Apache-2.0 attribution in `LICENSE` alone and simply have
+no `NOTICE` to copy). This exclude list and the step-(c) program's
+`EXCLUDE_DIRS` / `EXCLUDE_NAMES` are the **same** set and must stay in
+sync — the program is the authoritative implementation.
 
 Keep `CONTRIBUTING-SIGNATURE.md` — it belongs in the synced tree.
 
@@ -160,57 +165,165 @@ Use `node:fs/promises` to enumerate and copy. After this step the
 finalized, signature-carrying tree is under
 `<agntux project root>/.agntux-build/builds/{session-id}/agntux-{slug}/`.
 
-## c. Build the file manifest
+## c. Build the manifest + write the marker — run this program, don't hand-author
 
-Enumerate every file in the synced plugin tree (after the copy, with
-excludes applied) and, for each, compute its sha256 over the exact file
-bytes plus its byte length. Those sha256 values **are** the
-content-addressed S3 blob keys the daemon syncs, so they must be the
-raw-bytes hash:
+> **This is the one step you must not improvise.** The marker is a precise
+> machine wire-shape: the desktop daemon validates `schema_version`, `kind`,
+> and `status` and **silently skips** (logs a `warn`, never POSTs) any marker
+> missing them — so a hand-written "summary" with the wrong keys, or a marker
+> placed *inside* the `agntux-{slug}/` dir instead of as its sibling, never
+> reaches the queue and the contributor is told "submitted" when nothing was.
+> Fill in the constants at the top and **run the program below verbatim**. It
+> enumerates the tree, computes every sha256, derives `tree_sha256`, assembles
+> the full marker, writes it atomically to the session root, and self-checks
+> the result. Do not transcribe its output into a marker by hand.
 
 ```js
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-// per file — relative path prefixed by the plugin dir name:
-const buf = await readFile(absPath);
-const sha256 = createHash("sha256").update(buf).digest("hex");
-const bytes = buf.length;
-const path = `agntux-{slug}/${relPathWithinPluginDir}`;
+import { readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { join, relative } from "node:path";
+
+// ---- fill these in from session state (stage 0 / stage 10 / revise step 3) ----
+const ROOT = "<agntux project root>";       // the stage-0 resolver result (absolute)
+const SESSION = "{session-id}";             // YYYY-MM-DD-HHmmss
+const SLUG = "agntux-{slug}";
+const PLUGIN_VERSION = "{final-version}";   // stage 10 / the plugin's own plugin.json
+const MODE = "create";                      // "create" | "update"
+const PREVIOUS_VERSION = null;              // string ONLY when MODE === "update", else null
+const REVISION_OF = null;                   // submission_id when :revise (step 3), else null
+if (!process.env.CLAUDE_PLUGIN_ROOT) {
+  throw new Error(
+    "CLAUDE_PLUGIN_ROOT is not set — run this inside the agntux-build plugin context",
+  );
+}
+const AGNTUX_BUILD_VERSION = JSON.parse(    // THIS plugin's own version
+  readFileSync(join(process.env.CLAUDE_PLUGIN_ROOT, ".claude-plugin", "plugin.json"), "utf8"),
+).version;
+// -------------------------------------------------------------------------------
+
+const SESSION_DIR = join(ROOT, ".agntux-build", "builds", SESSION);
+const PLUGIN_DIR = join(SESSION_DIR, SLUG);
+// SIBLING of the plugin dir — NEVER `${PLUGIN_DIR}/SUBMISSION.json`.
+const MARKER_PATH = join(SESSION_DIR, "SUBMISSION.json");
+
+// Mirror the step-b exclude list + the marker itself + OS cruft. The sha256
+// of each kept file IS its content-addressed S3 blob key.
+const EXCLUDE_DIRS = new Set([
+  "node_modules", ".git", ".omc", "mcp-server", "hooks", "host-renderer",
+  "test-harness", "agents",
+]);
+const EXCLUDE_NAMES = new Set([
+  "SUBMISSION.json", "SUBMISSION.json.tmp", ".DS_Store", ".mcp.json",
+]);
+
+function walk(dir, acc = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) { if (!EXCLUDE_DIRS.has(e.name)) walk(join(dir, e.name), acc); }
+    else if (e.isFile() && !EXCLUDE_NAMES.has(e.name)) acc.push(join(dir, e.name));
+  }
+  return acc;
+}
+
+const files = walk(PLUGIN_DIR)
+  .map((abs) => {
+    const buf = readFileSync(abs);
+    return {
+      path: `${SLUG}/${relative(PLUGIN_DIR, abs)}`,
+      sha256: createHash("sha256").update(buf).digest("hex"),
+      bytes: buf.length,
+    };
+  })
+  .sort((a, b) => a.path.localeCompare(b.path));
+
+// tree_sha256 = sha256 over sorted `path\tsha256` lines joined by \n.
+const tree_sha256 = createHash("sha256")
+  .update(files.map((f) => `${f.path}\t${f.sha256}`).join("\n"))
+  .digest("hex");
+const submission_id = `${SLUG}@${PLUGIN_VERSION}+${tree_sha256.slice(0, 8)}`;
+
+// contributor + dco + optional socials come from contributor.json ON DISK
+// (not session state — see the socials note below).
+const contrib = JSON.parse(
+  readFileSync(join(ROOT, ".agntux-build", "contributor.json"), "utf8"),
+);
+
+const marker = {
+  schema_version: "1.1.0",
+  kind: "agntux-build.submission",
+  status: "final",
+  submission_id,
+  ...(REVISION_OF ? { revision_of: REVISION_OF } : {}),
+  plugin_slug: SLUG,
+  plugin_version: PLUGIN_VERSION,
+  mode: MODE,
+  ...(MODE === "update" ? { previous_version: PREVIOUS_VERSION } : {}),
+  session_id: SESSION,
+  build_root: SLUG,
+  agntux_build_version: AGNTUX_BUILD_VERSION,
+  contributor: {
+    name: contrib.name,
+    email: contrib.email,
+    ...(contrib.socials ? { socials: contrib.socials } : {}),
+  },
+  dco: {
+    version: contrib.dco_text_version,
+    agreed_at: contrib.dco_agreed_at,
+    signed_off_by: `${contrib.name} <${contrib.email}>`,
+  },
+  submitted_at: new Date().toISOString(),
+  tree_sha256,
+  files,
+};
+
+// Self-check the IN-MEMORY marker against the exact gates the daemon + the
+// server schema apply — BEFORE writing, so a marker that would be skipped or
+// 400-rejected is never left on disk and the flow can't claim "submitted".
+const okContrib =
+  typeof contrib.name === "string" && contrib.name.length > 0 &&
+  typeof contrib.email === "string" && contrib.email.length > 0 &&
+  typeof contrib.dco_text_version === "string" && contrib.dco_text_version.length > 0 &&
+  typeof contrib.dco_agreed_at === "string" && contrib.dco_agreed_at.length > 0;
+if (!okContrib) {
+  throw new Error(
+    "contributor.json is missing name/email/dco fields — fix it, do NOT claim submitted",
+  );
+}
+const okShape =
+  marker.schema_version && marker.kind === "agntux-build.submission" &&
+  marker.status === "final" && marker.submission_id &&
+  Array.isArray(marker.files) && marker.files.length > 0 &&
+  marker.files.length <= 4096; // server + worker both cap at 4096
+const okLocation = !MARKER_PATH.endsWith(`${SLUG}/SUBMISSION.json`);
+if (!okShape || !okLocation) {
+  throw new Error("SUBMISSION.json failed self-check — daemon would skip it");
+}
+
+// Only now write — atomically: temp in the SAME dir, then rename over the
+// target so the desktop watcher's awaitWriteFinish never sees a half-written
+// file.
+const tmp = `${MARKER_PATH}.tmp`;
+writeFileSync(tmp, JSON.stringify(marker, null, 2));
+renameSync(tmp, MARKER_PATH);
+
+console.log(JSON.stringify(
+  { submission_id, tree_sha256, files: files.length, marker_path: MARKER_PATH },
+  null, 2,
+));
 ```
 
-Then derive the tree hash over the sorted manifest — sort `files` by
-`path`, join `${path}\t${sha256}` lines with `\n`, and sha256 that
-string:
+`tree_sha256` is the dedup key; its first 8 hex chars are the `submission_id`
+suffix. Record the printed `submission_id` into `last-submission.json` per
+`07-build.md` (its `submission_id` field — that exact key).
 
-```js
-const treeInput = files
-  .slice()
-  .sort((a, b) => a.path.localeCompare(b.path))
-  .map((f) => `${f.path}\t${f.sha256}`)
-  .join("\n");
-const tree_sha256 = createHash("sha256").update(treeInput).digest("hex");
-```
+## d. Marker shape — field reference
 
-`tree_sha256` is the dedup key; its first 8 hex chars go into
-`submission_id`.
-
-## d. Write the marker LAST, atomically
-
-Only after every plugin file and `CONTRIBUTING-SIGNATURE.md` are on
-disk, write the marker to:
-
-```
-<agntux project root>/.agntux-build/builds/{session-id}/SUBMISSION.json
-```
-
-— a **sibling of** the `agntux-{slug}/` dir, so the plugin tree stays
-pristine. Write **atomically**: write a temp file in the same directory
-(e.g. `SUBMISSION.json.tmp`), then `rename` it over the target. The
-rename is what makes the marker appear all-at-once, so the desktop
-watcher's `awaitWriteFinish` never reads a half-written file. This
-mirrors how `installed-plugins.json` is written.
-
-Schema:
+The program in step (c) already wrote the marker — atomically (temp +
+`rename`, so the desktop watcher's `awaitWriteFinish` never reads a
+half-written file), at the session root
+(`<agntux project root>/.agntux-build/builds/{session-id}/SUBMISSION.json`, a
+**sibling of** the `agntux-{slug}/` dir so the plugin tree stays pristine).
+This section documents the shape it emits so you can sanity-read the result —
+**you do not author it by hand.** The emitted JSON is:
 
 ```json
 {
@@ -280,8 +393,9 @@ up. Check **both** of these under the agntux project root:
 - `<agntux project root>/.agntux/daemon.lock` is present.
 
 **Both present** → the desktop daemon is active. The marker you wrote
-will sync to S3 and the desktop app forwards it to AgntUX. Show the
-success copy below.
+will sync to S3 and the desktop app forwards it to AgntUX. Do **not** jump
+straight to the success copy — first confirm the daemon actually accepted
+the marker (step e·confirm below).
 
 **Either missing** → do **not** claim the plugin was submitted. The
 marker stays on disk (harmless — it syncs the moment the app starts),
@@ -293,6 +407,45 @@ then stop:
 > running (or isn't signed in) right now. Open the AgntUX desktop app
 > and sign in, then run `/agntux-build:build` again and I'll finish the
 > handoff. Nothing for you to download, attach, or send.
+
+## e·confirm. Confirm the daemon accepted the marker
+
+Writing the marker is not the same as the submission being queued: the
+daemon validates the marker and POSTs it asynchronously, and only a
+server-accepted marker becomes a review-queue row. The daemon records the
+outcome in a `.submission-status.json` sidecar next to the marker (same
+session dir). Poll for it before claiming success — this is what stops the
+flow reporting "submitted" for a marker that was actually dropped:
+
+```js
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const STATUS_PATH = join(SESSION_DIR, ".submission-status.json");
+let status = null;
+// The daemon writes within ~1–2s of the POST resolving; poll ~30s.
+await (async () => {
+  for (let i = 0; i < 30; i++) {
+    try { status = JSON.parse(readFileSync(STATUS_PATH, "utf8")); return; }
+    catch { await new Promise((r) => setTimeout(r, 1000)); }
+  }
+})();
+console.log(JSON.stringify(status));
+```
+
+Branch on the result:
+
+- **`status?.ok === true`** → the row is queued. Show the success copy in
+  (f).
+- **`status?.ok === false`** → the daemon dropped the marker; surface
+  `status.reason` to the user and do **NOT** claim success. A
+  `missing_schema_version` / location-class reason means the step-(c)
+  program didn't run correctly — re-run it; `server_rejected` /
+  `invalid_revision_of` is a server-side reason worth showing verbatim.
+- **No sidecar after the timeout (`status === null`)** → the daemon saw the
+  marker but hasn't confirmed yet — most often the auth gate (signed out or
+  onboarding incomplete). Tell the user it's finalized and will queue the
+  moment the desktop app is signed in; do **not** assert it's submitted.
 
 ## f. What you tell the user (success)
 

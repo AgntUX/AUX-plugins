@@ -168,6 +168,21 @@ describe("skill ↔ references consistency", () => {
     expect(body).toContain("daemon.lock");
     expect(body).toContain("teams.json");
     expect(body.toLowerCase()).toContain("desktop app");
+
+    // (d) The marker is written by a DETERMINISTIC program, not hand-authored
+    // (the 0.13.0 fix for the silent-skip class: a slim/misplaced marker that
+    // the daemon drops at its schema_version/kind/status gate while the flow
+    // still reports "submitted"). Guard the program + its self-check + the
+    // exact wire-shape literals the daemon validates.
+    expect(body).toMatch(/don't hand-author|do not author it by hand/i);
+    expect(body).toContain('kind: "agntux-build.submission"');
+    expect(body).toContain('status: "final"');
+    expect(body).toContain("schema_version");
+    expect(body).toContain("tree_sha256");
+    // The marker is a sibling of the plugin dir, never inside it — the program
+    // self-checks this so a misplaced marker throws instead of being skipped.
+    expect(body.toLowerCase()).toContain("self-check");
+    expect(body).toMatch(/SUBMISSION\.json` failed self-check|failed self-check/);
   });
 
   it("update-mode.md keeps the 0.8.0 update-mode marker fields", () => {
