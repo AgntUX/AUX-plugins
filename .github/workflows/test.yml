@@ -1,0 +1,53 @@
+name: Test + toolchain drift
+
+on:
+  push:
+    paths:
+      - "plugins/**"
+      - "canonical/**"
+      - "packages/**"
+      - "scripts/**"
+      - "lib/**"
+  pull_request:
+    paths:
+      - "plugins/**"
+      - "canonical/**"
+      - "packages/**"
+      - "scripts/**"
+      - "lib/**"
+  workflow_call:
+
+jobs:
+  test:
+    name: vitest + agntux-build bundle drift
+    # macOS: these are macOS-only plugins and the launcher's trust check is
+    # `codesign`, which only exists here — so the launcher/hook tests run with
+    # real semantics. (The genuine-signed-app integration cases self-skip when
+    # /Applications/AgntUX.app is absent, as it is on a clean runner.)
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # actions/checkout v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        # actions/setup-node v4.1.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Enforces the single-source-of-truth chain: canonical/bin/agntux-node.sh
+      # + scripts/ + packages/dist must match the vendored agntux-build bundle.
+      # The launcher byte-identical tests (run below) pin agntux-core's copy.
+      - name: Check agntux-build toolchain bundle is in sync
+        run: npm run check:agntux-build-toolchain
+
+      - name: Run tests
+        run: npm test

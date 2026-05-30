@@ -6,8 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Changed
+## [10.2.0] — 2026-05-30
 
+### Added
+- **`bin/agntux-node.sh` launcher** (byte-identical to agntux-build's shared
+  launcher) so agntux-core's MCP server **and all hooks** run on a Mac with no
+  user-installed Node, via the AgntUX desktop app's Electron-as-Node runtime.
+  Claude Desktop runs the MCP server + `command` hooks as host processes and
+  provides no Node — `command: "node"` failed with "tools unavailable"; this
+  closes that gap.
+
+### Changed
+- **`.mcp.json` + every hook in `hooks/hooks.json` now run through
+  `sh bin/agntux-node.sh <script>`** instead of bare `node`. The launcher is
+  invoked via `sh` (no exec bit needed — it does not survive Claude Desktop's
+  zip→unzip), codesign-verifies the genuine AgntUX app (Developer ID Team ID
+  `K6B5DNTSS7` + bundle id `ai.agntux.teams`) before exec, and falls back to a
+  system `node` for developers. macOS-only; Windows/Linux is a follow-up.
 - **`/agntux onboard` first-run wrap-up now points the user back to the
   AgntUX setup app to refresh the connector's tools list.** When the
   installed-plugin sync adds new plugins, the deterministic wrap-up sends

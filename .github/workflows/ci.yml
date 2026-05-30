@@ -32,6 +32,12 @@ jobs:
     permissions:
       contents: read
 
+  test:
+    name: vitest + agntux-build bundle drift
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
   changelog-bump-heuristic:
     name: Changelog bump heuristic (advisory)
     uses: ./.github/workflows/changelog-bump-heuristic.yml
