@@ -56,12 +56,13 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { resolveToolchain } from "./toolchain-layout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -651,6 +652,21 @@ async function main() {
 
 // Run the CLI only when invoked directly — keeps runValidation + the hash
 // helpers importable from the MCP server / tests without a full validation run.
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+// Resolve BOTH sides with realpathSync before comparing: Node realpath-resolves
+// import.meta.url (symlinks followed — the Cowork plugin dir is a symlink, and
+// /tmp→/private/tmp on macOS) while argv[1] is the raw invocation path, so a raw
+// `import.meta.url === pathToFileURL(argv[1]).href` compare never matches under a
+// symlinked/spaced path — the silent, restart-proof failure fixed in the MCP
+// server's launch guard. NEVER URL.pathname (it %20-breaks on the space in the
+// Cowork "Application Support" path).
+function isMainModule() {
+  try {
+    if (!process.argv[1]) return false;
+    return realpathSync(__filename) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+if (isMainModule()) {
   main();
 }

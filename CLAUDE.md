@@ -414,6 +414,43 @@ The `.claude/commands/` directory contains slash commands for common operations:
 | `/dev-plugin {slug}` | Build a plugin's components + mcp-server and run it in HTTP_MODE for local testing |
 | `/package-plugins {slug}\|--all` | Build and produce `.zip` archives in `dist-zips/` for manual upload to Claude Desktop (fallback when the marketplace UI is broken) |
 
+### agntux-build toolchain vendoring (`sync:agntux-build-toolchain`)
+
+`agntux-build` is special: it **ships a vendored copy of the build/validate
+toolchain inside its own bundle** so a contributor with **no marketplace clone**
+can still scaffold, build, and validate a plugin in their sandbox. That creates
+two copies of several files — and a strict source-of-truth rule.
+
+- **Source of truth** lives at the repo root: `scripts/` (`validate-plugin.mjs`,
+  `build-plugin.mjs`, `render-skill.mjs`, `scaffold-marketplace-assets.mjs`,
+  `toolchain-layout.mjs`, `check-view-tool-imports.mjs`,
+  `lint-marketplace-metadata.ts`), `canonical/`, and `packages/*/dist`. **Edit
+  here.**
+- **Derived, tracked copies** live under `plugins/agntux-build/`: `bin/`
+  (`validate-plugin.mjs`, `build-plugin.mjs`, `toolchain-layout.mjs`), `scripts/`
+  (the helpers + the esbuild-compiled `lint-marketplace-metadata.mjs`), and
+  `canonical/` (ingest sync templates, scaffold assets, lifecycle-stripped
+  `@agntux/*` package manifests, and the apps-client `repo-mirror`). **Never
+  hand-edit a bundled copy** — it will just be overwritten and CI will flag the
+  drift.
+- **Sync command:** `npm run sync:agntux-build-toolchain` vendors source → bundle.
+  `node scripts/sync-agntux-build-toolchain.mjs --check` fails on drift and is
+  wired into CI + a vitest (`scripts/sync-agntux-build-toolchain.test.ts`). So the
+  workflow when touching the toolchain is always: **edit the repo-root source →
+  run the sync → commit both.** `toolchain-layout.mjs` resolves paths for either
+  layout (`repo` when run from the root clone, `bundle` when run from
+  `$CLAUDE_PLUGIN_ROOT`), so the same scripts work in both.
+
+The **MCP server is separate from this sync.** `plugins/agntux-build/mcp-server/`
+is hand-authored: edit `src/`, then run `node plugins/agntux-build/mcp-server/build.js`
+to produce `dist/` (a verbatim `src/*.js → dist/*.js` copy — also a tracked
+artifact the host launches via `.mcp.json`). The server imports the vendored
+`../../bin/validate-plugin.mjs` / `../../scripts/*` at runtime and runs the
+deterministic build natively (full fs, real Chromium) where the restricted Bash
+sandbox can't. So a toolchain change reaches Cowork via **two** steps: sync the
+bundle **and** (if `mcp-server/src` changed) rebuild `dist/`, then repackage the
+zip.
+
 ## Authoring tools
 
 The `plugin-toolkit` plugin (specialist agents for authoring AgntUX

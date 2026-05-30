@@ -190,8 +190,14 @@ bytes it validates are byte-for-byte the bytes it then hashes into `tree_sha256`
 — there is nothing to keep "in sync" and no trusted receipt. The tool runs
 **natively in the host process** (full filesystem, real Chromium), so it works in
 a contributor sandbox with **no marketplace clone** — unlike the restricted Bash
-sandbox, where the toolchain can't run. Do NOT attempt to run the validator
-yourself via Bash; call the tool.
+sandbox, where the toolchain can't run (it EPERMs on the native host build path).
+Do NOT attempt to run the validator — **or any deterministic build step** —
+yourself via Bash; call the tool. The same rule covers the whole toolchain:
+`agntux_scaffold` lays the marketplace-asset floor, and `agntux_validate` runs
+render-skill, the view-tool build, lint, typecheck, tests, and `claude plugin
+validate` — all natively. Never run `scaffold-marketplace-assets.mjs`,
+`render-skill.mjs`, `build-plugin.mjs`, `npm run build`, vite, or the validator
+via Bash; the MCP tools own all of it.
 
 **Ordering** (why the validated bytes == the submitted bytes):
 

@@ -61,6 +61,7 @@ const SERVER_INFO = { name: "agntux-build", version: readOwnVersion() };
 // same whether this file runs from src/ (dev) or dist/ (host launches
 // dist/index.js) — both are one level under mcp-server/.
 const VALIDATE_MJS = fileURLToPath(new URL("../../bin/validate-plugin.mjs", import.meta.url));
+const SCAFFOLD_MJS = fileURLToPath(new URL("../../scripts/scaffold-marketplace-assets.mjs", import.meta.url));
 const HOST_RENDERER_DIR = fileURLToPath(new URL("../../host-renderer", import.meta.url));
 const TEST_HARNESS_CLI = fileURLToPath(new URL("../../test-harness/bin/cli.mjs", import.meta.url));
 const BOOTSTRAP_WORKER = fileURLToPath(new URL("./bootstrap-worker.js", import.meta.url));
@@ -94,6 +95,20 @@ let browserReadyCached = false;
 // ── tool catalog ─────────────────────────────────────────────────────────────
 
 const TOOLS = [
+  {
+    name: "agntux_scaffold",
+    description:
+      "Scaffold the marketplace-asset FLOOR for a freshly-created plugin tree, run IN THIS SERVER (native, host-path-writable — the same context agntux_validate / agntux_write_submission run in). Idempotent: copies the placeholder icon, emits the skills/{slug}/_overrides/frontmatter.yaml render floor (so the skill tree renders even before the ingest specialist writes the real map), marketplace/README.md, and the plugin-root package.json + vitest.config.ts — each only when absent, NEVER overwriting a specialist's real output. Call this ONCE at the start of stage 7, BEFORE dispatching the authoring specialists and before agntux_validate. Returns {ok:true, output} or {ok:false, error_kind, blocking, detail}; NEVER throws. Do NOT run scaffold-marketplace-assets.mjs yourself via Bash — the Bash sandbox can't write the native host build path (EPERM); this server can.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        slug: { type: "string", description: "Marker slug, e.g. agntux-gmail." },
+        plugin_dir: { type: "string", description: "Absolute path to the build sandbox plugin tree (…/.agntux-build/builds/{session}/agntux-{slug}/)." },
+      },
+      required: ["slug", "plugin_dir"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "agntux_validate",
     description:
@@ -251,6 +266,44 @@ function ensureBrowser() {
 }
 
 // ── tool handlers (each returns a plain JSON-able result; NEVER throws) ───────
+
+async function handleScaffold(args) {
+  const slug = str(args.slug);
+  const pluginDir = str(args.plugin_dir);
+  if (!slug || !pluginDir) {
+    return { ok: false, error_kind: "usage", blocking: false, detail: "slug and plugin_dir are required" };
+  }
+  if (!existsSync(pluginDir)) {
+    return { ok: false, error_kind: "usage", blocking: false, detail: `plugin dir not found: ${pluginDir}` };
+  }
+  // Run the scaffold script NATIVELY in this server (host-path-writable). The
+  // script is idempotent and writes only absent floor assets. spawnSync (not
+  // import): the script runs its work at module top-level with no main-guard,
+  // so a child process is the clean boundary. Capture both streams.
+  let r;
+  try {
+    r = spawnSync(process.execPath, [SCAFFOLD_MJS, "--slug", slug, "--plugin-dir", pluginDir], {
+      encoding: "utf8",
+      env: process.env,
+    });
+  } catch (e) {
+    return { ok: false, error_kind: "internal", blocking: false, detail: `could not spawn scaffold: ${errStr(e)}` };
+  }
+  const output = `${r.stdout || ""}${r.stderr || ""}`.trim();
+  if (r.status === 0) {
+    return { ok: true, output };
+  }
+  // A scaffold failure is an agntux-build packaging/tooling defect (missing
+  // canonical template, unwritable dir) — NOT a contributor problem. blocking:
+  // false so the orchestrator stops honestly and logs a maintainer defect
+  // rather than re-dispatching a specialist.
+  return {
+    ok: false,
+    error_kind: "internal",
+    blocking: false,
+    detail: output || `scaffold exited with status ${r.status}${r.signal ? ` (signal ${r.signal})` : ""}`,
+  };
+}
 
 async function handleValidate(args) {
   const slug = str(args.slug);
@@ -469,7 +522,8 @@ async function handle(req) {
       // broken, I'll do it myself").
       let payload;
       try {
-        if (name === "agntux_validate") payload = await handleValidate(args);
+        if (name === "agntux_scaffold") payload = await handleScaffold(args);
+        else if (name === "agntux_validate") payload = await handleValidate(args);
         else if (name === "agntux_write_submission") payload = await handleWriteSubmission(args);
         else if (name === "agntux_confirm_submission") payload = await handleConfirmSubmission(args);
         else payload = { ok: false, error_kind: "usage", blocking: false, detail: `unknown tool: ${name}` };

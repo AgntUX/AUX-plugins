@@ -37,6 +37,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -375,7 +376,17 @@ function ensureDir(d) {
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
 function isMain() {
-  return process.argv[1] === __filename;
+  // Resolve BOTH sides with realpathSync: a raw `process.argv[1] === __filename`
+  // compare never matches under a symlinked/spaced path (the Cowork plugin dir is
+  // a symlink, /tmp→/private/tmp on macOS), so the CLI guard would mis-fire —
+  // the same bug class fixed in the MCP server launch guard. Importing this
+  // module (build-plugin / validate / tests) stays side-effect-free.
+  try {
+    if (!process.argv[1]) return false;
+    return realpathSync(__filename) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
 }
 
 function parseArgs(argv) {

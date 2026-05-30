@@ -73,7 +73,7 @@ describe("agntux-build MCP server", () => {
     expect(existsSync(SERVER)).toBe(true);
   });
 
-  it("handshakes and lists exactly the three pipeline tools", async () => {
+  it("handshakes and lists exactly the four pipeline tools", async () => {
     const got = await rpc(
       [
         { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
@@ -83,7 +83,31 @@ describe("agntux-build MCP server", () => {
     );
     expect(got.get(1)?.result?.serverInfo?.name).toBe("agntux-build");
     const names = (got.get(2)?.result?.tools ?? []).map((t: any) => t.name).sort();
-    expect(names).toEqual(["agntux_confirm_submission", "agntux_validate", "agntux_write_submission"]);
+    expect(names).toEqual([
+      "agntux_confirm_submission",
+      "agntux_scaffold",
+      "agntux_validate",
+      "agntux_write_submission",
+    ]);
+  });
+
+  it("agntux_scaffold returns a structured usage verdict (NOT a JSON-RPC error) for a missing tree", async () => {
+    const got = await rpc(
+      [
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+        {
+          jsonrpc: "2.0", id: 2, method: "tools/call",
+          params: { name: "agntux_scaffold", arguments: { slug: "agntux-nope", plugin_dir: "/tmp/nope-does-not-exist-xyz" } },
+        },
+      ],
+      [2],
+    );
+    const resp = got.get(2);
+    expect(resp.error).toBeUndefined(); // never a protocol error
+    const v = toolPayload(resp);
+    expect(v.ok).toBe(false);
+    expect(v.error_kind).toBe("usage");
+    expect(v.blocking).toBe(false);
   });
 
   it("agntux_validate returns a structured usage verdict (NOT a JSON-RPC error) for a missing tree", async () => {

@@ -70,12 +70,14 @@ The `:revise` path suppresses voice/gratitude/confirmations and skips stages
 
 ## Build-tools pre-flight — fail fast, never waste the user's hour
 
-Building, validating, and submitting all run through the **`agntux-build`
-MCP server** (declared in this plugin's `.mcp.json`, launched natively by
-the host). Its three tools — `agntux_validate`, `agntux_write_submission`,
-`agntux_confirm_submission` — must be callable for a build to honestly reach
-a green gate. The pre-flight is **"are those tools callable?"** — never "do
-the toolchain files exist on disk."
+Scaffolding, building, validating, and submitting all run through the
+**`agntux-build` MCP server** (declared in this plugin's `.mcp.json`, launched
+natively by the host). Its four tools — `agntux_scaffold`, `agntux_validate`,
+`agntux_write_submission`, `agntux_confirm_submission` — must be callable for a
+build to honestly reach a green gate. The pre-flight is **"are those tools
+callable?"** — never "do the toolchain files exist on disk." They run the
+deterministic work (scaffold, render, build, lint, typecheck, tests, validate,
+render) **natively**, where the restricted Bash sandbox can't.
 
 Searching the marketplace (stage 1) and installing an existing plugin
 (stage 2) don't need those tools, so don't block those. But the moment the

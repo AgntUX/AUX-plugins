@@ -14,11 +14,13 @@ In order:
    `proposed_schema` block), `marketplace/icon.png` (placeholder),
    `README.md`, `CHANGELOG.md`. (No screenshots — the marketplace ships
    icon-only listings per WS-C.2.)
-2. **`ingest-prompt-author`** — generates
+2. **`ingest-prompt-author`** — authors
    `skills/{plugin-slug}/_overrides/frontmatter.yaml` and the
    wholesale `_overrides/reference/fetch.md` for the connector's
-   read tools. Runs `scripts/render-skill.mjs {plugin-slug}` to emit
-   the full ingest skill tree.
+   read tools. It authors the `_overrides/` **inputs only** — the
+   full ingest skill tree is rendered natively inside `agntux_validate`
+   (its build step runs `render-skill` from canonical + your
+   `_overrides/`). Never run `render-skill.mjs` yourself via Bash.
 3. **`source-semantics-advisor`** — picks a cursor strategy from
    `canonical/prompts/ingest/cursor-strategies.md` based on what the
    connector's read tools support (per-channel cursor map, single
@@ -42,18 +44,23 @@ In order:
    `{{ui-name}}` / `{{view-tool-name}}` like every other content
    placeholder. See plugins/agntux-core/CHANGELOG.md → 9.5.3 for the
    bug class this guard catches.
-6. **`view-tool-builder`** — runs the view-tool/ build pipeline
-   (vite → tsc/esbuild → emit-manifest), validates the emitted
-   view-tools.manifest.json against the Zod schema from
-   @agntux/plugin-runtime, asserts plugin-slug prefixing on every
-   view_tools[].name. Falls back to direct-esbuild re-build on
-   architectural-crash hosts per §3 below.
-7. **`invariant-checker`** — runs the four pre-flight gates:
-   skill-render reproducibility (lint pass 8), agntux-core
-   coordination (no changes here for net-new), hooks byte-freeze
-   (N/A — source plugins ship no hooks), and source-plugin shape
-   invariants (no `mcp-server/`, no `.mcp.json`, manifest emitted,
-   prefix-asserted, no forbidden host imports).
+6. **`view-tool-builder`** — authors `view-tool/src/` (the component,
+   the Send-envelope wiring, `vite.config.ts` + its sibling HTML
+   entry). It does **not** run the build: the view-tool pipeline
+   (vite → tsc/esbuild → emit-manifest, the Zod-schema validation of
+   `view-tools.manifest.json` against @agntux/plugin-runtime, the
+   plugin-slug prefix assertion on every view_tools[].name, and the
+   architectural-crash esbuild fallback per §3 below) runs natively
+   inside `agntux_validate`'s build step. Never run vite / `npm run
+   build` / `emit-manifest` yourself via Bash.
+7. **`invariant-checker`** — checks the source-plugin shape invariants
+   by **reading** the tree (no `mcp-server/`, no `.mcp.json`, manifest
+   emitted, prefix-asserted, no forbidden host imports), plus
+   agntux-core coordination (no changes here for net-new) and hooks
+   byte-freeze (N/A — source plugins ship no hooks). The skill-render
+   reproducibility check (lint pass 8) is enforced natively inside
+   `agntux_validate`; this checker confirms shape via Read/Grep — it
+   does not run lint or render via Bash.
 
 ## Where the build runs
 
@@ -179,19 +186,30 @@ longer the pre-flight: the tools being *callable* is. Do not shell out to
 
 ## Hard pre-flight B — marketplace-asset scaffold (unconditional — before specialist dispatch)
 
-Then run the marketplace-asset scaffold. This is **unconditional and
-load-bearing** — capture its exit code and halt stage 7 on a non-zero exit (a
-scaffold failure is an agntux-build defect, not a contributor problem):
+Then scaffold the marketplace-asset floor. This is **unconditional and
+load-bearing**. Call the **`agntux_scaffold` MCP tool** — do NOT run
+`scaffold-marketplace-assets.mjs` yourself via Bash. The Bash sandbox is a
+restricted Linux container that cannot write the native host build path (EPERM);
+the MCP server runs natively and writes it fine. That EPERM-then-`/tmp`-escape is
+exactly what produced incomplete trees and failed submissions before.
 
-```bash
-node "$CLAUDE_PLUGIN_ROOT/scripts/scaffold-marketplace-assets.mjs" --slug agntux-{slug} --plugin-dir {build-path}
+```
+agntux_scaffold({ slug: "agntux-{slug}", plugin_dir: "{build-path}" })
 # {build-path} = the tree from "Where the build runs" (the sandbox under
-#   <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/, or the
-#   AUX-plugins clone's plugins/agntux-{slug}/ when a clone exists).
-# non-zero exit → STOP. Do not dispatch specialists. Log the defect for the maintainer.
+#   <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/).
 ```
 
-The script (per WS-A.3 / WS-C.2) is idempotent and:
+Branch on the RETURN value:
+
+- **`{ ok: true }`** → proceed to the confirmation gate and specialist dispatch.
+- **`{ ok: false, ... }`** → STOP. Do NOT dispatch specialists, do NOT fall back
+  to running the scaffold script via Bash, do NOT hand-create the floor files. A
+  scaffold failure is an agntux-build defect (missing canonical template,
+  unwritable dir), not a contributor problem — log it for the maintainer (saved
+  session + the one-line "hit a snag" message).
+
+The tool runs `scripts/scaffold-marketplace-assets.mjs` natively (per WS-A.3 /
+WS-C.2). It is idempotent and:
 
 - copies the 512×512 icon placeholder to `marketplace/icon.png` if absent;
 - emits the `skills/agntux-{slug}/_overrides/frontmatter.yaml` **floor** from the
@@ -200,7 +218,8 @@ The script (per WS-A.3 / WS-C.2) is idempotent and:
   lint pass 8 can reproduce the skill tree (closing E15) even before
   `ingest-prompt-author` writes the real substitution map — which overwrites the
   floor on a normal build;
-- writes a placeholder `marketplace/README.md` note.
+- writes a placeholder `marketplace/README.md` note, the plugin-root
+  `package.json`, and `vitest.config.ts`.
 
 It does **not** create `marketplace/screenshots/` — screenshots are no longer
 required (WS-C.2).
@@ -270,39 +289,54 @@ even then it's a one-liner:
 No technical detail in the surface — the session file carries the
 traceback for maintainers.
 
-## Stage-7 verification — specialists self-validate; the authoritative gate runs at submit (WS-A.2)
+## Stage-7 verification — `agntux_validate` runs the gate natively; submit re-validates (WS-A.2)
 
-The single authoritative build → lint → typecheck → tests → `claude plugin
-validate` → render gate is the **`agntux-build` MCP server's tools**
-(`agntux_validate`, and `agntux_write_submission` which re-validates internally),
-and it now runs **once, at submit** (`12-submit.md` step b.5), fail-closed,
-against the exact tree being submitted. `agntux_write_submission` re-validates
-internally and refuses to write `SUBMISSION.json` on any failure — there is no
+The single authoritative build → render-skill → lint → typecheck → tests →
+`claude plugin validate` → render gate is the **`agntux-build` MCP server's
+tools**: `agntux_validate` (the fast pre-check) and `agntux_write_submission`
+(which re-validates internally at submit, fail-closed, against the exact
+signature-carrying tree). Both run **natively in the server** — full filesystem,
+host-path-writable, real Chromium — and **never** as a Bash program. There is no
 trusted receipt to forge, and no caller verdict is trusted.
 
-Running the full validation HERE too would just double-build the same gate within
-one submit attempt. So stage 7 does NOT re-run the full validation; it relies on
-each specialist's own fast self-validation, which is enough to carry the tree
-through preview (stage 8) and sync-iterate (stages 9–11):
+The seven specialists **only author** (`Write`/`Edit` into the build tree). They
+do NOT run build, render-skill, lint, typecheck, tests, or the view-tool pipeline
+themselves — those deterministic steps all run inside `agntux_validate` (in the
+restricted Bash sandbox they EPERM on the native host path and escape to `/tmp`,
+yielding an incomplete tree — the exact failure this closes). After the seven
+have authored, call once:
 
-- **`view-tool-builder`** runs the view-tool build (`vite → tsc → esbuild →
-  emit-manifest`) **and** the data-driven `check-view-tool-imports.mjs` gate
-  before it — so dist/ exists for stage 8's headless render and wrong-source /
+```
+agntux_validate({ slug: "agntux-{slug}", plugin_dir: "{build-path}" })
+```
+
+and loop on the verdict (below) until `ok:true` — that carries the tree through
+preview (stage 8) and sync-iterate (stages 9–11). What `agntux_validate` runs for
+you natively, that specialists must never attempt via Bash:
+
+- the **skill render** (`render-skill` from canonical + your `_overrides/`, in the
+  build step) — so lint pass-8 render-reproducibility checks a freshly-rendered
+  tree;
+- the **view-tool build** (`vite → tsc → esbuild → emit-manifest`) and the
+  data-driven `check-view-tool-imports.mjs` gate before it — so `dist/` (incl.
+  `ui-resources/*.html`) exists for stage 8's headless render and wrong-source /
   hallucinated `@agntux/ui-primitives` imports are caught (and apps hooks
-  auto-re-routed) up front.
-- **`tests-author`** runs vitest in the plugin root **and** the view-tool.
-- **`invariant-checker`** runs pass-8 render-reproducibility + the source-plugin
-  shape invariants.
-- **`manifest-author`** re-lints its own output (`lint:marketplace`).
+  auto-re-routed) up front;
+- **vitest** in the plugin root and the view-tool;
+- pass-8 render-reproducibility + the source-plugin shape invariants;
+- the marketplace **lint** (`lint:marketplace`) and `claude plugin validate`.
 
-When the submit-time gate (stage 12) fails, `agntux_write_submission` returns
-`ok:false` with a structured verdict — `{ failed_stage, routing, blocking,
-error_kind, detail, stages }` — and writes nothing. Read `failed_stage` (from the
-tool's RETURN value, not a parsed stdout line) and re-dispatch the owning
-specialist, then re-call the tool (validation runs **once per submit attempt,
-never twice within one**). A `blocking:false` verdict (e.g. `error_kind:
-"environment"`) means an environment/usage limit — stop honestly, do NOT
-re-dispatch a specialist. The `failed_stage` → specialist mapping is unchanged:
+When `agntux_validate` (here at stage 7) or `agntux_write_submission` (at submit,
+stage 12) returns `ok:false`, the structured verdict — `{ failed_stage, routing,
+blocking, error_kind, detail, stages }` — names the fix and writes nothing. Read
+`failed_stage` (from the tool's RETURN value, not a parsed stdout line),
+re-dispatch the owning specialist to fix its `_overrides/` / `src` inputs, then
+re-call the tool (validation runs **once per call, never twice within one**). A
+`blocking:false` verdict (e.g. `error_kind: "environment"`) means an
+environment/usage limit — stop honestly, do NOT re-dispatch a specialist. The
+`failed_stage` → specialist mapping (a `build` failure can be a render-skill
+error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →
+`ingest-prompt-author`):
 
 | `failed_stage` | Re-dispatch |
 |---|---|
