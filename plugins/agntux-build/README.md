@@ -76,6 +76,16 @@ won't ask again unless the agreement changes.
 After that, just describe the system you want covered and we'll take
 it from there.
 
+## If a build can't reach the tools
+
+The builder's heavy lifting runs inside a small local helper that the
+AgntUX desktop app starts for you. **Right after you install or update
+agntux-build, fully quit and reopen the AgntUX desktop app** so it picks
+that helper up. If a build ever says it can't reach the AgntUX build
+tools, that's the fix — quit the desktop app completely, reopen it, and
+run `/agntux-build:build` again. You'll pick up right where you left off;
+nothing is lost.
+
 ## Voice
 
 `agntux-build` is intentionally written for knowledge workers, not

@@ -68,6 +68,41 @@ Before entering the stage flow, check the first whitespace-delimited token of
 The `:revise` path suppresses voice/gratitude/confirmations and skips stages
 1–5. See `references/revise.md` for the full flow.
 
+## Build-tools pre-flight — fail fast, never waste the user's hour
+
+Building, validating, and submitting all run through the **`agntux-build`
+MCP server** (declared in this plugin's `.mcp.json`, launched natively by
+the host). Its three tools — `agntux_validate`, `agntux_write_submission`,
+`agntux_confirm_submission` — must be callable for a build to honestly reach
+a green gate. The pre-flight is **"are those tools callable?"** — never "do
+the toolchain files exist on disk."
+
+Searching the marketplace (stage 1) and installing an existing plugin
+(stage 2) don't need those tools, so don't block those. But the moment the
+flow commits to **building or fixing** a plugin — entering stage 3 (connect
+the source), entering update mode, or the `:revise` path — confirm the three
+tools are in your available toolset **before** you ask the user to connect
+anything or invest time in design. (Stage 7 restates this as a final
+backstop; do not wait until then to find out.)
+
+If any of the three is **not** callable, the most common cause is that the
+AgntUX desktop app hasn't (re)spawned the build server yet — it just
+updated, or hasn't been restarted since the builder was installed. Do
+**not** start the build, do **not** fall back to Bash or a hand-written
+program, and do **not** claim anything was built. Say exactly this, then
+stop:
+
+> Before we dig in — I can't reach the AgntUX build tools yet. That almost
+> always means the AgntUX desktop app needs a fresh start to pick them up
+> (it happens right after the app updates, or the first time the builder is
+> installed). Quit the AgntUX desktop app completely, reopen it, then run
+> `/agntux-build:build` again and we'll pick right back up here. Nothing's
+> lost.
+
+Only if a full quit-and-reopen still leaves the tools uncallable is it an
+agntux-build defect worth logging for the maintainer — a first failure is a
+restart, not a dead end.
+
 ## Routing — load the right reference for the current stage
 
 Each stage loads its own `references/NN-*.md` resource on entry and

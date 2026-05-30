@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.16.3] — 2026-05-30
+
+A registration-hardening follow-up to 0.16.2: when the build tools aren't
+reachable, the build flow now fails fast with a self-fix instruction instead
+of treating it as an unfixable defect, and it checks far earlier so the user
+never invests an hour of design only to hit a wall at build time.
+
+### Changed
+- **The build flow confirms the `agntux-build` MCP tools are callable before it
+  invests the user's time** — as soon as the flow commits to building or fixing
+  a plugin (entering stage 3 "connect the source", update mode, or the `:revise`
+  path), not only at stage 7. Searching the marketplace and installing an
+  existing plugin still work without the build server, so those paths aren't
+  blocked. Stage 7's "Hard pre-flight A" remains as a final backstop.
+- **"Can't reach the build tools" now tells the user how to fix it.** The most
+  common cause is the AgntUX desktop app not having (re)spawned the build server
+  after an install/update; the flow now says "quit and reopen the AgntUX desktop
+  app, then re-run `/agntux-build:build`" and stops — instead of logging a
+  maintainer defect with the generic "hit a snag" copy. The defect path is kept
+  only for the case where a full restart doesn't help.
+
+### Docs
+- README documents the quit-and-reopen-after-install/update requirement.
+
 ## [0.16.2] — 2026-05-29
 
 Two packaging/registration fixes that prevented the in-Cowork build from
