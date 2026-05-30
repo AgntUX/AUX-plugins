@@ -22,6 +22,13 @@ export default defineConfig({
       "**/ui-handlers/*/component/**",
       // Same for plugin MCP server packages — run via their own vitest config.
       "**/mcp-server/**",
+      // Same for the host-renderer sub-package: it has its own package.json +
+      // lockfile + deps (express, cors, playwright) that the root `npm ci`
+      // doesn't install, so its tests must run via its own config
+      // (`cd plugins/agntux-build/host-renderer && npm test`). Collecting them
+      // at the root made `npm test` fail on a clean checkout with
+      // "Cannot find package 'express'".
+      "**/host-renderer/**",
       // Same for view-tool tests (post-P7 source plugins): their UI tests live
       // under view-tool/{src/__tests__,__tests__}/ and need jsdom + the
       // view-tool's own setupFiles (vitest.setup.ts) + @vitejs/plugin-react.
