@@ -1,6 +1,7 @@
 name: Test + toolchain drift
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "plugins/**"
@@ -8,6 +9,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - "vitest.config.ts"
   pull_request:
     paths:
       - "plugins/**"
@@ -15,6 +17,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - "vitest.config.ts"
   workflow_call:
 
 jobs:

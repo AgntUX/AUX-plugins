@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "plugins/**"
@@ -8,6 +9,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - "vitest.config.ts"
       - ".github/workflows/build-pr.yml"
   pull_request:
     paths:
@@ -16,6 +18,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "lib/**"
+      - "vitest.config.ts"
       - ".github/workflows/build-pr.yml"
 
 # Run all jobs even if one fails (fail-fast: OFF).
