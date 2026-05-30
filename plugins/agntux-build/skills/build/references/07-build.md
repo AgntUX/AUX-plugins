@@ -160,8 +160,22 @@ longer the pre-flight: the tools being *callable* is. Do not shell out to
 
 - **Tools callable** → proceed to Hard pre-flight B.
 - **Tools not callable** → STOP. Do NOT dispatch specialists. Do NOT shell out to
-  a validator, write a receipt, or claim "built". Log the defect for the
-  maintainer (saved session + the one-line "hit a snag" message).
+  a validator, write a receipt, or claim "built". The build-tools pre-flight in
+  `SKILL.md` should already have caught this before stage 3, so reaching here means
+  the server stopped (or never re-spawned) mid-flow. This is almost always a
+  fixable environment state — the AgntUX desktop app needs a fresh start to pick
+  the build server back up — and the user can fix it themselves. Say exactly this,
+  then stop (do **not** use the "hit a snag / the team will look into it" copy —
+  that's reserved for failures the user can't fix):
+
+  > I can't reach the AgntUX build tools right now — that usually means the AgntUX
+  > desktop app needs a fresh start to pick them back up. Quit the AgntUX desktop
+  > app completely, reopen it, then run `/agntux-build:build` again and we'll carry
+  > on from here. Nothing's lost.
+
+  Only if a full quit-and-reopen still leaves the tools uncallable is it a genuine
+  agntux-build defect — then (and only then) log it for the maintainer (saved
+  session + the one-line "hit a snag" message).
 
 ## Hard pre-flight B — marketplace-asset scaffold (unconditional — before specialist dispatch)
 
