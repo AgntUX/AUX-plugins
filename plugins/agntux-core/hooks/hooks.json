@@ -4,31 +4,31 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-schema.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/validate-schema.mjs" }
         ]
       },
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-contract.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/validate-contract.mjs" }
         ]
       },
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/lint-entity-shape.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/lint-entity-shape.mjs" }
         ]
       },
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-cursor.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/validate-cursor.mjs" }
         ]
       },
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/validate-write-lane.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/validate-write-lane.mjs" }
         ]
       }
     ],
@@ -36,14 +36,14 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/maintain-index.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/maintain-index.mjs" }
         ]
       }
     ],
     "SessionEnd": [
       {
         "hooks": [
-          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-end-rebuild.mjs" }
+          { "type": "command", "command": "sh ${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh ${CLAUDE_PLUGIN_ROOT}/hooks/session-end-rebuild.mjs" }
         ]
       }
     ]

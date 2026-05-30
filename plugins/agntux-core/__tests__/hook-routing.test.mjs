@@ -86,6 +86,23 @@ describe("hooks.json structure", () => {
     );
     expect(entry).toBeDefined();
   });
+
+  it("routes EVERY hook through bin/agntux-node.sh (zero-user-Node runtime)", () => {
+    // Hooks must run under the AgntUX desktop runtime on a machine with no
+    // system Node — never bare `node`. Catches a revert to `node <hook>.mjs`.
+    const hooks = JSON.parse(readFileSync(join(HOOKS_DIR, "hooks.json"), "utf8"));
+    const commands = Object.values(hooks.hooks ?? {})
+      .flat()
+      .flatMap((entry) => (entry.hooks ?? []).map((h) => h.command ?? ""));
+    expect(commands.length).toBe(7); // 5 PreToolUse + 1 PostToolUse + 1 SessionEnd
+    for (const cmd of commands) {
+      expect(cmd).toContain("bin/agntux-node.sh");
+      // The launcher is invoked via `sh` so it needs no exec bit (the bit does
+      // not survive Claude Desktop's zip→unzip round-trip).
+      expect(cmd.startsWith("sh ")).toBe(true);
+      expect(cmd).not.toMatch(/(^|\s)node\s+\$\{CLAUDE_PLUGIN_ROOT\}/);
+    }
+  });
 });
 
 describe("hook files exist", () => {

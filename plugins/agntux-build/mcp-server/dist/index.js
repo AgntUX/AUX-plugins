@@ -45,9 +45,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
+  chmodSync,
   readFileSync,
   writeFileSync,
   renameSync,
+  rmSync,
   openSync,
   realpathSync,
 } from "node:fs";
@@ -687,6 +690,163 @@ export function markerSelfCheck(marker, { pluginDir, sessionDir, markerPath }) {
   return { ok: true };
 }
 
+// ── zero-user-Node runtime shim ───────────────────────────────────────────────
+// The build shells out to bare `node`/`npm`/`npx` (validate → build-plugin.mjs →
+// `npm install` → vite/tsc/vitest; render bootstrap → `npx playwright install`).
+// On a user machine with NO node/npm on PATH, the bin/agntux-node.sh launcher
+// (which launched THIS server) resolves the AgntUX desktop app's runtime and
+// exports AGNTUX_ELECTRON (Electron-as-node) + AGNTUX_NPM_CLI (bundled npm). At
+// startup we build a temp shim bin dir whose `node`/`npm`/`npx` re-exec that
+// runtime, prepend it to process.env.PATH, and set ELECTRON_RUN_AS_NODE=1. The
+// toolchain's run() helpers inherit process.env, so every downstream child
+// resolves the shim with NO per-call threading. A no-op when no AgntUX runtime
+// is present (dev / CI) — the system node/npm on PATH is used unchanged.
+
+// The genuine AgntUX desktop app's Developer ID signing identity — mirrors
+// bin/agntux-node.sh. The marker is untrusted input (user-writable dir), so a
+// marker-derived runtime is bound to this identity, never a path shape.
+const AGNTUX_TEAM_ID = "K6B5DNTSS7";
+const AGNTUX_BUNDLE_ID = "ai.agntux.teams";
+
+/** Shell double-quote a path for embedding in a generated `sh` shim. */
+function shQuote(s) {
+  return `"${String(s).replace(/(["\\$`])/g, "\\$1")}"`;
+}
+
+/**
+ * Read the desktop app's runtime marker as a fallback when the launcher's env
+ * exports are absent (server launched without bin/agntux-node.sh). Pure
+ * structural read (existence-checked electronPath) — identity verification is
+ * the caller's job (verifyAgntuxRuntime). Returns null on any miss.
+ */
+export function readRuntimeMarker(home = os.homedir()) {
+  try {
+    const p = path.join(home, "Library", "Application Support", "AgntUX", "electron-runtime.json");
+    const m = JSON.parse(readFileSync(p, "utf8"));
+    if (m && typeof m.electronPath === "string" && existsSync(m.electronPath)) {
+      return { electronPath: m.electronPath, npmCliPath: typeof m.npmCliPath === "string" ? m.npmCliPath : "" };
+    }
+  } catch {
+    /* no marker / unreadable */
+  }
+  return null;
+}
+
+/** The `*.app` bundle root for an Electron exe path, or "" if not a bundle. */
+function bundleRootOf(electron) {
+  const m = /^(.*\.app)\/Contents\/MacOS\//.exec(electron || "");
+  return m ? m[1] : "";
+}
+
+/**
+ * Verify an electron path is the GENUINE, signed AgntUX runtime (codesign Team
+ * ID + bundle id). Used to gate a marker-derived runtime on the fallback path
+ * the launcher's own codesign check didn't cover. NEVER throws; false on any
+ * doubt. Exported for tests.
+ */
+export function verifyAgntuxRuntime(electron) {
+  try {
+    const bundle = bundleRootOf(electron);
+    if (!bundle || !existsSync(electron)) return false;
+    const v = spawnSync("codesign", ["--verify", "--strict", bundle], { encoding: "utf8" });
+    if (v.status !== 0) return false;
+    const d = spawnSync("codesign", ["-dvv", bundle], { encoding: "utf8" });
+    const info = `${d.stdout || ""}${d.stderr || ""}`;
+    return (
+      info.includes(`TeamIdentifier=${AGNTUX_TEAM_ID}`) &&
+      info.includes(`Identifier=${AGNTUX_BUNDLE_ID}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Constrain a bundled npm-cli.js to live inside the bundle of `electron`
+ * (<bundle>/Contents/Resources/npm/…) and exist. A foreign/absent path → "".
+ * Pure + exported for tests.
+ */
+export function npmUnderBundle(electron, npmCli) {
+  if (!npmCli) return "";
+  const bundle = bundleRootOf(electron);
+  if (!bundle) return "";
+  const resourcesNpm = path.join(bundle, "Contents", "Resources", "npm");
+  const rel = path.relative(resourcesNpm, npmCli);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return "";
+  return existsSync(npmCli) ? npmCli : "";
+}
+
+/**
+ * Build a temp shim bin dir with `node`/`npm`/`npx` that re-exec the AgntUX
+ * Electron runtime as Node. Pure + exported for unit tests. Returns
+ * { shimDir, hasNpm } or null when no electron path is given.
+ */
+export function buildRuntimeShim({ electron, npmCli, tmpRootDir } = {}) {
+  if (!electron) return null;
+  const shimDir = mkdtempSync(path.join(tmpRootDir || os.tmpdir(), "agntux-build-shim-"));
+  const writeShim = (name, body) => {
+    const p = path.join(shimDir, name);
+    writeFileSync(p, body, { mode: 0o755 });
+    chmodSync(p, 0o755); // umask can clear the bits writeFileSync's mode asked for
+  };
+  // ELECTRON_RUN_AS_NODE is also set process-wide below, but pin it per-shim so
+  // these work even if a child scrubs the inherited env.
+  writeShim("node", `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${shQuote(electron)} "$@"\n`);
+  const hasNpm = Boolean(npmCli);
+  if (hasNpm) {
+    writeShim("npm", `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${shQuote(electron)} ${shQuote(npmCli)} "$@"\n`);
+    // npx-cli.js is a sibling of npm-cli.js in a normal npm. Only shim it when
+    // it actually exists, so a stripped npm degrades to "no npx" instead of a
+    // wrapper pointing at a missing CLI.
+    const npxCli = path.join(path.dirname(npmCli), "npx-cli.js");
+    if (existsSync(npxCli)) {
+      writeShim("npx", `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${shQuote(electron)} ${shQuote(npxCli)} "$@"\n`);
+    }
+  }
+  return { shimDir, hasNpm };
+}
+
+/**
+ * Install the runtime shim into this process's env (PATH prepend +
+ * ELECTRON_RUN_AS_NODE). NEVER throws (a shim failure degrades to system PATH,
+ * it must not wedge the server). Trust model: an AGNTUX_ELECTRON from the env
+ * was already codesign-verified by the launcher; a marker-derived runtime is
+ * verified HERE before use.
+ */
+function initRuntimeShim() {
+  try {
+    let electron = process.env.AGNTUX_ELECTRON || "";
+    let npmCli = process.env.AGNTUX_NPM_CLI || "";
+    if (!electron) {
+      const m = readRuntimeMarker();
+      if (m && verifyAgntuxRuntime(m.electronPath)) {
+        electron = m.electronPath;
+        npmCli = npmUnderBundle(electron, m.npmCliPath);
+      }
+    }
+    if (!electron) {
+      log("no AgntUX runtime (env/verified marker); using system node/npm on PATH");
+      return;
+    }
+    const built = buildRuntimeShim({ electron, npmCli });
+    if (!built) return;
+    // Reap the temp shim dir on clean exit (best-effort; the OS reaps tmp on
+    // reboot if we crash). Synchronous so it completes inside the exit handler.
+    process.on("exit", () => {
+      try {
+        rmSync(built.shimDir, { recursive: true, force: true });
+      } catch {
+        /* tmp dir already gone */
+      }
+    });
+    process.env.PATH = `${built.shimDir}${path.delimiter}${process.env.PATH || ""}`;
+    process.env.ELECTRON_RUN_AS_NODE = "1";
+    log(`runtime shim ready at ${built.shimDir} (npm ${built.hasNpm ? "on" : "absent"})`);
+  } catch (e) {
+    log(`runtime shim init failed (continuing with system PATH): ${errStr(e)}`);
+  }
+}
+
 // ── stdin loop ────────────────────────────────────────────────────────────────
 
 export function startServer() {
@@ -760,5 +920,6 @@ function isMainModule() {
   }
 }
 if (isMainModule()) {
+  initRuntimeShim();
   startServer();
 }

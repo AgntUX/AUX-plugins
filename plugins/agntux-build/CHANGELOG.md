@@ -6,6 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-05-30
+
+Zero-user-Node runtime: agntux-build now runs on a Mac with **no `node`/`npm`
+installed**, by re-using the AgntUX desktop app's Electron-as-Node runtime + its
+bundled npm. Claude Desktop runs the plugin's MCP server as a host process and
+provides no Node, so `command: "node"` failed with "tools unavailable" — this
+closes that gap.
+
+### Added
+- **`bin/agntux-node.sh` launcher** (shared single source —
+  `canonical/bin/agntux-node.sh`, synced into the bundle by
+  `sync-agntux-build-toolchain.mjs`). Resolves the desktop app's runtime from
+  the marker at `~/Library/Application Support/AgntUX/electron-runtime.json` (or
+  an app-bundle probe), and falls back to a system `node` for developers.
+- **MCP-server runtime shim** — at startup the server builds a temp
+  `node`/`npm`/`npx` PATH shim over the resolved Electron + bundled npm and
+  prepends it to `PATH`, so the whole build (`npm install` → vite/tsc/vitest;
+  `npx playwright install`) resolves it with no per-call env threading. A clean
+  no-op (system node/npm) on a dev/CI machine.
+- CI now runs the test suite + the agntux-build toolchain drift `--check`
+  (`.github/workflows/test.yml`), enforcing the launcher single-source chain.
+
+### Changed
+- **`.mcp.json`** launches the server via `sh bin/agntux-node.sh
+  mcp-server/dist/index.js` (was `command: "node"`). The launcher is invoked
+  through `sh`, so it needs no exec bit — which does not survive Claude
+  Desktop's zip→unzip.
+
+### Security
+- The runtime marker is untrusted input (user-writable dir). Both the launcher
+  and the server bind the executed runtime to the genuine AgntUX **codesign
+  identity** (Developer ID Team ID `K6B5DNTSS7` + bundle id `ai.agntux.teams`)
+  before exec — never a forgeable path shape — and constrain the bundled npm to
+  live inside that codesign-verified bundle.
+
+macOS-only; Windows/Linux discovery is an explicit follow-up.
+
 ## [0.17.0] — 2026-05-30
 
 P3 of the in-MCP-server build architecture: every deterministic build step now

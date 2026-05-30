@@ -24,6 +24,7 @@
 
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -54,6 +55,11 @@ const APPS_CLIENT_CANONICAL_REL =
 /** Single-file copies: [repo-relative src, bundle-relative dest]. */
 function fileCopies() {
   const copies = [
+    // Shared Node launcher (zero-user-Node runtime). Invoked via `sh` from
+    // .mcp.json so it needs no exec bit; the agntux-build MCP server reads the
+    // AGNTUX_ELECTRON/AGNTUX_NPM_CLI it exports to build the npm/npx PATH shim.
+    // Byte-identical to plugins/agntux-core/bin/agntux-node.sh (launcher.test).
+    ["canonical/bin/agntux-node.sh", "bin/agntux-node.sh"],
     // bin/ entrypoints (on the Bash PATH while the plugin is enabled)
     ["scripts/validate-plugin.mjs", "bin/validate-plugin.mjs"],
     ["scripts/build-plugin.mjs", "bin/build-plugin.mjs"],
@@ -277,6 +283,11 @@ function syncFile(buf, destAbs, destRel, check, drift) {
   if (!check) {
     mkdirSync(dirname(destAbs), { recursive: true });
     writeFileSync(destAbs, buf);
+    // Keep shipped shell launchers executable. The `sh <launcher>` invocation
+    // in .mcp.json/hooks doesn't need the bit, but match the canonical source's
+    // mode so the three copies are identical in content AND mode (and a direct
+    // ./bin/agntux-node.sh invocation, if ever added, doesn't silently break).
+    if (destRel.endsWith(".sh")) chmodSync(destAbs, 0o755);
   }
 }
 

@@ -1,8 +1,11 @@
 {
   "mcpServers": {
     "agntux-core": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"],
+      "command": "/bin/sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/agntux-node.sh",
+        "${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"
+      ],
       "env": {
         "AGNTUX_APP_ID": "${AGNTUX_APP_ID}"
       }
