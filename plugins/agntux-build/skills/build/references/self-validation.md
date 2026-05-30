@@ -1,19 +1,23 @@
 # Build-time self-validation — retry budgets + flagging policy (WS-A)
 
-The structural rule of v2: **every specialist verifies its own output with the
-real tooling before the build advances, and mechanical failures never reach the
-contributor.** Claude in a 12-stage flow treats prose instructions as
-best-effort; a validator the stage can't move past is not optional. This file is
-the single source of truth for the budgets and the mechanical-vs-judgment line.
-The per-specialist `agents/*.md` carry the specific validator command; the
-stage-7 final gate (`07-build.md`) loops the whole tree.
+The structural rule: **the specialists only author; the orchestrator validates
+the whole tree with the native MCP gate (`agntux_validate`) after they author,
+and mechanical failures never reach the contributor.** Claude in a 12-stage flow
+treats prose instructions as best-effort, and the restricted Bash sandbox can't
+run the toolchain against the native host build path at all (EPERM) — so
+validation is a **tool the orchestrator calls**, not a script a specialist runs.
+Specialists never run scaffold / render-skill / build / lint / typecheck / tests
+/ validate themselves (no Bash): `agntux_scaffold` lays the floor and
+`agntux_validate` runs all of that natively. This file is the single source of
+truth for the retry budgets and the mechanical-vs-judgment line; the stage-7 gate
+(`07-build.md`) loops the whole tree via `agntux_validate`.
 
 ## Retry budgets
 
 | Scope | Budget |
 |---|---|
-| Each specialist's own validator, within its dispatch | **5 edit-and-revalidate cycles** |
-| Submit-time validator (`12-submit.md`) → specialist re-dispatch loop | **5 submit→fix loops** |
+| Stage-7 `agntux_validate` → re-dispatch the owning specialist → re-validate | **5 validate→fix cycles** |
+| Submit-time `agntux_write_submission` (`12-submit.md`) → specialist re-dispatch loop | **5 submit→fix loops** |
 
 The bounds stop infinite spinning but are generous enough for genuinely-hard
 convergence (a view-tool with cascading TS errors, a listing.yaml with several
@@ -63,19 +67,27 @@ field trimmed at build time and a field trimmed by the worker converge to the
 same shape. Nested fields (`proposed_schema.*.description` 200, etc.) are trimmed
 the same way by editing the specific line.
 
-## Where the validators live
+## What each specialist authors — `agntux_validate` runs the checks
 
-| Specialist | Validator (run after writing its output) |
+Specialists author **inputs only** (via `Write`/`Edit`); they never run a
+validator. `agntux_validate` runs the checks natively and returns a verdict; on
+`ok:false`, re-dispatch the owning specialist per the authoritative `failed_stage`
+→ specialist table in `07-build.md` (don't duplicate that mapping here — it would
+drift).
+
+| Specialist | Authors (the inputs `agntux_validate` then checks) |
 |---|---|
-| `manifest-author` | `npm run lint:marketplace -- --plugin {slug}` (parse + trim E05; re-lint) |
-| `ingest-prompt-author` | `node scripts/render-skill.mjs --validate-overrides {slug}` |
-| `view-tool-builder` | `node $CLAUDE_PLUGIN_ROOT/scripts/check-view-tool-imports.mjs --plugin-dir <tree> --fix` (data-driven @agntux/ui-primitives import gate: auto-re-routes apps hooks to `./lib/apps-react`, renames `useStructuredContent`, hard-fails on a symbol exported by nothing) → `npm run build --prefix view-tool/` |
-| `tests-author` | vitest in **both** the plugin root (`__tests__/**`) **and** `view-tool/` (`view-tool/__tests__` + `view-tool/src/**`) — the plugin-root `vitest.config.ts` globs only `__tests__/**`, so the old `npm test --workspace plugins/{slug}` note missed the view-tool suite entirely. Run both, or just let the gate below do it. |
-| `ui-handler-author` / `draft-flow-author` | lint / build / test as relevant to the artifacts they emit |
+| `manifest-author` | `plugin.json`, `listing.yaml` (word-boundary-trim the E05 fields **at authoring time** — that's an `Edit`, not a Bash re-lint), `README`, `CHANGELOG`, `NOTICE`, `LICENSE` → checked by the `lint` + `validate` stages |
+| `ingest-prompt-author` | `_overrides/frontmatter.yaml` + `_overrides/reference/*.md` → rendered + checked by the build's render-skill and lint pass-8 (surviving `{{placeholders}}` route back here) |
+| `view-tool-builder` | `view-tool/src/**`, `vite.config.ts` + its HTML entry → checked by the build's view-tool pipeline, the `check-view-tool-imports.mjs` import gate (auto-re-routes apps hooks to `./lib/apps-react`, renames `useStructuredContent`, hard-fails on a symbol exported by nothing), and `typecheck` |
+| `tests-author` | `__tests__/**` + `view-tool/__tests__/**` → run by the `tests` stage in **both** the plugin root (globs `__tests__/**`) and `view-tool/` |
+| `source-semantics-advisor` | `_overrides/reference/cursor.md` → rendered with the rest of the skill tree |
+| `ui-handler-author` / `draft-flow-author` | the UI-handler component + Send-envelope wiring → exercised by the `build` + `render` stages |
 
 The single authoritative whole-tree gate is the agntux-build MCP server's
 **`agntux_validate`** tool (and **`agntux_write_submission`**, which re-runs it
-internally before writing the marker). It runs build → lint → view-tool
+internally before writing the marker). It runs build (incl. render-skill + the
+view-tool `vite → tsc → esbuild → emit-manifest` pipeline) → lint → view-tool
 typecheck → tests (plugin-root **and** view-tool) → `claude plugin validate` →
 render (best-effort) in the host-spawned server's NATIVE context (full
 filesystem, real Chromium) and returns a structured **verdict** — `ok:false`
@@ -83,14 +95,16 @@ with a `failed_stage` + `routing` on a hard failure, never a thrown error. **The
 gate is the verdict the tool RETURNS** — not a prose promise, and not an on-disk
 receipt: `agntux_write_submission` re-validates the exact tree being submitted
 and refuses to write `SUBMISSION.json` on any failure, so there is **no trusted
-receipt** an agent could hand-write to forge a pass. The model only orchestrates
-by calling the tools — it never runs the build/validate logic via Bash (the
-restricted sandbox that broke prior attempts), and there is no embedded program
-to hand-emulate.
+receipt** an agent could hand-write to forge a pass. The model and its
+specialists only orchestrate/author by calling the tools — they **never** run
+**scaffold, render-skill, the view-tool build, lint, typecheck, tests, or
+validate** via Bash (the restricted sandbox that EPERMs on the native host path
+and broke every prior attempt), and there is no embedded program to hand-emulate:
+`agntux_scaffold` and `agntux_validate` own all of it natively.
 
-Stage 7 does NOT re-run the full validator (that would double-build the same gate
-within one submit attempt); each specialist's own per-artifact check above is the
-fast inner loop that carries the tree through preview + sync-iterate. On a
-submit-time failure the flow re-enters the specialist fix loop per the
-`failed_stage` table in `07-build.md` and retries — the validator runs **once per
-submit attempt, never twice within one.**
+Stage 7 runs `agntux_validate` **once** after the seven specialists author (the
+fast native loop that carries the tree through preview + sync-iterate); submit
+(stage 12) re-validates via `agntux_write_submission`. On either failure the flow
+re-enters the specialist fix loop per the `failed_stage` table in `07-build.md`
+and re-calls the tool — validation runs **once per call, never twice within
+one.**

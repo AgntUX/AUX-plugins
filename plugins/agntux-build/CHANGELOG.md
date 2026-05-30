@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-05-30
+
+P3 of the in-MCP-server build architecture: every deterministic build step now
+runs natively inside the agntux-build MCP server, and the build specialists can
+no longer route around it through the restricted Bash sandbox (the
+EPERM-then-`/tmp`-escape that produced incomplete trees and failed submissions).
+
+### Added
+- **`agntux_scaffold` MCP tool** — runs `scaffold-marketplace-assets.mjs`
+  natively (host-path-writable) to lay the marketplace-asset floor (icon,
+  `_overrides/frontmatter.yaml` render floor, `marketplace/README.md`, plugin-root
+  `package.json` + `vitest.config.ts`) at the start of stage 7, before the
+  specialists author. Idempotent; never overwrites a specialist's real output.
+  Stage 7 (`07-build.md` Hard pre-flight B) now calls it instead of running the
+  scaffold script via Bash.
+
+### Changed
+- **The seven build specialists author only — no Bash.** Their tool grant drops
+  `Bash` and adds `Write` + `Glob` (`Read, Edit, Write, Grep, Glob`), so it is
+  structurally impossible for them to run scaffold / render-skill / the view-tool
+  build / lint / typecheck / tests / validate themselves. Those deterministic
+  steps all run natively inside `agntux_validate` (render-skill and the view-tool
+  build already run there via the build step, before lint pass-8). `07-build.md`,
+  `self-validation.md`, and `12-submit.md` are rewritten to match: the
+  orchestrator calls `agntux_scaffold`, then loops `agntux_validate`; specialists
+  fix their `_overrides/` / `src` inputs on a `failed_stage`.
+
+### Fixed
+- **Two more fragile main-module guards** (same class as 0.16.2's launch-guard
+  fix): `scripts/validate-plugin.mjs` and `scripts/render-skill.mjs` compared a
+  raw `process.argv[1]` against `import.meta.url` / `__filename`, which never
+  matches under a symlinked or spaced path (Cowork). Both now resolve **both
+  sides** via `realpathSync`, so the CLI entry points fire correctly while
+  importing the modules (MCP server, build-plugin, tests) stays side-effect-free.
+
+### Docs
+- CLAUDE.md documents the `sync:agntux-build-toolchain` vendoring (repo-root
+  source of truth → tracked bundle copies) and the MCP server's separate
+  `build.js` dist step.
+
 ## [0.16.3] — 2026-05-30
 
 A registration-hardening follow-up to 0.16.2: when the build tools aren't
