@@ -59,8 +59,13 @@ const EXCLUDE_PATTERNS = [
   "__tests__/*",
   "*/examples/*",
   "examples/*",
-  "*/_overrides/*",
-  "_overrides/*",
+  // Per-plugin skill override INPUTS only (the rendered output ships as
+  // skills/<slug>/SKILL.md + reference/*.md). Anchored to `skills/*/` so it does
+  // NOT strip the canonical scaffold templates under `canonical/skills/_overrides/`
+  // (e.g. frontmatter.template.yaml) that scaffold-marketplace-assets.mjs reads at
+  // plugin-build time. The bare `*/_overrides/*` glob used to also match the
+  // canonical path (the `*` spans `/`), which broke the in-Cowork scaffold.
+  "skills/*/_overrides/*",
   "*.test.ts",
   "*.test.tsx",
   "*.test.js",
@@ -191,6 +196,27 @@ function packageOne(slug) {
   }
   const r = spawnSync("zip", args, { cwd: pluginDir, stdio: "inherit" });
   if (r.status !== 0) throw new Error(`zip failed (exit ${r.status})`);
+
+  // canonical/ is TEMPLATE SOURCE that the scaffold + specialists copy wholesale
+  // into a newly-built plugin (the view-tool template's tsconfig/vite/vitest
+  // configs, its __tests__, the skill _overrides templates, etc.). The global
+  // dev-artifact excludes above (tsconfig*, vite/vitest config, __tests__,
+  // *.test.*) are meant for a PLUGIN's own dev files — they must NOT strip the
+  // canonical templates a scaffolded plugin needs at build time. Re-add canonical/
+  // in full (sans node_modules / VCS / OS cruft) so "canonical ships complete" is
+  // an invariant, regardless of which dev-artifact globs exist above. Without this,
+  // a scaffolded view-tool has no build config and cannot compile in Cowork.
+  if (existsSync(join(pluginDir, "canonical"))) {
+    const reAddArgs = [
+      "-r", "-q", "-X", "-9", zipPath, "canonical",
+      "-x", "*/node_modules/*", "*/.git/*", ".DS_Store", "*/.DS_Store",
+      "*/.omc", "*/.omc/*",
+    ];
+    const reAdd = spawnSync("zip", reAddArgs, { cwd: pluginDir, stdio: "inherit" });
+    if (reAdd.status !== 0) {
+      throw new Error(`canonical re-add zip failed (exit ${reAdd.status})`);
+    }
+  }
 
   // Validate: must contain .claude-plugin/plugin.json at root, must be under
   // the 50 MB cap, and must be a valid zip (`zip -T`).

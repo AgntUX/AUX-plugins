@@ -49,6 +49,7 @@ import {
   writeFileSync,
   renameSync,
   openSync,
+  realpathSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -689,6 +690,21 @@ export function startServer() {
 
 // Launch the server only when run directly (the host launches dist/index.js).
 // Importing this module (unit tests) is side-effect-free.
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+//
+// Do NOT compare `import.meta.url === pathToFileURL(process.argv[1]).href`:
+// Node realpath-resolves `import.meta.url` (symlinks followed — the Cowork
+// plugin dir is a symlink, and `/tmp`→`/private/tmp` on macOS), while argv[1]
+// is the raw invocation path. They never match under a symlink (or a spaced
+// path), so `startServer()` would never run and NO tools would register — a
+// silent, restart-proof failure. Resolve BOTH sides to a real filesystem path.
+function isMainModule() {
+  try {
+    if (!process.argv[1]) return false;
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+if (isMainModule()) {
   startServer();
 }

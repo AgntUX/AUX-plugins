@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-05-29
+
+Two packaging/registration fixes that prevented the in-Cowork build from
+working — the MCP server now actually registers, and the scaffold's canonical
+templates ship.
+
+### Fixed
+- **MCP server now registers when launched by the host (the real reason a Desktop
+  restart didn't surface the tools).** The launch guard compared
+  `import.meta.url === pathToFileURL(process.argv[1]).href`; Node realpath-resolves
+  `import.meta.url` (symlinks followed — the Cowork plugin dir is a symlink, and
+  `/tmp`→`/private/tmp` on macOS) while `argv[1]` is the raw invocation path, so the
+  two never matched under a symlink/spaced path and `startServer()` was never called
+  — a silent, restart-proof failure. Now resolves both sides via `realpathSync`
+  before comparing (`mcp-server/src/index.js`). Verified: the three tools register
+  when spawned from a symlinked, space-containing path.
+- **Canonical scaffold templates are no longer stripped from the shipped zip.** The
+  `scripts/package-plugins.mjs` excludes (`*/_overrides/*`, `tsconfig*`, `vite.config`,
+  `vitest.config`, `__tests__`) also matched the view-tool template under
+  `canonical/` — so a scaffolded plugin shipped with no `frontmatter.template.yaml`,
+  no view-tool `tsconfig.json`/`vite.config.ts`/`vitest.config.ts`, and no template
+  `__tests__`, breaking the in-Cowork scaffold + view-tool build. The `_overrides`
+  exclude is now anchored to `skills/*/_overrides/*`, and `canonical/` is re-added in
+  full after the exclude pass so "canonical ships complete" is an invariant.
+
 ## [0.16.1] — 2026-05-29
 
 Ship `chromium-headless-shell` for the render gate — the size optimization
