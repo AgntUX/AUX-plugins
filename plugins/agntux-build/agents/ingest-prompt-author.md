@@ -412,10 +412,23 @@ the single source of truth for valid `errors: kind:` values.
 
 ## Self-validation (required — WS-A, hard exit)
 
-After writing `skills/{slug}/_overrides/` and before returning success, you MUST
-prove the overrides resolve **and you MUST render the tree by running the
-renderer** — never by hand-authoring or partially editing any file under
-`skills/<slug>/**`. A missing/incomplete `frontmatter.yaml`, an un-rendered
+After writing `skills/{slug}/_overrides/`, the orchestrator renders the tree and
+runs lint pass 8 inside `agntux_validate`. Your job is to prove the overrides
+resolve **so the renderer the orchestrator runs produces a clean,
+byte-identical tree** — never by hand-authoring or partially editing any file
+under `skills/<slug>/**`.
+
+**When you're re-dispatched on a `build` (render-skill) or `lint` (pass-8 E15)
+failure, you receive the real error.** The orchestrator hands you the captured
+output — `failed_file`, `failed_line`, `error_code` (e.g. E15), `stderr_tail`
+(the surviving `{{placeholder}}` name or the drifted reference path) — and/or a
+`log_path` to the native host dir holding the full per-stage logs. `Read`
+`log_path` if given, open the named `_overrides/` input (`frontmatter.yaml` or
+the offending `reference/*.md`), and fix THAT specific gap. Do NOT re-guess from
+priors and do NOT hand-edit the rendered `SKILL.md` / `reference/*.md` to mask
+it — that IS the E15 defect.
+
+A missing/incomplete `frontmatter.yaml`, an un-rendered
 (hand-written) skill file, or an orphan `_overrides/reference/{verb}-payload.md`
 with no matching emitted header all collapse to the same E15
 render-reproducibility gap — **mechanical, NEVER surfaced to the

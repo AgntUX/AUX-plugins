@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-05-30
+
+Robust tool feedback: every agntux-build MCP tool now returns rich, actionable error messaging instead of a bare exit code, so a failed build tells the model (and you) exactly what broke and where — ending the blind multi-cycle fix loops.
+
+### Added
+- **Captured compiler/linter/test errors in the validation verdict.** All six validate stages (build, lint, typecheck, tests, validate, render) capture child output and surface `stderr_tail`, the parsed `failed_file` / `failed_line` / `error_code`, plus a plain-English `summary` and `next_action`. Full per-stage logs are persisted to `{session}/.validate/` and pointed at by `log_path`.
+- **Honest failure classification.** `error_kind` (plugin | environment | usage | internal) and `blocking` are derived from the actual output, so an environment limit is no longer mislabeled a fixable plugin defect.
+- **`agntux_report_defect` tool** — bundles a failed session (verdict + logs + tree manifest) into `{session}/DEFECT.json` for the maintainer; the honest-stop action when a failure is non-fixable or the fix loop is exhausted.
+- A uniform `summary` on every tool result (scaffold / validate / write_submission / confirm / report_defect).
+
+### Changed
+- The build skill + specialists consume the captured error: a plugin failure re-dispatches the owning specialist with the real `failed_file` / `failed_line` / `log_path`; an environment or internal failure stops early and reports a defect instead of burning the fix-cycle budget.
+- Validation stage output is teed to stderr, never the MCP server's JSON-RPC stdout, hardening the protocol channel.
+- `parseFirstError` is a linear, line-based scan (no cross-line backtracking, with a size backstop) — a large or pathological build log cannot block the event loop (ReDoS-safe).
+
+### Fixed
+- `agntux_validate` previously returned only `build-plugin.mjs exited 1` with no stderr, file, or line — the cause of multi-cycle blind fix loops.
+- `agntux_confirm_submission` success (`queued:true`) is summarized as success, not a build failure (the summary synthesizer normalizes the tool name and branches on `queued`).
+
 ## [0.18.0] — 2026-05-30
 
 Zero-user-Node runtime: agntux-build now runs on a Mac with **no `node`/`npm`

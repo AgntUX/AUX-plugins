@@ -1,6 +1,6 @@
 {
   "name": "@agntux/agntux-build-mcp-server",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "description": "agntux-build MCP server. Runs the build/validate/render/marker pipeline INSIDE the host-spawned MCP server process (native macOS, full filesystem, real Chromium) instead of the restricted Bash sandbox. Exposes agntux_validate, agntux_write_submission, agntux_confirm_submission as atomic tools the build skill orchestrates — nothing the model can hand-emulate or fabricate. Zero runtime npm dependencies (raw stdio JSON-RPC 2.0); imports the shared toolchain from ../bin and ../host-renderer.",
   "type": "module",
