@@ -13,14 +13,50 @@
 // the iframe to display.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
 // `createLocalFsContext` is intentionally NOT exported from
 // `@agntux/plugin-runtime`'s root barrel (see the trust-model note in
-// `packages/plugin-runtime/src/index.ts`); import from the explicit
+// `packages/plugin-runtime/src/index.ts`); it lives on the explicit
 // `local-fs` subpath the package's `exports` block whitelists for
 // local-environment consumers like this renderer.
-import { createLocalFsContext } from "@agntux/plugin-runtime/local-fs";
+//
+// It is loaded LAZILY with a vendored-path fallback so the renderer survives
+// the shipped agntux-build bundle. There, the host-renderer's
+// `@agntux/plugin-runtime` file: dep (`file:../../../packages/plugin-runtime`)
+// resolves OUTSIDE the bundle, so `npm install` leaves a broken link and the
+// bare import throws ERR_MODULE_NOT_FOUND (the Test-#4 render blocker). On that
+// error we import the vendored copy at `host-renderer/vendor/plugin-runtime/
+// dist/local-fs.js` by EXPLICIT path. NODE_PATH can't fix this — Node's ESM
+// resolver ignores it for bare specifiers — but the vendored package.json marks
+// "type":"module" (so the .js dist parses as ESM) and ships
+// node_modules/{yaml,zod} so the runtime's transitive bare imports resolve via
+// ESM walk-up. The normal bare import still wins in the maintainer clone / when
+// the install succeeds.
+let _createLocalFsContext;
+async function getCreateLocalFsContext() {
+  if (_createLocalFsContext) return _createLocalFsContext;
+  try {
+    ({ createLocalFsContext: _createLocalFsContext } = await import(
+      "@agntux/plugin-runtime/local-fs"
+    ));
+  } catch (e) {
+    if (e?.code !== "ERR_MODULE_NOT_FOUND") throw e;
+    const vendored = pathToFileURL(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "vendor",
+        "plugin-runtime",
+        "dist",
+        "local-fs.js",
+      ),
+    ).href;
+    ({ createLocalFsContext: _createLocalFsContext } = await import(vendored));
+  }
+  return _createLocalFsContext;
+}
 
 /**
  * Load the plugin's compiled view-tool ESM module in-process and
@@ -89,7 +125,10 @@ export async function loadViewToolModule(pluginRoot, { fixturesDir } = {}) {
   const fixturesRoot = resolveFixturesRoot(root, fixturesDir);
 
   // Build the view-tool ctx. Scope is hard-coded for the local renderer —
-  // real values get assigned server-side at deploy time.
+  // real values get assigned server-side at deploy time. The factory is loaded
+  // lazily (vendored-path fallback) so the renderer resolves it in the shipped
+  // bundle as well as the maintainer clone.
+  const createLocalFsContext = await getCreateLocalFsContext();
   const ctx = createLocalFsContext({
     root: fixturesRoot,
     scope: { user_id: "host-renderer", organization_id: "host-renderer" },

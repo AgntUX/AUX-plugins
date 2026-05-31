@@ -263,10 +263,11 @@ advance, no knowledge-store write).
 `skills/{plugin-slug}/SKILL.md` MUST ship `_overrides/frontmatter.yaml`,
 the rendered tree must be byte-identical to what the renderer
 produces, no `{{placeholders}}` may survive in committed output,
-`SKILL.md` must be ≤ 500 lines (router shape — typically ≤ 100), every
-sibling under `reference/` must be ≤ 500 lines (the procedural
-`sync.md` body sits around 490; detail-shape siblings are smaller),
-and links must stay one level deep — references reach siblings by
+`SKILL.md` must be ≤ 500 lines (router shape — typically ≤ 100),
+`reference/sync.md` must be ≤ 600 lines (the canonical procedural body is
+~469 lines and needs headroom for a plugin's source-specific splices),
+every other sibling under `reference/` must be ≤ 500 lines (detail-shape
+siblings are smaller), and links must stay one level deep — references reach siblings by
 prose name (e.g., "the cursor reference shape"), not by markdown link.
 Edits to the rendered `SKILL.md` are detected by the drift check and
 fail CI — edit the override or the canonical instead.

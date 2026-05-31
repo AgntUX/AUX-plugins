@@ -473,7 +473,12 @@ function validateScreenshot(
 // Pass 4 — README / CHANGELOG smoke
 // ---------------------------------------------------------------------------
 
-const VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\] — \d{4}-\d{2}-\d{2}$/m;
+// Accept a hyphen-minus, en-dash, or em-dash as the date separator (with any
+// surrounding whitespace). Keep-a-Changelog convention is the em-dash, but an
+// agent authoring the floor from memory routinely writes a plain hyphen — that
+// is a cosmetic difference, not a malformed section, so don't fail the build on
+// it. The captured version (group 1) is still version-matched against plugin.json.
+const VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 
 function pass4ReadmeChangelog(
   pluginSlug: string,
@@ -552,7 +557,7 @@ function pass4ReadmeChangelog(
           plugin: pluginSlug,
           file: rel(changelogPath),
           line: i + 1,
-          message: `CHANGELOG.md version section "${line}" does not match format [X.Y.Z] — YYYY-MM-DD`,
+          message: `CHANGELOG.md version section "${line}" does not match format [X.Y.Z] — YYYY-MM-DD (the separator may be -, –, or —)`,
         });
       }
     }

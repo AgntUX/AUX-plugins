@@ -159,7 +159,20 @@ if (argv.serve) {
 
 // Run the CLI only when invoked directly — keeps ensurePackagesAvailable +
 // the vendoring/dedup helpers importable from tests without a real build.
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+// Resolve BOTH sides with realpathSync before comparing (symlink- + space-safe):
+// Node realpath-resolves import.meta.url while argv[1] is the raw invocation
+// path, so a raw `import.meta.url === pathToFileURL(argv[1]).href` compare misses
+// under a symlinked/spaced path (the Cowork plugin dir is a symlink). Mirrors
+// validate-plugin.mjs's isMainModule guard (Part G2 straggler sweep).
+function isMainModule() {
+  try {
+    if (!process.argv[1]) return false;
+    return realpathSync(__filename) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+if (isMainModule()) {
   await main();
 }
 
@@ -562,6 +575,21 @@ export function vendorPackagesDistOnly(sourceDir, destDir) {
     if (existsSync(distDir)) cpSync(distDir, join(destPkg, "dist"), { recursive: true });
     const readme = join(srcPkg, "README.md");
     if (existsSync(readme)) cpSync(readme, join(destPkg, "README.md"));
+    // Part A — copy the SELF-CONTAINED runtime deps (yaml, zod) from the source
+    // package's node_modules so the build-session
+    // <build>/packages/plugin-runtime/dist/parse-action.js resolves `import
+    // {parse} from "yaml"` via ESM walk-up (the Test-#4 view-tool-build
+    // blocker). In the bundle these live at
+    // canonical/packages/plugin-runtime/node_modules/{yaml,zod}; vendoring ONLY
+    // these two zero-dep packages (never the whole node_modules) preserves the
+    // L2 fix — the vendored tree still contributes ZERO @types/react.
+    const srcNodeModules = join(srcPkg, "node_modules");
+    for (const dep of ["yaml", "zod"]) {
+      const depSrc = join(srcNodeModules, dep);
+      if (existsSync(depSrc)) {
+        cpSync(depSrc, join(destPkg, "node_modules", dep), { recursive: true });
+      }
+    }
   }
 }
 

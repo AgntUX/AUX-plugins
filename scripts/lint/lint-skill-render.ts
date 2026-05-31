@@ -13,10 +13,11 @@
  *      committed under skills/{plugin-slug}/. Catches "edited the rendered
  *      file by hand instead of editing the override".
  *   3. Line budget — skills/{plugin-slug}/SKILL.md ≤ 500 lines (router
- *      shape — typically ≤ 100); every sibling *.md under
- *      skills/{plugin-slug}/reference/ ≤ 500 lines (the procedural
- *      `sync.md` body sits around 490; detail-shape siblings are
- *      smaller).
+ *      shape — typically ≤ 100); reference/sync.md ≤ 600 lines (the
+ *      canonical procedural body is ~469 lines and needs headroom for
+ *      source-specific splices); every other sibling *.md under
+ *      skills/{plugin-slug}/reference/ ≤ 500 lines (detail-shape
+ *      siblings are smaller).
  *   4. One-level-deep references — every link from
  *      skills/{plugin-slug}/SKILL.md resolves to a file in the same
  *      directory or its reference/ child; reference files do NOT link to
@@ -59,6 +60,13 @@ const SKILL_MAX_LINES = 500;
 // honesty.md, ask.md) all comfortably fit under the original 300, but
 // sync.md is naturally ~500 — same allowance the procedural body used to get.
 const RESOURCE_MAX_LINES = 500;
+// The canonical reference/sync.md body alone is ~469 lines — leaving only ~31
+// lines of headroom under a 500 cap for ANY plugin's source-specific
+// `<!-- append:* -->` splices, so a real plugin reliably overran it (Test #4:
+// 745 then 556 lines). Give sync.md (and only sync.md) a 600-line cap so the
+// canonical body plus a reasonable source-specific splice fits; every sibling
+// detail file keeps the tighter 500 cap.
+const SYNC_REFERENCE_MAX_LINES = 600;
 const SHARED_SIBLING_MAX_LINES = 200;
 
 function rel(repoRoot: string, p: string): string {
@@ -149,7 +157,17 @@ function checkNoSurvivingPlaceholders(
     if (relPath.startsWith("_overrides/")) continue; // overrides may carry placeholders
     const full = path.join(syncDir, relPath);
     const body = fs.readFileSync(full, "utf8");
-    const matches = [...body.matchAll(/\{\{([\w-]+)\}\}/g)];
+    // Strip `#`-comment / heading lines before matching. A doc line that
+    // documents the placeholder syntax itself (e.g. "# add {{your-key}} to
+    // _overrides/frontmatter.yaml") is not a surviving substitution target —
+    // render-skill.mjs's own surviving-placeholder guard is the primary net for
+    // a genuinely-undefined key, so flagging documentation here is a false
+    // positive (the Test-#4 `{{key}}`/`{{placeholders}}`-in-comment trip).
+    const scanned = body
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .join("\n");
+    const matches = [...scanned.matchAll(/\{\{([\w-]+)\}\}/g)];
     if (matches.length === 0) continue;
     const uniq = [...new Set(matches.map((m) => m[1]))];
     emit(findings, {
@@ -283,13 +301,18 @@ function checkLineBudget(
       if (!name.endsWith(".md")) continue;
       const full = path.join(referenceDir, name);
       const lines = fs.readFileSync(full, "utf8").split("\n").length;
-      if (lines > RESOURCE_MAX_LINES) {
+      // sync.md carries the canonical procedural body (~469 lines) plus the
+      // plugin's source-specific splices; it gets the looser 600 cap. Every
+      // other detail-shape sibling keeps the 500 cap.
+      const cap =
+        name === "sync.md" ? SYNC_REFERENCE_MAX_LINES : RESOURCE_MAX_LINES;
+      if (lines > cap) {
         emit(findings, {
           code: "E15",
           severity: "error",
           plugin: pluginSlug,
           file: rel(repoRoot, full),
-          message: `reference/${name} is ${lines} lines (max ${RESOURCE_MAX_LINES}). Split it.`,
+          message: `reference/${name} is ${lines} lines (max ${cap}). Split it.`,
         });
       }
     }

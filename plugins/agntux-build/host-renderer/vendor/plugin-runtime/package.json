@@ -1,0 +1,34 @@
+{
+  "name": "@agntux/plugin-runtime",
+  "version": "0.2.1",
+  "description": "ViewToolContext runtime contract + local-fs factory + manifest schema + parse-action helpers shared by every AgntUX view-tool plugin. Internal AgntUX workspace package consumed by agntux-core's local MCP server and by the remote /api/mcp route in app/. Never published.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./local-fs": {
+      "types": "./dist/local-fs.d.ts",
+      "import": "./dist/local-fs.js",
+      "default": "./dist/local-fs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "yaml": "^2.5.0",
+    "zod": "^3.24.0"
+  }
+}

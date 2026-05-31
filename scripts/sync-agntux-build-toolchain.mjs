@@ -105,6 +105,70 @@ const DIR_COPIES = [
   ["canonical/prompts/ingest/skills/sync", "canonical/prompts/ingest/skills/sync"],
 ];
 
+// Part A — vendor a SELF-CONTAINED @agntux/plugin-runtime so every Node load of
+// dist/parse-action.js (`import {parse} from "yaml"`) resolves WITHOUT a
+// registry fetch in the shipped bundle. `yaml` and `zod` are both
+// zero-dependency, so vendoring them into plugin-runtime's node_modules is two
+// small dirs. Two consumers get the vendored runtime:
+//   (1) the build-session packages/plugin-runtime — build-plugin.mjs'
+//       vendorPackagesDistOnly copies node_modules/{yaml,zod} from the bundle's
+//       canonical/packages into <build>/packages, so the view-tool build's
+//       emit-manifest resolves yaml. The deps therefore ship under
+//       canonical/packages/plugin-runtime/node_modules/.
+//   (2) the host-renderer — a flat vendor/ tree at host-renderer/vendor/
+//       plugin-runtime/ (dist + package.json + node_modules/{yaml,zod}). The
+//       renderer's bare `@agntux/plugin-runtime` file: dep resolves outside a
+//       standalone bundle, so mcp-bridge.mjs imports dist/local-fs.js by
+//       EXPLICIT path on the ERR_MODULE_NOT_FOUND fallback. The vendored
+//       package.json carries "type":"module" so the .js dist parses as ESM, and
+//       node_modules/{yaml,zod} resolve the transitive bare imports via ESM
+//       walk-up. (NODE_PATH can't be used — Node's ESM resolver ignores it for
+//       bare specifiers.)
+const RUNTIME_VENDOR_DEPS = ["yaml", "zod"];
+
+/**
+ * Resolve a runtime dep's source dir (repo-relative), preferring the hoisted
+ * repo-root node_modules and falling back to plugin-runtime's own
+ * node_modules. Returns null if neither exists.
+ */
+function resolveRuntimeDepRel(name) {
+  for (const rel of [
+    join("node_modules", name),
+    join("packages", "plugin-runtime", "node_modules", name),
+  ]) {
+    if (existsSync(join(REPO_ROOT, rel))) return rel;
+  }
+  return null;
+}
+
+/**
+ * The recursive dir copies that materialize the vendored runtime. Exits 2 if a
+ * runtime dep can't be found (the bundle would otherwise ship a runtime that
+ * can't resolve `yaml`/`zod`). Appended to DIR_COPIES so they go through the
+ * identical copy + stale-detection + `--check` drift path.
+ */
+function runtimeVendorDirCopies() {
+  const out = [
+    // host-renderer flat vendor dist (the canonical-packages dist is already a
+    // DIR_COPY above; this is the renderer's own explicit-import target).
+    ["packages/plugin-runtime/dist", "host-renderer/vendor/plugin-runtime/dist"],
+  ];
+  for (const dep of RUNTIME_VENDOR_DEPS) {
+    const srcRel = resolveRuntimeDepRel(dep);
+    if (!srcRel) {
+      console.error(
+        `sync-toolchain: cannot vendor @agntux/plugin-runtime — runtime dep ` +
+          `'${dep}' not found under node_modules/. Run \`npm install\` at the ` +
+          `repo root first.`,
+      );
+      process.exit(2);
+    }
+    out.push([srcRel, `canonical/packages/plugin-runtime/node_modules/${dep}`]);
+    out.push([srcRel, `host-renderer/vendor/plugin-runtime/node_modules/${dep}`]);
+  }
+  return out;
+}
+
 // The esbuild-compiled, self-contained linter (no TS runtime in the sandbox).
 const LINT_DEST_REL = "scripts/lint-marketplace-metadata.mjs";
 
@@ -207,8 +271,11 @@ async function main() {
     syncFile(readFileSync(src), dest, destRel, check, drift);
   }
 
-  // 2. recursive dir copies (also detect stale extra files in dest)
-  for (const [srcRel, destRel] of DIR_COPIES) {
+  // 2. recursive dir copies (also detect stale extra files in dest). The
+  //    runtime-vendor copies (Part A) are appended so they share the identical
+  //    copy + stale-sweep + `--check` drift path — a missing/stale vendored
+  //    node_modules therefore fails `--check` automatically.
+  for (const [srcRel, destRel] of [...DIR_COPIES, ...runtimeVendorDirCopies()]) {
     const srcDir = join(REPO_ROOT, srcRel);
     const destDir = join(BUNDLE, destRel);
     if (!existsSync(srcDir)) {
@@ -243,6 +310,22 @@ async function main() {
       Buffer.from(transformed, "utf8"),
       join(BUNDLE, "canonical", "packages", name, "package.json"),
       `canonical/packages/${name}/package.json`,
+      check,
+      drift,
+    );
+  }
+
+  // 3b. host-renderer vendored plugin-runtime package.json (Part A). Same
+  //     transform as the canonical copies (scripts/devDeps stripped) — kept so
+  //     "type":"module" makes the explicit-path import of dist/local-fs.js parse
+  //     as ESM and the exports map still resolves the ./local-fs subpath.
+  {
+    const srcPkg = join(REPO_ROOT, "packages", "plugin-runtime", "package.json");
+    const transformed = transformPackageJson(readFileSync(srcPkg, "utf8"));
+    syncFile(
+      Buffer.from(transformed, "utf8"),
+      join(BUNDLE, "host-renderer", "vendor", "plugin-runtime", "package.json"),
+      "host-renderer/vendor/plugin-runtime/package.json",
       check,
       drift,
     );

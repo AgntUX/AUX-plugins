@@ -23,3 +23,11 @@ dist/
 # package dist trees under canonical/packages/ are tracked artifacts
 # (sync-agntux-build-toolchain.mjs vendors them from packages/*/dist).
 !plugins/agntux-build/canonical/packages/*/dist/
+# The vendored, self-contained @agntux/plugin-runtime ships yaml + zod under
+# node_modules so a Node load of dist/parse-action.js (`import {parse} from
+# "yaml"`) resolves via ESM walk-up in the shipped bundle with no install. These
+# are tracked artifacts (sync-agntux-build-toolchain.mjs vendors them from the
+# repo-root node_modules); force-track them past the blanket node_modules/ rule.
+# (host-renderer/vendor/ has its own re-include in host-renderer/.gitignore.)
+!plugins/agntux-build/canonical/packages/plugin-runtime/node_modules/
+!plugins/agntux-build/canonical/packages/plugin-runtime/node_modules/**

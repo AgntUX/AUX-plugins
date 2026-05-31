@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // @ts-expect-error — .mjs has no .d.ts
-import { computeTreeSha256, walkTree, EXCLUDE_DIRS, EXCLUDE_NAMES, runValidation } from "../../../scripts/validate-plugin.mjs";
+import { computeTreeSha256, walkTree, EXCLUDE_DIRS, EXCLUDE_NAMES, runValidation, buildStageResults, buildFailureVerdict } from "../../../scripts/validate-plugin.mjs";
 
 const SLUG = "agntux-testcal";
 
@@ -150,5 +150,86 @@ describe("runValidation verdict contract (never throws / never exits)", () => {
     // Shape sanity: a verdict always carries stages + a timestamp.
     expect(v.stages).toBeTypeOf("object");
     expect(typeof v.validated_at).toBe("string");
+  });
+});
+
+// Part E — the collect-and-continue synthesis. These exercise the pure assembly
+// helpers directly (no real build/spawn) so the highest-risk control-flow change
+// in 0.20.0 has coverage: stage_results[] shape, highest-priority `primary`
+// selection, build_failed gating, and the punch-list `next_action` (which must
+// NOT fire on an honest-stop / environment primary).
+describe("runValidation Part E punch-list synthesis", () => {
+  const STAGE_ORDER = ["build", "lint", "typecheck", "tests", "validate", "render"];
+  const at = () => "2026-01-01T00:00:00.000Z";
+
+  // Plain objects stand in for ValidationStop instances — buildStageResults /
+  // buildFailureVerdict read fields, never `instanceof`.
+  const buildStop = {
+    stage: "build", detail: "build-plugin.mjs exited 1", routing: "view-tool-builder",
+    blocking: true, errorKind: "plugin", error_code: "TS2353", failed_file: "x-view.ts",
+    failed_line: 12, failed_col: 3, error_message: "bad", stderr_tail: "tsc error tail",
+  };
+  const lintStop = {
+    stage: "lint", detail: "marketplace lint failed (codes: E05)", routing: "manifest-author",
+    blocking: true, errorKind: "plugin", error_code: "E05", stderr_tail: "lint tail",
+  };
+
+  it("buildStageResults emits one entry per recorded stage, in STAGE_ORDER, with errors only on failures", () => {
+    const stages = {
+      build: { status: "fail", detail: buildStop.detail },
+      lint: { status: "fail", detail: lintStop.detail },
+      typecheck: { status: "skipped", reason: "build_failed" },
+      tests: { status: "pass" },
+      validate: { status: "pass" },
+    };
+    const results = buildStageResults(stages, [lintStop, buildStop], STAGE_ORDER);
+    expect(results.map((r: { stage: string }) => r.stage)).toEqual([
+      "build", "lint", "typecheck", "tests", "validate",
+    ]);
+    const byStage = Object.fromEntries(results.map((r: { stage: string }) => [r.stage, r]));
+    expect(byStage.build.status).toBe("fail");
+    expect(byStage.build.errors[0].error_code).toBe("TS2353");
+    expect(byStage.build.errors[0].stderr_tail).toBe("tsc error tail");
+    expect(byStage.typecheck.status).toBe("skipped");
+    expect(byStage.typecheck.errors).toEqual([]);
+    expect(byStage.tests.errors).toEqual([]);
+  });
+
+  it("buildFailureVerdict: blocking primary + multiple failures → fix-the-whole-punch-list next_action", () => {
+    const stages = {
+      build: { status: "fail", detail: buildStop.detail },
+      lint: { status: "fail", detail: lintStop.detail },
+    };
+    const stage_results = buildStageResults(stages, [buildStop, lintStop], STAGE_ORDER);
+    const v = buildFailureVerdict({
+      primary: buildStop, stages, stage_results,
+      slug: SLUG, pluginDir: tmpdir(), sessionDir: tmpdir(), at,
+    });
+    expect(v.ok).toBe(false);
+    expect(v.failed_stage).toBe("build"); // highest priority, even though lint also failed
+    expect(v.routing).toBe("view-tool-builder");
+    expect(v.next_action).toMatch(/stages failed/);
+    expect(v.next_action).toMatch(/punch-list/);
+    expect(Array.isArray(v.stage_results)).toBe(true);
+  });
+
+  it("buildFailureVerdict: environment (blocking:false) primary does NOT get the punch-list suffix", () => {
+    const envStop = {
+      stage: "build", detail: "npm registry unreachable", routing: "view-tool-builder",
+      blocking: false, errorKind: "environment", stderr_tail: "ENOTFOUND",
+    };
+    const stages = {
+      build: { status: "fail", detail: envStop.detail },
+      lint: { status: "fail", detail: lintStop.detail },
+    };
+    const stage_results = buildStageResults(stages, [envStop, lintStop], STAGE_ORDER);
+    const v = buildFailureVerdict({
+      primary: envStop, stages, stage_results,
+      slug: SLUG, pluginDir: tmpdir(), sessionDir: tmpdir(), at,
+    });
+    expect(v.error_kind).toBe("environment");
+    // The honest-stop instruction must not be contradicted by "now fix everything".
+    expect(v.next_action).not.toMatch(/punch-list/);
+    expect(v.next_action).toMatch(/report_defect/);
   });
 });

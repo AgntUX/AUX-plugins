@@ -38,6 +38,60 @@ consume.
   vite.config.ts, scripts/emit-manifest.mjs}` — copied from the
   canonical template by `ui-handler-author`.
 
+## Clone the canonical template — do NOT author primitives from scratch
+
+The recurring build failure is re-authoring the UI from memory and inventing
+props / primitives that don't exist. Test #4 alone produced: `ComponentErrorBoundary`
+mis-used (a JSX cast → TS2786/TS2352), a non-existent `pluginSlug` prop on
+`ScrollablePanel` (TS2322), and a `data_paths` field the descriptor type
+rejected (TS2353). The fix is mechanical — **clone the canonical template and
+minimally retarget it**, don't write TSX from scratch:
+
+1. Start from `canonical/ui-handlers/_template/view-tool/src/`:
+   `__ui-name__-view.ts` (handler + descriptor), `__ui-name__-ui.tsx` (iframe
+   entry), `components/*`, `App.tsx`, `hooks/`, `lib/`. Copy them into
+   `plugins/{slug}/view-tool/src/`, rename `__ui-name__` → your view-tool name,
+   and edit the data shape. Keep the imports and component wiring the template
+   already proved compiles + renders.
+2. Only change what's source-specific: the descriptor `name` / `inputSchema` /
+   `outputSchema`, the `data_paths` glob, and the fields the iframe binds.
+
+## Primitives & props (exact signatures — never invent props)
+
+Author against these EXACTLY; the `check-view-tool-imports.mjs` gate + tsc reject
+anything else (see also the import-resolution table under "Re-dispatch on failure").
+
+- **`ComponentErrorBoundary`** (`@agntux/ui-primitives`) — a **class component**.
+  Use it as a plain JSX element wrapping the subtree:
+  `<ComponentErrorBoundary>…</ComponentErrorBoundary>`. Props: `{ children;
+  fallback?: (error, retry) => ReactNode; onError?: (error, info) => void }`.
+  **Never cast it** (`as any` / `as ComponentType`) — it is already a valid
+  component; the cast IS the TS2786/TS2352 error.
+- **`ScrollablePanel`** (`@agntux/ui-primitives`) — props are EXACTLY
+  `{ title: ReactNode; onDismiss?: () => void; onHelpClick?: () => void;
+  helpLabel?: string; children: ReactNode; footer?: ReactNode }`. There is **no
+  `pluginSlug` prop** (TS2322) and no other prop. Put the primary action(s) in
+  `footer`; there is no `StickyFooter` export.
+
+## `data_paths` — set it explicitly on the descriptor
+
+`ViewToolDescriptor` (in `@agntux/plugin-runtime`) carries an optional
+`data_paths?: { pattern: string; scope: string }[]` (scope is one of
+`personal` | `team` | `leader-view`). `emit-manifest.mjs` defaults it to
+`[{ pattern: "actions/{id}.md", scope: "personal" }]` when omitted — which is
+WRONG for most sources. Set it on the descriptor to the plugin's REAL action
+glob (e.g. a calendar that writes `actions/{date}-{event}-{slug}.md` declares
+that pattern) so the manifest carries the true read/write scope. This is now
+type-legal — do NOT add it as an untyped field or cast around it.
+
+## structuredContent stays lean
+
+`structuredContent` is the JSON-RPC body the host returns after rendering the
+iframe, and it is CAPPED (~64 KB; the payload-shape test E24/E25 enforces a
+tighter budget). Carry IDs and the small fields the iframe actually binds to
+JSX — **never** the full prep brief or large per-row bodies. Read heavy content
+from `ctx.fs` inside the handler and project only what the iframe renders.
+
 ## Build pipeline (run by the gate, NOT by you)
 
 You have no Bash and you do NOT run the build. `agntux_validate` runs it

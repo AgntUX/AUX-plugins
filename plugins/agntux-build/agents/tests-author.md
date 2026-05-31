@@ -405,14 +405,29 @@ Static assertions that the dedup mechanisms in the prompt and the
 fixtures are correct. Vitest does not re-run the agent. Use the
 reference-fold helper above so the assertions match content in
 `reference/sync.md` (procedural body) as well as `SKILL.md` (router).
-Asserts:
+Constrain it to the **GENERIC** dedup mechanism every ingest plugin
+shares — never source-specific field names:
 
 - The Step 6 lookup-before-write protocol is documented in the folded
   skill body (grep for `lookup-before-write` and `_sources.json`).
 - The Step 9 dedup-against-`actions/_index.md` protocol is documented.
+- The cursor advances after a successful pass (grep the folded body for
+  the cursor-advance step).
 - The example fixture under `examples/{scenario}/expected-entities/`
   and `expected-actions/` has zero duplicate filenames or duplicate
   `_sources.json` rows.
+
+**DERIVE source-specific dedup assertions; never invent them.** Test #4
+shipped an `idempotent.test.ts` that grepped for calendar-specific
+strings (`recurringEventId`, a recurring-event "dedup-break" rule) that
+the `ingest-prompt-author` never actually wrote — so the suite failed at
+the gate on a phantom contract. If you assert a source-specific dedup
+rule (e.g. recurring-event `source_id` dedup), it MUST be **derived from
+the content the ingest specialist actually authored**: `Read` the
+rendered `skills/{slug}/reference/sync.md` + the plugin's
+`_overrides/`, confirm the exact phrasing/field name is present, and
+assert THAT literal. Never grep for a field name you assumed the source
+uses — tests follow the authored prompt, not the other way around.
 
 ## What lives elsewhere (workflow tests)
 

@@ -146,6 +146,19 @@ for (const slug of slugs) {
       continue;
     }
   }
+  // Package-time gate (G1) — agntux-build ships its toolchain in-bundle, and a
+  // stale/drifted bundle that lags main is exactly how Test #4's already-fixed
+  // E26 + frontmatter-comment bugs reappeared in the installed zip. Before
+  // zipping, prove the bundle is in sync AND lint-clean; refuse to package on
+  // failure so a drifted/stale zip can never be produced or uploaded silently.
+  if (slug === "agntux-build") {
+    const gateError = gateAgntuxBuild();
+    if (gateError) {
+      log(`[${slug}] package-time gate failed: ${gateError}; refusing to package`);
+      failures.push({ slug, stage: "gate", error: gateError });
+      continue;
+    }
+  }
   try {
     results.push(packageOne(slug));
   } catch (e) {
@@ -218,6 +231,31 @@ function packageOne(slug) {
     }
   }
 
+  // The vendored, self-contained @agntux/plugin-runtime (Part A) lives UNDER
+  // node_modules, which the global `*/node_modules/*` exclude AND the canonical
+  // re-add's own exclude both strip. Re-add those specific paths so the shipped
+  // bundle carries a runnable runtime: the build-session view-tool resolves
+  // `yaml` from canonical/packages/plugin-runtime/node_modules, and the
+  // host-renderer resolves @agntux/plugin-runtime + its transitive yaml/zod from
+  // host-renderer/vendor/. Without these the render stage (and the view-tool
+  // build) fail with ERR_MODULE_NOT_FOUND in the bundle — the Test-#4 blocker.
+  // Skipped (existsSync) for every plugin except agntux-build.
+  const VENDORED_RUNTIME_PATHS = [
+    "canonical/packages/plugin-runtime/node_modules",
+    "host-renderer/vendor",
+  ];
+  for (const vp of VENDORED_RUNTIME_PATHS) {
+    if (!existsSync(join(pluginDir, vp))) continue;
+    const reAddArgs = [
+      "-r", "-q", "-X", "-9", zipPath, vp,
+      "-x", "*/.git/*", ".DS_Store", "*/.DS_Store", "*/.omc", "*/.omc/*",
+    ];
+    const r2 = spawnSync("zip", reAddArgs, { cwd: pluginDir, stdio: "inherit" });
+    if (r2.status !== 0) {
+      throw new Error(`vendored-runtime re-add zip failed for ${vp} (exit ${r2.status})`);
+    }
+  }
+
   // Validate: must contain .claude-plugin/plugin.json at root, must be under
   // the 50 MB cap, and must be a valid zip (`zip -T`).
   const test = spawnSync("zip", ["-T", zipPath], { stdio: "pipe" });
@@ -268,6 +306,34 @@ function packageOne(slug) {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Package-time gate for agntux-build (G1). Runs the in-bundle toolchain
+ * sync-drift check and the marketplace linter for the plugin. Returns null on
+ * success, or a short failure reason string. Both checks run from REPO_ROOT
+ * (the maintainer clone is the only place package-plugins runs).
+ */
+function gateAgntuxBuild() {
+  log("[agntux-build] gate: sync-agntux-build-toolchain --check");
+  const sync = spawnSync(
+    "node",
+    [join(REPO_ROOT, "scripts/sync-agntux-build-toolchain.mjs"), "--check"],
+    { stdio: "inherit", cwd: REPO_ROOT },
+  );
+  if (sync.status !== 0) {
+    return "in-bundle toolchain has drifted — run `npm run sync:agntux-build-toolchain` and rebuild";
+  }
+  log("[agntux-build] gate: lint:marketplace --plugin agntux-build");
+  const lint = spawnSync(
+    "npm",
+    ["run", "lint:marketplace", "--", "--plugin", "agntux-build"],
+    { stdio: "inherit", cwd: REPO_ROOT },
+  );
+  if (lint.status !== 0) {
+    return "marketplace lint failed for agntux-build";
+  }
+  return null;
+}
 
 function ensureZipAvailable() {
   const r = spawnSync("zip", ["-v"], { stdio: "ignore" });

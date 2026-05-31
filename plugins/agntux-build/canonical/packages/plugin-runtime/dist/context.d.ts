@@ -177,8 +177,15 @@ export interface ViewToolContext {
 }
 /**
  * Per-tool descriptor consumed by Sub-plan 3's registry. Mirrors the shape of
- * `view_tools[]` entries in the manifest, minus the build-time
- * `mcp_app_meta` / `data_paths` fields (those stay in the manifest layer).
+ * `view_tools[]` entries in the manifest, minus the build-time `mcp_app_meta`
+ * field (that is pre-joined into the manifest layer).
+ *
+ * `data_paths` is OPTIONAL here: emit-manifest reads `vt.descriptor.data_paths`
+ * and, when omitted, defaults it to `[{ pattern: "actions/{id}.md", scope:
+ * "personal" }]` before writing the manifest (where it is REQUIRED). A plugin
+ * whose action files don't follow that default glob SHOULD set `data_paths`
+ * explicitly on the descriptor so the manifest carries the real pattern. The
+ * field is additive — handlers that omit it keep the legacy default.
  */
 export interface ViewToolDescriptor {
     /** Snake_case, plugin-prefixed. e.g. `agntux_core_triage`. */
@@ -188,6 +195,16 @@ export interface ViewToolDescriptor {
     outputSchema: JsonSchema;
     /** `ui://<plugin-slug>/<component-name>` */
     ui_resource_uri: string;
+    /**
+     * Optional read/write glob(s) for this tool's backing files, mirroring the
+     * manifest's `data_paths[]` shape (`scope` is one of "personal" | "team" |
+     * "leader-view"). Omit to accept emit-manifest's `actions/{id}.md` personal
+     * default; set explicitly when the plugin's files live elsewhere.
+     */
+    data_paths?: {
+        pattern: string;
+        scope: string;
+    }[];
 }
 /**
  * The handler-side surface every view tool exports. Plugin authors write the

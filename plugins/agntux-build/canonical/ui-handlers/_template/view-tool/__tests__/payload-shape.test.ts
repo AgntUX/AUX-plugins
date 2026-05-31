@@ -37,6 +37,11 @@ import type {
   ListWithMetaEntry,
   ViewToolScope,
 } from "@agntux/plugin-runtime";
+// VALUE import (not type-only): the not-found branch must throw the real
+// ViewToolFsError so the handler's `err instanceof ViewToolFsError && err.code
+// === "not-found"` guard fires. A plain `new Error("not-found")` slips past
+// that guard and the missing-file fallback never runs.
+import { ViewToolFsError } from "@agntux/plugin-runtime";
 import mod from "../src/{{ui-name}}-view.js";
 
 // ── Tunable knobs (CHANGE THESE FOR YOUR PLUGIN) ─────────────────────────────
@@ -64,7 +69,11 @@ function inMemoryFs(files: Record<string, string>): ViewToolFs {
   return {
     async readFile(path: string) {
       const content = files[path];
-      if (content == null) throw new Error(`not-found: ${path}`);
+      // Throw the real ViewToolFsError("not-found", …) — handlers branch on
+      // `err instanceof ViewToolFsError && err.code === "not-found"`, so a
+      // plain Error would never trigger the missing-file fallback the third
+      // test exercises.
+      if (content == null) throw new ViewToolFsError("not-found", path);
       return Buffer.from(content, "utf8");
     },
     async readMany(paths: string[]) {

@@ -6,7 +6,7 @@
   "private": true,
   "engines": { "node": ">=20" },
   "scripts": {
-    "build": "rm -rf dist && vite build && tsc --noEmit -p tsconfig.json && esbuild src/{{ui-name}}-view.ts --bundle --platform=node --format=esm --outfile=dist/{{plugin-slug-kebab}}-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
+    "build": "rm -rf dist && tsc --noEmit -p tsconfig.json && vite build && esbuild src/{{ui-name}}-view.ts --bundle --platform=node --format=esm --outfile=dist/{{plugin-slug-kebab}}-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },

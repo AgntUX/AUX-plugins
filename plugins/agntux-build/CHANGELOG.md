@@ -6,6 +6,74 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-05-31
+
+Unblocks the headless render gate and collapses the build's fix-loop. The
+render stage could never complete because the bundled renderer (and the
+build-session view-tool) couldn't resolve `@agntux/plugin-runtime` / `yaml` with
+no install; this release ships a self-contained runtime so render runs
+end-to-end, and makes validation report the whole punch-list at once so a build
+converges in ~2–3 rounds instead of one-error-at-a-time.
+
+### Added
+- **Self-contained `@agntux/plugin-runtime`.** `yaml` + `zod` (both
+  zero-dependency) are now vendored into the runtime's `node_modules` in two
+  places: `canonical/packages/plugin-runtime/` (so the build-session view-tool's
+  `emit-manifest` resolves `yaml`) and `host-renderer/vendor/plugin-runtime/` (so
+  the renderer resolves the runtime by explicit path). The host-renderer's
+  `mcp-bridge` now falls back to the vendored copy on `ERR_MODULE_NOT_FOUND`.
+  Resolves the Test-#4 render blocker (`Cannot find package '@agntux/plugin-runtime'`
+  / `'yaml'`).
+- **`stage_results[]` punch-list in the validate verdict.** The
+  build-independent stages (lint, plugin-root tests, structural validate) now run
+  even when the build fails, so one `agntux_validate` call reports every failing
+  stage at once. The legacy `failed_stage`/`routing` fields still name the
+  highest-priority failure (back-compat); the build-dependent stages (typecheck,
+  view-tool tests, render) are gated and reported `skipped` with
+  `reason:"build_failed"` until the build is green.
+- **`agntux_build_version` on every validate verdict** — answers "is the served
+  bundle current?" mid-build instead of after a fixed bug reappears from a stale
+  installed zip.
+- **Optional `data_paths` on `ViewToolDescriptor`** (`@agntux/plugin-runtime`) so
+  a plugin whose action files don't match the default `actions/{id}.md` glob can
+  declare its real read/write scope on the descriptor (additive, MINOR).
+- **Render bootstrap resilience** — the Chromium download now retries (3 attempts
+  with incremental backoff), skips work already done on retry, honors a
+  pre-seeded `chromium-headless-shell` (restricted-network escape hatch,
+  documented in `host-renderer/README.md`), and reports a plain-language
+  "harness setup, not your plugin" message (render stays soft / non-blocking) on
+  a persistent download failure.
+- **Scaffold floors for `CHANGELOG.md` + `listing.yaml`** — the scaffolder now
+  emits lint-clean placeholder floors (caps-respecting, no `screenshot_order`,
+  valid `proposed_schema`) so the manifest specialist edits a green skeleton
+  instead of authoring from memory.
+
+### Changed
+- **Package-time gate.** `package-plugins` now refuses to zip `agntux-build`
+  unless `sync --check` and the marketplace lint both pass — a drifted/stale zip
+  can no longer be produced or uploaded silently.
+- **E03 (CHANGELOG date separator)** accepts a hyphen, en-dash, or em-dash.
+- **`reference/sync.md` line cap raised to 600** (other reference siblings keep
+  500) so a real plugin's source-specific splices fit above the ~469-line
+  canonical body.
+- View-tool template build runs `tsc --noEmit` first, so a TypeScript error fails
+  in ~2s before vite/esbuild/emit-manifest.
+- Specialist prompts hardened: `view-tool-builder` clones the canonical template
+  and carries exact `ScrollablePanel`/`ComponentErrorBoundary` signatures (no
+  invented props/casts); `tests-author` derives source-specific dedup assertions
+  from the authored tree instead of inventing field names.
+
+### Fixed
+- Render-reproducibility lint no longer false-positives on `{{…}}` placeholder
+  syntax mentioned inside a `#` comment / heading line.
+- The canonical `payload-shape` test mock throws the real `ViewToolFsError`
+  (not a plain `Error`), so a handler's `not-found` fallback branch is actually
+  exercised.
+- A spawn failure (missing `node`/`npm`/`claude` on PATH) is now classified
+  `environment` (non-blocking) instead of a mis-routed plugin defect.
+- Symlink-/space-safe is-main guards in `build-plugin.mjs` and
+  `check-view-tool-imports.mjs` (realpath both sides), matching the validator.
+
 ## [0.19.0] — 2026-05-30
 
 Robust tool feedback: every agntux-build MCP tool now returns rich, actionable error messaging instead of a bare exit code, so a failed build tells the model (and you) exactly what broke and where — ending the blind multi-cycle fix loops.

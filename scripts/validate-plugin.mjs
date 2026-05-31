@@ -32,21 +32,26 @@
  * lists the stage-12 submit program uses, so the marker's tree_sha256 matches
  * for THIS tree.
  *
- * Steps run in order; the pipeline STOPS on the first HARD failure:
+ * Stages COLLECT failures rather than stopping at the first one (Part E): the
+ * build-INDEPENDENT stages run even when an earlier stage failed, so one call
+ * reports the whole punch-list in stage_results[]. Only usage/internal errors
+ * abort. Build-DEPENDENT stages are gated behind a successful build and report
+ * `status:"skipped", reason:"build_failed"` until it's green.
  *
- *   1. build        — node build-plugin.mjs <slug> --plugin-dir          HARD
- *   2. lint         — marketplace linter --plugin-dir                    HARD
- *   3. typecheck    — tsc --noEmit in <plugin>/view-tool/                HARD
- *   4. tests        — vitest in <plugin>/ AND <plugin>/view-tool/        HARD
- *   5. validate     — claude plugin validate <plugin-dir>               HARD when
- *                     the `claude` binary is on PATH, else recorded skipped
- *   6. render       — test-harness render per view_tools[].name.        SOFT:
+ *   1. build        — node build-plugin.mjs <slug> --plugin-dir   gate for 3/4(view)/6
+ *   2. lint         — marketplace linter --plugin-dir             build-independent
+ *   3. typecheck    — tsc --noEmit in <plugin>/view-tool/         gated on build
+ *   4. tests        — plugin-root vitest (build-independent) +
+ *                     view-tool vitest (gated on build)
+ *   5. validate     — claude plugin validate <plugin-dir>         build-independent;
+ *                     HARD when the `claude` binary is on PATH, else skipped
+ *   6. render       — test-harness render per view_tools[].name.  gated on build, SOFT:
  *                     genuine inability to obtain Chromium ⇒ "skipped";
  *                     a real render error (console errors / crash) ⇒ HARD
  *
  * CLI exit codes:
  *   0 — every HARD step passed; receipt written
- *   1 — a HARD step failed (or bad args); no receipt
+ *   1 — any HARD step failed (or bad args); no receipt
  */
 
 import { spawnSync } from "node:child_process";
@@ -504,6 +509,7 @@ function persistFailureLogs({ logDir, pluginDir, stage, stop, verdict }) {
  *   {
  *     ok, slug, plugin_dir, session_dir,
  *     stages: { build, lint, typecheck, tests, validate, render },
+ *     stage_results: [{ stage, status, errors[] }, ...],  // additive (Part E)
  *     tree_sha256?,           // present only when ok:true
  *     summary, next_action,   // plain-English relay + orchestrator instruction
  *     failed_stage?, blocking?, routing?, error_kind?, detail?,  // when ok:false
@@ -513,6 +519,14 @@ function persistFailureLogs({ logDir, pluginDir, stage, stop, verdict }) {
  *   }
  *
  * Each stages.<name> is `{ status: "pass"|"skipped"|"fail", ...extra }`.
+ *
+ * `stage_results[]` is the additive Part-E punch-list: the build-INDEPENDENT
+ * stages (lint, plugin-root tests, structural validate) always run even when
+ * the build fails, so a single validate call surfaces EVERY failing stage at
+ * once. The build-DEPENDENT stages (typecheck, view-tool tests, render) are
+ * gated behind a successful build. The legacy `failed_stage`/`routing`/error
+ * fields still point at the single highest-priority failure for back-compat;
+ * the marker / tree_sha256 contract is untouched.
  *
  * @param {object}  opts
  * @param {string}  opts.slug             marker slug, e.g. agntux-gmail
@@ -532,7 +546,27 @@ export async function runValidation({
   installBrowser = true,
 } = {}) {
   const stages = {};
+  const stops = [];
   const at = () => new Date().toISOString();
+
+  // Stage-priority order (Part E). Used both to gate build-dependent stages and
+  // to pick the highest-priority failure for the legacy single-`failed_stage`
+  // fields, so a build failure still reports as `failed_stage:"build"` exactly
+  // as the old fail-fast pipeline did.
+  const STAGE_ORDER = ["build", "lint", "typecheck", "tests", "validate", "render"];
+
+  // Record a stage failure WITHOUT aborting the run (Part E). The
+  // build-INDEPENDENT stages keep running so the verdict carries the WHOLE
+  // punch-list in stage_results[] — the orchestrator fixes every failing stage
+  // in one round instead of paying a round-trip per stage. Usage / internal
+  // errors still throw (genuine fail-fast).
+  const registerStop = (stop) => {
+    stages[stop.stage] = { status: "fail", detail: stop.detail };
+    stops.push(stop);
+    log(`[${stop.stage}] ${stop.detail}`);
+    return stop;
+  };
+  const recordStop = (args) => registerStop(new ValidationStop(args));
 
   try {
     if (!slug || typeof slug !== "string") {
@@ -569,8 +603,9 @@ export async function runValidation({
     const viewToolDir = join(pluginDir, "view-tool");
     const hasViewTool = existsSync(viewToolDir);
 
-    // ── 1. build (HARD) ───────────────────────────────────────────────────────
+    // ── 1. build (HARD gate for build-dependent stages; recorded, not thrown) ──
     log("[1/6] build (build-plugin.mjs)");
+    let buildPassed = false;
     {
       const r = run("node", [tc.buildScript, slug, "--plugin-dir", pluginDir], tc.base, {
         capture: true,
@@ -580,7 +615,7 @@ export async function runValidation({
       process.stderr.write(r.stderr);
       if (r.status !== 0) {
         const { error_kind, blocking } = classifyFailure("build", r);
-        throw new ValidationStop({
+        recordStop({
           stage: "build",
           detail: `build-plugin.mjs exited ${r.status} for ${slug}`,
           routing: "view-tool-builder",
@@ -594,11 +629,13 @@ export async function runValidation({
             ...parseFirstError(`${r.stderr}\n${r.stdout}`),
           },
         });
+      } else {
+        stages.build = { status: "pass" };
+        buildPassed = true;
       }
-      stages.build = { status: "pass" };
     }
 
-    // ── 2. lint (HARD) ────────────────────────────────────────────────────────
+    // ── 2. lint (build-INDEPENDENT — always runs, even when build failed) ──────
     log("[2/6] lint (marketplace linter --plugin-dir)");
     {
       const lintArgs = [
@@ -621,7 +658,7 @@ export async function runValidation({
         const codes = (r.stdout + r.stderr).match(/\b(E\d{2}|BUILD-[A-Za-z-]+)\b/g) || [];
         const uniq = [...new Set(codes)];
         const { error_kind, blocking } = classifyFailure("lint", r);
-        throw new ValidationStop({
+        recordStop({
           stage: "lint",
           detail: `marketplace lint failed for ${slug}${uniq.length ? ` (codes: ${uniq.join(",")})` : ""}`,
           routing: routeFromLintCodes(uniq),
@@ -635,21 +672,25 @@ export async function runValidation({
             ...parseFirstError(`${r.stderr}\n${r.stdout}`),
           },
         });
+      } else {
+        stages.lint = { status: "pass" };
       }
-      stages.lint = { status: "pass" };
     }
 
-    // ── 3. view-tool typecheck (HARD) ─────────────────────────────────────────
+    // ── 3. view-tool typecheck (build-DEPENDENT) ───────────────────────────────
     const hasTypecheck =
       hasViewTool && hasScript(join(viewToolDir, "package.json"), "lint");
-    if (hasTypecheck) {
+    if (!buildPassed) {
+      log("[3/6] view-tool typecheck — build failed; skipping");
+      stages.typecheck = { status: "skipped", reason: "build_failed" };
+    } else if (hasTypecheck) {
       log("[3/6] view-tool typecheck (tsc --noEmit)");
       const r = run("npm", ["run", "lint"], viewToolDir, { capture: true });
       process.stderr.write(r.stdout);
       process.stderr.write(r.stderr);
       if (r.status !== 0) {
         const { error_kind, blocking } = classifyFailure("typecheck", r);
-        throw new ValidationStop({
+        recordStop({
           stage: "typecheck",
           detail: `view-tool tsc --noEmit failed for ${slug}`,
           routing: "view-tool-builder",
@@ -663,16 +704,22 @@ export async function runValidation({
             ...parseFirstError(`${r.stderr}\n${r.stdout}`),
           },
         });
+      } else {
+        stages.typecheck = { status: "pass" };
       }
-      stages.typecheck = { status: "pass" };
     } else {
       log("[3/6] view-tool typecheck — no view-tool/ lint script; skipping");
       stages.typecheck = { status: "skipped" };
     }
 
-    // ── 4. tests (HARD) ───────────────────────────────────────────────────────
-    log("[4/6] tests (vitest: plugin-root + view-tool)");
+    // ── 4. tests ───────────────────────────────────────────────────────────────
+    // The plugin-root vitest is build-INDEPENDENT (it globs __tests__/**, never
+    // the view-tool dist) so it always runs. The view-tool vitest is
+    // build-DEPENDENT — gated so it doesn't re-surface the build's TS errors as
+    // a duplicate wall of test failures.
+    log("[4/6] tests (vitest: plugin-root always; view-tool gated on build)");
     {
+      let testsFailed = false;
       if (hasScript(join(pluginDir, "package.json"), "test")) {
         // No --passWithNoTests: a plugin that declares a `test` script is
         // expected to ship tests. A glob that matches nothing must NOT pass
@@ -682,7 +729,7 @@ export async function runValidation({
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
           const { error_kind, blocking } = classifyFailure("tests", r);
-          throw new ValidationStop({
+          recordStop({
             stage: "tests",
             detail: `plugin-root vitest failed for ${slug}`,
             routing: "tests-author",
@@ -691,20 +738,23 @@ export async function runValidation({
             extra: {
               stderr_tail: tail(r.stderr),
               stdout_tail: tail(r.stdout),
+              _stderr_full: r.stderr,
+              _stdout_full: r.stdout,
               ...parseFirstError(`${r.stderr}\n${r.stdout}`),
             },
           });
+          testsFailed = true;
         }
       } else {
         log("       plugin-root has no test script; skipping plugin-root suite");
       }
-      if (hasViewTool) {
+      if (!testsFailed && buildPassed && hasViewTool) {
         const r = run("npx", ["vitest", "run", "--passWithNoTests"], viewToolDir, { capture: true });
         process.stderr.write(r.stdout);
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
           const { error_kind, blocking } = classifyFailure("tests", r);
-          throw new ValidationStop({
+          recordStop({
             stage: "tests",
             detail: `view-tool vitest failed for ${slug}`,
             routing: "tests-author",
@@ -713,15 +763,20 @@ export async function runValidation({
             extra: {
               stderr_tail: tail(r.stderr),
               stdout_tail: tail(r.stdout),
+              _stderr_full: r.stderr,
+              _stdout_full: r.stdout,
               ...parseFirstError(`${r.stderr}\n${r.stdout}`),
             },
           });
+          testsFailed = true;
         }
+      } else if (!buildPassed && hasViewTool) {
+        log("       view-tool vitest skipped — build failed");
       }
-      stages.tests = { status: "pass" };
+      if (!testsFailed) stages.tests = { status: "pass" };
     }
 
-    // ── 5. structural validate (HARD when `claude` is present) ─────────────────
+    // ── 5. structural validate (build-INDEPENDENT; HARD when `claude` present) ─
     log("[5/6] structural validate (claude plugin validate)");
     {
       // Probe the SUBCOMMAND, not just the binary: `claude --version` can
@@ -733,7 +788,7 @@ export async function runValidation({
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
           const { error_kind, blocking } = classifyFailure("validate", r);
-          throw new ValidationStop({
+          recordStop({
             stage: "validate",
             detail: `claude plugin validate failed for ${pluginDir}`,
             routing: "manifest-author",
@@ -742,38 +797,79 @@ export async function runValidation({
             extra: {
               stderr_tail: tail(r.stderr),
               stdout_tail: tail(r.stdout),
+              _stderr_full: r.stderr,
+              _stdout_full: r.stdout,
               ...parseFirstError(`${r.stderr}\n${r.stdout}`),
             },
           });
+        } else {
+          stages.validate = { status: "pass" };
         }
-        stages.validate = { status: "pass" };
       } else {
         log("       `claude plugin validate` unavailable on this host — validate:skipped");
         stages.validate = { status: "skipped", reason: "claude_cli_unavailable" };
       }
     }
 
-    // ── 6. render (SOFT — best-effort) ────────────────────────────────────────
+    // ── 6. render (build-DEPENDENT, SOFT — best-effort) ────────────────────────
     log("[6/6] render (test-harness, best-effort)");
-    stages.render = hasViewTool
-      ? runRenderGate(slug, pluginDir, { installBrowser })
-      : { status: "skipped", reason: "no_view_tool" };
+    if (!buildPassed) {
+      log("       build failed; skipping render");
+      stages.render = { status: "skipped", reason: "build_failed" };
+    } else if (hasViewTool) {
+      // runRenderGate THROWS ValidationStop on a real render error (console
+      // errors / handler crash). Catch it and record it like the other stages so
+      // it joins the punch-list instead of aborting the whole run.
+      try {
+        stages.render = runRenderGate(slug, pluginDir, { installBrowser });
+      } catch (e) {
+        if (e instanceof ValidationStop) registerStop(e);
+        else throw e;
+      }
+    } else {
+      stages.render = { status: "skipped", reason: "no_view_tool" };
+    }
 
     // ── verdict ───────────────────────────────────────────────────────────────
-    const treeSha = computeTreeSha256(pluginDir, slug);
-    const { summary, next_action } = buildSummary({ tool: "validate", ok: true });
-    return {
-      ok: true,
-      slug,
-      plugin_dir: pluginDir,
-      session_dir: sessionDir,
-      tree_sha256: treeSha,
-      stages,
-      summary,
-      next_action,
-      validated_at: at(),
+    const stage_results = buildStageResults(stages, stops, STAGE_ORDER);
+    if (stops.length === 0) {
+      const treeSha = computeTreeSha256(pluginDir, slug);
+      const { summary, next_action } = buildSummary({ tool: "validate", ok: true });
+      return {
+        ok: true,
+        slug,
+        plugin_dir: pluginDir,
+        session_dir: sessionDir,
+        tree_sha256: treeSha,
+        stages,
+        stage_results,
+        summary,
+        next_action,
+        validated_at: at(),
+      };
+    }
+    // Highest-priority failure drives the legacy single-`failed_stage` fields.
+    // Rank by STAGE_ORDER; an unknown stage (indexOf === -1) sorts LAST, not
+    // first, so it can never hijack the primary slot (defense-in-depth — all
+    // recorded stops use STAGE_ORDER names today).
+    const stageRank = (s) => {
+      const i = STAGE_ORDER.indexOf(s.stage);
+      return i === -1 ? Infinity : i;
     };
+    const primary = stops.slice().sort((a, b) => stageRank(a) - stageRank(b))[0];
+    return buildFailureVerdict({
+      primary,
+      stages,
+      stage_results,
+      slug,
+      pluginDir,
+      sessionDir,
+      at,
+    });
   } catch (e) {
+    // Only usage / internal (genuinely thrown) errors reach here now — stage
+    // failures are collected above. Still attach stage_results for parity.
+    const stage_results = buildStageResults(stages, stops, STAGE_ORDER);
     if (e instanceof ValidationStop) {
       if (!stages[e.stage]) stages[e.stage] = { status: "fail", detail: e.detail };
       log(`[${e.stage}] ${e.detail}`);
@@ -794,6 +890,7 @@ export async function runValidation({
         plugin_dir: pluginDir ?? null,
         session_dir: sessionDir ?? null,
         stages,
+        stage_results,
         failed_stage: e.stage,
         blocking: e.blocking,
         routing: e.routing,
@@ -828,6 +925,7 @@ export async function runValidation({
       plugin_dir: pluginDir ?? null,
       session_dir: sessionDir ?? null,
       stages,
+      stage_results,
       failed_stage: "internal",
       blocking: false,
       routing: null,
@@ -846,6 +944,111 @@ export async function runValidation({
     });
     return verdict;
   }
+}
+
+/**
+ * Build the additive `stage_results[]` punch-list (Part E) from the recorded
+ * `stages` map + collected `stops`. One entry per stage that ran, in
+ * STAGE_ORDER. Failed stages carry a compact `errors[]` (the captured first
+ * error + bounded tails) so the orchestrator can fix the whole list without a
+ * per-stage round-trip; pass/skip stages carry an empty `errors[]`.
+ */
+export function buildStageResults(stages, stops, stageOrder) {
+  const byStage = new Map(stops.map((s) => [s.stage, s]));
+  const out = [];
+  for (const name of stageOrder) {
+    const st = stages[name];
+    if (!st) continue;
+    const errors = [];
+    if (st.status === "fail") {
+      const s = byStage.get(name);
+      if (s) {
+        errors.push({
+          detail: s.detail,
+          routing: s.routing ?? null,
+          blocking: s.blocking,
+          error_kind: s.errorKind,
+          failed_file: s.failed_file,
+          failed_line: s.failed_line,
+          failed_col: s.failed_col,
+          error_code: s.error_code,
+          error_message: s.error_message,
+          stderr_tail: s.stderr_tail,
+        });
+      } else if (st.detail) {
+        errors.push({ detail: st.detail });
+      }
+    }
+    out.push({ stage: name, status: st.status, errors });
+  }
+  return out;
+}
+
+/**
+ * Assemble the failure verdict from the highest-priority stop (Part E). The
+ * legacy single-`failed_stage`/`routing`/error fields point at `primary` for
+ * backward-compat; `stage_results[]` carries the whole punch-list and
+ * `next_action` tells the orchestrator to fix all failing stages at once when
+ * more than one failed.
+ */
+export function buildFailureVerdict({ primary, stages, stage_results, slug, pluginDir, sessionDir, at }) {
+  const { summary, next_action } = buildSummary({
+    tool: "validate",
+    ok: false,
+    error_kind: primary.errorKind,
+    blocking: primary.blocking,
+    failed_stage: primary.stage,
+    failed_file: primary.failed_file,
+    failed_line: primary.failed_line,
+    error_code: primary.error_code,
+    routing: primary.routing,
+  });
+  const failedStages = stage_results
+    .filter((s) => s.status === "fail")
+    .map((s) => s.stage);
+  // Only append the "fix the whole punch-list" instruction when the primary
+  // failure is a fixable plugin defect (blocking). When the primary is an
+  // environment/honest-stop (blocking:false), buildSummary's next_action is
+  // "Stop honestly and call agntux_report_defect; do not re-dispatch a
+  // specialist" — appending "now fix the entire punch-list" would directly
+  // contradict it. (Build-independent stages now run on build failure, so a mix
+  // of one environment stop + one plugin-defect stop is genuinely reachable.)
+  const next =
+    failedStages.length > 1 && primary.blocking
+      ? `${next_action} ${failedStages.length} stages failed (${failedStages.join(", ")}); fix the entire stage_results[] punch-list before re-validating, not one error at a time.`
+      : next_action;
+  const verdict = {
+    ok: false,
+    slug: slug ?? null,
+    plugin_dir: pluginDir ?? null,
+    session_dir: sessionDir ?? null,
+    stages,
+    stage_results,
+    failed_stage: primary.stage,
+    blocking: primary.blocking,
+    routing: primary.routing,
+    error_kind: primary.errorKind,
+    detail: primary.detail,
+    failed_file: primary.failed_file,
+    failed_line: primary.failed_line,
+    failed_col: primary.failed_col,
+    error_code: primary.error_code,
+    stderr_tail: primary.stderr_tail,
+    stdout_tail: primary.stdout_tail,
+    summary,
+    next_action: next,
+    validated_at: at(),
+  };
+  // Persist the primary stop's full logs + the verdict (which carries every
+  // failed stage's tail in stage_results). Best-effort; never throws.
+  verdict.log_path = persistFailureLogs({
+    logDir: sessionDir,
+    pluginDir,
+    stage: primary.stage,
+    stop: primary,
+    verdict,
+  });
+  return verdict;
 }
 
 /** Map lint codes to the owning specialist for the fix loop. */
@@ -1020,11 +1223,21 @@ function run(cmd, args, cwd, { capture = false, env } = {}) {
     encoding: "utf8",
     ...(env ? { env } : {}),
   });
+  let stderr = r.stderr ?? "";
+  // A spawn failure (e.g. ENOENT — npm/npx/node/claude not on PATH) sets
+  // `r.error` and leaves status null + stderr empty. Fold the error code/message
+  // into stderr so classifyFailure's environment regex (ENOENT/EACCES/…) tags it
+  // `environment` (non-blocking) instead of mislabeling a missing host binary as
+  // a blocking plugin defect — more reachable now that build-independent stages
+  // run even after a build failure.
+  if (r.error) {
+    stderr = `${stderr}${stderr ? "\n" : ""}${r.error.code ? `${r.error.code}: ` : ""}${r.error.message || String(r.error)}`;
+  }
   return {
     status: r.status,
     signal: r.signal,
     stdout: r.stdout ?? "",
-    stderr: r.stderr ?? "",
+    stderr,
   };
 }
 
