@@ -182,6 +182,53 @@ const RE_VITEST_LOCATOR = /❯\s*(?<file>[^\s:][^:]*):(?<line>\d+):(?<col>\d+)/;
 const RE_VITEST_FAIL = /^\s*FAIL\s+(?<file>\S+)/;
 const RE_VITEST_ASSERTION = /^\s*(?:AssertionError|Error):\s*(?<msg>.*)$/;
 
+// The test-harness CLI prints each render console error on one line as
+// `  console error: <text>  @ <url>:<line>:<col>` (newlines collapsed to ` ⏎ `
+// — see console-error-format.mjs). Anchor on the prefix; capture the whole
+// remainder so a message containing stray punctuation survives intact.
+const RE_CONSOLE_ERROR = /^\s*console error:\s*(?<rest>.*\S)\s*$/;
+// Strip ONLY a genuine CLI-appended location suffix: two spaces, `@`, then a
+// `url:line:col` token ending in `:<digits>:<digits>`. Keying off that exact
+// shape (not a bare ` @ token`) avoids truncating message text that legitimately
+// ends in ` @ something` (e.g. a path or URL with no line:col).
+const RE_CONSOLE_LOC_SUFFIX = / {2}@\s+\S+:\d+:\d+\s*$/;
+// Pure backstop, deliberately looser than the CLI's own cap (5) so the parser
+// never fights the upstream cap; it only guards against a pathological log.
+const MAX_PARSED_CONSOLE_ERRORS = 20;
+
+/**
+ * Scan harness `out` for the `  console error: …` lines the render CLI prints
+ * and return `{ console_errors: string[], error_message? }`. `error_message` is
+ * the FIRST console error's text (with the CLI location suffix stripped) so the
+ * render stage populates the same actionable field that build/typecheck errors
+ * do — instead of the model seeing only a count and guessing the cause. The
+ * ` ⏎ ` newline sentinel is preserved verbatim (NOT re-expanded): the scan is
+ * line-oriented, so each record must stay single-line. Bounded + never-throws,
+ * mirroring parseFirstError. Returns `{}` when nothing matches.
+ */
+export function parseConsoleErrors(text) {
+  let s = text == null ? "" : String(text);
+  if (!s) return {};
+  if (s.length > PARSE_ERROR_MAX_CHARS) s = s.slice(0, PARSE_ERROR_MAX_CHARS);
+  try {
+    const found = [];
+    for (const line of s.split("\n")) {
+      const m = RE_CONSOLE_ERROR.exec(line);
+      if (m) {
+        found.push(m.groups.rest.trim());
+        if (found.length >= MAX_PARSED_CONSOLE_ERRORS) break;
+      }
+    }
+    if (found.length === 0) return {};
+    // The full "<text>  @ <loc>" stays in console_errors; error_message is just
+    // the message with a real location suffix removed.
+    const error_message = found[0].replace(RE_CONSOLE_LOC_SUFFIX, "").trim();
+    return { console_errors: found, error_message };
+  } catch {
+    return {};
+  }
+}
+
 export function parseFirstError(text) {
   let s = text == null ? "" : String(text);
   if (!s) return {};
@@ -973,6 +1020,10 @@ export function buildStageResults(stages, stops, stageOrder) {
           failed_col: s.failed_col,
           error_code: s.error_code,
           error_message: s.error_message,
+          // The full list of render console errors (when the render stage
+          // failed) — without this line the array is dropped at the envelope,
+          // the same bug class as the original count-only drop.
+          console_errors: s.console_errors,
           stderr_tail: s.stderr_tail,
         });
       } else if (st.detail) {
@@ -1136,6 +1187,10 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
     const consoleErrors = ceMatch ? Number(ceMatch[1]) : null;
     const stateMatch = out.match(/state=([a-z-]+)/);
     if (consoleErrors !== null && consoleErrors > 0) {
+      // parseConsoleErrors (not parseFirstError) — the actionable signal here is
+      // the in-browser console message text the CLI printed, which is NOT a
+      // tsc/esbuild-shaped error. This populates error_message + console_errors
+      // so the model sees WHAT broke instead of just the count.
       throw new ValidationStop({
         stage: "render",
         detail: `view tool ${tool} rendered with ${consoleErrors} console error(s)`,
@@ -1145,7 +1200,7 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
           stdout_tail: tail(r.stdout),
           _stderr_full: out,
           _stdout_full: r.stdout,
-          ...parseFirstError(out),
+          ...parseConsoleErrors(out),
         },
       });
     }

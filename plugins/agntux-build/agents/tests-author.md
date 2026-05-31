@@ -30,6 +30,33 @@ require an LLM at test time. Instead, the tests assert that the
 and confirmation gates that make the plugin correct, and that the
 committed example fixtures are structurally clean.
 
+> **Golden rule — derive your assertions; never assert another agent's
+> prose.** The recurring `tests` failure is an assertion that greps the
+> *wording* of a file authored by a DIFFERENT agent (`fetch.md`,
+> `reference/sync.md`, `compose-payload.md` — owned by `ingest-prompt-author`)
+> for a field name or phrase it never actually wrote. That is a **phantom
+> contract**: the suite fails at the gate on a string that doesn't exist, and
+> the "fix" becomes loosening the regex per-build — masking the problem and
+> shipping a weaker test. Real example from a calendar build: a
+> `payload-shape.test.ts` asserted `fetch.md` documents
+> `/default_duration_minutes.*number/i`; the ingest author never wrote that
+> sentence, so it failed on nothing. **Assert ONLY these three sources of
+> truth** (in priority order):
+>
+> 1. **The handler's ACTUAL output** — call `viewTool.handle(args, ctx)` with
+>    an in-memory fixture and assert the real `structuredContent` keyset /
+>    byte size (this is what the canonical `payload-shape.test.ts` already
+>    does — keep it that way; do NOT bolt prose-grep onto it).
+> 2. **A declared, machine-readable field** — the descriptor's `inputSchema` /
+>    `outputSchema` / `data_paths`, or a value in `plugin.json` / `listing.yaml`.
+> 3. **A CANONICAL stable anchor** — a phrase that lives in the *canonical*
+>    `sync.md` template (shared by every ingest plugin), never a per-plugin
+>    phrasing an author may reword. If you must assert an ingest-contract fact,
+>    grep the canonical anchor, and if no stable anchor exists, **ask
+>    `ingest-prompt-author` to add one** rather than inventing the string.
+>
+> If a desired assertion can't be grounded in one of these, do NOT write it.
+
 ## When to add which test
 
 | Test | Always? | When |

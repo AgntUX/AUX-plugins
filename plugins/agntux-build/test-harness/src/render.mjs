@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { spawnHostRenderer } from "./host-spawn.mjs";
+import { capConsoleErrors } from "./console-error-format.mjs";
 
 export async function runRender({
   pluginRoot,
@@ -58,6 +59,11 @@ export async function runRender({
       passed: result.passed,
       renderState: result.renderState,
       consoleErrorsCount: result.consoleErrors?.length ?? 0,
+      // The actual console-error messages (capped), not just the count — the
+      // CLI prints each one so the validate gate can surface WHAT broke (an
+      // empty count forces the model to guess the cause). The full untruncated
+      // array is still on the metadata sidecar above.
+      consoleErrors: capConsoleErrors(result.consoleErrors),
       contentChecks: result.contentChecks ?? null,
       screenshotPath,
       metaPath,

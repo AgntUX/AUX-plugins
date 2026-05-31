@@ -20,6 +20,10 @@
 // Customise this file when scaffolding a new plugin:
 //   1. Update the `KEPT_KEYS` set to match the fields your iframe
 //      actually renders. Strip anything the iframe doesn't bind to JSX.
+//      Derive KEPT_KEYS from what `viewTool.handle()` actually returns
+//      below — NEVER add assertions that grep the prose of `fetch.md` /
+//      `sync.md` (a different agent owns those; that couples this test to
+//      wording it can't see and fails on a phantom contract).
 //   2. Update the `PAYLOAD_BUDGET_BYTES` cap to match your shape:
 //      - single-row views (compose, thread): 30 KB is a defensible upper
 //        bound (e.g. drafted_body + email_context + participants list).

@@ -81,6 +81,22 @@ export const CANONICAL_APPS_EXPORTS = new Set([
   "useResourceMeta",
 ]);
 
+// ScrollablePanel's prop names as of the canonical primitive. Used as a FLOOR
+// so the prop gate still works when the dist d.ts can't be read; the package's
+// actual signature is unioned on top. Keep in sync with
+// packages/agntux-ui-primitives/src/scrollable-panel.tsx (ScrollablePanelProps).
+export const CANONICAL_SCROLLABLE_PANEL_PROPS = new Set([
+  "title",
+  "onDismiss",
+  "onHelpClick",
+  "helpLabel",
+  "children",
+  "footer",
+  // React intrinsics always legal on any element:
+  "key",
+  "ref",
+]);
+
 const UI_PRIMITIVES = "@agntux/ui-primitives";
 // The upstream package the vendored apps-react lib was inlined from — never a
 // view-tool dependency. Every named import from it re-routes wholesale.
@@ -120,6 +136,31 @@ function readUiPrimitivesExports(packagesDir) {
   const idx = join(packagesDir, "agntux-ui-primitives", "dist", "index.js");
   if (!existsSync(idx)) return null;
   return extractExportNames(readFileSync(idx, "utf8"));
+}
+
+/**
+ * Read ScrollablePanel's legal prop names from the bundled ui-primitives dist
+ * d.ts (`export declare function ScrollablePanel({ a, b, … }: …)`) — a
+ * machine-readable source of truth — unioned with the canonical floor. Returns
+ * the floor alone when the d.ts is absent/unparseable (fail-open on the gate's
+ * allow set, never fail-closed on a missing type file).
+ */
+function readScrollablePanelProps(packagesDir) {
+  const props = new Set(CANONICAL_SCROLLABLE_PANEL_PROPS);
+  const dts = join(packagesDir, "agntux-ui-primitives", "dist", "scrollable-panel.d.ts");
+  try {
+    const src = readFileSync(dts, "utf8");
+    const m = src.match(/export\s+declare\s+function\s+ScrollablePanel\s*\(\s*\{([^}]*)\}/);
+    if (m) {
+      for (const raw of m[1].split(",")) {
+        const id = raw.trim().match(/^([A-Za-z_$][\w$]*)/);
+        if (id) props.add(id[1]);
+      }
+    }
+  } catch {
+    /* floor-only */
+  }
+  return props;
 }
 
 /** Read the apps-react hook names from the tree's vendored lib (ts or compiled). */
@@ -180,6 +221,224 @@ function rerouteSpecifierFor(fileAbs, viewToolSrc) {
 
 function renderImportLine(names, source) {
   return `import { ${names.join(", ")} } from "${source}";`;
+}
+
+/** 1-based line number of a character offset in `src`. */
+function lineAt(src, index) {
+  let n = 1;
+  for (let i = 0; i < index && i < src.length; i++) if (src[i] === "\n") n++;
+  return n;
+}
+
+/**
+ * Replace the CONTENT of `//` + `/* *\/` comments and `'`/`"`/`` ` `` string
+ * literals with spaces — preserving newlines AND length, so every character
+ * offset and 1-based line number is unchanged. Run before the banned-construct
+ * scan so a construct mentioned in a doc comment or a help/error string
+ * (`"don't cast ComponentErrorBoundary as …"`) can't false-fail the build.
+ * Quote bodies are blanked but the delimiters are kept, so `title="x"` stays
+ * `title=" "` and the attribute structure survives. Pragmatic, not a full TS
+ * tokenizer (regex literals aren't tracked — rare in view-tool TSX and harmless
+ * if left intact); escapes are honoured so an escaped quote never ends a string.
+ */
+export function stripCommentsAndStrings(src) {
+  const s = String(src);
+  const blank = (ch) => (ch === "\n" ? "\n" : " ");
+  let out = "";
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    const c = s[i];
+    const c2 = s[i + 1];
+    if (c === "/" && c2 === "/") {
+      while (i < n && s[i] !== "\n") { out += " "; i++; }
+      continue;
+    }
+    if (c === "/" && c2 === "*") {
+      out += "  "; i += 2;
+      while (i < n && !(s[i] === "*" && s[i + 1] === "/")) { out += blank(s[i]); i++; }
+      if (i < n) { out += "  "; i += 2; }
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const q = c;
+      out += q; i++; // keep the opening delimiter
+      while (i < n) {
+        const ch = s[i];
+        if (ch === "\\") {
+          // blank the escape but preserve newline-ness of the escaped char
+          out += " " + blank(s[i + 1] ?? " ");
+          i += 2;
+          continue;
+        }
+        if (ch === q) { out += q; i++; break; }
+        out += blank(ch); i++;
+      }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+/**
+ * Extract the attributes of a JSX opening tag from its inner text (the span
+ * AFTER `<ScrollablePanel` and BEFORE the closing `>`/`/>`). A tiny state
+ * machine that skips over `="..."`, `='...'`, and `={…}` value regions so a
+ * value can never be mistaken for an attribute name. Returns
+ * `{ attrs: Array<{name, offset}>, hasSpread }` where `offset` is the
+ * attribute name's index within `tagInner` (so the caller can report the
+ * attribute's own line, not the tag's opening line). `hasSpread` true means a
+ * `{...spread}` is present and the caller must NOT enforce the allow-list (the
+ * spread can carry any legal prop). Bounded by the input length.
+ */
+export function extractJsxAttributeNames(tagInner) {
+  const attrs = [];
+  let hasSpread = false;
+  const s = String(tagInner);
+  let i = 0;
+  const skipBraces = () => {
+    // assumes s[i] === "{"
+    let depth = 0;
+    for (; i < s.length; i++) {
+      const c = s[i];
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) { i++; return; }
+      } else if (c === '"' || c === "'") {
+        const q = c; i++;
+        while (i < s.length && s[i] !== q) i++;
+      }
+    }
+  };
+  while (i < s.length) {
+    const c = s[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === "{") {
+      // attribute-position brace → a spread (`{...x}`) or stray expression.
+      if (/^\{\s*\.\.\./.test(s.slice(i))) hasSpread = true;
+      skipBraces();
+      continue;
+    }
+    const idM = s.slice(i).match(/^[A-Za-z_$][\w$-]*/);
+    if (!idM) { i++; continue; }
+    const name = idM[0];
+    const offset = i;
+    i += name.length;
+    // look past whitespace for an `=`
+    let j = i;
+    while (j < s.length && /\s/.test(s[j])) j++;
+    if (s[j] === "=") {
+      attrs.push({ name, offset });
+      i = j + 1;
+      while (i < s.length && /\s/.test(s[i])) i++;
+      const v = s[i];
+      if (v === '"' || v === "'") {
+        i++;
+        while (i < s.length && s[i] !== v) i++;
+        i++;
+      } else if (v === "{") {
+        skipBraces();
+      } else {
+        // bare value token (rare in JSX) — skip to next whitespace/end
+        while (i < s.length && !/\s/.test(s[i])) i++;
+      }
+    } else {
+      // boolean attribute (`<X disabled />`)
+      attrs.push({ name, offset });
+      i = j;
+    }
+  }
+  return { attrs, hasSpread };
+}
+
+/**
+ * Read-only scan for banned hand-authoring constructs that recur despite the
+ * prose guidance in agents/view-tool-builder.md. These are NEVER auto-fixed —
+ * they fail the gate fast and legibly BEFORE the slow vite build:
+ *   - a `ComponentErrorBoundary as …` cast (it is a valid component; the cast
+ *     IS the TS2786 error and was introduced as a wrong guess-fix).
+ *   - a `<ScrollablePanel>` attribute outside the primitive's real prop set
+ *     (e.g. a hallucinated `pluginSlug` → TS2322).
+ * @returns {Array<{kind,name,detail,file,line}>}
+ */
+export function scanBannedConstructs(fileAbs, content, allowedPanelProps) {
+  const violations = [];
+  const rel = fileRel(fileAbs);
+  // Scan over a copy with comment + string bodies blanked (offsets/lines
+  // preserved) so a construct merely MENTIONED in a comment or string is never
+  // flagged — only real code is.
+  const scan = stripCommentsAndStrings(content);
+
+  // 1. ComponentErrorBoundary cast ban.
+  const castRe = /\bComponentErrorBoundary\s+as\b/g;
+  for (const m of scan.matchAll(castRe)) {
+    violations.push({
+      kind: "banned-cast",
+      name: "ComponentErrorBoundary",
+      file: rel,
+      line: lineAt(scan, m.index),
+      detail:
+        "ComponentErrorBoundary must not be cast (`as …`) — it is already a " +
+        "valid JSX class component; the cast is the TS2786/TS2352 error. Use " +
+        "it directly: <ComponentErrorBoundary>…</ComponentErrorBoundary>.",
+    });
+  }
+
+  // 2. ScrollablePanel prop allow-list. Find each `<ScrollablePanel` opening
+  //    tag (word-boundary so `<ScrollablePanelFoo` is ignored), isolate its
+  //    opening-tag inner text, and flag any attribute not in the allow-list.
+  const openRe = /<ScrollablePanel(?=[\s/>])/g;
+  for (const m of scan.matchAll(openRe)) {
+    const start = m.index + "<ScrollablePanel".length;
+    const inner = sliceOpeningTag(scan, start);
+    if (inner == null) continue;
+    const { attrs, hasSpread } = extractJsxAttributeNames(inner);
+    if (hasSpread) continue; // a spread can legally supply any prop — don't guess
+    for (const { name, offset } of attrs) {
+      if (!allowedPanelProps.has(name) && !name.startsWith("data-") && !name.startsWith("aria-")) {
+        violations.push({
+          kind: "unknown-prop",
+          name: `ScrollablePanel.${name}`,
+          file: rel,
+          // the attribute's own line, not the tag's opening line
+          line: lineAt(scan, start + offset),
+          detail:
+            `<ScrollablePanel> has no \`${name}\` prop. Legal props are ` +
+            `{ ${[...allowedPanelProps].filter((p) => !["key", "ref"].includes(p)).join(", ")} }. ` +
+            "Put primary actions in `footer`; there is no `pluginSlug`/`StickyFooter`.",
+        });
+      }
+    }
+  }
+  return violations;
+}
+
+/**
+ * Return the opening-tag inner text starting at `start` (just after the tag
+ * name), up to the closing `>` / `/>` at brace+quote depth 0. Returns null if
+ * no terminator is found within a sane bound. String- and brace-aware so a `>`
+ * inside `={…}` or a string never closes the tag early.
+ */
+function sliceOpeningTag(src, start) {
+  let depth = 0;
+  for (let i = start; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'") {
+      const q = c; i++;
+      while (i < src.length && src[i] !== q) i++;
+      continue;
+    }
+    if (c === "{") depth++;
+    else if (c === "}") depth = Math.max(0, depth - 1);
+    else if (c === ">" && depth === 0) {
+      let end = i;
+      if (src[i - 1] === "/") end = i - 1; // self-closing
+      return src.slice(start, end);
+    }
+  }
+  return null;
 }
 
 /**
@@ -314,10 +573,12 @@ export function run(pluginDir, { fix = true, packagesDir } = {}) {
     ...CANONICAL_APPS_EXPORTS,
     ...readAppsReactExports(viewToolSrc),
   ]);
+  const panelProps = readScrollablePanelProps(pkgDir);
 
   const files = collectSources(viewToolSrc);
   const allRejects = [];
   const allReroutes = [];
+  const allViolations = [];
   for (const file of files) {
     const r = processFile(file, viewToolSrc, uiAllow, appsHooks);
     allRejects.push(...r.rejects.map((x) => ({ ...x, file: fileRel(file) })));
@@ -325,6 +586,9 @@ export function run(pluginDir, { fix = true, packagesDir } = {}) {
     if (r.rewritten && fix && r.rejects.length === 0) {
       writeFileSync(file, r.body, "utf8");
     }
+    // Banned-construct scan runs on the FINAL content (post any --fix rewrite),
+    // since that is what the build compiles. Read-only — never auto-fixed.
+    allViolations.push(...scanBannedConstructs(file, r.body, panelProps));
   }
 
   const hallucinated = allRejects.length > 0;
@@ -332,9 +596,10 @@ export function run(pluginDir, { fix = true, packagesDir } = {}) {
   // failure (the tree is not clean as committed).
   const dirtyInCheck = !fix && allReroutes.length > 0;
   return {
-    ok: !hallucinated && !dirtyInCheck,
+    ok: !hallucinated && !dirtyInCheck && allViolations.length === 0,
     rejects: allRejects,
     reroutes: allReroutes,
+    violations: allViolations,
   };
 }
 
@@ -388,6 +653,20 @@ if (isMainModule()) {
     }
     console.log(
       JSON.stringify({ ok: false, failed_stage: "build", detail: `unresolved imports: ${result.rejects.map((r) => r.name).join(", ")}` }),
+    );
+    process.exit(1);
+  }
+  if (result.violations && result.violations.length) {
+    for (const v of result.violations) {
+      console.error(`check-view-tool-imports: ${v.file}:${v.line}: ${v.detail}`);
+    }
+    console.log(
+      JSON.stringify({
+        ok: false,
+        failed_stage: "build",
+        routing: "view-tool-builder",
+        detail: `banned view-tool construct(s): ${result.violations.map((v) => v.name).join(", ")}`,
+      }),
     );
     process.exit(1);
   }

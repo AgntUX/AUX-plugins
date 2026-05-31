@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error — .mjs has no .d.ts
-import { run, extractExportNames } from "./check-view-tool-imports.mjs";
+import {
+  run,
+  extractExportNames,
+  extractJsxAttributeNames,
+  scanBannedConstructs,
+  stripCommentsAndStrings,
+  CANONICAL_SCROLLABLE_PANEL_PROPS,
+} from "./check-view-tool-imports.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGES = resolve(__dirname, "..", "packages"); // real @agntux/ui-primitives exports
@@ -172,5 +179,190 @@ describe("check-view-tool-imports run()", () => {
     expect(r.ok).toBe(true);
     expect(r.skipped).toBe(true);
     rmSync(empty, { recursive: true, force: true });
+  });
+
+  it("HARD-fails on a ComponentErrorBoundary cast (the TS2786 guess-fix)", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ComponentErrorBoundary } from "@agntux/ui-primitives";\n` +
+        `import type { ComponentType } from "react";\n` +
+        `const EB = ComponentErrorBoundary as unknown as ComponentType<{ children: unknown }>;\n` +
+        `export const A = EB;\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(r.violations.some((v: { kind: string }) => v.kind === "banned-cast")).toBe(true);
+    // a banned construct is NEVER auto-fixed — the file is left intact
+    expect(readSrc(root, "App.tsx")).toContain("ComponentErrorBoundary as");
+  });
+
+  it("HARD-fails on a hallucinated <ScrollablePanel> prop (pluginSlug)", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+        `export const A = () => (\n` +
+        `  <ScrollablePanel title="Hi" pluginSlug="x" footer={<div />}>\n` +
+        `    <p>body</p>\n` +
+        `  </ScrollablePanel>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(r.violations.some((v: { name: string }) => v.name === "ScrollablePanel.pluginSlug")).toBe(true);
+  });
+
+  it("does NOT flag a banned cast that only appears in a comment or string", () => {
+    // The recurring false-positive class: a contributor documenting the rule.
+    const body =
+      `import { ComponentErrorBoundary } from "@agntux/ui-primitives";\n` +
+      `// NOTE: never write \`ComponentErrorBoundary as X\` — use it directly.\n` +
+      `const HELP = "If you see TS2786, do not cast ComponentErrorBoundary as a workaround.";\n` +
+      `export const A = () => <ComponentErrorBoundary><span>{HELP}</span></ComponentErrorBoundary>;\n`;
+    writeSrc(root, "App.tsx", body);
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+    expect(readSrc(root, "App.tsx")).toBe(body); // untouched
+  });
+
+  it("passes the real multi-line nested-title <ScrollablePanel> shape", () => {
+    // Mirrors the agntux-slack/gmail compose components: a JSX node as `title`
+    // with its own attributes inside the `={…}` region must not leak as props.
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+        `export const A = () => (\n` +
+        `  <ScrollablePanel\n` +
+        `    title={\n` +
+        `      <span className="flex" data-testid="hdr">\n` +
+        `        Compose\n` +
+        `      </span>\n` +
+        `    }\n` +
+        `    onDismiss={() => {}}\n` +
+        `    footer={<button type="button">Send</button>}\n` +
+        `  >\n` +
+        `    <p>body</p>\n` +
+        `  </ScrollablePanel>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+
+  it("passes a legitimate <ScrollablePanel> with only real props", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+        `export const A = () => (\n` +
+        `  <ScrollablePanel title="Hi" onDismiss={() => {}} footer={<div />}>\n` +
+        `    <p>body</p>\n` +
+        `  </ScrollablePanel>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+
+  it("skips prop enforcement when the tag carries a {...spread}", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+        `export const A = (props: Record<string, unknown>) => (\n` +
+        `  <ScrollablePanel {...props} title="Hi">\n` +
+        `    <p>body</p>\n` +
+        `  </ScrollablePanel>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+});
+
+describe("stripCommentsAndStrings", () => {
+  it("blanks comment + string bodies, preserving newlines and length", () => {
+    const src = `const a = "x as y"; // ComponentErrorBoundary as z\nconst b = 2;\n`;
+    const out = stripCommentsAndStrings(src);
+    expect(out.length).toBe(src.length);
+    expect(out.split("\n").length).toBe(src.split("\n").length);
+    expect(/ComponentErrorBoundary\s+as/.test(out)).toBe(false);
+    expect(out).toContain("const a ="); // code outside strings untouched
+    expect(out).toContain("const b = 2;");
+  });
+
+  it("does not let an escaped quote end a string early", () => {
+    const out = stripCommentsAndStrings(`const s = "a\\" as b"; const real = 1;`);
+    expect(/\bas\b/.test(out)).toBe(false); // the ` as ` was inside the string
+    expect(out).toContain("const real = 1;");
+  });
+});
+
+describe("extractJsxAttributeNames", () => {
+  it("collects attribute names (with offsets) and skips value regions", () => {
+    const { attrs, hasSpread } = extractJsxAttributeNames(
+      ` title="Hi" onDismiss={() => go(">")} footer={<div a="x" />} disabled `,
+    );
+    expect(attrs.map((a: { name: string }) => a.name)).toEqual([
+      "title",
+      "onDismiss",
+      "footer",
+      "disabled",
+    ]);
+    expect(attrs[0].offset).toBe(1); // " title…" → name starts at index 1
+    expect(hasSpread).toBe(false);
+  });
+
+  it("detects a spread", () => {
+    const { hasSpread } = extractJsxAttributeNames(` {...rest} title="x" `);
+    expect(hasSpread).toBe(true);
+  });
+});
+
+describe("scanBannedConstructs", () => {
+  const props = CANONICAL_SCROLLABLE_PANEL_PROPS;
+  it("flags a ComponentErrorBoundary cast with a line number", () => {
+    const src = `const x = 1;\nconst EB = ComponentErrorBoundary as ComponentType<{}>;\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v).toHaveLength(1);
+    expect(v[0].kind).toBe("banned-cast");
+    expect(v[0].line).toBe(2);
+  });
+
+  it("flags an unknown ScrollablePanel prop but not data-/aria-", () => {
+    const src = `<ScrollablePanel title="t" pluginSlug="x" data-test="y" aria-label="z">k</ScrollablePanel>`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v.map((x: { name: string }) => x.name)).toEqual(["ScrollablePanel.pluginSlug"]);
+  });
+
+  it("reports the unknown prop's OWN line on a multi-line tag (not the tag's open)", () => {
+    const src =
+      `<ScrollablePanel\n` + // line 1
+      `  title="t"\n` + //       line 2
+      `  bogus="y"\n` + //       line 3 ← the offending attr
+      `>k</ScrollablePanel>\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v).toHaveLength(1);
+    expect(v[0].name).toBe("ScrollablePanel.bogus");
+    expect(v[0].line).toBe(3);
+  });
+
+  it("is clean on a correct usage", () => {
+    const src = `<ScrollablePanel title="t" footer={<a/>}>k</ScrollablePanel>`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("ignores a cast / bad prop that only appears in a comment or string", () => {
+    const src =
+      `// ComponentErrorBoundary as X is wrong\n` +
+      `const help = "pass pluginSlug? no such <ScrollablePanel> prop";\n` +
+      `<ScrollablePanel title="t">k</ScrollablePanel>`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
   });
 });

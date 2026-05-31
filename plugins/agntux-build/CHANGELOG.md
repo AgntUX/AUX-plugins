@@ -6,6 +6,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-05-31
+
+Makes the build's fix-loop converge by closing the gaps that made the model
+guess. A real google-calendar build on 0.20.0 still burned ~5 failed validate
+rounds: the render gate reported only a console-error *count* (not the message),
+so the model guessed the cause and a wrong guess (a `ComponentErrorBoundary`
+cast) broke a stage that had been passing; and a `payload-shape` test asserted
+prose a different agent never wrote. This release surfaces the real render
+error, gates the recurring hand-authoring defects mechanically, and stops tests
+from coupling to another agent's prose.
+
+### Added
+- **Render console-error TEXT in the validate verdict.** The headless renderer
+  always captured each console error's message + location, but the test-harness
+  collapsed it to a count and `validate-plugin` only matched `consoleErrors=N` —
+  so the render stage said "rendered with N console error(s)" with an empty
+  `stderr_tail` and the model had to GUESS what broke. The harness now prints
+  each error (`  console error: <text>  @ <url>:<line>:<col>`), a new
+  `parseConsoleErrors` lifts it into the render stage's `error_message` +
+  `console_errors[]` (the same actionable fields build/typecheck errors use), and
+  `buildStageResults` passes `console_errors` through the punch-list envelope.
+- **Mechanical view-tool construct gate** (`check-view-tool-imports.mjs`, run
+  before vite). Fails the build fast + routed to `view-tool-builder` on a
+  `ComponentErrorBoundary as …` cast (it is a valid component; the cast IS the
+  TS2786 error) or a `<ScrollablePanel>` prop outside the primitive's real prop
+  set (e.g. a hallucinated `pluginSlug` → TS2322). The `ScrollablePanel` allow
+  set is read from the bundled ui-primitives `.d.ts` (machine-readable truth)
+  unioned with a canonical floor; tags carrying a `{...spread}` are skipped.
+  Complements the existing duplicate-`@types/react` guard (the *other* TS2786
+  source).
+
+### Changed
+- **`tests-author` derives assertions; never asserts another agent's prose.** A
+  binding rule + a 3-source-of-truth taxonomy (handler output → declared schema →
+  canonical stable anchor) replaces the per-build "loosen the regex" workaround
+  for `payload-shape`/`idempotent` tests that grepped `fetch.md`/`sync.md` wording
+  the ingest author never wrote. The canonical `payload-shape.test.ts` guidance
+  now states the same: derive `KEPT_KEYS` from `viewTool.handle()`, never from
+  prose.
+- **`view-tool-builder` carries the parse-helper contract.** `parseFrontmatter`
+  returns `{ frontmatter, body }`; `parseActionFile` returns `ParsedAction`
+  (no `.body`) — the TS2339 `'body' does not exist on type 'ParsedAction'` defect
+  is now called out explicitly, pointing at the correct canonical clone.
+
 ## [0.20.0] — 2026-05-31
 
 Unblocks the headless render gate and collapses the build's fix-loop. The
