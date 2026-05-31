@@ -10,6 +10,7 @@ import { parseFlags, required, parseIntFlag } from "../src/parse-flags.mjs";
 import { runRender } from "../src/render.mjs";
 import { probeChromium } from "../src/probe-chromium.mjs";
 import { resolveHarnessArgs } from "../src/load-fixture.mjs";
+import { formatConsoleErrorLine } from "../src/console-error-format.mjs";
 
 const HELP = `agntux-build-test — headless UI test runner
 
@@ -165,6 +166,15 @@ async function main(argv) {
         const locator = rule.locator ?? "n/a";
         const reason = f.reason ?? "expected " + JSON.stringify(f.expected ?? null);
         console.log(`  content FAIL [${desc} via ${locator}]: ${reason}`);
+      }
+    }
+    // Print each console error on ONE line with a stable `console error: `
+    // anchor (validate-plugin's parseConsoleErrors greps this). The exact line
+    // shape lives in console-error-format.mjs so the printer and parser can't
+    // drift (a round-trip test pins the contract).
+    if (Array.isArray(summary.consoleErrors) && summary.consoleErrors.length) {
+      for (const ce of summary.consoleErrors) {
+        console.log(formatConsoleErrorLine(ce));
       }
     }
 

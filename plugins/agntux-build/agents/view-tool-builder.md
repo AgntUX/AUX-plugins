@@ -71,7 +71,18 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
   `{ title: ReactNode; onDismiss?: () => void; onHelpClick?: () => void;
   helpLabel?: string; children: ReactNode; footer?: ReactNode }`. There is **no
   `pluginSlug` prop** (TS2322) and no other prop. Put the primary action(s) in
-  `footer`; there is no `StickyFooter` export.
+  `footer`; there is no `StickyFooter` export. The `check-view-tool-imports.mjs`
+  gate fails the build on a `ComponentErrorBoundary as …` cast or an unknown
+  `<ScrollablePanel>` prop BEFORE vite — so this is enforced, not just advised.
+- **Parse helpers** (`@agntux/plugin-runtime`) — pick the right one and use its
+  REAL return shape; mismatching them is the TS2339 `Property 'body' does not
+  exist on type 'ParsedAction'` error. `parseFrontmatter(text)` returns
+  `{ frontmatter, body }` (use `.frontmatter` + `.body`). `parseActionFile(text)`
+  returns a `ParsedAction` (its fields — NOT `.body`). **Never** annotate the
+  `parseFrontmatter` result as `ParsedAction`, and never destructure `.body` off
+  `parseActionFile`. The canonical `__ui-name__-view.ts` already does this
+  correctly (`parsed.frontmatter.title` + `parsed.body ?? ""`) — clone it rather
+  than re-deriving the read.
 
 ## `data_paths` — set it explicitly on the descriptor
 
