@@ -440,10 +440,18 @@ hand-fixing.
 
 ## Self-validation (required — WS-A, hard exit)
 
-After writing `marketplace/listing.yaml` and `plugin.json`, you MUST validate
-before returning success. Lint failures are **mechanical** and NEVER reach the
-contributor — see `skills/build/references/self-validation.md` for the budgets +
-the strict mechanical-vs-judgment line.
+After writing `marketplace/listing.yaml` and `plugin.json`, the orchestrator
+runs the lint inside `agntux_validate`. Lint failures are **mechanical** and
+NEVER reach the contributor — see `skills/build/references/self-validation.md`
+for the budgets + the strict mechanical-vs-judgment line.
+
+**When you're re-dispatched on a `lint` / `validate` failure, you receive the
+real error.** The orchestrator hands you the captured linter output —
+`failed_file`, `failed_line`, `error_code` (the lint code, e.g. E05/E11/E04/E14),
+`stderr_tail` — and/or a `log_path` to the native host dir holding the full
+per-stage logs. `Read` `log_path` if given, open `failed_file`, and fix THAT
+specific field the linter named (per the code-by-code steps below). Do NOT
+re-guess from priors or re-trim a field the linter didn't flag.
 
 1. Run `npm run lint:marketplace -- --plugin {slug}`.
 2. On **E05** (char-cap overrun): parse the offending field name(s) from

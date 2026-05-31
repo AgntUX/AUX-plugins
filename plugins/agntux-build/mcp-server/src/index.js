@@ -53,6 +53,8 @@ import {
   rmSync,
   openSync,
   realpathSync,
+  readdirSync,
+  statSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -154,6 +156,20 @@ const TOOLS = [
       type: "object",
       properties: {
         session_dir: { type: "string", description: "Absolute path to the session dir holding SUBMISSION.json (…/.agntux-build/builds/{session})." },
+      },
+      required: ["session_dir"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "agntux_report_defect",
+    description:
+      "Bundle a FAILED build session for the agntux-build MAINTAINER. Reads the persisted validation verdict + logs (`{session_dir}/.validate/`) and the plugin tree manifest, writes `{session_dir}/DEFECT.json`, and returns {ok:true, defect_path, summary}. This is the HONEST-STOP action: call it when a failure is an environment/internal limit (a non-blocking, not-the-contributor's-fault wall) or the fix loop is exhausted, instead of fabricating a success. It does NOT submit anything to the marketplace — it only saves a local maintainer-facing report. NEVER throws.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session_dir: { type: "string", description: "Absolute path to the failed session dir (…/.agntux-build/builds/{session})." },
+        note: { type: "string", description: "Optional. A short human note about what was being attempted / what failed." },
       },
       required: ["session_dir"],
       additionalProperties: false,
@@ -299,11 +315,21 @@ async function handleScaffold(args) {
   // A scaffold failure is an agntux-build packaging/tooling defect (missing
   // canonical template, unwritable dir) — NOT a contributor problem. blocking:
   // false so the orchestrator stops honestly and logs a maintainer defect
-  // rather than re-dispatching a specialist.
+  // rather than re-dispatching a specialist. parseFirstError() names the file/
+  // line when the scaffold output carries one, so a tooling defect points at
+  // the culprit.
+  let firstError = {};
+  try {
+    const { parseFirstError } = await toolchain();
+    firstError = parseFirstError(output) || {};
+  } catch {
+    /* best-effort enrichment; omit on failure */
+  }
   return {
     ok: false,
     error_kind: "internal",
     blocking: false,
+    ...firstError,
     detail: output || `scaffold exited with status ${r.status}${r.signal ? ` (signal ${r.signal})` : ""}`,
   };
 }
@@ -481,6 +507,114 @@ async function handleConfirmSubmission(args) {
   return { queued: null, reason: "timeout_signed_out", daemon_active: true };
 }
 
+/**
+ * Bundle a FAILED build session into {session_dir}/DEFECT.json for the
+ * agntux-build maintainer. Reads the persisted validation verdict + .validate/
+ * logs and (best-effort) the plugin tree manifest. Submits NOTHING to the
+ * marketplace — it's the honest-stop receipt for an environment/internal wall or
+ * an exhausted fix loop. NEVER throws.
+ *
+ * Exported so the unit test can drive it directly (the dispatch path in handle()
+ * still calls the same function); importing the module is side-effect-free.
+ */
+export async function handleReportDefect(args) {
+  const sessionDir = str(args.session_dir);
+  const note = args.note ? str(args.note) : null;
+  if (!sessionDir) {
+    return { ok: false, error_kind: "usage", blocking: false, detail: "session_dir is required" };
+  }
+  if (!existsSync(sessionDir)) {
+    return { ok: false, error_kind: "usage", blocking: false, detail: `session_dir not found: ${sessionDir}` };
+  }
+  try {
+    const { walkTree, tail } = await toolchain();
+    const validateDir = path.join(sessionDir, ".validate");
+
+    // ── persisted verdict (best-effort) ─────────────────────────────────────
+    let verdict = null;
+    try {
+      verdict = JSON.parse(readFileSync(path.join(validateDir, "verdict.json"), "utf8"));
+    } catch {
+      verdict = null;
+    }
+
+    // ── *.log tails, keyed by filename (best-effort) ────────────────────────
+    const logs = {};
+    try {
+      for (const name of readdirSync(validateDir)) {
+        if (!name.endsWith(".log")) continue;
+        try {
+          logs[name] = tail(readFileSync(path.join(validateDir, name), "utf8"));
+        } catch {
+          /* skip an unreadable log */
+        }
+      }
+    } catch {
+      /* no .validate dir / unreadable */
+    }
+
+    // ── plugin dir → tree manifest (best-effort) ────────────────────────────
+    // Prefer the verdict's recorded plugin_dir if it still exists; otherwise the
+    // single child directory of session_dir whose basename starts with agntux-.
+    let pluginDir = null;
+    if (verdict && typeof verdict.plugin_dir === "string" && existsSync(verdict.plugin_dir)) {
+      pluginDir = verdict.plugin_dir;
+    } else {
+      try {
+        const children = readdirSync(sessionDir).filter((n) => {
+          if (!n.startsWith("agntux-")) return false;
+          try {
+            return statSync(path.join(sessionDir, n)).isDirectory();
+          } catch {
+            return false;
+          }
+        });
+        if (children.length === 1) pluginDir = path.join(sessionDir, children[0]);
+      } catch {
+        /* unreadable session dir contents */
+      }
+    }
+
+    let tree = null;
+    if (pluginDir) {
+      try {
+        const slug = path.basename(pluginDir);
+        const { files, treeSha } = treeFilesAndSha(pluginDir, slug, walkTree);
+        tree = { tree_sha256: treeSha, files_count: files.length };
+      } catch {
+        tree = null; // manifest is best-effort; omit on failure
+      }
+    }
+
+    // ── assemble + atomic write ─────────────────────────────────────────────
+    const defect = {
+      schema_version: "1.0.0",
+      kind: "agntux-build.defect",
+      created_at: new Date().toISOString(),
+      agntux_build_version: readOwnVersion(),
+      session_dir: sessionDir,
+      note: note || null,
+      verdict,
+      logs,
+      tree,
+    };
+
+    const defectPath = path.join(sessionDir, "DEFECT.json");
+    const tmp = `${defectPath}.tmp`;
+    writeFileSync(tmp, JSON.stringify(defect, null, 2));
+    renameSync(tmp, defectPath);
+
+    return {
+      ok: true,
+      defect_path: defectPath,
+      files: tree ? tree.files_count : 0,
+      summary: "Saved a defect bundle for the maintainer at DEFECT.json.",
+    };
+  } catch (e) {
+    return { ok: false, error_kind: "internal", blocking: false, detail: errStr(e) };
+  }
+}
+
 // ── JSON-RPC plumbing ─────────────────────────────────────────────────────────
 
 function send(msg) {
@@ -529,10 +663,14 @@ async function handle(req) {
         else if (name === "agntux_validate") payload = await handleValidate(args);
         else if (name === "agntux_write_submission") payload = await handleWriteSubmission(args);
         else if (name === "agntux_confirm_submission") payload = await handleConfirmSubmission(args);
+        else if (name === "agntux_report_defect") payload = await handleReportDefect(args);
         else payload = { ok: false, error_kind: "usage", blocking: false, detail: `unknown tool: ${name}` };
       } catch (e) {
         payload = { ok: false, error_kind: "internal", blocking: false, detail: errStr(e) };
       }
+      // Uniform feedback: every tool result carries a `summary` (+ next_action).
+      // NEVER throws; on any error the payload passes through unchanged.
+      payload = await withFeedback(payload, { tool: name });
       return toolResult(id, payload);
     }
     if (isNotification) return null;
@@ -556,6 +694,46 @@ function errStr(e) {
 }
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+/**
+ * Guarantee every tool result carries a human-readable `summary` (+ `next_action`).
+ * If the payload already has a `summary` string we leave it untouched (the
+ * validate / write_submission verdicts derive their own richer summary). Otherwise
+ * we synthesize one from the shared buildSummary() helper. NEVER throws — on any
+ * error the payload is returned unchanged (the anti-fabrication contract: a
+ * feedback hiccup must not turn a real result into a thrown protocol error).
+ */
+async function withFeedback(payload, { tool } = {}) {
+  try {
+    if (!payload || typeof payload !== "object") return payload;
+    if (typeof payload.summary === "string") return payload;
+    const { buildSummary } = await toolchain();
+    // Normalize the MCP tool name (e.g. agntux_confirm_submission) to the short
+    // token buildSummary branches on (confirm_submission); otherwise every
+    // synthesized summary falls to the generic/failure path — which mislabeled a
+    // queued:true confirm SUCCESS as a build failure.
+    const { summary, next_action } = buildSummary({
+      tool: String(tool || "").replace(/^agntux_/, ""),
+      ok: payload.ok,
+      error_kind: payload.error_kind,
+      blocking: payload.blocking,
+      failed_stage: payload.failed_stage,
+      failed_file: payload.failed_file,
+      failed_line: payload.failed_line,
+      error_code: payload.error_code,
+      routing: payload.routing,
+      queued: payload.queued,
+      reason: payload.reason,
+    });
+    if (typeof summary === "string") payload.summary = summary;
+    // Don't clobber a next_action a handler already set.
+    if (payload.next_action === undefined && next_action !== undefined) {
+      payload.next_action = next_action;
+    }
+    return payload;
+  } catch {
+    return payload;
+  }
 }
 /**
  * Reconcile the renderer status reported to the orchestrator. If render actually

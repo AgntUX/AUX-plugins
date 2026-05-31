@@ -153,7 +153,8 @@ files exist on disk."
 
 Before dispatching any specialist, assert the `agntux-build` MCP server is up and
 its tools — `agntux_validate`, `agntux_write_submission`,
-`agntux_confirm_submission` — are available to call. If they are NOT callable,
+`agntux_confirm_submission`, `agntux_report_defect` — are available to call. If
+they are NOT callable,
 the build can never honestly reach a green gate, and the ONLY correct move is to
 STOP and log an agntux-build defect (the MCP server didn't start). **Never fall
 back to a prose/bash program, a hand-written receipt, or a "built" claim when the
@@ -280,14 +281,24 @@ with no failure narration.
 If the same specialist fails twice on the same step, dispatch a
 third attempt with `executor` (model=opus) carrying the prior two
 error messages and a "fix and continue" directive. Only if that
-third attempt also fails do you surface anything to the user, and
-even then it's a one-liner:
+third attempt also fails — or the moment you hit a stop-early verdict
+(`blocking:false`, `error_kind` of `environment`/`internal`) — do you
+surface anything to the user, and even then it's a one-liner. First
+bundle the failing session with the MCP tool:
+
+```
+agntux_report_defect({ session_dir })
+# → { ok:true, defect_path, summary } — writes {session}/DEFECT.json
+#   (verdict + per-stage logs + tree manifest) for the maintainer.
+```
+
+Then surface the one-liner (now backed by `defect_path`):
 
 > Hit a snag I couldn't fix on my own. Saving the session so the team
 > can look — `https://github.com/AgntUX/AUX-plugins/issues`.
 
-No technical detail in the surface — the session file carries the
-traceback for maintainers.
+No technical detail in the surface — `DEFECT.json` + the session file
+carry the verdict and traceback for maintainers.
 
 ## Stage-7 verification — `agntux_validate` runs the gate natively; submit re-validates (WS-A.2)
 
@@ -327,14 +338,28 @@ you natively, that specialists must never attempt via Bash:
 - the marketplace **lint** (`lint:marketplace`) and `claude plugin validate`.
 
 When `agntux_validate` (here at stage 7) or `agntux_write_submission` (at submit,
-stage 12) returns `ok:false`, the structured verdict — `{ failed_stage, routing,
-blocking, error_kind, detail, stages }` — names the fix and writes nothing. Read
-`failed_stage` (from the tool's RETURN value, not a parsed stdout line),
-re-dispatch the owning specialist to fix its `_overrides/` / `src` inputs, then
-re-call the tool (validation runs **once per call, never twice within one**). A
-`blocking:false` verdict (e.g. `error_kind: "environment"`) means an
-environment/usage limit — stop honestly, do NOT re-dispatch a specialist. The
-`failed_stage` → specialist mapping (a `build` failure can be a render-skill
+stage 12) returns `ok:false`, the structured verdict names the fix and writes
+nothing. The full shape is `{ summary, next_action, error_kind, blocking,
+failed_stage, routing, failed_file, failed_line, failed_col, error_code,
+stderr_tail, stdout_tail, log_path, stages, detail, validated_at }` — **read it,
+don't blind-guess.** First read `summary` / `next_action` (the plain-English
+verdict). Then branch on `error_kind` + `blocking`:
+
+- **`error_kind:"plugin"` (fixable, `blocking:true`)** → re-dispatch the owning
+  specialist (`routing` / the `failed_stage` table below) **WITH the captured
+  error embedded** — `failed_file`, `failed_line`, `error_code`, `stderr_tail` —
+  and/or tell it to `Read` `log_path` (the native host dir holding the full
+  per-stage logs: `{stage}.out.log`, `{stage}.err.log`, `verdict.json`). The
+  specialist fixes THAT real compiler/linter/test error in its `_overrides/` /
+  `src` inputs — it never re-guesses from priors. Re-call the tool afterward
+  (validation runs **once per call, never twice within one**).
+- **`blocking:false`, or `error_kind` of `environment` / `internal`** → an
+  env/usage/tooling limit a specialist edit can't move. **STOP** — do NOT
+  re-dispatch a specialist. Call `agntux_report_defect({ session_dir })` to
+  bundle the verdict + per-stage logs, then surface the honest `summary`
+  one-liner (the "hit a snag" copy above).
+
+The `failed_stage` → specialist mapping (a `build` failure can be a render-skill
 error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →
 `ingest-prompt-author`):
 
@@ -349,15 +374,17 @@ error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →
 | `render` (console errors / handler `tool error:` / harness crash) | `executor` (model=sonnet, per `08-headless-test.md` self-fix) |
 | `usage` (bad flag, missing `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |
 
-Loop submit→fix up to **5 times** (budgets + the mechanical-vs-judgment line live
-in [`self-validation.md`](self-validation.md)) — each iteration is a fresh
-`agntux_write_submission` call after the specialist's fix. These are
-**mechanical** failures — the user NEVER sees a lint code or a traceback. If
-still failing after 5 cycles, log an agntux-build defect for the maintainer (the
-saved session file + the one-line "hit a snag" message above) and stop. Do NOT
-surface lint/build/test detail to the contributor, do NOT hand-write a marker to
-get past a failure, and do NOT let the flow claim "submitted" with an
-unvalidated tree.
+Loop submit→fix up to **5 times** (budgets, the no-progress loop guard, and the
+mechanical-vs-judgment line live in [`self-validation.md`](self-validation.md)) —
+each iteration is a fresh `agntux_write_submission` call after the specialist's
+fix. These are **mechanical** failures — the user NEVER sees a lint code or a
+traceback. If the same `failed_file` + `error_code` repeats across two
+consecutive cycles (no progress) or you exhaust the 5 cycles, call
+`agntux_report_defect({ session_dir })` to log the defect for the maintainer
+(`DEFECT.json` + the saved session file + the one-line "hit a snag" message
+above) and stop. Do NOT surface lint/build/test detail to the contributor, do
+NOT hand-write a marker to get past a failure, and do NOT let the flow claim
+"submitted" with an unvalidated tree.
 
 ## Saved state at end of stage 7
 

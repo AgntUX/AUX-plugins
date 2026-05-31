@@ -26,6 +26,32 @@ interrelated over-cap fields). A specialist that exhausts its budget returns
 per the failure path in `07-build.md` (third attempt on `executor` model=opus,
 then — only if that also fails — the agntux-build-defect path below).
 
+## Error-driven, stop-early policy (consume the verdict — never blind-guess)
+
+On `ok:false`, `agntux_validate` / `agntux_write_submission` return a rich
+verdict — `{ summary, next_action, error_kind, blocking, failed_stage, routing,
+failed_file, failed_line, failed_col, error_code, stderr_tail, stdout_tail,
+log_path, stages, detail, validated_at }`. **Read it; do not re-dispatch on
+reflex.** Branch on `error_kind` + `blocking` BEFORE you spend a cycle:
+
+- **`error_kind` is `environment` or `internal`, OR `blocking:false`** → **STOP
+  the loop.** Do NOT re-dispatch a specialist — the tree is fine; the failure is
+  an env/usage/tooling limit a specialist edit can't move. Call
+  `agntux_report_defect({ session_dir })` to bundle the verdict + per-stage logs
+  for the maintainer, then surface the honest one-liner from `summary` (see
+  `07-build.md`'s "hit a snag" copy). Re-dispatching here only burns cycles and
+  ends in the same stop.
+- **`error_kind:"plugin"` (fixable)** → re-dispatch the `routing` specialist and
+  **hand it the captured error**: `failed_file`, `failed_line`, `error_code`,
+  `stderr_tail`, plus the `log_path` (tell the specialist to `Read` it for the
+  full per-stage output). The specialist fixes THAT error — it never re-guesses
+  from priors.
+- **Loop guard (no-progress abort).** Track `failed_file` + `error_code` across
+  cycles. If the SAME pair repeats on two consecutive cycles, the fix isn't
+  converging — **abort early** (before the 5-cycle cap), call
+  `agntux_report_defect({ session_dir })`, and pause. The 5-cycle hard cap from
+  the budgets table above stays as the backstop for the slower-converging case.
+
 ## The mechanical-vs-judgment line (the strict rule)
 
 Every failure is **either** mechanical **or** contributor-judgment. Classify
@@ -36,10 +62,13 @@ before surfacing anything.
   missing `_overrides/frontmatter.yaml`, render-reproducibility drift, test
   failures, any file-shape problem. **These NEVER reach the contributor.** The
   specialist iterates until its validator passes or the budget exhausts. On
-  exhaustion the failure is logged as an **agntux-build defect for the maintainer**
-  (the maintainer) — surfaced out-of-band (e.g. the saved session file + the
-  one-line "hit a snag" message in `07-build.md`), never as a contributor
-  to-do. Lint codes and tracebacks are our problem, not theirs.
+  stop-early or budget exhaustion the failure is logged as an **agntux-build
+  defect for the maintainer** — the bundle now comes from **`agntux_report_defect`
+  (a real MCP tool)**, which writes `{session}/DEFECT.json` (verdict + per-stage
+  logs + tree manifest) and returns `{ ok:true, defect_path, summary }`, **in
+  addition to** the saved session file + the one-line "hit a snag" message in
+  `07-build.md`. Never surfaced as a contributor to-do. Lint codes and tracebacks
+  are our problem, not theirs.
 - **Contributor-judgment** — data-source connection details, OAuth scope intent,
   business-logic decisions about what the plugin should *do*. These continue to
   use the existing `user_fixable` copy-prompt card UX. Example: "your plugin

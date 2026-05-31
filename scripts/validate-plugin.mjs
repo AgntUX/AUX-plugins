@@ -78,10 +78,13 @@ const tc = resolveToolchain(__dirname);
 // match the marker's tree_sha256 over the same tree. `validation-receipt.json`
 // is added to EXCLUDE_NAMES belt-and-suspenders (it lives in SESSION_DIR,
 // already outside PLUGIN_DIR, but a future session-dir==plugin-dir layout must
-// never let the receipt hash itself).
+// never let the receipt hash itself). `.validate` (the captured stage logs +
+// verdict written on failure) is in EXCLUDE_DIRS for the same belt-and-
+// suspenders reason — it normally lives in SESSION_DIR (outside PLUGIN_DIR),
+// but must never sneak into the hashed tree.
 export const EXCLUDE_DIRS = new Set([
   "node_modules", ".git", ".omc", "mcp-server", "hooks", "host-renderer",
-  "test-harness", "agents",
+  "test-harness", "agents", ".validate",
 ]);
 export const EXCLUDE_NAMES = new Set([
   "SUBMISSION.json", "SUBMISSION.json.tmp", ".DS_Store", ".mcp.json",
@@ -127,6 +130,309 @@ export function computeTreeSha256(pluginDir, slug) {
     .digest("hex");
 }
 
+// ── error capture (pure helpers) ─────────────────────────────────────────────
+
+/**
+ * Return the last `n` chars of `s` (coerced to string), or the whole string if
+ * it's shorter. Used to bound the captured stderr/stdout we thread into the
+ * verdict so a runaway log never blows up the JSON-RPC envelope. Never throws.
+ */
+export function tail(s, n = 6144) {
+  const str = s == null ? "" : String(s);
+  return str.length > n ? str.slice(-n) : str;
+}
+
+/**
+ * Scan `text` for the FIRST compiler/linter/test location and return a partial
+ * `{ failed_file, failed_line, failed_col, error_code, error_message }`. Keys
+ * that aren't found are omitted; `{}` is returned when nothing matches. Match
+ * priority (first hit wins): tsc → esbuild/vite → eslint/marketplace-lint →
+ * vitest. `failed_line`/`failed_col` are numbers. Defensive — never throws.
+ *
+ * ReDoS-proof by construction. The scan is a single O(n) line-by-line pass:
+ * every regex is anchored to ONE line and carries NO newline-spanning
+ * quantifier (no `(?:.*\n)*?` / `[\s\S]*`), so total work is linear in the
+ * input and no pathological log can blow up the event loop. The two
+ * cross-line forms (esbuild `✘ [ERROR]` + a following locator; eslint
+ * path-line + a following locator) are handled by carrying a tiny bit of
+ * state across iterations and a BOUNDED (≤4-line) lookahead — both O(1) per
+ * hit. A generous size backstop caps the scanned text as defense-in-depth;
+ * the linear algorithm is the primary guarantee, not the cap.
+ */
+const PARSE_ERROR_MAX_CHARS = 2 * 1024 * 1024; // ~2 MB defense-in-depth backstop
+
+// Per-line anchored matchers (each operates on a SINGLE line — no `\n`).
+const RE_TSC =
+  /^(?<file>[^\s(].*?)\((?<line>\d+),(?<col>\d+)\):\s*error\s+(?<code>TS\d+):\s*(?<msg>.*)$/;
+const RE_ESBUILD_PLAIN =
+  /^(?<file>[^\s:][^:]*):(?<line>\d+):(?<col>\d+):\s*ERROR:\s*(?<msg>.*)$/;
+const RE_ESBUILD_HEADER = /✘\s*\[ERROR\]\s*(?<msg>.*)$/;
+const RE_LOCATOR = /^\s*(?<file>[^\s:][^:]*):(?<line>\d+):(?<col>\d+):/;
+// A "path-only" line: a bare relative/absolute path ending in an extension,
+// nothing else after it (the eslint per-file header).
+const RE_PATH_ONLY = /^(?<file>[^\s][^\n]*?\.[A-Za-z0-9]+)\s*$/;
+const RE_ESLINT_LOCATOR =
+  /^\s+(?<line>\d+):(?<col>\d+)\s+error\s+(?<msg>.*?)(?:\s{2,}(?<code>[A-Za-z0-9@/_-]+))?\s*$/;
+const RE_VITEST_LOCATOR = /❯\s*(?<file>[^\s:][^:]*):(?<line>\d+):(?<col>\d+)/;
+const RE_VITEST_FAIL = /^\s*FAIL\s+(?<file>\S+)/;
+const RE_VITEST_ASSERTION = /^\s*(?:AssertionError|Error):\s*(?<msg>.*)$/;
+
+export function parseFirstError(text) {
+  let s = text == null ? "" : String(text);
+  if (!s) return {};
+  if (s.length > PARSE_ERROR_MAX_CHARS) s = s.slice(0, PARSE_ERROR_MAX_CHARS);
+  try {
+    const lines = s.split("\n");
+
+    // State carried across the single pass. We collect the first hit per
+    // category so we can honor the priority order (tsc → esbuild → eslint →
+    // vitest) after the scan without re-scanning.
+    let esbuild = null; // { file, line, col, msg }
+    let eslint = null; // { file, line, col, msg, code? }
+    let vitestLoc = null; // { file, line, col }
+    let vitestFailFile = null;
+    let vitestMsg = null;
+    let prevPathOnly = null; // most-recent eslint path-only header line
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // 1. tsc — highest priority. A single-line diagnostic; return immediately.
+      const t = RE_TSC.exec(line);
+      if (t) {
+        return {
+          failed_file: t.groups.file,
+          failed_line: Number(t.groups.line),
+          failed_col: Number(t.groups.col),
+          error_code: t.groups.code,
+          error_message: t.groups.msg.trim(),
+        };
+      }
+
+      // 2b. esbuild/vite plain — `file:LINE:COL: ERROR: message` on one line.
+      if (!esbuild) {
+        const ep = RE_ESBUILD_PLAIN.exec(line);
+        if (ep) {
+          esbuild = {
+            file: ep.groups.file,
+            line: Number(ep.groups.line),
+            col: Number(ep.groups.col),
+            msg: ep.groups.msg.trim(),
+          };
+        }
+      }
+
+      // 2a. esbuild/vite header — `✘ [ERROR] message`, with the locator on a
+      //     FOLLOWING line. Bounded lookahead (≤4 lines) for the locator.
+      if (!esbuild) {
+        const eh = RE_ESBUILD_HEADER.exec(line);
+        if (eh) {
+          for (let j = i + 1; j <= i + 4 && j < lines.length; j++) {
+            const loc = RE_LOCATOR.exec(lines[j]);
+            if (loc) {
+              esbuild = {
+                file: loc.groups.file,
+                line: Number(loc.groups.line),
+                col: Number(loc.groups.col),
+                msg: eh.groups.msg.trim(),
+              };
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. eslint — pair the most-recent path-only header with this locator.
+      if (!eslint) {
+        const el = RE_ESLINT_LOCATOR.exec(line);
+        if (el && prevPathOnly) {
+          eslint = {
+            file: prevPathOnly,
+            line: Number(el.groups.line),
+            col: Number(el.groups.col),
+            msg: el.groups.msg.trim(),
+          };
+          if (el.groups.code) eslint.code = el.groups.code.trim();
+        }
+      }
+
+      // 4. vitest — first locator / FAIL file / assertion message wins.
+      if (!vitestLoc) {
+        const vl = RE_VITEST_LOCATOR.exec(line);
+        if (vl) {
+          vitestLoc = {
+            file: vl.groups.file,
+            line: Number(vl.groups.line),
+            col: Number(vl.groups.col),
+          };
+        }
+      }
+      if (vitestFailFile == null) {
+        const vf = RE_VITEST_FAIL.exec(line);
+        if (vf) vitestFailFile = vf.groups.file;
+      }
+      if (vitestMsg == null) {
+        const va = RE_VITEST_ASSERTION.exec(line);
+        if (va) vitestMsg = va.groups.msg.trim();
+      }
+
+      // Track the most-recent path-only line for the eslint pairing. Update
+      // AFTER the eslint check so a locator pairs with the header that
+      // preceded it, never with itself.
+      const po = RE_PATH_ONLY.exec(line);
+      if (po) prevPathOnly = po.groups.file.trim();
+    }
+
+    // Apply priority order (tsc already returned above if it matched).
+    if (esbuild) {
+      return {
+        failed_file: esbuild.file,
+        failed_line: esbuild.line,
+        failed_col: esbuild.col,
+        error_message: esbuild.msg,
+      };
+    }
+    if (eslint) {
+      const out = {
+        failed_file: eslint.file,
+        failed_line: eslint.line,
+        failed_col: eslint.col,
+        error_message: eslint.msg,
+      };
+      if (eslint.code) out.error_code = eslint.code;
+      return out;
+    }
+    if (vitestLoc || vitestFailFile != null || vitestMsg != null) {
+      const out = {};
+      const file = (vitestLoc && vitestLoc.file) || vitestFailFile;
+      if (file) out.failed_file = file;
+      if (vitestLoc) {
+        out.failed_line = vitestLoc.line;
+        out.failed_col = vitestLoc.col;
+      }
+      if (vitestMsg != null) out.error_message = vitestMsg;
+      return out;
+    }
+  } catch {
+    /* defensive — never throw */
+  }
+  return {};
+}
+
+/**
+ * Classify a stage failure as a fixable PLUGIN defect vs. an ENVIRONMENT
+ * limitation, from the combined stdout/stderr. Environment failures (permission
+ * / disk / memory / network / registry / TLS / proxy / browser-launch) are
+ * non-blocking — we stop honestly rather than re-dispatching a specialist that
+ * can't fix the host. Everything else is a blocking plugin defect.
+ * Returns `{ error_kind, blocking }`. Never throws.
+ */
+export function classifyFailure(stage, { stdout = "", stderr = "" } = {}) {
+  const combined = `${stdout}\n${stderr}`;
+  const envRe =
+    /EPERM|EACCES|ENOSPC|ENOMEM|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|getaddrinfo|ECONNREFUSED|ECONNRESET|registry\.npmjs|self[- ]signed|unable to get local issuer|ERR_PROXY|browserType\.launch|playwright install|Executable doesn't exist/i;
+  if (envRe.test(combined)) {
+    return { error_kind: "environment", blocking: false };
+  }
+  return { error_kind: "plugin", blocking: true };
+}
+
+/**
+ * Build a plain-English `{ summary, next_action }` pair from a verdict's salient
+ * fields. `summary` is a 1-2 line, non-technical-user-safe description of what
+ * happened; `next_action` is an imperative instruction for the orchestrator.
+ * Generic across tools (validate / scaffold / confirm / write_submission) via
+ * the `tool`, `queued`, and `reason` inputs. Never throws.
+ */
+export function buildSummary({
+  tool = "validate",
+  ok,
+  error_kind,
+  blocking,
+  failed_stage,
+  failed_file,
+  failed_line,
+  error_code,
+  routing,
+  queued,
+  reason,
+} = {}) {
+  const t = tool || "validate";
+
+  // confirm_submission has NO `ok` field — its outcome is carried by `queued`
+  // (true=queued / false=daemon-dropped / null|undefined=finalized-not-yet-queued).
+  // This MUST be checked BEFORE the generic `if (ok)` / failure routing so a
+  // missing `ok` never falls through to the plugin-defect failure path (which
+  // mislabels a queued success as a build-stage failure).
+  if (t === "confirm_submission") {
+    if (queued === true) {
+      return {
+        summary: "Submission confirmed and queued.",
+        next_action: "Relay the success to the user; no further action needed.",
+      };
+    }
+    if (queued === false) {
+      return {
+        summary: `The daemon dropped the submission: ${reason || "server_rejected"}.`,
+        next_action: "Surface the reason to the user; the submission was not queued.",
+      };
+    }
+    // queued === null | undefined → finalized but not yet handed to the daemon.
+    return {
+      summary: `Finalized, but not yet queued (${reason || "daemon_inactive"}).`,
+      next_action:
+        "Tell the user the submission is saved and will queue when the daemon/sign-in is active.",
+    };
+  }
+
+  if (ok) {
+    if (t === "validate") {
+      return {
+        summary:
+          "All checks passed (build, lint, typecheck, tests, validate, render).",
+        next_action: "Proceed to write the submission.",
+      };
+    }
+    if (t === "write_submission") {
+      return {
+        summary: queued
+          ? "Submission written and queued for the build pipeline."
+          : "Submission written.",
+        next_action: "Relay the outcome to the user; no further action needed.",
+      };
+    }
+    return {
+      summary: `${t} completed successfully.`,
+      next_action: "Proceed to the next step.",
+    };
+  }
+
+  // Failure paths.
+  if (error_kind === "environment") {
+    const where = failed_stage ? ` (${failed_stage})` : "";
+    return {
+      summary: `The ${t === "validate" ? "build" : t} couldn't run here${where}: an environment limit, not a plugin defect.`,
+      next_action:
+        "Stop honestly and call agntux_report_defect; do not re-dispatch a specialist.",
+    };
+  }
+
+  // Plugin defect (default).
+  const loc =
+    failed_file != null
+      ? ` in ${failed_file}${failed_line != null ? `:${failed_line}` : ""}`
+      : "";
+  const code = error_code || (reason ? reason : "compile error");
+  const stageLabel = failed_stage || "build";
+  const dispatch = routing
+    ? `Dispatch the ${routing} specialist with the captured error (file/line) or have it Read log_path; fix that file and re-validate.`
+    : "Read log_path for the captured error; fix the offending file and re-validate.";
+  return {
+    summary: `${t === "validate" ? "Build" : t} failed in the ${stageLabel} stage: ${code}${loc}.`,
+    next_action: dispatch,
+  };
+}
+
 // ── verdict plumbing ─────────────────────────────────────────────────────────
 
 /**
@@ -137,9 +443,13 @@ export function computeTreeSha256(pluginDir, slug) {
  *   blocking:true  → a fixable PLUGIN defect (fix-and-retry via `routing`).
  *   blocking:false → an ENVIRONMENT / USAGE limitation (honest stop; no
  *                    specialist re-dispatch, no success claim).
+ *
+ * `extra` carries the captured error context (stderr_tail, stdout_tail, and the
+ * parseFirstError fields: failed_file/line/col, error_code, error_message),
+ * merged onto the instance so the catch block can fold it into the verdict.
  */
 class ValidationStop extends Error {
-  constructor({ stage, detail, blocking = true, routing = null, errorKind = "plugin" }) {
+  constructor({ stage, detail, blocking = true, routing = null, errorKind = "plugin", extra = {} }) {
     super(detail);
     this.name = "ValidationStop";
     this.stage = stage;
@@ -147,6 +457,43 @@ class ValidationStop extends Error {
     this.blocking = blocking;
     this.routing = routing;
     this.errorKind = errorKind;
+    Object.assign(this, extra);
+  }
+}
+
+/**
+ * Persist the FULL (untruncated) stage logs + the full verdict to
+ * `{logDir}/.validate/` so a specialist (or the model) can Read the complete
+ * compiler output when the tail isn't enough. Runs on the MCP path too (it's
+ * called from inside runValidation, not just the CLI). NEVER throws — log
+ * persistence is best-effort and must not turn a captured failure into an
+ * uncaught one. Returns the log directory path on success, else null.
+ *
+ * `logDir` is the SESSION dir (parent of pluginDir); we guard against the
+ * session-dir==plugin-dir degenerate layout by hopping to the parent so the
+ * logs never land inside the walked/hashed tree (belt-and-suspenders with
+ * `.validate` being in EXCLUDE_DIRS).
+ */
+function persistFailureLogs({ logDir, pluginDir, stage, stop, verdict }) {
+  try {
+    let base = logDir;
+    if (!base || (pluginDir && resolve(base) === resolve(pluginDir))) {
+      base = pluginDir ? dirname(resolve(pluginDir)) : tmpdir();
+    }
+    const dir = join(base, ".validate");
+    mkdirSync(dir, { recursive: true });
+    if (stage) {
+      // Full (untruncated) captured streams when present on the stop; fall back
+      // to the tails (and finally empty) so we always leave a record.
+      const fullOut = stop?._stdout_full ?? stop?.stdout_tail ?? "";
+      const fullErr = stop?._stderr_full ?? stop?.stderr_tail ?? "";
+      writeFileSync(join(dir, `${stage}.out.log`), String(fullOut));
+      writeFileSync(join(dir, `${stage}.err.log`), String(fullErr));
+    }
+    writeFileSync(join(dir, "verdict.json"), JSON.stringify(verdict, null, 2));
+    return dir;
+  } catch {
+    return null;
   }
 }
 
@@ -158,7 +505,10 @@ class ValidationStop extends Error {
  *     ok, slug, plugin_dir, session_dir,
  *     stages: { build, lint, typecheck, tests, validate, render },
  *     tree_sha256?,           // present only when ok:true
+ *     summary, next_action,   // plain-English relay + orchestrator instruction
  *     failed_stage?, blocking?, routing?, error_kind?, detail?,  // when ok:false
+ *     failed_file?, failed_line?, failed_col?, error_code?,      // when ok:false
+ *     stderr_tail?, stdout_tail?, log_path?,                     // when ok:false
  *     validated_at
  *   }
  *
@@ -223,13 +573,26 @@ export async function runValidation({
     log("[1/6] build (build-plugin.mjs)");
     {
       const r = run("node", [tc.buildScript, slug, "--plugin-dir", pluginDir], tc.base, {
+        capture: true,
         env: { ...process.env, AGNTUX_PACKAGES_DIR: tc.packagesDir },
       });
+      process.stderr.write(r.stdout);
+      process.stderr.write(r.stderr);
       if (r.status !== 0) {
+        const { error_kind, blocking } = classifyFailure("build", r);
         throw new ValidationStop({
           stage: "build",
           detail: `build-plugin.mjs exited ${r.status} for ${slug}`,
           routing: "view-tool-builder",
+          errorKind: error_kind,
+          blocking,
+          extra: {
+            stderr_tail: tail(r.stderr),
+            stdout_tail: tail(r.stdout),
+            _stderr_full: r.stderr,
+            _stdout_full: r.stdout,
+            ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+          },
         });
       }
       stages.build = { status: "pass" };
@@ -249,7 +612,7 @@ export async function runValidation({
         tc.lintRunner === "tsx"
           ? run("npm", ["run", "lint:marketplace", "--", ...lintArgs], tc.base, { capture: true })
           : run("node", [tc.lintEntry, ...lintArgs], tc.base, { capture: true });
-      process.stdout.write(r.stdout);
+      process.stderr.write(r.stdout);
       process.stderr.write(r.stderr);
       if (r.status !== 0) {
         // Surface lint codes so the fix loop can route E05/E11/E04/E14 →
@@ -257,10 +620,20 @@ export async function runValidation({
         // view-tool-builder.
         const codes = (r.stdout + r.stderr).match(/\b(E\d{2}|BUILD-[A-Za-z-]+)\b/g) || [];
         const uniq = [...new Set(codes)];
+        const { error_kind, blocking } = classifyFailure("lint", r);
         throw new ValidationStop({
           stage: "lint",
           detail: `marketplace lint failed for ${slug}${uniq.length ? ` (codes: ${uniq.join(",")})` : ""}`,
           routing: routeFromLintCodes(uniq),
+          errorKind: error_kind,
+          blocking,
+          extra: {
+            stderr_tail: tail(r.stderr),
+            stdout_tail: tail(r.stdout),
+            _stderr_full: r.stderr,
+            _stdout_full: r.stdout,
+            ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+          },
         });
       }
       stages.lint = { status: "pass" };
@@ -271,12 +644,24 @@ export async function runValidation({
       hasViewTool && hasScript(join(viewToolDir, "package.json"), "lint");
     if (hasTypecheck) {
       log("[3/6] view-tool typecheck (tsc --noEmit)");
-      const r = run("npm", ["run", "lint"], viewToolDir);
+      const r = run("npm", ["run", "lint"], viewToolDir, { capture: true });
+      process.stderr.write(r.stdout);
+      process.stderr.write(r.stderr);
       if (r.status !== 0) {
+        const { error_kind, blocking } = classifyFailure("typecheck", r);
         throw new ValidationStop({
           stage: "typecheck",
           detail: `view-tool tsc --noEmit failed for ${slug}`,
           routing: "view-tool-builder",
+          errorKind: error_kind,
+          blocking,
+          extra: {
+            stderr_tail: tail(r.stderr),
+            stdout_tail: tail(r.stdout),
+            _stderr_full: r.stderr,
+            _stdout_full: r.stdout,
+            ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+          },
         });
       }
       stages.typecheck = { status: "pass" };
@@ -292,24 +677,44 @@ export async function runValidation({
         // No --passWithNoTests: a plugin that declares a `test` script is
         // expected to ship tests. A glob that matches nothing must NOT pass
         // green — exactly the "broken plugin sails through" class this stops.
-        const r = run("npx", ["vitest", "run"], pluginDir);
+        const r = run("npx", ["vitest", "run"], pluginDir, { capture: true });
+        process.stderr.write(r.stdout);
+        process.stderr.write(r.stderr);
         if (r.status !== 0) {
+          const { error_kind, blocking } = classifyFailure("tests", r);
           throw new ValidationStop({
             stage: "tests",
             detail: `plugin-root vitest failed for ${slug}`,
             routing: "tests-author",
+            errorKind: error_kind,
+            blocking,
+            extra: {
+              stderr_tail: tail(r.stderr),
+              stdout_tail: tail(r.stdout),
+              ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+            },
           });
         }
       } else {
         log("       plugin-root has no test script; skipping plugin-root suite");
       }
       if (hasViewTool) {
-        const r = run("npx", ["vitest", "run", "--passWithNoTests"], viewToolDir);
+        const r = run("npx", ["vitest", "run", "--passWithNoTests"], viewToolDir, { capture: true });
+        process.stderr.write(r.stdout);
+        process.stderr.write(r.stderr);
         if (r.status !== 0) {
+          const { error_kind, blocking } = classifyFailure("tests", r);
           throw new ValidationStop({
             stage: "tests",
             detail: `view-tool vitest failed for ${slug}`,
             routing: "tests-author",
+            errorKind: error_kind,
+            blocking,
+            extra: {
+              stderr_tail: tail(r.stderr),
+              stdout_tail: tail(r.stdout),
+              ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+            },
           });
         }
       }
@@ -324,13 +729,21 @@ export async function runValidation({
       const probe = run("claude", ["plugin", "validate", "--help"], tc.base, { capture: true });
       if (probe.status === 0) {
         const r = run("claude", ["plugin", "validate", pluginDir], tc.base, { capture: true });
-        process.stdout.write(r.stdout);
+        process.stderr.write(r.stdout);
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
+          const { error_kind, blocking } = classifyFailure("validate", r);
           throw new ValidationStop({
             stage: "validate",
             detail: `claude plugin validate failed for ${pluginDir}`,
             routing: "manifest-author",
+            errorKind: error_kind,
+            blocking,
+            extra: {
+              stderr_tail: tail(r.stderr),
+              stdout_tail: tail(r.stdout),
+              ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+            },
           });
         }
         stages.validate = { status: "pass" };
@@ -348,6 +761,7 @@ export async function runValidation({
 
     // ── verdict ───────────────────────────────────────────────────────────────
     const treeSha = computeTreeSha256(pluginDir, slug);
+    const { summary, next_action } = buildSummary({ tool: "validate", ok: true });
     return {
       ok: true,
       slug,
@@ -355,13 +769,26 @@ export async function runValidation({
       session_dir: sessionDir,
       tree_sha256: treeSha,
       stages,
+      summary,
+      next_action,
       validated_at: at(),
     };
   } catch (e) {
     if (e instanceof ValidationStop) {
       if (!stages[e.stage]) stages[e.stage] = { status: "fail", detail: e.detail };
       log(`[${e.stage}] ${e.detail}`);
-      return {
+      const { summary, next_action } = buildSummary({
+        tool: "validate",
+        ok: false,
+        error_kind: e.errorKind,
+        blocking: e.blocking,
+        failed_stage: e.stage,
+        failed_file: e.failed_file,
+        failed_line: e.failed_line,
+        error_code: e.error_code,
+        routing: e.routing,
+      });
+      const verdict = {
         ok: false,
         slug: slug ?? null,
         plugin_dir: pluginDir ?? null,
@@ -372,13 +799,30 @@ export async function runValidation({
         routing: e.routing,
         error_kind: e.errorKind,
         detail: e.detail,
+        failed_file: e.failed_file,
+        failed_line: e.failed_line,
+        failed_col: e.failed_col,
+        error_code: e.error_code,
+        stderr_tail: e.stderr_tail,
+        stdout_tail: e.stdout_tail,
+        summary,
+        next_action,
         validated_at: at(),
       };
+      // Persist full logs + verdict on the MCP path too (best-effort).
+      verdict.log_path = persistFailureLogs({
+        logDir: sessionDir,
+        pluginDir,
+        stage: e.stage,
+        stop: e,
+        verdict,
+      });
+      return verdict;
     }
     // Unexpected internal error — never throw to the caller; report honestly.
     const detail = e && e.message ? e.message : String(e);
     log(`[internal] ${detail}`);
-    return {
+    const verdict = {
       ok: false,
       slug: slug ?? null,
       plugin_dir: pluginDir ?? null,
@@ -389,8 +833,18 @@ export async function runValidation({
       routing: null,
       error_kind: "internal",
       detail,
+      summary: "Validation hit an internal error and could not complete; this is a toolchain issue, not a plugin defect.",
+      next_action: "Stop honestly and call agntux_report_defect; do not re-dispatch a specialist.",
       validated_at: at(),
     };
+    verdict.log_path = persistFailureLogs({
+      logDir: sessionDir,
+      pluginDir,
+      stage: "internal",
+      stop: { _stderr_full: detail },
+      verdict,
+    });
+    return verdict;
   }
 }
 
@@ -473,7 +927,7 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
       { capture: true },
     );
     const out = `${r.stdout}\n${r.stderr}`;
-    process.stdout.write(r.stdout);
+    process.stderr.write(r.stdout);
     process.stderr.write(r.stderr);
     const ceMatch = out.match(/consoleErrors=(\d+)/);
     const consoleErrors = ceMatch ? Number(ceMatch[1]) : null;
@@ -483,22 +937,43 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
         stage: "render",
         detail: `view tool ${tool} rendered with ${consoleErrors} console error(s)`,
         routing: "view-tool-builder",
+        extra: {
+          stderr_tail: tail(r.stderr),
+          stdout_tail: tail(r.stdout),
+          _stderr_full: out,
+          _stdout_full: r.stdout,
+          ...parseFirstError(out),
+        },
       });
     }
     if (/^tool error:/m.test(out)) {
       const te = (out.match(/^tool error: .*/m) || ["tool error"])[0];
       throw new ValidationStop({
         stage: "render",
-        detail: `view tool ${tool}: ${te.slice(0, 200)}`,
+        detail: `view tool ${tool}: ${te}`,
         routing: "view-tool-builder",
+        extra: {
+          stderr_tail: tail(out),
+          stdout_tail: tail(r.stdout),
+          _stderr_full: out,
+          _stdout_full: r.stdout,
+          ...parseFirstError(out),
+        },
       });
     }
     if (consoleErrors === null && r.status !== 0) {
       const reason = (out.match(/render failed: .*/) || ["harness crashed"])[0];
       throw new ValidationStop({
         stage: "render",
-        detail: `view tool ${tool}: ${reason.slice(0, 200)}`,
+        detail: `view tool ${tool}: ${reason}`,
         routing: "view-tool-builder",
+        extra: {
+          stderr_tail: tail(out),
+          stdout_tail: tail(r.stdout),
+          _stderr_full: out,
+          _stdout_full: r.stdout,
+          ...parseFirstError(out),
+        },
       });
     }
     tools.push({

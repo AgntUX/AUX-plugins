@@ -38,9 +38,12 @@ consume.
   vite.config.ts, scripts/emit-manifest.mjs}` — copied from the
   canonical template by `ui-handler-author`.
 
-## Build pipeline
+## Build pipeline (run by the gate, NOT by you)
 
-From `plugins/{slug}/view-tool/`:
+You have no Bash and you do NOT run the build. `agntux_validate` runs it
+natively and re-dispatches you with the captured error on failure. The chain
+below is **reference only** — what the gate compiles from your authored
+`view-tool/src`. From `plugins/{slug}/view-tool/` the gate runs:
 
 ```bash
 npm run build
@@ -132,13 +135,16 @@ the pinned SHA. CI's `build-plugins.yml` (Phase 7) commits them back.
 
 ## Stage 7: vendor the apps-client into the new plugin
 
-Before running `npm run build`, ensure the vendored `apps-client` directory is
-present at `plugins/{slug}/view-tool/src/lib/apps-client/`. This directory
+So the orchestrator's build can succeed, ensure the vendored `apps-client`
+directory is present at `plugins/{slug}/view-tool/src/lib/apps-client/` (you
+author/copy it; you never run the build). This directory
 contains the MIT-inlined MCP Apps client SDK that the iframe uses to speak
 MCP-Apps JSON-RPC with the host. Without it the Vite build will fail with
 missing-import errors.
 
-Copy it from the canonical template using rsync (preferred) or node:
+It is vendored **for you** (by the scaffold / `ui-handler-author`) — you have no
+Bash and do NOT run these commands. Shown for reference so you know where
+`src/lib/apps-client/` comes from (rsync preferred, node fallback):
 
 ```bash
 # Preferred — rsync with no-links flag for security
@@ -172,25 +178,30 @@ at the repo root. The agntux-build plugin-bundle path
 is a fallback used only when the repo-root path is absent. If both exist they
 must be byte-identical; prefer the repo-root copy.
 
-## Self-validation (required — WS-A, hard exit)
+## Re-dispatch on failure — you receive the real error, fix THAT
 
-The `npm run build` you run above IS your validator — make the loop explicit and
-add the deterministic import-resolution sweep. Compile and import errors are
+**You author files only.** The orchestrator runs the native build (via
+`agntux_validate`) and re-dispatches you on failure WITH the captured compiler
+error. You do NOT run any build command — no Bash, and in the Cowork sandbox Bash
+EPERMs on the native host build path anyway. Compile and import errors are
 **mechanical** and NEVER reach the contributor (see
-`skills/build/references/self-validation.md`). The stage-7 final gate
-(`scripts/validate-plugin.mjs`, see `07-build.md`) re-runs the whole-tree build
-as the authoritative exit-code gate — "hard exit" means that script's exit
-code, not a prose promise.
+`skills/build/references/self-validation.md`).
 
-1. `npm install --prefix view-tool/` (one-shot, idempotent), then
-   `npm run build --prefix view-tool/`.
-2. **Deterministic import-source resolution — run this FIRST on any
-   `Cannot resolve` / `has no exported member` / unresolved-import error,
-   before any freehand edit.** The canonical
+When re-dispatched on a `build`/`typecheck` failure you will receive the real
+error — `failed_file`, `failed_line`, `error_code`, `stderr_tail` — and/or a
+`log_path` (the native host dir holding the full per-stage logs). **`Read`
+`log_path` if given, open `failed_file`, and fix THAT error.** Do NOT guess from
+priors and do NOT attempt to run any build command. The deterministic
+import-resolution mapping below is your fix reference for the recurring
+import-error classes:
+
+1. **Deterministic import-source resolution — apply this FIRST on any
+   `Cannot resolve` / `has no exported member` / unresolved-import error in
+   `failed_file`, before any freehand edit.** The canonical
    `canonical/prompts/ui/host-api.md` § "Where imports come from" is the single
    authoritative source for where each symbol resolves. Apply this exact
    mapping to the offending import (it covers the two recurring hallucinated-
-   import defects), then rebuild:
+   import defects); the orchestrator re-runs the build:
 
    | Symptom in the error / source | Deterministic fix |
    |---|---|
@@ -209,11 +220,14 @@ code, not a prose promise.
    — never invent a symbol to satisfy an import, and never silence the gate
    by stubbing a missing export.
 
-3. For any compile error the mapping above does NOT cover (genuine type errors,
-   missing data_paths, descriptor-regex mismatch), parse the error, edit the
-   offending source file, and rebuild.
-4. Repeat up to **5 build cycles**. A clean build + manifest emit → success.
-   Still failing after 5 → return `{success: false, error: <build output>}` for the maintainer. Never a contributor-facing build error.
+2. For any compile error the mapping above does NOT cover (genuine type errors,
+   missing data_paths, descriptor-regex mismatch), read the captured error /
+   `log_path`, open `failed_file`, and edit the offending source. The
+   orchestrator re-runs the build via `agntux_validate` and re-dispatches you if
+   it still fails — up to the **5-cycle** budget in `self-validation.md`. Each
+   re-dispatch carries a fresh captured error; fix THAT one. Still failing after
+   5 → the orchestrator logs an agntux-build defect for the maintainer. Never a
+   contributor-facing build error.
 
 ## Hand-offs
 
