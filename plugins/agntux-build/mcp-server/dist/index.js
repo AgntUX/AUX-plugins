@@ -265,7 +265,7 @@ function ensureBrowser() {
       return {
         ready: false,
         status: "unavailable",
-        detail: prog.error || "renderer bootstrap failed (will retry shortly)",
+        detail: bootstrapFailureDetail(prog),
       };
     }
     // stale/unknown-age failure → fall through and retry a fresh bootstrap.
@@ -348,6 +348,11 @@ async function handleValidate(args) {
   // probe finds it (PLAYWRIGHT_BROWSERS_PATH is set) and render runs.
   const verdict = await runValidation({ slug, pluginDir, sessionDir, installBrowser: false });
   verdict.renderer = describeRenderer(eb, verdict);
+  // Surface the running harness version in every verdict (Part G) so the agent
+  // and user can see, mid-build, WHICH agntux-build bundle is actually running —
+  // answering "is the served bundle current?" BEFORE submission, instead of
+  // after a fixed bug confusingly reappears from a stale installed zip.
+  verdict.agntux_build_version = readOwnVersion();
   return verdict;
 }
 
@@ -749,6 +754,38 @@ function describeRenderer(eb, verdict) {
   }
   return { status: eb.status, ...(eb.detail ? { detail: eb.detail } : {}) };
 }
+/**
+ * Plain-language detail for a persistent renderer-bootstrap failure (Part F.4).
+ * A browser-install failure on a restricted network is HARNESS setup, not a
+ * plugin defect — say so clearly and point at the two fixes (allowlist the
+ * Playwright CDN, or pre-seed the browser). Render stays SOFT (skipped,
+ * blocking:false → the verdict is still ok:true on an otherwise-green tree), so
+ * the agent stops honestly and never improvises.
+ */
+function bootstrapFailureDetail(prog) {
+  const phase = (prog && prog.phase) || "";
+  const raw = (prog && prog.error) || "renderer bootstrap failed (will retry shortly)";
+  // Surface the Chromium/CDN guidance ONLY for an actual browser-install
+  // failure — either the phase is browser-install (bootstrap-worker prefixes
+  // its error "browser-install: …") or the error text carries a
+  // browser-specific token. A STEP-1 npm-install failure whose text merely
+  // mentions "registry"/"proxy" must NOT be mislabeled as a Chromium download
+  // problem, or the fix advice (allowlist the Playwright CDN / pre-seed the
+  // browser) would point at the wrong thing.
+  const isBrowserPhase = /browser-install/i.test(`${phase} ${raw}`);
+  const browserToken = /playwright|chromium|headless-shell|cdn\.playwright/i.test(raw);
+  if (isBrowserPhase || browserToken) {
+    return (
+      "Chromium couldn't be downloaded on your network — this is renderer/harness " +
+      "setup, NOT a defect in your plugin. The plugin tree is otherwise green and " +
+      "render is skipped. Ask the maintainer to allowlist the Playwright CDN, or " +
+      "pre-seed chromium-headless-shell into the managed browsers dir " +
+      "(host-renderer/README.md → “Pre-seeding Chromium”)."
+    );
+  }
+  return raw;
+}
+
 function readOwnVersion() {
   // This server's version tracks the agntux-build plugin version. Prefer the
   // plugin's own plugin.json (two levels up from mcp-server/{src,dist}).

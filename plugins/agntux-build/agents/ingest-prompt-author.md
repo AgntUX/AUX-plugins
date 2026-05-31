@@ -138,6 +138,15 @@ Don't use append when you'd be more than ~30 lines or when the
 canonical content doesn't apply at all — that's the case for wholesale
 replacement.
 
+**Keep splices into `reference/sync.md` terse.** The rendered
+`reference/sync.md` has a **600-line cap** (lint pass 8); the canonical
+procedural body is already ~469 lines, leaving only ~130 lines of headroom
+for ALL of a plugin's `<!-- append:* -->` splices into that file combined.
+Test #4 overran it (745 then 556 lines) by pasting verbose source-specific
+prose inline. Write the minimum that changes behavior; push anything longer
+into a wholesale `_overrides/reference/{name}.md` replacement of a sibling
+detail file (those keep the 500-line cap each) rather than fattening sync.md.
+
 Real examples to copy from:
 - `plugins/agntux-slack/skills/agntux-slack/_overrides/step-2-append.md`
 - `plugins/agntux-slack/skills/agntux-slack/_overrides/step-6-append.md`

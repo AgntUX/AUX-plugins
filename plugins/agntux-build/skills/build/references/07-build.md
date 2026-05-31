@@ -341,9 +341,9 @@ When `agntux_validate` (here at stage 7) or `agntux_write_submission` (at submit
 stage 12) returns `ok:false`, the structured verdict names the fix and writes
 nothing. The full shape is `{ summary, next_action, error_kind, blocking,
 failed_stage, routing, failed_file, failed_line, failed_col, error_code,
-stderr_tail, stdout_tail, log_path, stages, detail, validated_at }` — **read it,
-don't blind-guess.** First read `summary` / `next_action` (the plain-English
-verdict). Then branch on `error_kind` + `blocking`:
+stderr_tail, stdout_tail, log_path, stages, stage_results, detail, validated_at }`
+— **read it, don't blind-guess.** First read `summary` / `next_action` (the
+plain-English verdict). Then branch on `error_kind` + `blocking`:
 
 - **`error_kind:"plugin"` (fixable, `blocking:true`)** → re-dispatch the owning
   specialist (`routing` / the `failed_stage` table below) **WITH the captured
@@ -358,6 +358,19 @@ verdict). Then branch on `error_kind` + `blocking`:
   re-dispatch a specialist. Call `agntux_report_defect({ session_dir })` to
   bundle the verdict + per-stage logs, then surface the honest `summary`
   one-liner (the "hit a snag" copy above).
+
+**Fix the whole `stage_results[]` punch-list in ONE pass — don't pay a
+round-trip per stage.** `agntux_validate` no longer stops at the first failing
+stage: the build-independent stages (lint, plugin-root tests, structural
+validate) run even when the build fails, so `stage_results` is the full list of
+`{ stage, status, errors[] }` for everything that ran. When `next_action` says
+"N stages failed", dispatch the owning specialist for EVERY `status:"fail"`
+entry (use the mapping below, one specialist per failed stage — they edit
+different files so they don't conflict), then re-validate ONCE. `failed_stage` /
+`routing` still name the single highest-priority failure for back-compat, but
+fixing only that one wastes a full re-validate surfacing the next. Build-gated
+stages show `status:"skipped", reason:"build_failed"` until the build is green —
+fix the build first, then they run.
 
 The `failed_stage` → specialist mapping (a `build` failure can be a render-skill
 error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →

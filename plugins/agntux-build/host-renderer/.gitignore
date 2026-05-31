@@ -1,4 +1,13 @@
 node_modules/
+# Vendored, self-contained @agntux/plugin-runtime (dist + package.json +
+# node_modules/{yaml,zod}). Committed so the shipped bundle's renderer resolves
+# the runtime by explicit path with no install — the renderer's bare
+# `@agntux/plugin-runtime` file: dep resolves outside a standalone bundle (the
+# Test-#4 render blocker). Re-include the whole vendor/ tree past the blanket
+# node_modules/ rule above AND the root dist/ rule. Synced by
+# sync-agntux-build-toolchain.mjs; keep these negations AFTER node_modules/.
+!vendor/
+!vendor/**
 # host-bridge.mjs is bundled from src/host-bridge-entry.mjs by
 # scripts/bundle-host-bridge.mjs at install time (npm `prepare` script).
 # Don't commit the bundle; the bundler regenerates it on every install

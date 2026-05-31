@@ -146,3 +146,54 @@ calls `POST http://localhost:{port}/__test/render` with
 
 The headless flow is what stage 8's regression screenshot uses. Stage
 6 uses headed mode for the interactive iteration loop.
+
+## Vendored runtime (`vendor/`)
+
+`vendor/plugin-runtime/` is a tracked, self-contained copy of
+`@agntux/plugin-runtime` (its `dist/` + `package.json` +
+`node_modules/{yaml,zod}`), materialized by
+`scripts/sync-agntux-build-toolchain.mjs`. It exists because the shipped
+agntux-build bundle is a standalone plugin: the host-renderer's
+`@agntux/plugin-runtime` dependency is declared as
+`file:../../../packages/plugin-runtime`, a path that resolves OUTSIDE the
+bundle, so `npm install` leaves a broken link and the bare
+`import "@agntux/plugin-runtime/local-fs"` throws `ERR_MODULE_NOT_FOUND`
+(the Test-#4 render blocker).
+
+`src/mcp-bridge.mjs` therefore loads the local-fs factory lazily: it tries
+the normal package import first (works in the maintainer clone / when the
+install succeeds) and, on `ERR_MODULE_NOT_FOUND`, imports
+`vendor/plugin-runtime/dist/local-fs.js` by **explicit path**. `NODE_PATH`
+can't be used — Node's ESM resolver ignores it for bare specifiers — so the
+vendored `package.json` marks `"type":"module"` (the `.js` dist parses as
+ESM) and the co-located `node_modules/{yaml,zod}` resolve the runtime's
+transitive bare imports via ESM walk-up. Don't hand-edit `vendor/`; it's
+re-synced from `packages/plugin-runtime` + the repo-root `node_modules`.
+
+## Pre-seeding Chromium on a restricted network
+
+The render gate needs a headless Chromium. On first use the MCP server's
+detached bootstrap (`mcp-server/src/bootstrap-worker.js`) runs
+`playwright install chromium-headless-shell` (~190 MB) into a **managed
+browsers dir**:
+
+```
+~/agntux/.agntux-build/.headless-tools          # = PLAYWRIGHT_BROWSERS_PATH
+```
+
+On a locked-down network where the Playwright CDN is blocked, that download
+fails — render reports `renderer.status: "unavailable"` with a plain-language
+"this is harness setup, not your plugin" detail, and the gate keeps render
+**soft** (skipped, non-blocking) so an otherwise-green plugin still passes.
+Two ways to make render work anyway:
+
+1. **Allowlist the Playwright CDN** in the desktop app's proxy
+   (`cdn.playwright.dev` / the npm-configured `PLAYWRIGHT_DOWNLOAD_HOST`).
+2. **Pre-seed the browser.** On a machine with network, run
+   `PLAYWRIGHT_BROWSERS_PATH=~/agntux/.agntux-build/.headless-tools npx
+   playwright install chromium-headless-shell`, then copy the resulting
+   `~/agntux/.agntux-build/.headless-tools/chromium_headless_shell-*/`
+   directory to the same path on the restricted machine. The bootstrap
+   worker detects a present `chromium_headless_shell-*` dir and skips the
+   download entirely; the download step is also retried (3 attempts with
+   incremental backoff) for transient CDN flakes.

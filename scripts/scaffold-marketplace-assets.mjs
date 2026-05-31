@@ -88,6 +88,8 @@ const OVERRIDES_DIR = join(PLUGIN_DIR, "skills", slug, "_overrides");
 const FRONTMATTER_DEST = join(OVERRIDES_DIR, "frontmatter.yaml");
 const PACKAGE_JSON_DEST = join(PLUGIN_DIR, "package.json");
 const VITEST_CONFIG_DEST = join(PLUGIN_DIR, "vitest.config.ts");
+const CHANGELOG_DEST = join(PLUGIN_DIR, "CHANGELOG.md");
+const LISTING_DEST = join(MARKETPLACE_DIR, "listing.yaml");
 
 // ---------------------------------------------------------------------------
 // Validate inputs
@@ -271,6 +273,103 @@ if (!existsSync(VITEST_CONFIG_DEST)) {
   anyWrite = true;
 } else {
   console.log(`  vitest.config.ts ✓ already present`);
+}
+
+// 6. Emit a lint-clean CHANGELOG.md floor if absent. Root cause of the
+//    Test-#4 E03 round-trips: manifest-author authored CHANGELOG.md from
+//    memory and wrote a plain hyphen / overran the format. The floor gives the
+//    specialist a green skeleton to edit: it starts with "# Changelog" (E03),
+//    carries a "## [Unreleased]" section (W02), and a version section whose
+//    `[X.Y.Z]` matches plugin.json's version (the version-match check) with a
+//    canonical em-dash date separator. Never overwrite — the specialist's real
+//    changelog wins when it ran.
+const floorPj = readPluginJson();
+const floorVersion =
+  typeof floorPj.version === "string" ? floorPj.version : "0.1.0";
+const sourceSlugForFloors = slug.startsWith("agntux-")
+  ? slug.slice("agntux-".length)
+  : slug;
+const floorDisplay = titleCase(sourceSlugForFloors);
+const floorToday = new Date().toISOString().slice(0, 10);
+
+if (!existsSync(CHANGELOG_DEST)) {
+  const changelog =
+    `# Changelog\n\n` +
+    `All notable changes to the ${slug} plugin are documented in this file.\n\n` +
+    `The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\n` +
+    `and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n` +
+    `## [Unreleased]\n\n` +
+    `## [${floorVersion}] — ${floorToday}\n\n` +
+    `### Added\n\n` +
+    `- Initial scaffold of the ${slug} plugin.\n`;
+  writeFileSync(CHANGELOG_DEST, changelog, "utf8");
+  console.log(`  CHANGELOG.md   ← emitted floor (version ${floorVersion}; specialist overwrites)`);
+  anyWrite = true;
+} else {
+  console.log(`  CHANGELOG.md   ✓ already present`);
+}
+
+// 7. Emit a lint-clean listing.yaml floor if absent. Root cause of the
+//    Test-#4 E05/E06 round-trips: manifest-author authored listing.yaml from
+//    memory — overran the proposed_schema caps (cursor_semantics ≤200,
+//    source_id_format ≤120) and declared a screenshot_order pointing at files
+//    that don't exist. The floor carries every REQUIRED field (tagline,
+//    description, categories, keywords, available_on, support, developer) with
+//    caps-respecting placeholder values, a valid proposed_schema skeleton
+//    (E14), and NO screenshot_order (the marketplace ships icon-only). Never
+//    overwrite — the specialist's real listing (with ui_components etc.) wins.
+const KEYWORD_RE = /^[a-z0-9-]{2,32}$/;
+const floorKeywords = [sourceSlugForFloors, "ingest", "agntux"].filter(
+  (k, i, a) => KEYWORD_RE.test(k) && a.indexOf(k) === i,
+);
+if (floorKeywords.length === 0) floorKeywords.push("agntux");
+
+if (!existsSync(LISTING_DEST)) {
+  const keywordLines = floorKeywords.map((k) => `  - ${k}`).join("\n");
+  const listing =
+    `tagline: "${floorDisplay}, surfaced as AgntUX entities."\n` +
+    `description: |\n` +
+    `  Ingests ${floorDisplay} into the AgntUX knowledge store. Replace this\n` +
+    `  placeholder with a real one-paragraph summary (markdown allowed, 500\n` +
+    `  chars max) before the plugin goes to launch review.\n` +
+    `categories:\n` +
+    `  - productivity\n` +
+    `keywords:\n` +
+    `${keywordLines}\n` +
+    `available_on:\n` +
+    `  - trial\n` +
+    `  - pro\n` +
+    `  - team\n` +
+    `  - enterprise\n` +
+    `supported_prompts:\n` +
+    `  - prompt: "ux:${slug}"\n` +
+    `    purpose: "Scheduled task — fires the ${floorDisplay} ingest agent on the configured cadence."\n` +
+    `support:\n` +
+    `  url: "https://github.com/AgntUX/AUX-plugins/issues"\n` +
+    `  email: "support@agntux.ai"\n` +
+    `developer:\n` +
+    `  name: "AgntUX"\n` +
+    `  url: "https://agntux.ai"\n` +
+    `  github_handle: "agntux"\n` +
+    `proposed_schema:\n` +
+    `  entity_subtypes:\n` +
+    `    - subtype: person\n` +
+    `      description: "Individuals named or mentioned in ${floorDisplay} items."\n` +
+    `      required_frontmatter:\n` +
+    `        - id\n` +
+    `        - type\n` +
+    `        - schema_version\n` +
+    `        - subtype\n` +
+    `  action_classes:\n` +
+    `    - class: knowledge-update\n` +
+    `      description: "An informational signal extracted from a ${floorDisplay} item."\n` +
+    `  cursor_semantics: "Single timestamp cursor; advances to the newest item seen this run."\n` +
+    `  source_id_format: "Stable per-item identifier provided by the source."\n`;
+  writeFileSync(LISTING_DEST, listing, "utf8");
+  console.log(`  listing.yaml   ← emitted floor (caps-respecting; specialist overwrites)`);
+  anyWrite = true;
+} else {
+  console.log(`  listing.yaml   ✓ already present`);
 }
 
 // ---------------------------------------------------------------------------

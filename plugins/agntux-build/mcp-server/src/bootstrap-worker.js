@@ -27,12 +27,57 @@
 import {
   mkdirSync,
   existsSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
   renameSync,
 } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+
+/**
+ * Synchronous sleep for the detached worker (pure built-ins, no async). Used to
+ * back off between Chromium-download retries. SharedArrayBuffer is available in
+ * Node 20+; if it ever isn't, skip the backoff rather than throw.
+ */
+function sleepSync(ms) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    /* no backoff available — proceed immediately */
+  }
+}
+
+/**
+ * Are the host-renderer deps already installed? Cheap proxy: the playwright CLI
+ * is the load-bearing one (STEP 2 invokes it), so its presence means a prior
+ * STEP 1 succeeded and we can skip re-running `npm install` on a retry.
+ */
+function hostRendererDepsReady(dir) {
+  return (
+    existsSync(path.join(dir, "node_modules", "playwright", "cli.js")) ||
+    existsSync(path.join(dir, "node_modules", ".bin", "playwright"))
+  );
+}
+
+/**
+ * Is a chromium-headless-shell already laid down in the managed browsers dir?
+ * Playwright lays browsers out as `chromium_headless_shell-<rev>/`. This is both
+ * the retry skip-check AND the restricted-network pre-seed escape hatch: an
+ * installer on a locked-down network can drop the binary here once and the
+ * worker skips the CDN download entirely. (Launchability is re-checked
+ * functionally by the validate render gate's `probe-chromium` before it
+ * renders, so a dir-name match is a safe "skip the download" signal.)
+ */
+function chromiumHeadlessShellPresent(managedDir) {
+  try {
+    return readdirSync(managedDir).some((n) =>
+      /chromium[-_]headless[-_]shell/i.test(n),
+    );
+  } catch {
+    return false;
+  }
+}
 
 function log(...a) {
   try {
@@ -72,8 +117,8 @@ const progress = {
   updatedAt: nowIso(),
   ok: false,
   done: false,
-  npmInstall: { ok: false, ms: 0, error: null, stderrTail: "" },
-  browserInstall: { ok: false, ms: 0, error: null, stderrTail: "" },
+  npmInstall: { ok: false, ms: 0, error: null, stderrTail: "", skipped: false },
+  browserInstall: { ok: false, ms: 0, error: null, stderrTail: "", attempts: 0, skipped: false },
   totalMs: 0,
   error: null,
 };
@@ -106,10 +151,15 @@ function main() {
   }
 
   // STEP 1: install host-renderer deps (browser download skipped; placed in
-  // the managed dir explicitly in step 2).
+  // the managed dir explicitly in step 2). Skipped on a retry when the deps are
+  // already present, so a retry only redoes the missing piece (the browser).
   progress.phase = "npm-install";
   flush();
-  {
+  if (hostRendererDepsReady(hostRendererDir)) {
+    progress.npmInstall.ok = true;
+    progress.npmInstall.skipped = true;
+    log("npm-install skipped — host-renderer deps already present");
+  } else {
     const s = Date.now();
     const r = spawnSync("npm", ["install", "--no-audit", "--no-fund"], {
       cwd: hostRendererDir,
@@ -147,10 +197,19 @@ function main() {
   flush();
 
   // STEP 2: install Chromium into the managed dir via the just-installed
-  // playwright CLI.
+  // playwright CLI. Pre-seed escape hatch: if a chromium-headless-shell is
+  // already present (a prior run, or an installer dropped it on a locked-down
+  // network), skip the download entirely. Otherwise the download is wrapped in a
+  // bounded retry with incremental backoff — CDN downloads flake on restricted
+  // networks, and a single transient failure must not abort the whole bootstrap
+  // (forcing ensureBrowser to redo even the npm install).
   progress.phase = "browser-install";
   flush();
-  {
+  if (chromiumHeadlessShellPresent(managedBrowsers)) {
+    progress.browserInstall.ok = true;
+    progress.browserInstall.skipped = true;
+    log("browser-install skipped — chromium-headless-shell already present (pre-seed/cache)");
+  } else {
     const cliJs = path.join(hostRendererDir, "node_modules", "playwright", "cli.js");
     const cliBin = path.join(hostRendererDir, "node_modules", ".bin", "playwright");
     let cmd;
@@ -162,20 +221,44 @@ function main() {
       cmd = cliBin;
       args = ["install", "chromium-headless-shell"];
     }
+    const MAX_ATTEMPTS = 3;
     const s = Date.now();
-    const r = spawnSync(cmd, args, {
-      cwd: hostRendererDir,
-      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: managedBrowsers },
-      timeout: 600000,
-      encoding: "utf8",
-    });
+    let ok = false;
+    let lastError = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS && !ok; attempt++) {
+      const r = spawnSync(cmd, args, {
+        cwd: hostRendererDir,
+        env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: managedBrowsers },
+        timeout: 600000,
+        encoding: "utf8",
+      });
+      progress.browserInstall.attempts = attempt;
+      progress.browserInstall.stderrTail = tail(r.stderr, 1500);
+      if (r.error) lastError = errStr(r.error);
+      else if (r.status !== 0) lastError = "browser install exited with status " + r.status;
+      else lastError = null;
+      ok = !r.error && r.status === 0;
+      log(`browser-install attempt ${attempt}/${MAX_ATTEMPTS} ok=${ok}`);
+      flush();
+      if (!ok) {
+        // A partial/failed download may still have laid down a launchable shell
+        // (or a concurrent run finished it) — re-check before another attempt.
+        if (chromiumHeadlessShellPresent(managedBrowsers)) {
+          ok = true;
+          break;
+        }
+        if (attempt < MAX_ATTEMPTS) {
+          const backoffMs = attempt * 5000; // 5s, then 10s
+          log(`browser-install backing off ${backoffMs}ms before retry`);
+          sleepSync(backoffMs);
+        }
+      }
+    }
     progress.browserInstall.ms = Date.now() - s;
-    progress.browserInstall.ok = r.status === 0;
-    progress.browserInstall.stderrTail = tail(r.stderr, 1500);
-    if (r.error) progress.browserInstall.error = errStr(r.error);
-    else if (r.status !== 0) progress.browserInstall.error = "browser install exited with status " + r.status;
-    log("browser-install ok=" + progress.browserInstall.ok + " ms=" + progress.browserInstall.ms);
-    if (!progress.browserInstall.ok) {
+    progress.browserInstall.ok = ok;
+    if (!ok) progress.browserInstall.error = lastError || "failed";
+    log("browser-install ok=" + ok + " attempts=" + progress.browserInstall.attempts + " ms=" + progress.browserInstall.ms);
+    if (!ok) {
       progress.phase = "error";
       progress.error = "browser-install: " + (progress.browserInstall.error || "failed");
       progress.done = true;

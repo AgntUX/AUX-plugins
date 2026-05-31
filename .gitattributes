@@ -1,0 +1,10 @@
+# The vendored self-contained @agntux/plugin-runtime (yaml + zod) under the
+# agntux-build bundle is a BYTE-EXACT copy of node_modules produced by
+# scripts/sync-agntux-build-toolchain.mjs. Disable EOL normalization for it so
+# the committed bytes match the source byte-for-byte — otherwise
+# core.autocrlf=input would rewrite zod's CRLF-line-ending files (lib/index.mjs,
+# lib/index.umd.js) to LF, and `node scripts/sync-agntux-build-toolchain.mjs
+# --check` (CI + the sync vitest) would report drift against the raw
+# node_modules source on every run.
+plugins/agntux-build/canonical/packages/plugin-runtime/node_modules/** -text
+plugins/agntux-build/host-renderer/vendor/** -text

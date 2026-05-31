@@ -7923,6 +7923,7 @@ import * as path2 from "node:path";
 import { renderSkill, RenderSkillError } from "./render-skill.mjs";
 var SKILL_MAX_LINES = 500;
 var RESOURCE_MAX_LINES = 500;
+var SYNC_REFERENCE_MAX_LINES = 600;
 var SHARED_SIBLING_MAX_LINES = 200;
 function rel(repoRoot, p) {
   return path2.relative(repoRoot, p);
@@ -7982,7 +7983,8 @@ function checkNoSurvivingPlaceholders(pluginSlug, pluginDir, repoRoot, findings)
     if (relPath.startsWith("_overrides/")) continue;
     const full = path2.join(syncDir, relPath);
     const body = fs2.readFileSync(full, "utf8");
-    const matches = [...body.matchAll(/\{\{([\w-]+)\}\}/g)];
+    const scanned = body.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+    const matches = [...scanned.matchAll(/\{\{([\w-]+)\}\}/g)];
     if (matches.length === 0) continue;
     const uniq = [...new Set(matches.map((m) => m[1]))];
     emit(findings, {
@@ -8082,13 +8084,14 @@ function checkLineBudget(pluginSlug, pluginDir, repoRoot, findings) {
       if (!name.endsWith(".md")) continue;
       const full = path2.join(referenceDir, name);
       const lines = fs2.readFileSync(full, "utf8").split("\n").length;
-      if (lines > RESOURCE_MAX_LINES) {
+      const cap = name === "sync.md" ? SYNC_REFERENCE_MAX_LINES : RESOURCE_MAX_LINES;
+      if (lines > cap) {
         emit(findings, {
           code: "E15",
           severity: "error",
           plugin: pluginSlug,
           file: rel(repoRoot, full),
-          message: `reference/${name} is ${lines} lines (max ${RESOURCE_MAX_LINES}). Split it.`
+          message: `reference/${name} is ${lines} lines (max ${cap}). Split it.`
         });
       }
     }
@@ -9316,7 +9319,7 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
     });
   }
 }
-var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\] — \d{4}-\d{2}-\d{2}$/m;
+var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
     return path9.relative(repoRoot, p);
@@ -9378,7 +9381,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
           plugin: pluginSlug,
           file: rel2(changelogPath),
           line: i + 1,
-          message: `CHANGELOG.md version section "${line}" does not match format [X.Y.Z] \u2014 YYYY-MM-DD`
+          message: `CHANGELOG.md version section "${line}" does not match format [X.Y.Z] \u2014 YYYY-MM-DD (the separator may be -, \u2013, or \u2014)`
         });
       }
     }

@@ -46,9 +46,9 @@
  *   2  — usage / environment error
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, statSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { resolveToolchain } from "./toolchain-layout.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -354,7 +354,20 @@ function parseArgs(argv) {
   return out;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+// Run the CLI only when invoked directly. Resolve BOTH sides with realpathSync
+// (symlink- + space-safe): Node realpath-resolves import.meta.url while argv[1]
+// is the raw invocation path, so a raw `import.meta.url === pathToFileURL(
+// argv[1]).href` compare misses under a symlinked/spaced path. Mirrors
+// validate-plugin.mjs's isMainModule guard (Part G2 straggler sweep).
+function isMainModule() {
+  try {
+    if (!process.argv[1]) return false;
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+if (isMainModule()) {
   const args = parseArgs(process.argv.slice(2));
   if (!args.pluginDir) {
     console.error("check-view-tool-imports: --plugin-dir <abs> is required");
