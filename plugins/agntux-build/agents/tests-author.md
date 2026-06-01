@@ -90,6 +90,16 @@ they are not judgement calls:
    `listing.yaml` field, `js-yaml`-load it and assert on the object
    (`expect(listing.ui_components).toHaveLength(2)`), never `/^ux_components:/m` —
    a text regex both hardcodes the (wrong) field name and is brittle to formatting.
+6. **NEVER `toContain` a `reference/*.md` body — the gate flags it (E30).** A test
+   that does `readFileSync('skills/{slug}/_overrides/reference/<file>.md').toContain('…')`
+   is the exact phantom-contract that burned four validate rounds on the calendar
+   build (`draft-flow.test.ts` and `thread-association.test.ts` both grepped the same
+   `fetch.md` for different invented strings, so fixing one broke the other). The
+   marketplace linter's **pass 15 (E30, warning, routed to you)** detects this
+   pattern mechanically. If you genuinely need an ingest-contract fact, assert it
+   against the handler output, a parsed `plugin.json`/`listing.yaml` field, or a
+   CANONICAL `sync.md` anchor (golden rule, sources 1–3) — never the per-plugin
+   reference prose.
 
 ## When to add which test
 

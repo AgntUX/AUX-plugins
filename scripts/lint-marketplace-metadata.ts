@@ -32,6 +32,7 @@ import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.
 import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
 import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
 import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-envelope.js";
+import { pass15GroundedTests } from "./lint/lint-grounded-tests.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -703,6 +704,11 @@ export function lintPlugin(
     opts.repoRoot,
     findings,
   );
+  // Pass 15 — flag brittle "phantom-contract" tests that grep another
+  // author's per-plugin reference prose for a literal string (the
+  // multi-round test-churn class from the 2026-06-01 calendar build).
+  // Warning-only; routed to tests-author.
+  pass15GroundedTests(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseConsoleErrors,
+  parseVitestJsonFailures,
   buildStageResults,
   buildSummary,
   routeFromLintCode,
@@ -118,7 +119,7 @@ describe("buildStageResults — render console_errors passthrough", () => {
       },
     ];
     const out = buildStageResults(stages, stops, ["render"]);
-    const render = out.find((s) => s.stage === "render");
+    const render = out.find((s: { stage: string }) => s.stage === "render");
     expect(render?.status).toBe("fail");
     expect(render?.errors[0].error_message).toBe(
       "Cannot read properties of undefined (reading 'call')",
@@ -277,5 +278,141 @@ describe("buildStageResults — lint multi-owner punch-list (E05 + E15 reach BOT
     expect(lint?.errors[0].lint_findings).toHaveLength(2);
     expect(lint?.errors[0].lint_findings[0].routing).toBe("manifest-author");
     expect(lint?.errors[0].lint_findings[1].routing).toBe("ingest-prompt-author");
+  });
+});
+
+describe("parseVitestJsonFailures — surface EVERY failing assertion (not one-per-round)", () => {
+  // A two-file, three-failure vitest --reporter=json report. The whole point of
+  // the fix: one validate round must reveal ALL of these, not just the first.
+  const report = JSON.stringify({
+    numFailedTests: 3,
+    testResults: [
+      {
+        name: "/abs/build/agntux-foo/__tests__/draft-flow.test.ts",
+        status: "failed",
+        assertionResults: [
+          {
+            ancestorTitles: ["draft flow"],
+            title: "fetch.md forbids client-side writes",
+            fullName: "draft flow > fetch.md forbids client-side writes",
+            status: "failed",
+            failureMessages: [
+              "AssertionError: expected '# fetch …' to contain 'forbidden by this skill'\n ❯ __tests__/draft-flow.test.ts:13:18",
+            ],
+          },
+          {
+            title: "passing one",
+            status: "passed",
+            failureMessages: [],
+          },
+        ],
+      },
+      {
+        name: "/abs/build/agntux-foo/__tests__/thread-association.test.ts",
+        status: "failed",
+        assertionResults: [
+          {
+            ancestorTitles: ["thread association"],
+            title: "recurring instances",
+            fullName: "thread association > recurring instances",
+            status: "failed",
+            failureMessages: [
+              "AssertionError: expected '…' to contain 'originalStartTime'\n ❯ __tests__/thread-association.test.ts:14:20",
+            ],
+          },
+          {
+            ancestorTitles: ["thread association"],
+            title: "compound id",
+            fullName: "thread association > compound id",
+            status: "failed",
+            failureMessages: [
+              "AssertionError: expected '…' to contain '<calendar_id>#<event_id>#<originalStartTime>'\n ❯ __tests__/thread-association.test.ts:15:20",
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("returns one finding per failed assertion across all files", () => {
+    const out = parseVitestJsonFailures(report, "/abs/build/agntux-foo");
+    expect(out).toHaveLength(3);
+    expect(out.every((f: { routing: string }) => f.routing === "tests-author")).toBe(true);
+  });
+
+  it("strips baseDir so failed_file is plugin-relative", () => {
+    const out = parseVitestJsonFailures(report, "/abs/build/agntux-foo");
+    expect(out[0].failed_file).toBe("__tests__/draft-flow.test.ts");
+    expect(out[2].failed_file).toBe("__tests__/thread-association.test.ts");
+  });
+
+  it("extracts the assertion message minus the error prefix", () => {
+    const out = parseVitestJsonFailures(report, "/abs/build/agntux-foo");
+    expect(out[0].error_message).toBe(
+      "expected '# fetch …' to contain 'forbidden by this skill'",
+    );
+    expect(out[0].test).toBe("draft flow > fetch.md forbids client-side writes");
+  });
+
+  it("tolerates a banner before the JSON object", () => {
+    const out = parseVitestJsonFailures(`stderr noise\n${report}\n`, "/abs/build/agntux-foo");
+    expect(out).toHaveLength(3);
+  });
+
+  it("surfaces a FILE-LEVEL failure (transform/import crash, empty assertionResults)", () => {
+    // vitest reports a syntax/import/transform crash as a failed file with NO
+    // assertionResults and the real error in `message`. The parser must surface
+    // it (not return []) so a config crash still routes with a diagnostic.
+    const crash = JSON.stringify({
+      numFailedTests: 0,
+      testResults: [
+        {
+          name: "/abs/build/agntux-foo/__tests__/broken.test.ts",
+          status: "failed",
+          message:
+            "Error: Transform failed with 1 error:\n/abs/.../broken.test.ts:3:7: ERROR: Expected \";\" but found \"is\"",
+          assertionResults: [],
+        },
+      ],
+    });
+    const out = parseVitestJsonFailures(crash, "/abs/build/agntux-foo");
+    expect(out).toHaveLength(1);
+    expect(out[0].failed_file).toBe("__tests__/broken.test.ts");
+    expect(out[0].test).toBeUndefined();
+    expect(out[0].error_message).toContain("Transform failed");
+    expect(out[0].routing).toBe("tests-author");
+  });
+
+  it("returns [] for non-JSON / empty / no-failures so the caller falls back", () => {
+    expect(parseVitestJsonFailures("RUN v1.6.0\n FAIL x.test.ts", "/x")).toEqual([]);
+    expect(parseVitestJsonFailures("", "/x")).toEqual([]);
+    expect(parseVitestJsonFailures(null, "/x")).toEqual([]);
+    expect(
+      parseVitestJsonFailures(JSON.stringify({ testResults: [] }), "/x"),
+    ).toEqual([]);
+  });
+});
+
+describe("buildStageResults — tests stage carries the full failing-assertion punch-list", () => {
+  it("surfaces test_findings so the orchestrator fixes the whole suite in one round", () => {
+    const stages = { tests: { status: "fail", detail: "plugin-root vitest failed" } };
+    const stops = [
+      {
+        stage: "tests",
+        detail: "plugin-root vitest failed for agntux-foo (3 failing assertions — fix all)",
+        routing: "tests-author",
+        test_findings: [
+          { failed_file: "__tests__/draft-flow.test.ts", test: "a", error_message: "x", routing: "tests-author" },
+          { failed_file: "__tests__/thread-association.test.ts", test: "b", error_message: "y", routing: "tests-author" },
+          { failed_file: "__tests__/thread-association.test.ts", test: "c", error_message: "z", routing: "tests-author" },
+        ],
+        blocking: true,
+        errorKind: "plugin",
+      },
+    ];
+    const out = buildStageResults(stages, stops, ["tests"]);
+    const tests = out.find((s: { stage: string }) => s.stage === "tests");
+    expect(tests?.errors[0].test_findings).toHaveLength(3);
+    expect(tests?.errors[0].routing).toBe("tests-author");
   });
 });

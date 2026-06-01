@@ -335,8 +335,15 @@ if (floorKeywords.length === 0) floorKeywords.push("agntux");
 if (!existsSync(LISTING_DEST)) {
   const keywordLines = floorKeywords.map((k) => `  - ${k}`).join("\n");
   const listing =
-    `tagline: "${floorDisplay}, surfaced as AgntUX entities."\n` +
-    `description: |\n` +
+    `# Marketplace lint hard-fails any string field over its cap (E05) and any\n` +
+    `# category outside the closed enum (E04). Caps: tagline ≤80, description\n` +
+    `# ≤500, ui_components[].title ≤60, ui_components[].purpose ≤200,\n` +
+    `# proposed_schema.{entity_subtypes,action_classes}[].description ≤200,\n` +
+    `# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):\n` +
+    `# productivity, communication, crm, project-management, developer-tools,\n` +
+    `# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).\n` +
+    `tagline: "${floorDisplay}, surfaced as AgntUX entities."  # ≤80 chars\n` +
+    `description: |  # ≤500 chars\n` +
     `  Ingests ${floorDisplay} into the AgntUX knowledge store. Replace this\n` +
     `  placeholder with a real one-paragraph summary (markdown allowed, 500\n` +
     `  chars max) before the plugin goes to launch review.\n` +
@@ -370,9 +377,9 @@ if (!existsSync(LISTING_DEST)) {
     `        - subtype\n` +
     `  action_classes:\n` +
     `    - class: knowledge-update\n` +
-    `      description: "An informational signal extracted from a ${floorDisplay} item."\n` +
-    `  cursor_semantics: "Single timestamp cursor; advances to the newest item seen this run."\n` +
-    `  source_id_format: "Stable per-item identifier provided by the source."\n`;
+    `      description: "An informational signal extracted from a ${floorDisplay} item."  # ≤200 chars\n` +
+    `  cursor_semantics: "Single timestamp cursor; advances to the newest item seen this run."  # ≤200 chars\n` +
+    `  source_id_format: "Stable per-item identifier provided by the source."  # ≤120 chars\n`;
   writeFileSync(LISTING_DEST, listing, "utf8");
   console.log(`  listing.yaml   ← emitted floor (caps-respecting; specialist overwrites)`);
   anyWrite = true;
