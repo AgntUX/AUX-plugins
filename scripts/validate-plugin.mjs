@@ -371,6 +371,108 @@ export function parseFirstError(text) {
   return {};
 }
 
+// Cap the per-run test punch-list (defense-in-depth against a pathological
+// suite). Far above any real plugin's failing-assertion count.
+const MAX_TEST_FINDINGS = 50;
+
+/** First non-empty line of a vitest failureMessage, minus the error prefix. */
+function firstVitestMessageLine(raw) {
+  const first =
+    String(raw == null ? "" : raw)
+      .split("\n")
+      .map((l) => l.trim())
+      .find(Boolean) || "";
+  return first.replace(/^(?:AssertionError|Error)(?:\s*\[[^\]]*\])?:\s*/, "").trim();
+}
+
+/**
+ * Parse a vitest JSON report (`vitest run --reporter=json`) into a flat list of
+ * EVERY failing assertion: `{ failed_file, test, error_message, routing }`. This
+ * is what lets the tests stage surface ALL failures in ONE verdict instead of
+ * one-per-round (the root cause of the multi-round test churn): `parseFirstError`
+ * stops at the first hit, so each round only ever exposed the next failing
+ * `toContain`, forcing a fresh validate round per assertion.
+ *
+ * `baseDir` (optional) is stripped from absolute file paths so findings read
+ * `__tests__/foo.test.ts`, matching the other stages' relative `failed_file`.
+ * Tolerant of a banner/prefix before the JSON object. Output-bounded
+ * (`MAX_TEST_FINDINGS`) + never throws; returns [] when the text isn't a
+ * parseable report or has no failures (the caller then falls back to
+ * `parseFirstError`).
+ */
+export function parseVitestJsonFailures(jsonText, baseDir) {
+  const s = jsonText == null ? "" : String(jsonText);
+  if (!s) return [];
+  let report = null;
+  try {
+    report = JSON.parse(s);
+  } catch {
+    // vitest may print a banner before the JSON; recover the first balanced-ish
+    // object by slicing between the first `{` and the last `}`.
+    const start = s.indexOf("{");
+    const end = s.lastIndexOf("}");
+    if (start === -1 || end <= start) return [];
+    try {
+      report = JSON.parse(s.slice(start, end + 1));
+    } catch {
+      return [];
+    }
+  }
+  try {
+    if (!report || !Array.isArray(report.testResults)) return [];
+    const stripBase =
+      baseDir && typeof baseDir === "string" ? baseDir.replace(/\/+$/, "") + "/" : null;
+    const out = [];
+    for (const file of report.testResults) {
+      const abs = file?.name || file?.testFilePath || undefined;
+      const rel = stripBase && abs && abs.startsWith(stripBase) ? abs.slice(stripBase.length) : abs;
+      const assertions = Array.isArray(file?.assertionResults) ? file.assertionResults : [];
+      let emittedForFile = 0;
+      for (const a of assertions) {
+        if (a?.status !== "failed") continue;
+        const msgs = Array.isArray(a.failureMessages) ? a.failureMessages : [];
+        const name =
+          a.fullName ||
+          [...(a.ancestorTitles || []), a.title].filter(Boolean).join(" > ") ||
+          a.title ||
+          undefined;
+        out.push({
+          failed_file: rel,
+          test: name,
+          error_message: firstVitestMessageLine(msgs[0]) || name || "assertion failed",
+          routing: "tests-author",
+        });
+        emittedForFile++;
+        if (out.length >= MAX_TEST_FINDINGS) return out;
+      }
+      // File-level failure with NO per-assertion detail — a transform / import /
+      // syntax crash, or "no test found in suite". vitest reports it as a failed
+      // file with an empty assertionResults[] and the real error in `message` /
+      // `failureMessage`. Surface it so a config crash still routes with a real
+      // diagnostic instead of an empty verdict (the old default reporter echoed
+      // this to stderr; the JSON switch must not silently lose it).
+      if (emittedForFile === 0 && file?.status === "failed") {
+        const fileMsg = firstVitestMessageLine(
+          file.message ||
+            (Array.isArray(file.failureMessage)
+              ? file.failureMessage[0]
+              : file.failureMessage),
+        );
+        out.push({
+          failed_file: rel,
+          test: undefined,
+          error_message: fileMsg || "test file failed to run",
+          routing: "tests-author",
+        });
+        if (out.length >= MAX_TEST_FINDINGS) return out;
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Classify a stage failure as a fixable PLUGIN defect vs. an ENVIRONMENT
  * limitation, from the combined stdout/stderr. Environment failures (permission
@@ -832,23 +934,44 @@ export async function runValidation({
         // No --passWithNoTests: a plugin that declares a `test` script is
         // expected to ship tests. A glob that matches nothing must NOT pass
         // green — exactly the "broken plugin sails through" class this stops.
-        const r = run("npx", ["vitest", "run"], pluginDir, { capture: true });
-        process.stderr.write(r.stdout);
+        // --reporter=json so we can surface EVERY failing assertion at once
+        // (see parseVitestJsonFailures) instead of one-per-round.
+        const r = run("npx", ["vitest", "run", "--reporter=json"], pluginDir, { capture: true });
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
+          const test_findings = parseVitestJsonFailures(r.stdout, pluginDir);
+          for (const f of test_findings) {
+            process.stderr.write(
+              `  [test] ${f.failed_file ?? ""}${f.test ? ` (${f.test})` : ""} ${f.error_message} → tests-author\n`,
+            );
+          }
+          // Fallback echo: when the JSON report yielded no structured findings
+          // (non-JSON output / unexpected reporter shape), surface the raw
+          // capture so the operator still sees what broke — the JSON-reporter
+          // switch replaced the unconditional stdout echo with the punch-list.
+          if (test_findings.length === 0) process.stderr.write(r.stdout);
           const { error_kind, blocking } = classifyFailure("tests", r);
           recordStop({
             stage: "tests",
-            detail: `plugin-root vitest failed for ${slug}`,
+            detail:
+              `plugin-root vitest failed for ${slug}` +
+              (test_findings.length > 1 ? ` (${test_findings.length} failing assertions — fix all)` : ""),
             routing: "tests-author",
             errorKind: error_kind,
             blocking,
             extra: {
+              // Full punch-list: one entry per failing assertion. The
+              // orchestrator fixes the whole list in one pass.
+              test_findings: test_findings.length ? test_findings : undefined,
               stderr_tail: tail(r.stderr),
               stdout_tail: tail(r.stdout),
               _stderr_full: r.stderr,
               _stdout_full: r.stdout,
-              ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+              // Anchor on the first finding; fall back to the text scrape when
+              // the JSON report was empty/unparseable (e.g. config crash).
+              ...(test_findings.length
+                ? { failed_file: test_findings[0].failed_file, error_message: test_findings[0].error_message }
+                : parseFirstError(`${r.stderr}\n${r.stdout}`)),
             },
           });
           testsFailed = true;
@@ -857,23 +980,38 @@ export async function runValidation({
         log("       plugin-root has no test script; skipping plugin-root suite");
       }
       if (!testsFailed && buildPassed && hasViewTool) {
-        const r = run("npx", ["vitest", "run", "--passWithNoTests"], viewToolDir, { capture: true });
-        process.stderr.write(r.stdout);
+        const r = run("npx", ["vitest", "run", "--passWithNoTests", "--reporter=json"], viewToolDir, { capture: true });
         process.stderr.write(r.stderr);
         if (r.status !== 0) {
+          const test_findings = parseVitestJsonFailures(r.stdout, viewToolDir);
+          for (const f of test_findings) {
+            process.stderr.write(
+              `  [test] ${f.failed_file ?? ""}${f.test ? ` (${f.test})` : ""} ${f.error_message} → tests-author\n`,
+            );
+          }
+          // Fallback echo: when the JSON report yielded no structured findings
+          // (non-JSON output / unexpected reporter shape), surface the raw
+          // capture so the operator still sees what broke — the JSON-reporter
+          // switch replaced the unconditional stdout echo with the punch-list.
+          if (test_findings.length === 0) process.stderr.write(r.stdout);
           const { error_kind, blocking } = classifyFailure("tests", r);
           recordStop({
             stage: "tests",
-            detail: `view-tool vitest failed for ${slug}`,
+            detail:
+              `view-tool vitest failed for ${slug}` +
+              (test_findings.length > 1 ? ` (${test_findings.length} failing assertions — fix all)` : ""),
             routing: "tests-author",
             errorKind: error_kind,
             blocking,
             extra: {
+              test_findings: test_findings.length ? test_findings : undefined,
               stderr_tail: tail(r.stderr),
               stdout_tail: tail(r.stdout),
               _stderr_full: r.stderr,
               _stdout_full: r.stdout,
-              ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+              ...(test_findings.length
+                ? { failed_file: test_findings[0].failed_file, error_message: test_findings[0].error_message }
+                : parseFirstError(`${r.stderr}\n${r.stdout}`)),
             },
           });
           testsFailed = true;
@@ -1081,6 +1219,10 @@ export function buildStageResults(stages, stops, stageOrder) {
           // entry, not just the primary `routing`.
           routings: s.routings,
           lint_findings: s.lint_findings,
+          // The tests stage carries one entry per failing assertion so the
+          // orchestrator fixes the whole suite in one round (not one-per-round).
+          // Undefined for non-test stages.
+          test_findings: s.test_findings,
           blocking: s.blocking,
           error_kind: s.errorKind,
           failed_file: s.failed_file,
@@ -1218,9 +1360,12 @@ export function routeFromLintCode(code) {
   // E15 is the skill-render-drift code (pass 8) — the ingest prompt author owns
   // the `_overrides/` + render map it derives from.
   if (code === "E15") return "ingest-prompt-author";
+  // E30 is the grounded-tests guard (pass 15) — the tests author owns it.
+  if (code === "E30") return "tests-author";
   // View-tool passes: third-party MCP in views (E13), bundle-is-real-HTML (E23),
-  // payload-shape guard (E24/E25), apps-client drift (E26/E27), CSS bundle (E28).
-  if (["E13", "E23", "E24", "E25", "E26", "E27", "E28"].includes(code)) {
+  // payload-shape guard (E24/E25), apps-client drift (E26/E27), CSS bundle (E28),
+  // response-envelope/renderConfirmationText (E29).
+  if (["E13", "E23", "E24", "E25", "E26", "E27", "E28", "E29"].includes(code)) {
     return "view-tool-builder";
   }
   // Everything else — listing.yaml schema, plugin.json shape, README/CHANGELOG,

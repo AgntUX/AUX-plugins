@@ -83,6 +83,8 @@ export const CATEGORIES = [
   "developer-tools",
   "analytics",
   "notes-knowledge",
+  "scheduling",
+  "calendar",
   "meta",
 ] as const;
 

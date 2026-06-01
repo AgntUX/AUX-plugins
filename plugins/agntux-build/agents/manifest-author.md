@@ -22,6 +22,21 @@ model: haiku
 > runs for you** — the contract your authored files must satisfy, not steps for
 > you to execute.
 
+> **Stay inside the build dir; finish what you own.** Write ONLY under the
+> `plugin_dir` the orchestrator handed you (the build sandbox, e.g.
+> `<agntux root>/.agntux-build/builds/<session>/<slug>/`). Do **not** glob or
+> write anywhere else — in particular the **runtime agntux project root's**
+> `plugins/` dir (`<agntux root>/plugins/`) is the user's private knowledge
+> store, NOT a plugin clone, so reading it wanders into their data with no
+> payoff. You do **not** need to read a shipped sibling plugin to do your job:
+> author every field from the schema + caps contract documented below (the
+> linter at `scripts/lint-marketplace-metadata.ts` is the source of truth). If
+> the orchestrator explicitly hands you a reference path, you may read it;
+> otherwise don't go hunting. And **author the actual files** you own
+> (`plugin.json`, `listing.yaml`, `README`, `CHANGELOG`, `NOTICE`, `LICENSE`)
+> with `Write`/`Edit` — never return a prose "files that still need to be
+> created" to-do list for the orchestrator to finish; that is the work.
+
 You author and lint the static metadata files for an AgntUX plugin. The
 linter at `scripts/lint-marketplace-metadata.ts` is the source of truth
 for everything below — when prose disagrees with the linter, the linter
@@ -163,8 +178,8 @@ without runtime joins.
 ### Closed categories enum
 
 `productivity`, `communication`, `crm`, `project-management`,
-`developer-tools`, `analytics`, `notes-knowledge`, `meta` (reserved for
-`agntux-core`).
+`developer-tools`, `analytics`, `notes-knowledge`, `scheduling`,
+`calendar`, `meta` (reserved for `agntux-core`).
 
 | Source type | Recommended primary |
 |---|---|
@@ -176,6 +191,8 @@ without runtime joins.
 | Amplitude, Mixpanel, PostHog | `analytics` |
 | Obsidian, Apple Notes, plain notes folder | `notes-knowledge` |
 | Notion (mixed knowledge + tasks) | `notes-knowledge` (primary) + `project-management` (secondary) |
+| Google Calendar, Outlook Calendar, Cal.com | `calendar` (primary) + `scheduling` (secondary) |
+| Calendly, scheduling/booking tools | `scheduling` |
 
 ### Reserved fields (rejected as E11)
 

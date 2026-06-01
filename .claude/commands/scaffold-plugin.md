@@ -235,7 +235,8 @@ description: |
   Describe what the plugin does, who it's for, and what data it ingests.
 categories:
   # TODO: pick 1–3 from: productivity, communication, crm, project-management,
-  # developer-tools, analytics, notes-knowledge. (`meta` is reserved for agntux-core.)
+  # developer-tools, analytics, notes-knowledge, scheduling, calendar.
+  # (`meta` is reserved for agntux-core.)
   - TODO
 keywords:
   # TODO: 1–10 entries; each lowercase, digits, hyphens; 2–32 chars.

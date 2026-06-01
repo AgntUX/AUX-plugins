@@ -1,0 +1,105 @@
+/**
+ * grounded-tests.test.ts
+ *
+ * Unit tests for pass 15 (E30) — flag brittle "phantom-contract" tests that
+ * grep a per-plugin `reference/`-dir `.md` file with `.toContain(...)`. See
+ * `../lint-grounded-tests.ts` for the rationale (the 2026-06-01 calendar build
+ * multi-round test churn).
+ */
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { pass15GroundedTests } from "../lint-grounded-tests.js";
+import type { Finding } from "../lint-grounded-tests.js";
+
+let pluginDir: string;
+
+beforeEach(() => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "lint15-"));
+  pluginDir = path.join(root, "plugins", "agntux-foo");
+  fs.mkdirSync(path.join(pluginDir, "__tests__"), { recursive: true });
+});
+
+afterEach(() => {
+  try {
+    fs.rmSync(path.dirname(path.dirname(pluginDir)), { recursive: true, force: true });
+  } catch {
+    /* best-effort */
+  }
+});
+
+function writeTest(name: string, body: string): void {
+  fs.writeFileSync(path.join(pluginDir, "__tests__", name), body, "utf8");
+}
+
+// The exact anti-pattern from the calendar build: read a per-plugin reference
+// markdown across two lines, then assert an invented phrase.
+const BRITTLE = `import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const ROOT = resolve(__dirname, '..');
+it('fetch.md forbids client writes', () => {
+  const text = readFileSync(
+    resolve(ROOT, 'skills/agntux-foo/_overrides/reference/fetch.md'),
+    'utf8',
+  );
+  expect(text).toContain('forbidden by this skill');
+});
+`;
+
+// A grounded test: asserts on parsed structured data, no reference-prose grep.
+const GROUNDED = `import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const ROOT = resolve(__dirname, '..');
+it('plugin.json declares a version', () => {
+  const pkg = JSON.parse(readFileSync(resolve(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
+  expect(pkg.version).toBeTruthy();
+});
+`;
+
+describe("pass15GroundedTests (E30)", () => {
+  it("flags a test that greps reference prose with toContain", () => {
+    writeTest("draft-flow.test.ts", BRITTLE);
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E30");
+    expect(findings[0].severity).toBe("warning");
+    expect(findings[0].file).toBe("__tests__/draft-flow.test.ts");
+    expect(findings[0].line).toBe(6); // the reference-path literal line
+  });
+
+  it("does NOT flag a grounded test (structured-data assertion, no reference grep)", () => {
+    writeTest("cold-start.test.ts", GROUNDED);
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag a reference read without toContain", () => {
+    writeTest("read-only.test.ts", BRITTLE.replace("expect(text).toContain('forbidden by this skill');", "expect(text.length).toBeGreaterThan(0);"));
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("is silent when there are no test directories", () => {
+    fs.rmSync(path.join(pluginDir, "__tests__"), { recursive: true, force: true });
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("also scans view-tool/__tests__", () => {
+    fs.mkdirSync(path.join(pluginDir, "view-tool", "__tests__"), { recursive: true });
+    fs.writeFileSync(
+      path.join(pluginDir, "view-tool", "__tests__", "vt.test.ts"),
+      BRITTLE,
+      "utf8",
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].file).toBe("view-tool/__tests__/vt.test.ts");
+  });
+});

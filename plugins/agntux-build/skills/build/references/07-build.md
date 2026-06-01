@@ -341,8 +341,23 @@ The seven specialists **only author** (`Write`/`Edit` into the build tree). They
 do NOT run build, render-skill, lint, typecheck, tests, or the view-tool pipeline
 themselves — those deterministic steps all run inside `agntux_validate` (in the
 restricted Bash sandbox they EPERM on the native host path and escape to `/tmp`,
-yielding an incomplete tree — the exact failure this closes). After the seven
-have authored, call once:
+yielding an incomplete tree — the exact failure this closes).
+
+> **Authoring path — the one Bash constraint** (this is about the orchestrator;
+> the seven specialists only ever `Write`/`Edit`, never Bash). Prefer
+> `Write`/`Edit` (they run on the host and accept either path). If you (the
+> orchestrator) ever author or patch a build-tree file via Bash instead — a quick
+> `cat >`, `sed -i`, here-doc
+> — target the Cowork **mount** path that `agntux_scaffold` returned
+> (`/sessions/<name>/mnt/agntux/…`), **never** the native host
+> `/Users/…/agntux/…` path: Bash EPERMs on the host path and silently escapes to
+> `/tmp`, leaving the synced tree incomplete (no `ui-resources/`, no marker). The
+> rule that never bends is the *toolchain* one: scaffold / render-skill / build /
+> lint / typecheck / tests / validate run ONLY via the MCP tools, never as a Bash
+> program — content authoring is the only thing Bash may touch, and only on the
+> mount path.
+
+After the seven have authored, call once:
 
 ```
 agntux_validate({ slug: "agntux-{slug}", plugin_dir: "{build-path}" })
@@ -408,7 +423,7 @@ error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →
 | `build` (view-tool vite / tsc / esbuild / emit-manifest / import gate) | `view-tool-builder` |
 | `typecheck` (view-tool `tsc --noEmit`) | `view-tool-builder` |
 | `lint` — read `stage_results[].errors[].lint_findings[]` (each `{code, file, message, routing}`) | dispatch **every distinct owner** in `stage_results[].errors[].routings`, one per code — e.g. an E05 listing-field error → `manifest-author` AND an E15 render-drift error → `ingest-prompt-author` in the SAME pass (don't fix only the primary `routing` and re-validate — the other code fails the next round) |
-| `tests` | `tests-author` |
+| `tests` — read `stage_results[].errors[].test_findings[]` (each `{failed_file, test, error_message, routing}`, one per FAILING assertion across ALL test files) | `tests-author` — fix **every** finding in one pass; the verdict now batches all failing assertions, so a one-at-a-time fix wastes a full re-validate per assertion (the calendar-build churn). Brittle `reference/*.md` greps also surface as lint **E30** → `tests-author`. |
 | `validate` (`claude plugin validate` — plugin.json / manifest shape) | `manifest-author` |
 | `render` (console errors / handler `tool error:` / harness crash) | `executor` (model=sonnet, per `08-headless-test.md` self-fix) |
 | `usage` (bad flag, missing `--plugin-dir`, plugin dir not found) | **none** — operator/environment error. Fix the invocation; do NOT re-dispatch a specialist or burn a cycle. |

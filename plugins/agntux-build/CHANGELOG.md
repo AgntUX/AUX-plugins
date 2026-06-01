@@ -6,6 +6,68 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-06-01
+
+Removes the four fixable defects behind the 5-round google-calendar build on
+0.23.0. The build succeeded; every extra round was a tooling/authoring-steer gap,
+not real work. Decision (from the build's post-mortem): **harden the deterministic
+`agntux_validate` gate as the single source of truth** — batch all failures,
+embed caps/enums in the scaffold floor, and stop depending on specialist prose
+adherence.
+
+### Added
+
+- **The tests stage now batches EVERY failing assertion into one verdict.**
+  `agntux_validate` runs the plugin-root and view-tool vitest with
+  `--reporter=json` and parses all failures into a `stage_results[].errors[].test_findings[]`
+  punch-list (`{failed_file, test, error_message, routing}`), instead of
+  surfacing only the first failing assertion per round. This was the dominant
+  cause of the churn: rounds 2–4 each revealed exactly one more `toContain`
+  mismatch because several self-authored tests grepped the *same* prose file.
+  File-level crashes (transform/import/syntax errors with no assertion detail)
+  are surfaced from the vitest file `message` so a config crash still routes with
+  a real diagnostic. The orchestrator (`07-build.md`) now fixes the whole tests
+  punch-list in one pass.
+- **Grounded-tests guard (marketplace lint pass 15, E30, warning).** Flags a
+  plugin test that both reads a `reference/`-dir `.md` file AND calls
+  `.toContain(...)` — the brittle "phantom-contract" pattern that greps another
+  author's per-plugin prose for an invented string. Routed to `tests-author`;
+  the fix is to assert handler output / a parsed `plugin.json`/`listing.yaml`
+  field / a canonical `sync.md` anchor instead. `tests-author.md` gained a
+  matching mechanical rule.
+- **`@types/js-yaml` in the scaffolded view-tool floor.** A descriptor that does
+  `import yaml from "js-yaml"` (like `agntux-slack`) no longer fails the build
+  with TS7016 — the floor now ships the types alongside the existing `js-yaml`
+  devDep, mirroring the proven `agntux-slack` setup.
+- **`scheduling` and `calendar` marketplace categories.** A Google Calendar
+  plugin's natural category no longer fails lint E04 (closed-enum). Additive
+  enum change (P7 MINOR); `manifest-author.md` and the scaffold floor list them.
+- **Field caps documented inline in the scaffold floor `listing.yaml`.** A header
+  block + per-field `# ≤N chars` comments (tagline 80, description 500, purpose
+  200, action_classes description 200, cursor_semantics 200, source_id_format
+  120) so whoever overwrites the floor sees the cap at the point of editing.
+
+### Changed
+
+- **Authoring-path rule reconciled (`07-build.md`).** The load-bearing rule
+  stands — the deterministic toolchain (scaffold / render-skill / build / lint /
+  typecheck / tests / validate) runs ONLY via the MCP tools, never via Bash. The
+  one new clarification: if the orchestrator authors *content* via Bash, it must
+  target the Cowork **mount** path (`/sessions/<name>/mnt/agntux/…`), never the
+  native host `/Users/…/agntux/…` path (Bash EPERMs there and silently escapes to
+  `/tmp`, leaving an incomplete tree). The seven specialists still only
+  `Write`/`Edit`.
+- **`manifest-author` stays inside the build dir.** It must not glob or write
+  outside the handed `plugin_dir` — in particular the runtime agntux project
+  root's `plugins/` is the user's private knowledge store, not a plugin clone —
+  and it must author the files it owns rather than returning a prose to-do list.
+
+### Fixed
+
+- **E29 (view-tool response-envelope) now routes to `view-tool-builder`.** It was
+  falling through to `manifest-author`; the response-envelope defect is a
+  view-tool concern.
+
 ## [0.23.0] — 2026-06-01
 
 Cuts the validate round-count a real google-calendar build still burned on
