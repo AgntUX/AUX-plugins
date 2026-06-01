@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-05-31
+
+Closes the residual fix-loop a real google-calendar build still burned on
+0.21.0 — it passed validation only on the **4th** `agntux_validate` (three
+failed rounds + ~7 fix-up specialists). Every defect traced to a specialist
+authoring deterministic build-config or asserting ungrounded strings.
+
+### Added
+
+- **`agntux_scaffold` pre-places the build-critical view-tool floor**
+  (`view_tool: true`). When the plugin ships ≥1 UI handler, the native scaffold
+  copies the deterministic view-tool skeleton — `package.json` with the
+  `@agntux/ui-primitives` + `@agntux/plugin-runtime` workspace deps already
+  wired (correct `file:../../packages/…` for the build-session layout) and a
+  handler-agnostic build script that loops over `*.html`; a VITE_ENTRY-driven
+  `vite.config.ts`; `tsconfig.json`, `tailwind.config.mjs`,
+  `scripts/emit-manifest.mjs`, `src/globals.css`, `src/vite-env.d.ts`; and the
+  byte-frozen `src/lib/apps-client/**` + `src/lib/apps-react/**`. This makes the
+  "Rollup failed to resolve `@agntux/ui-primitives`" build failure and the
+  apps-client byte-drift (lint E26) **impossible to recur** — they are no longer
+  LLM-authored. `view-tool-builder` now authors only the per-handler UI.
+  (`toolchain-layout.mjs` gains `viewToolTemplateDir`;
+  `scaffold-marketplace-assets.mjs` gains `--view-tool`.)
+- **Renderer pre-warm at scaffold time.** `agntux_scaffold` kicks the detached
+  Chromium install at stage-7 start, so it is ready by the first
+  `agntux_validate` — the render gate runs on round 1 instead of forcing a
+  second "installing" round.
+
+### Changed
+
+- **Authoring prompts reconciled to the marketplace lint schema.**
+  `manifest-author.md`: the listing UI key is `ui_components` (not
+  `ux_components` → E05); the entry schema is `.strict()` so `verb_phrases` (and
+  any other key) is rejected — removed from the allowed-key list; added a
+  concrete ≤120-char `source_id_format` example with a "count the chars"
+  reminder. Purged the misleading "linter accepts both spellings" claim and
+  every other `ux_components` reference across `view-tool-builder.md`,
+  `ui-handler-author.md`, `release-checker.md`, and the canonical UI
+  disciplines.
+- **`view-tool-builder.md`**: build config + apps-client are now documented as
+  pre-placed, read-only infrastructure (removed the contradictory "vendor the
+  apps-client yourself / but don't" block); added the `ActionFrontmatter`
+  cast-through-`unknown` guidance (the TS2352 that broke build round 2).
+- **`tests-author.md`**: the golden rule is now backed by mechanical,
+  un-violatable rules — read-then-copy-literal (`toContain` over regex),
+  assert-only-what-this-plugin-contains, multiline/ASCII regex discipline, the
+  placeholder-survival check targets the **rendered** skill tree (never the
+  `_overrides` source, the `{{key}}`-in-a-comment false positive), and listing
+  fields are checked via parsed YAML. Stage 7 no longer seeds the specialist a
+  fixed list of phrases to assert.
+
 ## [0.21.0] — 2026-05-31
 
 Makes the build's fix-loop converge by closing the gaps that made the model

@@ -39,6 +39,11 @@ describe("resolveToolchain", () => {
       join(repoBase, "canonical", "prompts", "ingest", "skills", "sync"),
     );
     expect(tc.appsClientCanonicalRoot).toBe(repoBase);
+    // The view-tool skeleton the scaffold copies lives under the agntux-build
+    // plugin tree in the maintainer clone.
+    expect(tc.viewToolTemplateDir).toBe(
+      join(repoBase, "plugins", "agntux-build", "canonical", "ui-handlers", "_template", "view-tool"),
+    );
     expect(tc.pluginsDir).toBe(join(repoBase, "plugins"));
     expect(tc.testHarnessCli).toContain(join("plugins", "agntux-build", "test-harness"));
     expect(tc.tmpRoot).toBe(repoBase);
@@ -61,6 +66,10 @@ describe("resolveToolchain", () => {
       join(bundleBase, "canonical", "prompts", "ingest", "skills", "sync"),
     );
     expect(tc.appsClientCanonicalRoot).toBe(join(bundleBase, "canonical", "repo-mirror"));
+    // In the bundle the whole agntux-build tree IS <base>.
+    expect(tc.viewToolTemplateDir).toBe(
+      join(bundleBase, "canonical", "ui-handlers", "_template", "view-tool"),
+    );
     expect(tc.testHarnessCli).toBe(join(bundleBase, "test-harness", "bin", "cli.mjs"));
     // no clone in the bundle, and scratch must be writable (OS tmp)
     expect(tc.pluginsDir).toBeNull();

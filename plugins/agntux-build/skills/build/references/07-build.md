@@ -44,9 +44,20 @@ In order:
    `{{ui-name}}` / `{{view-tool-name}}` like every other content
    placeholder. See plugins/agntux-core/CHANGELOG.md → 9.5.3 for the
    bug class this guard catches.
-6. **`view-tool-builder`** — authors `view-tool/src/` (the component,
-   the Send-envelope wiring, `vite.config.ts` + its sibling HTML
-   entry). It does **not** run the build: the view-tool pipeline
+   **When you dispatch it, do NOT hand it a fixed list of phrases/contracts
+   to assert** (e.g. "assert cursor.md documents past-event eviction") — that
+   seeds phantom assertions that fail the `tests` gate on strings no other
+   specialist wrote. Tell it to **derive every assertion from the authored
+   tree** per its golden rule (Read the file, copy a verbatim substring); pass
+   only the plugin's shape facts (is the cursor non-trivial, are there threads,
+   are there write tools), not the assertion strings.
+6. **`view-tool-builder`** — authors the per-handler `view-tool/src/` UI
+   (the component, the Send-envelope wiring) and its sibling `{name}.html`
+   entries. It does **not** author `package.json` / `vite.config.ts` /
+   `tsconfig.json` / `src/lib/**` — those are the pre-placed scaffold floor
+   (`view_tool: true`), and re-authoring them is what dropped the
+   `@agntux/ui-primitives` dep and drifted the apps-client in Test #5. It does
+   **not** run the build: the view-tool pipeline
    (vite → tsc/esbuild → emit-manifest, the Zod-schema validation of
    `view-tools.manifest.json` against @agntux/plugin-runtime, the
    plugin-slug prefix assertion on every view_tools[].name, and the
@@ -195,9 +206,17 @@ the MCP server runs natively and writes it fine. That EPERM-then-`/tmp`-escape i
 exactly what produced incomplete trees and failed submissions before.
 
 ```
-agntux_scaffold({ slug: "agntux-{slug}", plugin_dir: "{build-path}" })
+agntux_scaffold({ slug: "agntux-{slug}", plugin_dir: "{build-path}", view_tool: {ships-UI} })
 # {build-path} = the tree from "Where the build runs" (the sandbox under
 #   <agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/).
+# {ships-UI} = true when stage 5 decided the plugin ships ≥1 UI handler
+#   (the common case for a connector plugin); omit/false for a headless
+#   ingest-only plugin. When true, the scaffold ALSO pre-places the
+#   build-critical view-tool floor (package.json WITH the @agntux/ui-primitives
+#   dep, the byte-frozen apps-client, tsconfig/tailwind/vite.config/emit-manifest)
+#   so view-tool-builder authors ONLY the per-handler UI and the
+#   "Rollup failed to resolve @agntux/ui-primitives" + apps-client-drift (E26)
+#   failures cannot recur.
 ```
 
 Branch on the RETURN value:
@@ -220,7 +239,15 @@ WS-C.2). It is idempotent and:
   `ingest-prompt-author` writes the real substitution map — which overwrites the
   floor on a normal build;
 - writes a placeholder `marketplace/README.md` note, the plugin-root
-  `package.json`, and `vitest.config.ts`.
+  `package.json`, and `vitest.config.ts`;
+- when called with `view_tool: true`, pre-places the build-critical view-tool
+  floor: `view-tool/package.json` (with the `@agntux/ui-primitives` +
+  `@agntux/plugin-runtime` workspace deps already wired and a handler-agnostic
+  build script that loops over `*.html`), `vite.config.ts`, `tsconfig.json`,
+  `tailwind.config.mjs`, `scripts/emit-manifest.mjs`, the byte-frozen
+  `src/lib/apps-client/**` (E26) + `src/lib/apps-react/**`, `src/globals.css`,
+  and `src/vite-env.d.ts`. `view-tool-builder` then authors only the per-handler
+  UI on top of this floor — never the build config.
 
 It does **not** create `marketplace/screenshots/` — screenshots are no longer
 required (WS-C.2).

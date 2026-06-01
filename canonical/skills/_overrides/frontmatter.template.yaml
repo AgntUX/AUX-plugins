@@ -2,7 +2,7 @@
 #
 # This is the substitution map every ingest plugin's render pipeline consumes
 # (canonical/prompts/ingest/skills/sync/ → plugins/{slug}/skills/{slug}/).
-# The ten {{...}} keys below are EXACTLY the placeholders the canonical sync
+# The ten placeholder keys below are EXACTLY the ones the canonical sync
 # template references; the renderer's surviving-placeholder guard fails the
 # build if any are missing. Keep this list in lockstep with the canonical
 # template (scripts/render-skill.mjs --self-test surfaces drift).

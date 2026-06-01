@@ -38,7 +38,7 @@ Do NOT delete `ui-design.html` and create a new one. Do NOT create a
 
 ## Workflow — single session, in order
 
-1. **Read context** — the plugin's `marketplace/listing.yaml` `ux_components` entry whose `name` matches the handler being designed (its `purpose` field is your behavioral brief), the spec's UI/UX guidelines (if a spec exists), and the relevant rows of `briefing-learnings.md` Section 1.
+1. **Read context** — the plugin's `marketplace/listing.yaml` `ui_components` entry whose `name` matches the handler being designed (its `purpose` field is your behavioral brief), the spec's UI/UX guidelines (if a spec exists), and the relevant rows of `briefing-learnings.md` Section 1.
 2. **Read shared design references selectively** — only the ones relevant to the surface you're designing. Don't read everything.
 3. **Write the design** to `ui-design.html`. For files under ~300 lines, write the entire file in one pass. For larger files, scaffold-then-fill: write the CSS-token block + page structure + `<!-- TODO: section name -->` placeholders first, then make 2–4 large edits to fill each section.
 4. **Screenshot review** — render at desktop (1280×720) and mobile (375×667). Visually inspect both screenshots end-to-end before declaring done.

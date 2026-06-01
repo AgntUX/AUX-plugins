@@ -82,8 +82,8 @@ MUST use the prefix.
 |---|---|
 | `tagline` | 80 chars |
 | `description` | 500 chars |
-| `ux_components[].purpose` | 200 chars |
-| `ux_components[].title` | 60 chars |
+| `ui_components[].purpose` | 200 chars |
+| `ui_components[].title` | 60 chars |
 | `proposed_schema.entity_subtypes[].description` | 200 chars |
 | `proposed_schema.action_classes[].description` | 200 chars |
 | `proposed_schema.cursor_semantics` | 200 chars |
@@ -116,7 +116,7 @@ the entire PR.
 |---|---|---|
 | `data_ingested` | array of string | up to 12 entries, each 1–120 chars |
 | `supported_prompts` | array of objects | up to 20; each `{prompt, purpose}`; `prompt` must start with `ux:`, `/ux`, `/{slug}:`, or `/{slug}` |
-| `ux_components` | array of objects | up to 20; each `{name: kebab-case, title: 1–60 chars, purpose: 1–200 chars, view_tool?: snake_case ending `_view`, resource_uri?: `^ui://[a-z][a-z0-9-]*$`, verb_phrases?: array of 1–8 strings (each 1–120 chars)}`. **Omit entirely if your plugin ships zero UI**. The `view_tool`, `resource_uri`, and `verb_phrases` fields are required when the entry corresponds to a real MCP App UI handler (one for which `ui-handler-author` produced files under `view-tool/src/`); they may be omitted only for placeholder catalog entries that document an upcoming UI. |
+| `ui_components` | array of objects | up to 20. The on-disk key is **`ui_components`** (NOT `ux_components` — that is lint E05 "unknown field"). Each entry's schema is `.strict()`, so the ONLY allowed keys are `{name: kebab-case, title: 1–60 chars, purpose: 1–200 chars, view_tool?: snake_case ending `_view`, resource_uri?: two-segment `^ui://{plugin-slug}/{handler}$` e.g. `ui://agntux-google-calendar/rsvp`}`. **Any other key — including `verb_phrases` — is a lint E05 error**; the verb is conveyed through `name` + `title` + `purpose`, never a separate field. **Omit `ui_components` entirely if your plugin ships zero UI**. `view_tool` + `resource_uri` are required when the entry corresponds to a real MCP App UI handler (one for which the view-tool specialist produced files under `view-tool/src/`); they may be omitted only for placeholder catalog entries that document an upcoming UI. |
 | `screenshot_order` | array of string | each filename matches `^[0-9]{2}-[a-z0-9-]+\.(png\|jpg)$`; must reference real files |
 | `demo_url` | string | https URL |
 | `requires_plugins` | array of slug | every ingest plugin should list `agntux-core` here |
@@ -128,8 +128,10 @@ the entire PR.
 
 The view-tool subtree emits `view-tool/dist/view-tools.manifest.json`
 at build time; its `view_tools[]` and `ui_bundles[]` arrays MUST be
-consistent with `marketplace/listing.yaml`'s `ux_components[]` (or
-`ui_components[]` — the linter accepts both spellings).
+consistent with `marketplace/listing.yaml`'s `ui_components[]`. (The
+build's `emit-manifest.mjs` also tolerates the legacy `ux_components`
+spelling, but the marketplace linter rejects it with E05 — always write
+`ui_components` on disk.)
 
 The rule (enforced at build time by
 `view-tool/scripts/emit-manifest.mjs`; re-enforced at PR time by
@@ -230,8 +232,15 @@ proposed_schema:
     - class: <kebab-case>
       description: <1–200 chars>
   cursor_semantics: <1–200 chars>     # optional narrative
-  source_id_format: <1–120 chars>     # optional narrative
+  source_id_format: <1–120 chars>     # optional narrative — COUNT THE CHARS
 ```
+
+> **`source_id_format` ≤ 120 chars — count before you write it.** The natural
+> descriptive sentence almost always overflows (Test #5 shipped a ~165-char
+> value → E05). Use the terse `` `{a}#{b}` `` identifier form plus **at most one
+> short clause**. Good (≈85 chars, well under 120):
+> `` source_id_format: "`{calendar_id}#{event_id}` — event.id is unique per instance under singleEvents=true." ``
+> Count the value's characters (excluding the YAML quotes) and trim until ≤120.
 
 ### What to propose for `entity_subtypes`
 

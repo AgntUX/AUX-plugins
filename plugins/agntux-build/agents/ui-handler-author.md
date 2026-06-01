@@ -36,7 +36,7 @@ covers the plugin's own files under `plugins/{slug}/`:
   iframe modules. The apps-client/apps-react MIT-inlined hooks live in
   `view-tool/src/lib/apps-client/` and `view-tool/src/lib/apps-react/`
   (DO NOT move them into `@agntux/plugin-runtime`).
-- `plugins/{slug}/marketplace/listing.yaml → ux_components[]` —
+- `plugins/{slug}/marketplace/listing.yaml → ui_components[]` —
   registry entry (`manifest-author` writes; you supply the values).
 
 ## 0. Read these before authoring anything
@@ -191,7 +191,7 @@ JS file per plugin.
 Walk the descriptor's `inputSchema` and `outputSchema` with the developer.
 Cite `mcp-apps-protocol.md` for the wire-protocol fields. The descriptor
 is the authoritative source for the wire contract — every other surface
-(`listing.yaml.ux_components[]`, `manifest-author` outputs, `tests-author`
+(`listing.yaml.ui_components[]`, `manifest-author` outputs, `tests-author`
 fixtures) is downstream of it.
 
 Every `view_tools[].name` MUST be prefixed with `{plugin-slug-snake}_`
@@ -379,11 +379,13 @@ Example for triage_view: `[{ pattern: "actions/{id}.md", scope: "personal" }]`.
 
 You don't write these — coordinate with the right specialist:
 
-- **`manifest-author`** — populates `listing.yaml.ux_components[]` with
-  `{ name, view_tool, resource_uri, verb_phrases }` and adds the verb
-  phrases to `supported_prompts`. The `view_tool` + `resource_uri`
-  pair must match the descriptor's `name` + `ui_resource_uri`
-  exactly — `emit-manifest.mjs` fails the build on mismatch (Step 1).
+- **`manifest-author`** — populates `listing.yaml.ui_components[]` with
+  `{ name, title, purpose, view_tool, resource_uri }` (the `.strict()`
+  schema's only allowed keys — there is NO `verb_phrases` field; it is a
+  lint E05 error. The verb is conveyed through `name` + `title` +
+  `purpose`). The `view_tool` + `resource_uri` pair must match the
+  descriptor's `name` + `ui_resource_uri` exactly — `emit-manifest.mjs`
+  fails the build on mismatch (Step 1).
 - **`ingest-prompt-author`** — substitutes a `{{ui-handler-trigger-list}}`
   value in the per-plugin `_overrides/frontmatter.yaml` so the rendered
   `skills/{slug}/SKILL.md` and `reference/sync.md` know when to suggest
@@ -399,7 +401,7 @@ You don't write these — coordinate with the right specialist:
   dispatches it after you.
 
 Each coordination is a one-line ask: "@manifest-author, please add
-`triage` to `ux_components[]` with these values: …".
+`triage` to `ui_components[]` with these values: …".
 
 ## 8. Local build & interactive preview (host-renderer)
 

@@ -33,6 +33,7 @@ import {
   existsSync,
   mkdirSync,
   copyFileSync,
+  cpSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -67,10 +68,15 @@ function parseCliArgs() {
     const eq = process.argv.find((a) => a.startsWith("--plugin-dir="));
     if (eq) pluginDir = resolve(eq.slice("--plugin-dir=".length));
   }
-  return { slug, pluginDir };
+  // --view-tool: also pre-place the build-critical view-tool floor (deps +
+  // apps-client + tsconfig/tailwind/vite/emit-manifest). Off by default so
+  // no-UI ingest plugins never get a stray view-tool/ tree; the orchestrator
+  // passes it only when stage 5 decided the plugin ships ≥1 UI handler.
+  const withViewTool = process.argv.includes("--view-tool");
+  return { slug, pluginDir, withViewTool };
 }
 
-const { slug, pluginDir: pluginDirFlag } = parseCliArgs();
+const { slug, pluginDir: pluginDirFlag, withViewTool } = parseCliArgs();
 
 const CANONICAL_ICON = join(tc.base, "canonical", "marketplace-assets", "icon.placeholder.png");
 const CANONICAL_FRONTMATTER = join(
@@ -90,6 +96,8 @@ const PACKAGE_JSON_DEST = join(PLUGIN_DIR, "package.json");
 const VITEST_CONFIG_DEST = join(PLUGIN_DIR, "vitest.config.ts");
 const CHANGELOG_DEST = join(PLUGIN_DIR, "CHANGELOG.md");
 const LISTING_DEST = join(MARKETPLACE_DIR, "listing.yaml");
+const VIEW_TOOL_TEMPLATE = tc.viewToolTemplateDir;
+const VIEW_TOOL_DEST = join(PLUGIN_DIR, "view-tool");
 
 // ---------------------------------------------------------------------------
 // Validate inputs
@@ -370,6 +378,155 @@ if (!existsSync(LISTING_DEST)) {
   anyWrite = true;
 } else {
   console.log(`  listing.yaml   ✓ already present`);
+}
+
+// 8. (--view-tool only) Pre-place the build-critical view-tool FLOOR. Root
+//    cause of the Test-#5 view-tool round-trips: the view-tool-builder
+//    hand-authored deterministic build config — it shipped a view-tool/
+//    package.json WITHOUT the `@agntux/ui-primitives` workspace dep (Rollup
+//    "failed to resolve import" → build fail) and hand-wrote the vendored
+//    apps-client (sha256 drift → lint E26). None of that is creative work: the
+//    canonical _template already has the correct deps + a byte-frozen
+//    apps-client. We copy that floor natively here so the specialist only
+//    authors the per-handler UI (`{name}.html`, `*-ui.tsx`, `App*.tsx`,
+//    `{slug}-view.ts`). package.json + vite.config are GENERATED handler-
+//    agnostically (the build loops over `*.html`; vite reads VITE_ENTRY), so
+//    one floor serves 1..N handlers. Never overwrite — a real specialist file
+//    always wins.
+if (withViewTool) {
+  placeViewToolFloor();
+}
+
+/**
+ * Copy a single template file → view-tool/<rel> if absent. Verbatim (no
+ * substitution): every file routed here is placeholder-free (apps-client SDK,
+ * tsconfig, tailwind/emit-manifest, globals.css, vite-env).
+ */
+function placeViewToolFile(rel) {
+  const src = join(VIEW_TOOL_TEMPLATE, rel);
+  const dest = join(VIEW_TOOL_DEST, rel);
+  if (existsSync(dest)) {
+    console.log(`  view-tool/${rel}  ✓ already present`);
+    return;
+  }
+  if (!existsSync(src)) {
+    console.error(`ERROR: view-tool template file missing: ${src}`);
+    process.exit(1);
+  }
+  mkdirSync(dirname(dest), { recursive: true });
+  copyFileSync(src, dest);
+  console.log(`  view-tool/${rel}  ← copied (floor)`);
+  anyWrite = true;
+}
+
+/** Recursively copy a template dir → view-tool/<rel> if the dest dir is absent. */
+function placeViewToolDir(rel) {
+  const src = join(VIEW_TOOL_TEMPLATE, rel);
+  const dest = join(VIEW_TOOL_DEST, rel);
+  if (existsSync(dest)) {
+    console.log(`  view-tool/${rel}/  ✓ already present`);
+    return;
+  }
+  if (!existsSync(src)) {
+    console.error(`ERROR: view-tool template dir missing: ${src}`);
+    process.exit(1);
+  }
+  mkdirSync(dirname(dest), { recursive: true });
+  cpSync(src, dest, { recursive: true });
+  console.log(`  view-tool/${rel}/  ← copied verbatim (floor)`);
+  anyWrite = true;
+}
+
+function placeViewToolFloor() {
+  if (!existsSync(VIEW_TOOL_TEMPLATE)) {
+    console.error(`ERROR: view-tool template not found: ${VIEW_TOOL_TEMPLATE}`);
+    process.exit(1);
+  }
+  mkdirSync(VIEW_TOOL_DEST, { recursive: true });
+
+  // 8a. package.json — inherit the template's exact dep set (correct
+  //     `file:../../packages/...` paths for the build-session layout, where
+  //     build-plugin.mjs vendors packages to <session>/packages and the plugin
+  //     lives at <session>/<slug>). Only override name/description and the
+  //     build script, which we make handler-agnostic: loop over every *.html
+  //     entry (vite reads VITE_ENTRY), then one esbuild of src/{slug}-view.ts.
+  const viewPkgDest = join(VIEW_TOOL_DEST, "package.json");
+  if (!existsSync(viewPkgDest)) {
+    const tmplPkg = JSON.parse(
+      readFileSync(join(VIEW_TOOL_TEMPLATE, "package.json"), "utf8"),
+    );
+    tmplPkg.name = `@agntux-build/${slug}-view-tool`;
+    tmplPkg.description = `View-tool library module for ${slug}. Loaded server-side by the remote MCP registry; not invoked locally.`;
+    tmplPkg.scripts = {
+      ...tmplPkg.scripts,
+      build:
+        // `[ -e "$f" ]` turns the no-match case into an actionable error: under
+        // POSIX sh an unmatched `*.html` glob expands to the literal string, so
+        // without this guard the loop runs once with f=`*.html` and vite fails
+        // with an opaque "Could not resolve entry module" — confusing for a
+        // non-technical contributor who simply hasn't authored a view yet.
+        `rm -rf dist && for f in *.html; do [ -e "$f" ] || { echo "agntux-build: no view *.html found — author at least one <name>.html before building"; exit 1; }; VITE_ENTRY="\${f%.html}" vite build --emptyOutDir=false; done && ` +
+        `tsc --noEmit -p tsconfig.json && ` +
+        `esbuild src/${slug}-view.ts --bundle --platform=node --format=esm ` +
+        `--outfile=dist/${slug}-view.js --external:@agntux/plugin-runtime && ` +
+        `node scripts/emit-manifest.mjs`,
+    };
+    writeFileSync(viewPkgDest, JSON.stringify(tmplPkg, null, 2) + "\n", "utf8");
+    console.log(`  view-tool/package.json  ← written (deps + handler-agnostic build)`);
+    anyWrite = true;
+  } else {
+    console.log(`  view-tool/package.json  ✓ already present`);
+  }
+
+  // 8b. vite.config.ts — handler-agnostic: one HTML entry per view, selected by
+  //     VITE_ENTRY (the build loops over *.html). No hardcoded entry names, so
+  //     the same config serves any number of handlers the specialist authors.
+  const viteCfgDest = join(VIEW_TOOL_DEST, "vite.config.ts");
+  if (!existsSync(viteCfgDest)) {
+    const viteCfg =
+      `import { defineConfig } from "vite";\n` +
+      `import react from "@vitejs/plugin-react";\n` +
+      `import tailwindcss from "@tailwindcss/vite";\n` +
+      `import { viteSingleFile } from "vite-plugin-singlefile";\n` +
+      `import { resolve } from "node:path";\n\n` +
+      `// Handler-agnostic multi-view build. vite-plugin-singlefile sets\n` +
+      `// inlineDynamicImports:true, which Rollup forbids with multiple inputs, so\n` +
+      `// the npm \`build\` script builds once per *.html entry and selects it via\n` +
+      `// VITE_ENTRY. Each entry MUST point at a real .html (not a .tsx) so the\n` +
+      `// bundle is wrapped in real HTML markup (pass-10 E23). tailwindcss() inlines\n` +
+      `// the CSS the iframe needs (pass-13 E28).\n` +
+      `const entryName = process.env.VITE_ENTRY;\n` +
+      `if (!entryName) {\n` +
+      `  throw new Error("vite.config.ts: set VITE_ENTRY to the view name (a *.html basename).");\n` +
+      `}\n\n` +
+      `export default defineConfig({\n` +
+      `  plugins: [react(), tailwindcss(), viteSingleFile()],\n` +
+      `  build: {\n` +
+      `    outDir: "dist/ui-resources",\n` +
+      `    emptyOutDir: false,\n` +
+      `    rollupOptions: {\n` +
+      `      input: { [entryName]: resolve(__dirname, \`\${entryName}.html\`) },\n` +
+      `    },\n` +
+      `  },\n` +
+      `});\n`;
+    writeFileSync(viteCfgDest, viteCfg, "utf8");
+    console.log(`  view-tool/vite.config.ts  ← written (VITE_ENTRY-driven)`);
+    anyWrite = true;
+  } else {
+    console.log(`  view-tool/vite.config.ts  ✓ already present`);
+  }
+
+  // 8c. Verbatim, placeholder-free build config + the byte-frozen apps-client
+  //     (E26) and React bindings. These are deterministic infrastructure, never
+  //     creative — copying them is what keeps the build resolvable and lint
+  //     E26-clean without the specialist ever touching them.
+  placeViewToolFile("tsconfig.json");
+  placeViewToolFile("tailwind.config.mjs");
+  placeViewToolFile("scripts/emit-manifest.mjs");
+  placeViewToolFile("src/globals.css");
+  placeViewToolFile("src/vite-env.d.ts");
+  placeViewToolDir("src/lib/apps-client");
+  placeViewToolDir("src/lib/apps-react");
 }
 
 // ---------------------------------------------------------------------------

@@ -103,12 +103,13 @@ const TOOLS = [
   {
     name: "agntux_scaffold",
     description:
-      "Scaffold the marketplace-asset FLOOR for a freshly-created plugin tree, run IN THIS SERVER (native, host-path-writable — the same context agntux_validate / agntux_write_submission run in). Idempotent: copies the placeholder icon, emits the skills/{slug}/_overrides/frontmatter.yaml render floor (so the skill tree renders even before the ingest specialist writes the real map), marketplace/README.md, and the plugin-root package.json + vitest.config.ts — each only when absent, NEVER overwriting a specialist's real output. Call this ONCE at the start of stage 7, BEFORE dispatching the authoring specialists and before agntux_validate. Returns {ok:true, output} or {ok:false, error_kind, blocking, detail}; NEVER throws. Do NOT run scaffold-marketplace-assets.mjs yourself via Bash — the Bash sandbox can't write the native host build path (EPERM); this server can.",
+      "Scaffold the FLOOR for a freshly-created plugin tree, run IN THIS SERVER (native, host-path-writable — the same context agntux_validate / agntux_write_submission run in). Idempotent: copies the placeholder icon, emits the skills/{slug}/_overrides/frontmatter.yaml render floor (so the skill tree renders even before the ingest specialist writes the real map), marketplace/README.md, the plugin-root package.json + vitest.config.ts, and — when `view_tool:true` — the build-critical view-tool floor (package.json WITH the @agntux/ui-primitives workspace dep, the byte-frozen apps-client, tsconfig/tailwind/vite.config/emit-manifest). Each only when absent, NEVER overwriting a specialist's real output. Pass `view_tool:true` whenever the plugin ships ≥1 UI handler (decided in stage 5) so the view-tool-builder authors ONLY the per-handler UI, never the deterministic build config. Also kicks the detached renderer (Chromium) install so it is ready by the first agntux_validate. Call this ONCE at the start of stage 7, BEFORE dispatching the authoring specialists and before agntux_validate. Returns {ok:true, output, renderer_prewarm} or {ok:false, error_kind, blocking, detail}; NEVER throws. Do NOT run scaffold-marketplace-assets.mjs yourself via Bash — the Bash sandbox can't write the native host build path (EPERM); this server can.",
     inputSchema: {
       type: "object",
       properties: {
         slug: { type: "string", description: "Marker slug, e.g. agntux-gmail." },
         plugin_dir: { type: "string", description: "Absolute path to the build sandbox plugin tree (…/.agntux-build/builds/{session}/agntux-{slug}/)." },
+        view_tool: { type: "boolean", description: "True when the plugin ships ≥1 UI handler — pre-places the build-critical view-tool floor (deps + apps-client + configs) so the specialist authors only the per-handler UI. Default false." },
       },
       required: ["slug", "plugin_dir"],
       additionalProperties: false,
@@ -289,28 +290,43 @@ function ensureBrowser() {
 async function handleScaffold(args) {
   const slug = str(args.slug);
   const pluginDir = str(args.plugin_dir);
+  const withViewTool = args.view_tool === true;
   if (!slug || !pluginDir) {
     return { ok: false, error_kind: "usage", blocking: false, detail: "slug and plugin_dir are required" };
   }
   if (!existsSync(pluginDir)) {
     return { ok: false, error_kind: "usage", blocking: false, detail: `plugin dir not found: ${pluginDir}` };
   }
+  // Pre-warm the renderer NOW (stage-7 start): kick the detached Chromium
+  // install so it is ready by the first agntux_validate. The 7-specialist
+  // authoring pass overlaps the ~1-2 min install, so render runs on validate
+  // round 1 instead of forcing a second "installing" round. Non-blocking and
+  // idempotent — a no-op if already ready/in-progress/disabled.
+  let rendererPrewarm;
+  try {
+    rendererPrewarm = ensureBrowser().status;
+  } catch (e) {
+    rendererPrewarm = `prewarm-error: ${errStr(e)}`;
+  }
   // Run the scaffold script NATIVELY in this server (host-path-writable). The
   // script is idempotent and writes only absent floor assets. spawnSync (not
   // import): the script runs its work at module top-level with no main-guard,
-  // so a child process is the clean boundary. Capture both streams.
+  // so a child process is the clean boundary. Capture both streams. --view-tool
+  // also pre-places the build-critical view-tool floor for UI plugins.
+  const scaffoldArgs = [SCAFFOLD_MJS, "--slug", slug, "--plugin-dir", pluginDir];
+  if (withViewTool) scaffoldArgs.push("--view-tool");
   let r;
   try {
-    r = spawnSync(process.execPath, [SCAFFOLD_MJS, "--slug", slug, "--plugin-dir", pluginDir], {
+    r = spawnSync(process.execPath, scaffoldArgs, {
       encoding: "utf8",
       env: process.env,
     });
   } catch (e) {
-    return { ok: false, error_kind: "internal", blocking: false, detail: `could not spawn scaffold: ${errStr(e)}` };
+    return { ok: false, error_kind: "internal", blocking: false, detail: `could not spawn scaffold: ${errStr(e)}`, renderer_prewarm: rendererPrewarm };
   }
   const output = `${r.stdout || ""}${r.stderr || ""}`.trim();
   if (r.status === 0) {
-    return { ok: true, output };
+    return { ok: true, output, renderer_prewarm: rendererPrewarm };
   }
   // A scaffold failure is an agntux-build packaging/tooling defect (missing
   // canonical template, unwritable dir) — NOT a contributor problem. blocking:
@@ -331,6 +347,7 @@ async function handleScaffold(args) {
     blocking: false,
     ...firstError,
     detail: output || `scaffold exited with status ${r.status}${r.signal ? ` (signal ${r.signal})` : ""}`,
+    renderer_prewarm: rendererPrewarm,
   };
 }
 
