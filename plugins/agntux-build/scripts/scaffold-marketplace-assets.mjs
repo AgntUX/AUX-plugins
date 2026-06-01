@@ -86,6 +86,11 @@ const CANONICAL_FRONTMATTER = join(
   "_overrides",
   "frontmatter.template.yaml",
 );
+// The Apache-2.0 LICENSE every plugin must ship. tc.base is the repo root in the
+// maintainer clone (<repo>/LICENSE) and the agntux-build plugin root in the
+// bundle (<plugin>/LICENSE) — both carry a verbatim copy, so this resolves in
+// either layout.
+const CANONICAL_LICENSE = join(tc.base, "LICENSE");
 const PLUGIN_DIR = pluginDirFlag ?? join(tc.pluginsDir ?? join(tc.base, "plugins"), slug);
 const MARKETPLACE_DIR = join(PLUGIN_DIR, "marketplace");
 const ICON_DEST = join(MARKETPLACE_DIR, "icon.png");
@@ -95,6 +100,8 @@ const FRONTMATTER_DEST = join(OVERRIDES_DIR, "frontmatter.yaml");
 const PACKAGE_JSON_DEST = join(PLUGIN_DIR, "package.json");
 const VITEST_CONFIG_DEST = join(PLUGIN_DIR, "vitest.config.ts");
 const CHANGELOG_DEST = join(PLUGIN_DIR, "CHANGELOG.md");
+const LICENSE_DEST = join(PLUGIN_DIR, "LICENSE");
+const NOTICE_DEST = join(PLUGIN_DIR, "NOTICE");
 const LISTING_DEST = join(MARKETPLACE_DIR, "listing.yaml");
 const VIEW_TOOL_TEMPLATE = tc.viewToolTemplateDir;
 const VIEW_TOOL_DEST = join(PLUGIN_DIR, "view-tool");
@@ -182,6 +189,39 @@ if (!existsSync(ICON_DEST)) {
   anyWrite = true;
 } else {
   console.log(`  icon.png       ✓ already present`);
+}
+
+// 1b. Emit LICENSE (verbatim Apache-2.0) + NOTICE. Every plugin MUST ship a
+//     LICENSE (CLAUDE.md authoring rules / P15 §2) mirroring the repo-root
+//     LICENSE; without a scaffold
+//     copy an agent has to hand-author the full Apache text — the 2026-06-01
+//     calendar build did exactly that, and the large legal-text emit tripped a
+//     content-filter block twice, interrupting the build. Copy the LICENSE
+//     verbatim and write a small plugin-scoped NOTICE so no agent ever authors
+//     legal text. Never overwrite a real one the author already placed.
+if (!existsSync(LICENSE_DEST)) {
+  if (!existsSync(CANONICAL_LICENSE)) {
+    console.error(`ERROR: canonical LICENSE not found: ${CANONICAL_LICENSE}`);
+    process.exit(1);
+  }
+  copyFileSync(CANONICAL_LICENSE, LICENSE_DEST);
+  console.log(`  LICENSE        ← copied (Apache-2.0, verbatim)`);
+  anyWrite = true;
+} else {
+  console.log(`  LICENSE        ✓ already present`);
+}
+if (!existsSync(NOTICE_DEST)) {
+  const notice =
+    `${slug}\n` +
+    `Copyright (c) 2026 AgntUX, Inc.\n\n` +
+    `This product is licensed under the Apache License, Version 2.0.\n` +
+    `See the LICENSE file in this directory for the full text, or visit:\n` +
+    `https://www.apache.org/licenses/LICENSE-2.0\n`;
+  writeFileSync(NOTICE_DEST, notice, "utf8");
+  console.log(`  NOTICE         ← written (Apache-2.0 reference)`);
+  anyWrite = true;
+} else {
+  console.log(`  NOTICE         ✓ already present`);
 }
 
 // 2. Emit the _overrides/frontmatter.yaml floor (E15) if absent.

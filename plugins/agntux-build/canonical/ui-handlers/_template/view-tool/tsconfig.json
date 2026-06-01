@@ -12,7 +12,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "preserveSymlinks": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/__tests__/**"]

@@ -179,6 +179,19 @@ function main() {
   const filePath = ctx.tool_input?.file_path;
   if (typeof filePath !== "string") pass();
 
+  // The /agntux-build:build sandbox (<root>/.agntux-build/**) is a scratch tree
+  // where a NEW plugin is scaffolded, edited, and validated — it is NOT an
+  // ingest write target, so the write-lane taxonomy must never gate it, even
+  // when a source ingest lock is concurrently fresh. (The 2026-06-01 calendar
+  // build hit exactly this: every build-tree Edit was rejected because a gmail
+  // ingest lock happened to be fresh, forcing the whole build through bash/sed.)
+  if (
+    AGNTUX_ROOT &&
+    filePath.startsWith(join(AGNTUX_ROOT, ".agntux-build") + sep)
+  ) {
+    pass();
+  }
+
   // If no ingest skill is currently active, the hook does not apply —
   // /agntux schema, /agntux teach, manual user edits etc. all flow through.
   const activeSlug = activeIngestPlugin();

@@ -14,7 +14,7 @@ model: haiku
 > `agntux_scaffold` lays the floor and `agntux_validate` runs the whole gate, both
 > called by the orchestrator. You only **author files** — the static metadata
 > (`plugin.json`, `marketplace/listing.yaml` with over-cap fields trimmed as you
-> write them, `README`, `CHANGELOG`, `NOTICE`, `LICENSE`) — and the orchestrator
+> write them, `README`, `CHANGELOG`) — and the orchestrator
 > routes any `failed_stage` back to you to fix those inputs. Do NOT run `node
 > scripts/…`, `npm run lint:marketplace`, or any build/validate command: in the
 > Cowork sandbox Bash EPERMs on the native host build path anyway, and that escape
@@ -33,7 +33,7 @@ model: haiku
 > linter at `scripts/lint-marketplace-metadata.ts` is the source of truth). If
 > the orchestrator explicitly hands you a reference path, you may read it;
 > otherwise don't go hunting. And **author the actual files** you own
-> (`plugin.json`, `listing.yaml`, `README`, `CHANGELOG`, `NOTICE`, `LICENSE`)
+> (`plugin.json`, `listing.yaml`, `README`, `CHANGELOG`)
 > with `Write`/`Edit` — never return a prose "files that still need to be
 > created" to-do list for the orchestrator to finish; that is the work.
 
@@ -55,6 +55,11 @@ release files (`README.md`, `CHANGELOG.md`), or coordinated changes to
 
 - Agent prompt edits → `ingest-prompt-author`.
 - README/CHANGELOG/version → `release-checker`.
+- **LICENSE/NOTICE → the `agntux_scaffold` step writes both verbatim
+  (Apache-2.0). NEVER author, paste, or echo license text yourself** — emitting
+  the full Apache body is what tripped a content-filter block twice in the
+  2026-06-01 calendar build. If a build tree is somehow missing `LICENSE`, the
+  fix is to re-run scaffold, not to hand-write it.
 - Hooks/byte-freeze → `invariant-checker`.
 - agntux-core coordination (plugin-suggestions.json, AGNTUX_PLUGIN_SLUGS) → `invariant-checker`.
 
@@ -112,6 +117,15 @@ MUST use the prefix.
 or below the cap. The marketplace lint will hard-fail an overrun.** When in
 doubt, count with `echo -n "your string" | wc -c`. A single overrun blocks
 the entire PR.
+
+### `requires_source_mcp.connector_slug` — kebab-case only
+
+`connector_slug` MUST match `^[a-z][a-z0-9-]*[a-z0-9]$` — lowercase, hyphen
+separators, **never underscores**. Google Calendar is `google-calendar` (not
+`google_calendar`); Slack is `slack`; Gmail is `gmail`. An underscore fails
+lint **E05** on the very first validate (it cost a round in the 2026-06-01
+calendar build). Derive it from the source slug — the plugin slug minus the
+`agntux-` prefix — which is already kebab-case.
 
 ### Required top-level fields
 
