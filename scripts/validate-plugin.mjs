@@ -408,6 +408,7 @@ export function buildSummary({
   routing,
   queued,
   reason,
+  detail,
 } = {}) {
   const t = tool || "validate";
 
@@ -460,6 +461,35 @@ export function buildSummary({
   }
 
   // Failure paths.
+  // A short, single-line excerpt of the handler's `detail` (full text stays on
+  // the payload) so usage/internal summaries name the real problem instead of
+  // the generic "compile error" default below.
+  const detailLine = (detail || reason || "")
+    .toString()
+    .split("\n")[0]
+    .slice(0, 200);
+
+  // Operator/argument error (e.g. a missing arg, a bad `mode`) — NOT a plugin
+  // defect and NOT a build-stage compile error. Tell the caller to fix the call,
+  // never to dispatch a specialist or read a build log.
+  if (error_kind === "usage") {
+    return {
+      summary: `${t}: invalid call${detailLine ? ` — ${detailLine}` : ""}.`,
+      next_action:
+        "Fix the call arguments and retry; this is an operator error, not a plugin defect — do not re-dispatch a specialist or read a build log.",
+    };
+  }
+
+  // Internal agntux-build tooling failure (e.g. couldn't spawn the scaffold,
+  // couldn't write the marker). The contributor's plugin is not at fault.
+  if (error_kind === "internal") {
+    return {
+      summary: `${t} hit an agntux-build tooling error${detailLine ? `: ${detailLine}` : ""}.`,
+      next_action:
+        "Stop honestly and call agntux_report_defect; this is a build-tool defect, not a contributor problem — do not re-dispatch a specialist.",
+    };
+  }
+
   if (error_kind === "environment") {
     const where = failed_stage ? ` (${failed_stage})` : "";
     return {
@@ -685,38 +715,69 @@ export async function runValidation({
     // ── 2. lint (build-INDEPENDENT — always runs, even when build failed) ──────
     log("[2/6] lint (marketplace linter --plugin-dir)");
     {
-      const lintArgs = [
-        "--plugin", slug,
-        "--plugin-dir", pluginDir,
-        "--canonical-root", tc.canonicalRoot,
-        "--apps-client-canonical-root", tc.appsClientCanonicalRoot,
-        "--tmp-root", tc.tmpRoot,
-      ];
+      const lintArgs = lintArgsFor(slug, pluginDir, tc);
       const r =
         tc.lintRunner === "tsx"
           ? run("npm", ["run", "lint:marketplace", "--", ...lintArgs], tc.base, { capture: true })
           : run("node", [tc.lintEntry, ...lintArgs], tc.base, { capture: true });
-      process.stderr.write(r.stdout);
       process.stderr.write(r.stderr);
       if (r.status !== 0) {
-        // Surface lint codes so the fix loop can route E05/E11/E04/E14 →
-        // manifest-author, pass-8/E15 → ingest-prompt-author, BUILD-* →
-        // view-tool-builder.
-        const codes = (r.stdout + r.stderr).match(/\b(E\d{2}|BUILD-[A-Za-z-]+)\b/g) || [];
-        const uniq = [...new Set(codes)];
+        // --json emits one finding per stdout line ({code,severity,file,line,
+        // message}). Parse it so the fix loop can surface EACH finding's
+        // file+message AND route each code to its owning specialist — instead of
+        // collapsing the whole stage to a single "codes: E05,E15" string routed
+        // to one specialist (which left the E05 owner, manifest-author, never
+        // dispatched when E05 co-occurred with E15).
+        const findings = parseLintFindings(r.stdout);
+        const errs = findings.filter((f) => f.severity !== "warning");
+        const used = errs.length ? errs : findings;
+        const lint_findings = used.map((f) => ({
+          code: f.code,
+          severity: f.severity,
+          file: f.file,
+          line: f.line,
+          message: f.message,
+          routing: routeFromLintCode(f.code),
+        }));
+        // Fall back to the legacy code-scrape if --json yielded nothing (older
+        // linter / unexpected output) so routing is never lost entirely.
+        const codes = lint_findings.length
+          ? [...new Set(lint_findings.map((f) => f.code).filter(Boolean))]
+          : [...new Set((r.stdout + r.stderr).match(/\b(E\d{2}|BUILD-[A-Za-z-]+)\b/g) || [])];
+        const routings = [...new Set(codes.map(routeFromLintCode))];
+        // Echo a human punch-list to the validate log (the --json stdout is
+        // JSONL, not meant for a human to read raw).
+        for (const f of lint_findings) {
+          process.stderr.write(
+            `  [${f.code}] ${f.file ?? ""}${f.line != null ? `:${f.line}` : ""} ${f.message} → ${f.routing}\n`,
+          );
+        }
         const { error_kind, blocking } = classifyFailure("lint", r);
         recordStop({
           stage: "lint",
-          detail: `marketplace lint failed for ${slug}${uniq.length ? ` (codes: ${uniq.join(",")})` : ""}`,
-          routing: routeFromLintCodes(uniq),
+          detail:
+            `marketplace lint failed for ${slug}` +
+            (codes.length ? ` (codes: ${codes.join(",")})` : "") +
+            (routings.length > 1 ? ` — dispatch each: ${routings.join(", ")}` : ""),
+          routing: routeFromLintCodes(codes),
           errorKind: error_kind,
           blocking,
           extra: {
+            // The full per-code punch-list (file + message + owning specialist).
+            // 07-build.md dispatches EVERY distinct `routing` here, not just the
+            // primary, so a mixed E05+E15 failure reaches both owners in one pass.
+            lint_findings,
+            routings,
             stderr_tail: tail(r.stderr),
             stdout_tail: tail(r.stdout),
             _stderr_full: r.stderr,
             _stdout_full: r.stdout,
-            ...parseFirstError(`${r.stderr}\n${r.stdout}`),
+            // Anchor the punch-list on the first finding (parseFirstError can't
+            // read a file/line out of JSONL stdout).
+            failed_file: lint_findings[0]?.file ?? undefined,
+            failed_line: lint_findings[0]?.line ?? undefined,
+            error_code: lint_findings[0]?.code ?? undefined,
+            error_message: lint_findings[0]?.message ?? undefined,
           },
         });
       } else {
@@ -1013,6 +1074,13 @@ export function buildStageResults(stages, stops, stageOrder) {
         errors.push({
           detail: s.detail,
           routing: s.routing ?? null,
+          // The lint stage can carry findings owned by DIFFERENT specialists in
+          // one run; `routings` is the distinct owner set and `lint_findings`
+          // the per-code punch-list (code/file/message/routing). Both undefined
+          // for non-lint stages. The orchestrator dispatches every `routings`
+          // entry, not just the primary `routing`.
+          routings: s.routings,
+          lint_findings: s.lint_findings,
           blocking: s.blocking,
           error_kind: s.errorKind,
           failed_file: s.failed_file,
@@ -1102,12 +1170,74 @@ export function buildFailureVerdict({ primary, stages, stage_results, slug, plug
   return verdict;
 }
 
-/** Map lint codes to the owning specialist for the fix loop. */
+/**
+ * Build the marketplace-linter argv for the lint stage. `--json` is
+ * LOAD-BEARING: it makes the linter emit one JSON finding per stdout line
+ * (`{code,severity,file,line,message}`) instead of human text on stderr, which
+ * is what `parseLintFindings` consumes to build the per-code `lint_findings[]`
+ * punch-list + per-owner routing. Dropping `--json` silently degrades the lint
+ * stage to the legacy code-scrape (empty `lint_findings`). Exported so a unit
+ * test can assert the flag is always present.
+ */
+export function lintArgsFor(slug, pluginDir, tc) {
+  return [
+    "--plugin", slug,
+    "--plugin-dir", pluginDir,
+    "--canonical-root", tc.canonicalRoot,
+    "--apps-client-canonical-root", tc.appsClientCanonicalRoot,
+    "--tmp-root", tc.tmpRoot,
+    "--json",
+  ];
+}
+
+/**
+ * Parse the marketplace linter's `--json` output: one finding per line,
+ * `{code,severity,plugin,file,line,message}`. Defensive — under the `npm run`
+ * (tsx) runner the stream also carries npm banner lines that aren't JSON, so we
+ * skip any line that doesn't parse to a finding object. Returns [] on no input.
+ */
+export function parseLintFindings(stdout) {
+  const out = [];
+  for (const line of String(stdout || "").split("\n")) {
+    const s = line.trim();
+    if (!s.startsWith("{")) continue;
+    try {
+      const o = JSON.parse(s);
+      if (o && typeof o.code === "string") out.push(o);
+    } catch {
+      /* not a finding line — skip */
+    }
+  }
+  return out;
+}
+
+/** Map ONE lint code to its owning specialist for the fix loop. */
+export function routeFromLintCode(code) {
+  if (!code) return "manifest-author";
+  if (code.startsWith("BUILD-")) return "view-tool-builder";
+  // E15 is the skill-render-drift code (pass 8) — the ingest prompt author owns
+  // the `_overrides/` + render map it derives from.
+  if (code === "E15") return "ingest-prompt-author";
+  // View-tool passes: third-party MCP in views (E13), bundle-is-real-HTML (E23),
+  // payload-shape guard (E24/E25), apps-client drift (E26/E27), CSS bundle (E28).
+  if (["E13", "E23", "E24", "E25", "E26", "E27", "E28"].includes(code)) {
+    return "view-tool-builder";
+  }
+  // Everything else — listing.yaml schema, plugin.json shape, README/CHANGELOG,
+  // images, zip-upload safety — is the manifest author's.
+  return "manifest-author";
+}
+
+/**
+ * Map a SET of lint codes to the single legacy `routing` field. Preserves the
+ * historical primary precedence (a view/build defect first, then skill-render
+ * drift, then manifest); the full per-code owner set rides on the stop's
+ * `routings` / `lint_findings` so the orchestrator dispatches every owner.
+ */
 function routeFromLintCodes(codes) {
-  if (codes.some((c) => c.startsWith("BUILD-"))) return "view-tool-builder";
-  // E15 is the skill-render-drift code (per the stage-7 dispatch table in
-  // 07-build.md); everything else routes to the manifest author.
-  if (codes.includes("E15")) return "ingest-prompt-author";
+  const owners = new Set((codes || []).map(routeFromLintCode));
+  if (owners.has("view-tool-builder")) return "view-tool-builder";
+  if (owners.has("ingest-prompt-author")) return "ingest-prompt-author";
   return "manifest-author";
 }
 

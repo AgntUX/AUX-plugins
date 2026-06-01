@@ -473,7 +473,16 @@ shares — never source-specific field names:
   skill body (grep for `lookup-before-write` and `_sources.json`).
 - The Step 9 dedup-against-`actions/_index.md` protocol is documented.
 - The cursor advances after a successful pass (grep the folded body for
-  the cursor-advance step).
+  the cursor-advance step). Assert the **generic advance mechanism** — a stable
+  phrase like `_sources.json`, `lookup-before-write`, or "advance the cursor" —
+  **NOT the source-specific cursor FIELD's prose** (a wording like
+  "maximum `event.updated` timestamp" or "do not change" that the
+  `ingest-prompt-author` may reword). Asserting that field wording is the
+  recurring Step-11 drift: a calendar build failed the gate **twice** on exactly
+  those strings before they were re-anchored. If a source-specific cursor fact
+  genuinely must be asserted, `Read` the rendered `reference/sync.md`, copy the
+  phrase **verbatim**, and add a `// from reference/sync.md` provenance comment
+  next to the `toContain` so a later reword is caught at authoring, not the gate.
 - The example fixture under `examples/{scenario}/expected-entities/`
   and `expected-actions/` has zero duplicate filenames or duplicate
   `_sources.json` rows.

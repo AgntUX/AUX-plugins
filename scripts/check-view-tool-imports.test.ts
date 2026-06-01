@@ -358,6 +358,27 @@ describe("scanBannedConstructs", () => {
     expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
   });
 
+  it("flags a type-only import of ComponentErrorBoundary (the other TS2786 cause)", () => {
+    const src = `import type { ComponentErrorBoundary } from "@agntux/ui-primitives";\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v).toHaveLength(1);
+    expect(v[0].kind).toBe("banned-type-import");
+    expect(v[0].line).toBe(1);
+  });
+
+  it("flags an inline `type` specifier on ComponentErrorBoundary in a mixed import", () => {
+    const src = `import { ScrollablePanel, type ComponentErrorBoundary } from "@agntux/ui-primitives";\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v.some((x: { kind: string }) => x.kind === "banned-type-import")).toBe(true);
+  });
+
+  it("does NOT flag a normal VALUE import of ComponentErrorBoundary", () => {
+    const src =
+      `import { ComponentErrorBoundary } from "@agntux/ui-primitives";\n` +
+      `export const A = () => <ComponentErrorBoundary>k</ComponentErrorBoundary>;\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
   it("ignores a cast / bad prop that only appears in a comment or string", () => {
     const src =
       `// ComponentErrorBoundary as X is wrong\n` +

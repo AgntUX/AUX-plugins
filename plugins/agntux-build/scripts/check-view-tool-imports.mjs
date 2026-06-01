@@ -386,6 +386,27 @@ export function scanBannedConstructs(fileAbs, content, allowedPanelProps) {
     });
   }
 
+  // 1b. ComponentErrorBoundary type-only import ban. A value used as JSX must be
+  //     imported as a VALUE; `import type {…ComponentErrorBoundary…}` or an inline
+  //     `import { type ComponentErrorBoundary }` makes it a TYPE — using it as JSX
+  //     is the same TS2786 "cannot be used as a JSX component" error as the cast,
+  //     and the cast regex above doesn't see it. Fail it here, before vite/tsc.
+  const typeImportRe =
+    /import\s+type\s*\{[^}]*\bComponentErrorBoundary\b[^}]*\}|import\s*\{[^}]*\btype\s+ComponentErrorBoundary\b[^}]*\}/g;
+  for (const m of scan.matchAll(typeImportRe)) {
+    violations.push({
+      kind: "banned-type-import",
+      name: "ComponentErrorBoundary",
+      file: rel,
+      line: lineAt(scan, m.index),
+      detail:
+        "ComponentErrorBoundary must be imported as a VALUE, not a type — " +
+        '`import type { ComponentErrorBoundary }` / `import { type ComponentErrorBoundary }` ' +
+        "makes it a type, and using it as JSX is the TS2786 error. Use " +
+        '`import { ComponentErrorBoundary } from "@agntux/ui-primitives"`.',
+    });
+  }
+
   // 2. ScrollablePanel prop allow-list. Find each `<ScrollablePanel` opening
   //    tag (word-boundary so `<ScrollablePanelFoo` is ignored), isolate its
   //    opening-tag inner text, and flag any attribute not in the allow-list.

@@ -321,6 +321,12 @@ placeholders the template README documents.
 Make sure these primitives are present and wired correctly (the template
 already wires them; restore if a developer's edits removed one).
 
+**String literals:** esbuild parses the `*-ui.tsx` before any type-check, so an
+unescaped quote inside a same-quote string (`"Click "Find times" to search."`)
+is a hard build-breaking parse error. Use a different outer quote, a template
+literal, or `\"`; never use curly/smart quotes in code. (Same rule the
+view-tool-builder enforces — see its "String literals in JSX" section.)
+
 **Where each import resolves from is owned by `canonical/prompts/ui/host-api.md`
 § "Where imports come from" — that doc is authoritative; do not guess an import
 source.** In short: apps hooks come from the vendored `./lib/apps-react/index.js`

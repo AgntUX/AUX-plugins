@@ -516,6 +516,63 @@ function placeViewToolFloor() {
     console.log(`  view-tool/vite.config.ts  ✓ already present`);
   }
 
+  // 8b.5 vitest.config.ts + a minimal setup — GENERATED, not copied. The
+  //     canonical _template's vitest.config points setupFiles at a
+  //     widget-matcher setup and its src/__tests__/ ships EXAMPLE tests for
+  //     template components; copying those into a contributor plugin would run
+  //     tests for components it doesn't have. Generate a self-contained pair
+  //     instead so `vitest run` in view-tool/ uses THIS config (jsdom + globals)
+  //     rather than falling through to vite.config.ts — which throws without
+  //     VITE_ENTRY (the Test-#? "set VITE_ENTRY to the view name" round). Both
+  //     written only-if-absent; the tests-author may override either.
+  const vitestCfgDest = join(VIEW_TOOL_DEST, "vitest.config.ts");
+  if (!existsSync(vitestCfgDest)) {
+    const vitestCfg =
+      `import { defineConfig } from "vitest/config";\n` +
+      `import react from "@vitejs/plugin-react";\n\n` +
+      `// Handler-agnostic test config. jsdom + globals so rich-UI component\n` +
+      `// tests run; \`vitest run\` must NOT fall through to vite.config.ts (which\n` +
+      `// throws without VITE_ENTRY). setupFiles registers @testing-library/jest-dom\n` +
+      `// (+ React cleanup); include covers component tests under src/ AND the\n` +
+      `// handler-side payload-shape guard under __tests__/.\n` +
+      `export default defineConfig({\n` +
+      `  plugins: [react()],\n` +
+      `  resolve: { conditions: ["development", "browser"] },\n` +
+      `  define: { "process.env.NODE_ENV": '"test"' },\n` +
+      `  test: {\n` +
+      `    environment: "jsdom",\n` +
+      `    globals: true,\n` +
+      `    setupFiles: ["./src/__tests__/setup.ts"],\n` +
+      `    include: [\n` +
+      `      "src/**/*.test.{ts,tsx}",\n` +
+      `      "__tests__/**/*.test.{ts,tsx}",\n` +
+      `    ],\n` +
+      `  },\n` +
+      `});\n`;
+    writeFileSync(vitestCfgDest, vitestCfg, "utf8");
+    console.log(`  view-tool/vitest.config.ts  ← written (jsdom; no VITE_ENTRY)`);
+    anyWrite = true;
+  } else {
+    console.log(`  view-tool/vitest.config.ts  ✓ already present`);
+  }
+
+  const setupDest = join(VIEW_TOOL_DEST, "src", "__tests__", "setup.ts");
+  if (!existsSync(setupDest)) {
+    const setup =
+      `import "@testing-library/jest-dom/vitest";\n` +
+      `import { cleanup } from "@testing-library/react";\n` +
+      `import { afterEach } from "vitest";\n\n` +
+      `afterEach(() => {\n` +
+      `  cleanup();\n` +
+      `});\n`;
+    mkdirSync(dirname(setupDest), { recursive: true });
+    writeFileSync(setupDest, setup, "utf8");
+    console.log(`  view-tool/src/__tests__/setup.ts  ← written (jest-dom + cleanup)`);
+    anyWrite = true;
+  } else {
+    console.log(`  view-tool/src/__tests__/setup.ts  ✓ already present`);
+  }
+
   // 8c. Verbatim, placeholder-free build config + the byte-frozen apps-client
   //     (E26) and React bindings. These are deterministic infrastructure, never
   //     creative — copying them is what keeps the build resolvable and lint

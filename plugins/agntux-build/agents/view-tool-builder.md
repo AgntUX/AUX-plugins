@@ -69,6 +69,26 @@ minimally retarget it**, don't write TSX from scratch:
 2. Only change what's source-specific: the descriptor `name` / `inputSchema` /
    `outputSchema`, the `data_paths` glob, and the fields the iframe binds.
 
+## String literals in JSX — the silent build-killer
+
+esbuild parses your `*-ui.tsx` before any type-check, and an **unescaped quote
+inside a same-quote string** is a hard parse error (`Expected ":" but found
+"…"`) that fails the whole build on one character. Real Test-case failure:
+
+```tsx
+// ✗ WRONG — nested " inside a "…" literal: esbuild stops at the inner "Find"
+{slotsState === "idle" ? "Click "Find available times" to search." : …}
+// ✓ single-quote the outer string …
+{slotsState === "idle" ? 'Click "Find available times" to search.' : …}
+// ✓ … or escape the inner quotes
+{slotsState === "idle" ? "Click \"Find available times\" to search." : …}
+```
+
+Rules: never put an unescaped `"` inside a `"…"` literal (or `'` inside `'…'`);
+prefer a different outer quote, a template literal, or `\"`. **Never use
+curly/smart quotes** (`“ ” ‘ ’`) anywhere in code — only straight ASCII quotes.
+A copy-pasted sentence with curly quotes compiles to garbage.
+
 ## Primitives & props (exact signatures — never invent props)
 
 Author against these EXACTLY; the `check-view-tool-imports.mjs` gate + tsc reject
@@ -79,7 +99,12 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
   `<ComponentErrorBoundary>…</ComponentErrorBoundary>`. Props: `{ children;
   fallback?: (error, retry) => ReactNode; onError?: (error, info) => void }`.
   **Never cast it** (`as any` / `as ComponentType`) — it is already a valid
-  component; the cast IS the TS2786/TS2352 error.
+  component; the cast IS the TS2786/TS2352 error. Import it as a **value**
+  (`import { ComponentErrorBoundary } from "@agntux/ui-primitives"`) — an
+  `import type { ComponentErrorBoundary }` (or `import { type ComponentErrorBoundary }`)
+  makes it a type, not a component, which ALSO triggers TS2786 when you use it as
+  JSX. The `check-view-tool-imports.mjs` gate now fails on both the cast and a
+  type-only import.
 - **`ScrollablePanel`** (`@agntux/ui-primitives`) — props are EXACTLY
   `{ title: ReactNode; onDismiss?: () => void; onHelpClick?: () => void;
   helpLabel?: string; children: ReactNode; footer?: ReactNode }`. There is **no
