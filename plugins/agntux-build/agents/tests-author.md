@@ -57,6 +57,40 @@ committed example fixtures are structurally clean.
 >
 > If a desired assertion can't be grounded in one of these, do NOT write it.
 
+### Mechanical rules that make the golden rule un-violatable
+
+Test #5 still shipped six ungrounded assertions despite the rule above (a
+`{{key}}` matched inside a YAML comment, a non-multiline regex, a `ux_components`
+field-name regex, an invented `compose-discard-local` intent, a non-existent
+"past-event eviction" rule, an em-dash-brittle regex). Obey these mechanically —
+they are not judgement calls:
+
+1. **Read-then-copy-literal.** Before asserting anything about a file's CONTENT,
+   `Read` that exact file and copy a **verbatim substring** out of it. Assert with
+   `expect(text).toContain("…the exact substring…")`. Do NOT write a regex from
+   memory of what the file "should" say — that is how phantom assertions happen.
+2. **Assert only what THIS plugin actually contains.** If the plugin is
+   forward-only (no eviction), has no `compose-discard-local` intent, declares no
+   "soonest-starting 50" cap — then do NOT assert those. There is no fixed
+   checklist of assertions every plugin must have; derive each from the authored
+   tree. When in doubt, `Read` the file and confirm the phrase is present *before*
+   writing the assertion.
+3. **Regex discipline (only when `toContain` won't do).** Add the `s` flag for any
+   pattern that spans lines (`/Do NOT advance.*cursor.*write/s`); never anchor on
+   a non-ASCII char (em-dash `—`, smart quotes `“”`, arrows `→`) — match a short
+   ASCII fragment that you confirmed is in the file. Avoid `.*` chains; prefer two
+   simple `toContain` checks over one clever regex.
+4. **Placeholder-survival check targets the RENDERED skill tree, never the
+   `_overrides` source.** Grep `skills/{slug}/SKILL.md` + `reference/*.md` for
+   `/\{\{[a-z-]+\}\}/` (as the cold-start skeleton below does). NEVER grep
+   `skills/{slug}/_overrides/frontmatter.yaml` for surviving placeholders — that
+   file legitimately *names* `{{placeholder}}` keys in its comments and prose, so
+   grepping it produces a false `{{key}}` failure (Test #5, cold-start:150).
+5. **Check listing fields via parsed YAML, not text regex.** If you must assert a
+   `listing.yaml` field, `js-yaml`-load it and assert on the object
+   (`expect(listing.ui_components).toHaveLength(2)`), never `/^ux_components:/m` —
+   a text regex both hardcodes the (wrong) field name and is brittle to formatting.
+
 ## When to add which test
 
 | Test | Always? | When |

@@ -12,9 +12,11 @@ model: sonnet
 > tsc/esbuild → emit-manifest, the Zod-schema manifest validation, the plugin-slug
 > prefix assertion, the `check-view-tool-imports.mjs` import gate, and the
 > architectural-crash esbuild fallback) runs **natively inside `agntux_validate`'s
-> build step** — called by the orchestrator. You only **author files** —
-> `view-tool/src/**` (the component, the Send-envelope wiring) and
-> `vite.config.ts` + its sibling HTML entry. Do NOT run vite, `npm run build`,
+> build step** — called by the orchestrator. You only **author the per-handler
+> UI** — the `view-tool/src` component + Send-envelope wiring + its sibling
+> `{name}.html` entries. `package.json`, `vite.config.ts`, `tsconfig.json`, and
+> `src/lib/**` are **pre-placed by `agntux_scaffold` — never author them** (see
+> "Build config + apps-client are pre-placed"). Do NOT run vite, `npm run build`,
 > `emit-manifest`, or any build command: in the Cowork sandbox Bash EPERMs on the
 > native host build path anyway, and that escape is the failure this design closes
 > (it produced trees with a manifest but no `ui-resources/*.html`). The build
@@ -35,8 +37,16 @@ consume.
 - `plugins/{slug}/view-tool/src/{resource}-ui.tsx` (one per resource;
   Vite emits one HTML per entry).
 - `plugins/{slug}/view-tool/{package.json, tsconfig.json,
-  vite.config.ts, scripts/emit-manifest.mjs}` — copied from the
-  canonical template by `ui-handler-author`.
+  vite.config.ts, tailwind.config.mjs, scripts/emit-manifest.mjs,
+  src/lib/apps-client/**, src/lib/apps-react/**, src/globals.css,
+  src/vite-env.d.ts}` — **pre-placed by `agntux_scaffold` (called with
+  `view_tool:true` at stage-7 start)**, NOT authored by you. The
+  package.json already declares the `@agntux/ui-primitives` +
+  `@agntux/plugin-runtime` workspace deps with the correct
+  `file:../../packages/...` paths, and its build script loops over every
+  `*.html` entry (vite reads `VITE_ENTRY`) so it serves any number of
+  handlers. **Treat all of these as read-only infrastructure** (see
+  "Build config + apps-client are pre-placed" below).
 
 ## Clone the canonical template — do NOT author primitives from scratch
 
@@ -47,12 +57,15 @@ mis-used (a JSX cast → TS2786/TS2352), a non-existent `pluginSlug` prop on
 rejected (TS2353). The fix is mechanical — **clone the canonical template and
 minimally retarget it**, don't write TSX from scratch:
 
-1. Start from `canonical/ui-handlers/_template/view-tool/src/`:
+1. Read the canonical template src (bundle path
+   `${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/view-tool/src/`):
    `__ui-name__-view.ts` (handler + descriptor), `__ui-name__-ui.tsx` (iframe
-   entry), `components/*`, `App.tsx`, `hooks/`, `lib/`. Copy them into
-   `plugins/{slug}/view-tool/src/`, rename `__ui-name__` → your view-tool name,
-   and edit the data shape. Keep the imports and component wiring the template
-   already proved compiles + renders.
+   entry), `components/*`, `App.tsx`, `hooks/`. Author your copies into
+   `plugins/{slug}/view-tool/src/`, renaming `__ui-name__` → your view-tool name
+   and editing the data shape. Keep the imports and component wiring the template
+   already proved compiles + renders. **Do NOT copy `src/lib/`** — the scaffold
+   already placed the byte-frozen `apps-client` + `apps-react` there; re-copying
+   risks E26 drift.
 2. Only change what's source-specific: the descriptor `name` / `inputSchema` /
    `outputSchema`, the `data_paths` glob, and the fields the iframe binds.
 
@@ -83,6 +96,14 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
   `parseActionFile`. The canonical `__ui-name__-view.ts` already does this
   correctly (`parsed.frontmatter.title` + `parsed.body ?? ""`) — clone it rather
   than re-deriving the read.
+  - **Never cast `ActionFrontmatter` straight to `Record<string, unknown>`** —
+    `frontmatter as Record<string, unknown>` is the TS2352 "neither type
+    sufficiently overlaps" error (it bit Test #5 at handler lines 245/352).
+    Prefer reading the typed fields directly (`frontmatter.status`,
+    `frontmatter.snoozed_until`, …); if you genuinely need an index signature,
+    cast **through `unknown`**: `frontmatter as unknown as Record<string,
+    unknown>`. Mirror how agntux-gmail's `agntux-gmail-view.ts` reads the same
+    `ActionFrontmatter` shape rather than re-deriving the access.
 
 ## `data_paths` — set it explicitly on the descriptor
 
@@ -136,7 +157,7 @@ Expanded, the script chains (per the template `package.json`):
    - Missing/invalid compiled handler.
    - `default.viewTools` is not a non-empty array.
    - Any `view_tools[].name` not prefixed with `{slug-snake}_`.
-   - Any view_tool with no matching `ux_components[]` entry in
+   - Any view_tool with no matching `ui_components[]` entry in
      `marketplace/listing.yaml`.
    - Manifest fails Zod validation (including the cross-array
      constraint that every `view_tools[].mcp_app_meta.resourceUri` has
@@ -198,50 +219,37 @@ plugins/{slug}/view-tool/dist/
 These are the four artifact families the remote MCP server fetches at
 the pinned SHA. CI's `build-plugins.yml` (Phase 7) commits them back.
 
-## Stage 7: vendor the apps-client into the new plugin
+## Build config + apps-client are pre-placed — NEVER author or touch them
 
-So the orchestrator's build can succeed, ensure the vendored `apps-client`
-directory is present at `plugins/{slug}/view-tool/src/lib/apps-client/` (you
-author/copy it; you never run the build). This directory
-contains the MIT-inlined MCP Apps client SDK that the iframe uses to speak
-MCP-Apps JSON-RPC with the host. Without it the Vite build will fail with
-missing-import errors.
+`agntux_scaffold` (run with `view_tool:true` at stage-7 start, before you) has
+already placed the entire deterministic build floor into
+`plugins/{slug}/view-tool/`:
 
-It is vendored **for you** (by the scaffold / `ui-handler-author`) — you have no
-Bash and do NOT run these commands. Shown for reference so you know where
-`src/lib/apps-client/` comes from (rsync preferred, node fallback):
+- `package.json` — with the `@agntux/ui-primitives` + `@agntux/plugin-runtime`
+  workspace deps already wired (`file:../../packages/...`) and a handler-agnostic
+  build script. **This is what fixes the Test #5 "Rollup failed to resolve
+  `@agntux/ui-primitives`" build failure** — the dep is already declared, so you
+  must not re-author package.json and drop it.
+- `vite.config.ts` (VITE_ENTRY-driven), `tsconfig.json`, `tailwind.config.mjs`,
+  `scripts/emit-manifest.mjs`, `src/globals.css`, `src/vite-env.d.ts`.
+- `src/lib/apps-client/**` — the MIT-inlined MCP Apps client SDK the iframe uses
+  to speak MCP-Apps JSON-RPC with the host. It is **byte-frozen**: lint E26
+  fails the build if `simple-mcp-app.ts` / `constants.ts` drift one byte from the
+  canonical at `plugins/agntux-core/view-tool/src/lib/apps-client/`. The scaffold
+  copies the byte-identical canonical, so it is correct on arrival.
+- `src/lib/apps-react/**` — the React bindings (`useAppsClient`, `useToolResult`,
+  …) your iframe imports from `./lib/apps-react/index.js`.
 
-```bash
-# Preferred — rsync with no-links flag for security
-rsync --no-links -a \
-  canonical/ui-handlers/_template/src/lib/apps-client/ \
-  plugins/{slug}/view-tool/src/lib/apps-client/
+**Rule: treat all of the above as read-only infrastructure. Do NOT create, edit,
+copy, rsync, or re-author any of it** — no Bash, no `Write` over these paths, no
+hand-rolled apps-client. Editing them is how Test #5 produced the E26 drift and
+the unresolved-dep build failure. You author ONLY the per-handler UI:
+`{name}.html`, `src/{name}-ui.tsx`, `src/App.tsx` + `src/components/*`, and the
+`src/{slug}-view.ts` handler module.
 
-# Node fallback (e.g. on Windows or when rsync is unavailable)
-node -e "
-const { cpSync } = require('node:fs');
-cpSync(
-  'canonical/ui-handlers/_template/src/lib/apps-client',
-  'plugins/{slug}/view-tool/src/lib/apps-client',
-  { recursive: true, dereference: false }
-);
-"
-```
-
-The `--no-links` / `dereference: false` flags are mandatory — symlinks in the
-vendored tree are a trust-model violation (invariant-checker §5.6 will reject
-the compiled output). The rsync must be run from the repo root so the
-`canonical/` path resolves correctly.
-
-This step is **idempotent**: if `apps-client/` is already present and matches
-the canonical source, rsync exits 0 with no changes. Re-running the build
-never regresses the vendored copy.
-
-The authoritative source (WS-1) is `canonical/ui-handlers/_template/src/lib/apps-client/`
-at the repo root. The agntux-build plugin-bundle path
-`${CLAUDE_PLUGIN_ROOT}/canonical/ui-handlers/_template/view-tool/src/lib/apps-client/`
-is a fallback used only when the repo-root path is absent. If both exist they
-must be byte-identical; prefer the repo-root copy.
+If `src/lib/apps-client/` or `package.json` is somehow **absent**, STOP and report
+it — the scaffold was not called with `view_tool:true`. Do not hand-author the
+missing infrastructure; flag it so the orchestrator re-runs `agntux_scaffold`.
 
 ## Re-dispatch on failure — you receive the real error, fix THAT
 

@@ -77,8 +77,8 @@ and runs the verification scripts. If unavailable, here's the
 
 | Bump | Triggers |
 |---|---|
-| **MAJOR** | Removed `supported_prompts` entry; removed `ux_components` entry; **removed `entity_subtypes` or `action_classes` from `proposed_schema`** (breaks approved tenant contracts in user data); **changed `cursor_semantics`** (existing cursors become invalid); license-class change requiring re-onboarding; renamed a slash command users had memorised. |
-| **MINOR** | Added `supported_prompts`; added `ux_components`; **added `entity_subtypes` or `action_classes` to `proposed_schema`** (architect re-reviews on next session); copy improvements visible to users; new optional listing field. |
+| **MAJOR** | Removed `supported_prompts` entry; removed `ui_components` entry; **removed `entity_subtypes` or `action_classes` from `proposed_schema`** (breaks approved tenant contracts in user data); **changed `cursor_semantics`** (existing cursors become invalid); license-class change requiring re-onboarding; renamed a slash command users had memorised. |
+| **MINOR** | Added `supported_prompts`; added `ui_components`; **added `entity_subtypes` or `action_classes` to `proposed_schema`** (architect re-reviews on next session); copy improvements visible to users; new optional listing field. |
 | **PATCH** | Bug fix; cosmetic copy; internal refactor; dependency bump; canonical-hook propagation. |
 
 When in doubt, choose the higher bump. The

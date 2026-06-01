@@ -54,6 +54,7 @@ import { tmpdir } from "node:os";
  *   packagesDir: string,
  *   canonicalRoot: string,
  *   canonicalSyncDir: string,
+ *   viewToolTemplateDir: string,
  *   appsClientCanonicalRoot: string,
  *   testHarnessCli: string,
  *   hostRenderer: string,
@@ -89,6 +90,19 @@ export function resolveToolchain(scriptDir) {
         "ingest",
         "skills",
         "sync",
+      ),
+      // The full view-tool skeleton the scaffold copies as the build-critical
+      // floor (deps + apps-client + tsconfig + tailwind + emit-manifest). In the
+      // maintainer clone it lives under the agntux-build plugin tree; the bundle
+      // ships it at <plugin>/canonical/ui-handlers/_template/view-tool.
+      viewToolTemplateDir: join(
+        base,
+        "plugins",
+        "agntux-build",
+        "canonical",
+        "ui-handlers",
+        "_template",
+        "view-tool",
       ),
       // pass-12 anchor: join(appsClientCanonicalRoot, "plugins/agntux-core/…").
       appsClientCanonicalRoot: base,
@@ -129,6 +143,15 @@ export function resolveToolchain(scriptDir) {
       "ingest",
       "skills",
       "sync",
+    ),
+    // In the bundle the whole agntux-build tree IS <base>, so the view-tool
+    // skeleton sits at <base>/canonical/ui-handlers/_template/view-tool.
+    viewToolTemplateDir: join(
+      base,
+      "canonical",
+      "ui-handlers",
+      "_template",
+      "view-tool",
     ),
     // The apps-client canonical normally lives under plugins/agntux-core/ +
     // plugins/agntux-build/; in the bundle those trees don't exist, so the sync

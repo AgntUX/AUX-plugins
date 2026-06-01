@@ -57,7 +57,7 @@ You write to `plugins/{slug}/skills/`. You do **not** write to
 
 ## Workflow
 
-1. **Read context files** — the plugin's `marketplace/listing.yaml` (verb phrases, supported_prompts, ux_components), any prior `app-spec.md` or design document, and the relevant canonical prompt template that `ingest-prompt-author` is substituting from.
+1. **Read context files** — the plugin's `marketplace/listing.yaml` (verb phrases, supported_prompts, ui_components), any prior `app-spec.md` or design document, and the relevant canonical prompt template that `ingest-prompt-author` is substituting from.
 2. **Understand MCP server configuration** — identify configured tools (names, inputSchema, outputStructure), resources, data flow. Record the plugin slug from the task description.
 3. **Write SKILL.md** — at `plugins/{slug}/skills/{name}/SKILL.md`. Follow YAML frontmatter + markdown body format. Inject the Universal Host Protocol block between "Workflow Steps" and "State Management".
 4. **Create supporting files (only if genuine value)** — `references/input-schema.json` (tool input schema reference), `references/api-reference.md` (relevant API docs). Don't pad the folder.
