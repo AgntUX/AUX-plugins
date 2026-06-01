@@ -6,6 +6,54 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-06-01
+
+Fixes the defects behind the **7-round** google-calendar build on 0.24.0. The
+build succeeded — but only because the agent silenced a real type error with
+`@ts-expect-error`, which then shipped in the submission. Every extra round was a
+tooling or authoring-steer gap, not real work. This release fixes the root causes
+and adds backstops so each failure class fails fast and legibly (or can't recur).
+
+### Fixed
+
+- **TS2786 `'ComponentErrorBoundary' cannot be used as a JSX component` (cost 3
+  rounds; recurred in all 3 build sessions).** The scaffolded view-tool's vendored
+  `@agntux/ui-primitives` is symlinked OUTSIDE the plugin dir, so its
+  `import { Component } from "react"` resolved a different physical `@types/react`
+  than the handler's `App.tsx` — divergent `React.Component` identity. Added
+  `preserveSymlinks: true` to the canonical view-tool `tsconfig.json` so every
+  `react` import resolves the single hoisted copy under the plugin root. Confirmed
+  end-to-end against the real failing tree: full build green, **no suppression**.
+- **`extractSection(body, "## …")` double-`##` bug (cost 3 rounds — failing tests
+  AND a headless-render 500).** `extractSection` prepends `^##\s+` internally, so
+  the `## `-prefixed call always returned `""` and the downstream `JSON.parse("")`
+  threw. `check-view-tool-imports` now fails the build fast on a prefixed call, and
+  `view-tool-builder` documents the bare-header contract.
+- **First-validate lint E05 from `connector_slug: google_calendar`.** Underscores
+  fail the kebab regex; `manifest-author` now documents the
+  `^[a-z][a-z0-9-]*[a-z0-9]$` rule (Google Calendar is `google-calendar`).
+- **Scaffold now emits `LICENSE` (verbatim Apache-2.0) + a plugin-scoped
+  `NOTICE`.** Previously an agent hand-authored the full Apache text, which tripped
+  a content-filter block twice and interrupted the build. `manifest-author` is now
+  told never to author license text.
+
+### Added (backstops)
+
+- **`check-view-tool-imports` bans `@ts-expect-error` / `@ts-ignore` /
+  `@ts-nocheck` in view-tool source** (comment-anchored, so prose mentions are not
+  flagged). The band-aid that shipped the suppressed TS2786 in 0.24.0 can no longer
+  reach the bundle.
+- **`tests-author` must diagnose the handler before mutating an assertion.** In the
+  calendar build it edited assertions first, masking the real extractSection bug for
+  a round; a new rule-0 makes "run the handler, inspect `structuredContent`, fix the
+  source" mandatory before any assertion edit.
+
+### Note
+
+- Pairs with **agntux-core 10.2.1**, whose `validate-write-lane` hook now exempts
+  `<root>/.agntux-build/builds/**` — without it the 0.24.0 build had every build-tree
+  edit rejected because a source ingest lock was fresh, forcing it through bash/sed.
+
 ## [0.24.0] — 2026-06-01
 
 Removes the four fixable defects behind the 5-round google-calendar build on

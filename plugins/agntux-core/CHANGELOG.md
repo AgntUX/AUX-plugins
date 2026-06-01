@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.2.1] — 2026-06-01
+
+### Fixed
+
+- **`validate-write-lane` hook now exempts the agntux-build sandbox.** Writes
+  under `<root>/.agntux-build/builds/**` pass through even when a source ingest
+  lock (e.g. agntux-gmail) is concurrently fresh. Without this, the 2026-06-01
+  `/agntux-build:build` of a Google Calendar plugin had every build-tree Edit
+  rejected because a gmail ingest lock happened to be fresh, forcing the whole
+  build through `bash`/`sed`. The build sandbox is a scratch tree for authoring a
+  NEW plugin — not an ingest write target — so the write-lane taxonomy must never
+  gate it.
+
 ## [10.2.0] — 2026-05-30
 
 ### Added

@@ -129,6 +129,15 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
     cast **through `unknown`**: `frontmatter as unknown as Record<string,
     unknown>`. Mirror how agntux-gmail's `agntux-gmail-view.ts` reads the same
     `ActionFrontmatter` shape rather than re-deriving the access.
+  - **`extractSection(body, header)` takes a BARE header — no `## ` prefix.** It
+    builds the regex `^##\s+${header}` internally, so `extractSection(body,
+    "Schedule payload")` matches the `## Schedule payload` section. The prefixed
+    form `extractSection(body, "## Schedule payload")` searches for `## ##
+    Schedule payload`, always returns `""`, and the downstream `JSON.parse("")`
+    throws — it broke the 2026-06-01 calendar build's tests AND the headless
+    render (a `/api/tool-call` 500). Prefer `parseActionFile()` when it already
+    exposes the field. The `check-view-tool-imports.mjs` gate fails the build on
+    a `## `-prefixed extractSection call BEFORE vite.
 
 ## `data_paths` — set it explicitly on the descriptor
 

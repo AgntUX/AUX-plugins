@@ -65,6 +65,18 @@ field-name regex, an invented `compose-discard-local` intent, a non-existent
 "past-event eviction" rule, an em-dash-brittle regex). Obey these mechanically —
 they are not judgement calls:
 
+0. **A failing test means diagnose the HANDLER first — never reflex-edit the
+   assertion.** When `tests` fails, the assertion is the *report*, not
+   necessarily the *bug*. Run the handler with the same in-memory fixture
+   (`await viewTool.handle(args, ctx)`) and inspect the real `structuredContent`.
+   If the handler's output is wrong, **fix the handler** (or whatever it reads)
+   and leave the assertion alone. Only when the handler output is provably
+   correct AND the assertion is provably wrong may you touch the assertion. In
+   the 2026-06-01 calendar build the suggested-slots/attendees arrays came back
+   empty because the handler called `extractSection(body, "## …")` with a stray
+   `## ` — the assertions were RIGHT; editing them would have shipped a broken
+   handler. Mutating an assertion to make a red test green, without first
+   confirming the handler is correct, is the cardinal sin of this role.
 1. **Read-then-copy-literal.** Before asserting anything about a file's CONTENT,
    `Read` that exact file and copy a **verbatim substring** out of it. Assert with
    `expect(text).toContain("…the exact substring…")`. Do NOT write a regex from

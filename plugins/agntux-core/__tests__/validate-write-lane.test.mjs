@@ -225,6 +225,49 @@ describe("validate-write-lane.mjs — refuse off-lane during active ingest", () 
     );
     expect(r.code).toBe(2);
   });
+
+  it("permits Write to the .agntux-build/builds sandbox even with a fresh ingest lock", () => {
+    // The /agntux-build:build scratch tree is NOT an ingest write target. The
+    // 2026-06-01 calendar build was blocked here: a fresh gmail lock made every
+    // build-tree Edit reject, forcing the whole build through bash/sed.
+    const r = runHook(
+      ctxWrite(
+        join(
+          home,
+          "agntux",
+          ".agntux-build",
+          "builds",
+          "2026-06-01-205341",
+          "agntux-google-calendar",
+          "marketplace",
+          "listing.yaml",
+        ),
+      ),
+      home,
+    );
+    expect(r.code).toBe(0);
+  });
+
+  it("permits Edit to a view-tool source file in the build sandbox", () => {
+    const r = runHook(
+      ctxEdit(
+        join(
+          home,
+          "agntux",
+          ".agntux-build",
+          "builds",
+          "s",
+          "slug",
+          "view-tool",
+          "src",
+          "rsvp",
+          "App.tsx",
+        ),
+      ),
+      home,
+    );
+    expect(r.code).toBe(0);
+  });
 });
 
 // P7 §"Per-folder write-ownership matrix" — only agntux-teams may write

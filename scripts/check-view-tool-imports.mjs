@@ -407,6 +407,66 @@ export function scanBannedConstructs(fileAbs, content, allowedPanelProps) {
     });
   }
 
+  // 1c. TypeScript error-suppression ban. A `@ts-expect-error` / `@ts-ignore` /
+  //     `@ts-nocheck` directive in view-tool source papers over a REAL type
+  //     error instead of fixing it (the 2026-06-01 calendar build shipped two
+  //     `{/* @ts-expect-error … JSX class component inference quirk */}` lines to
+  //     silence the TS2786 ComponentErrorBoundary error rather than fixing the
+  //     react-types resolution). The fix is preserveSymlinks in the view-tool
+  //     tsconfig, never a suppression. These are comment DIRECTIVES, so they
+  //     only exist in the raw source — scan `content`, not the stripped copy.
+  //     Anchor on a comment opener immediately before the directive so a prose
+  //     mention ("never use @ts-expect-error") is not flagged. The openers cover
+  //     every form tsc actually honors: `//`, `/*` AND `/**`, JSX `{/*` AND
+  //     `{/**`, and a JSDoc continuation `*` line. The `*+` variants are
+  //     load-bearing — `{/** @ts-expect-error */}` is a one-character mutation of
+  //     the band-aid that tsc still honors. (A contrived string literal embedding
+  //     the literal `// @ts-…` sequence is a known, accepted residual match — no
+  //     real view-tool string does this.)
+  const tsSuppressRe =
+    /(?:\/\/|\/\*+|\{\/\*+|^[ \t]*\*+)[ \t]*@ts-(expect-error|ignore|nocheck)\b/gm;
+  for (const m of content.matchAll(tsSuppressRe)) {
+    violations.push({
+      kind: "banned-ts-suppression",
+      name: `@ts-${m[1]}`,
+      file: rel,
+      line: lineAt(content, m.index),
+      detail:
+        `\`@ts-${m[1]}\` is banned in view-tool source — it suppresses a real ` +
+        "type error instead of fixing it. The recurring TS2786 " +
+        "'ComponentErrorBoundary cannot be used as a JSX component' is a " +
+        "react-types resolution problem fixed by `preserveSymlinks: true` in " +
+        "view-tool/tsconfig.json (the scaffold ships it), NOT by a suppression. " +
+        "Remove the directive and fix the underlying type error.",
+    });
+  }
+
+  // 1d. extractSection double-`##` ban. `extractSection(body, header)` builds the
+  //     regex `^##\s+${header}` internally, so callers pass the header WITHOUT a
+  //     leading `## `. Passing `extractSection(body, "## Schedule payload")` makes
+  //     it search for `## ## Schedule payload`, always returns "", then
+  //     `JSON.parse("")` throws (the 2026-06-01 calendar build's failing tests +
+  //     render 500). The `##` lives inside a string literal (blanked by the
+  //     stripper), so scan the raw `content`.
+  //     The first-arg matcher tolerates a function call or member access
+  //     (`getBody(x)`, `parseActionFile(f).body`) by allowing one balanced
+  //     paren group, so `extractSection(getBody(x), "## y")` is still caught.
+  const extractSectionRe = /extractSection\s*\(\s*(?:[^,()]|\([^()]*\))+,\s*(["'`])\s*#/g;
+  for (const m of content.matchAll(extractSectionRe)) {
+    violations.push({
+      kind: "banned-extract-section-prefix",
+      name: "extractSection",
+      file: rel,
+      line: lineAt(content, m.index),
+      detail:
+        "extractSection(body, header) prepends `^##\\s+` internally — pass the " +
+        'bare header WITHOUT the `## ` prefix (e.g. extractSection(body, ' +
+        '"Schedule payload"), not "## Schedule payload"). The prefixed form ' +
+        'searches for `## ## …`, returns "", and the downstream JSON.parse("") ' +
+        "throws. Prefer the higher-level parseActionFile() where possible.",
+    });
+  }
+
   // 2. ScrollablePanel prop allow-list. Find each `<ScrollablePanel` opening
   //    tag (word-boundary so `<ScrollablePanelFoo` is ignored), isolate its
   //    opening-tag inner text, and flag any attribute not in the allow-list.

@@ -227,6 +227,116 @@ describe("check-view-tool-imports run()", () => {
     expect(readSrc(root, "App.tsx")).toBe(body); // untouched
   });
 
+  it("HARD-fails on a {/* @ts-expect-error */} suppression (the TS2786 band-aid)", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ComponentErrorBoundary } from "@agntux/ui-primitives";\n` +
+        `export const A = () => (\n` +
+        `  <div>\n` +
+        `    {/* @ts-expect-error - JSX class component inference quirk */}\n` +
+        `    <ComponentErrorBoundary><span>x</span></ComponentErrorBoundary>\n` +
+        `  </div>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(r.violations.some((v: { kind: string }) => v.kind === "banned-ts-suppression")).toBe(true);
+    // never auto-fixed — left intact so the author fixes the real type error
+    expect(readSrc(root, "App.tsx")).toContain("@ts-expect-error");
+  });
+
+  it("HARD-fails on // @ts-ignore and // @ts-nocheck directives too", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `// @ts-nocheck\n` +
+        `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+        `// @ts-ignore\n` +
+        `export const A = ScrollablePanel;\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(
+      r.violations.filter((v: { kind: string }) => v.kind === "banned-ts-suppression").length,
+    ).toBe(2);
+  });
+
+  it("does NOT flag @ts-expect-error merely named in prose or a string", () => {
+    const body =
+      `import { ScrollablePanel } from "@agntux/ui-primitives";\n` +
+      `// never add @ts-expect-error here — fix the type instead\n` +
+      `const HELP = "if you see TS2786 do not add @ts-ignore";\n` +
+      `export const A = () => <ScrollablePanel title="x">{HELP}</ScrollablePanel>;\n`;
+    writeSrc(root, "App.tsx", body);
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+
+  it("HARD-fails on extractSection called with a '## '-prefixed header", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { extractSection } from "@agntux/plugin-runtime";\n` +
+        `export const read = (body: string) => extractSection(body, "## Schedule payload");\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(
+      r.violations.some((v: { kind: string }) => v.kind === "banned-extract-section-prefix"),
+    ).toBe(true);
+  });
+
+  it("does NOT flag extractSection called with a bare header (correct usage)", () => {
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { extractSection } from "@agntux/plugin-runtime";\n` +
+        `export const read = (body: string) => extractSection(body, "Schedule payload");\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(true);
+    expect(r.violations).toHaveLength(0);
+  });
+
+  it("catches the JSDoc-star suppression forms tsc still honors (/** and {/**)", () => {
+    // One-character mutations of the band-aid ({/* → {/**, /* → /**) must not
+    // evade the ban — tsc still honors them. (Adversarial-review finding.)
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { ComponentErrorBoundary } from "@agntux/ui-primitives";\n` +
+        `/** @ts-ignore */\n` +
+        `export const A = () => (\n` +
+        `  <div>\n` +
+        `    {/** @ts-expect-error - JSX class component inference quirk */}\n` +
+        `    <ComponentErrorBoundary><span>x</span></ComponentErrorBoundary>\n` +
+        `  </div>\n` +
+        `);\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(
+      r.violations.filter((v: { kind: string }) => v.kind === "banned-ts-suppression").length,
+    ).toBe(2);
+  });
+
+  it("catches extractSection with a paren-bearing first argument (getBody(x))", () => {
+    // `[^,()]+` would have stopped at the inner `(` and missed this. (Adversarial.)
+    writeSrc(
+      root,
+      "App.tsx",
+      `import { extractSection } from "@agntux/plugin-runtime";\n` +
+        `export const read = (raw: string) => extractSection(getBody(raw), "## Schedule payload");\n`,
+    );
+    const r = run(root, { fix: false, packagesDir: PACKAGES });
+    expect(r.ok).toBe(false);
+    expect(
+      r.violations.some((v: { kind: string }) => v.kind === "banned-extract-section-prefix"),
+    ).toBe(true);
+  });
+
   it("passes the real multi-line nested-title <ScrollablePanel> shape", () => {
     // Mirrors the agntux-slack/gmail compose components: a JSX node as `title`
     // with its own attributes inside the `={…}` region must not leak as props.

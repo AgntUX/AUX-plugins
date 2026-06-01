@@ -75,6 +75,33 @@ describe("scaffold --view-tool floor", () => {
     expect(pkg.name).toBe(`@agntux-build/${SLUG}-view-tool`);
   });
 
+  it("emits LICENSE verbatim (matches the repo-root Apache-2.0 LICENSE)", () => {
+    // Without a scaffolded LICENSE an agent hand-authors the full Apache text —
+    // the 2026-06-01 calendar build did exactly that and tripped a content
+    // filter twice. The scaffold copies it byte-for-byte from tc.base/LICENSE.
+    const placed = join(pluginDir, "LICENSE");
+    expect(existsSync(placed), "LICENSE should be scaffolded").toBe(true);
+    expect(sha256(placed)).toBe(sha256(join(REPO_ROOT, "LICENSE")));
+  });
+
+  it("emits a plugin-scoped NOTICE so no agent hand-authors legal text", () => {
+    const placed = join(pluginDir, "NOTICE");
+    expect(existsSync(placed), "NOTICE should be scaffolded").toBe(true);
+    const notice = readFileSync(placed, "utf8");
+    expect(notice).toContain(SLUG);
+    expect(notice).toContain("Apache License, Version 2.0");
+  });
+
+  it("places a view-tool tsconfig with preserveSymlinks (the TS2786 fix)", () => {
+    // The vendored @agntux/ui-primitives is symlinked OUTSIDE the plugin dir, so
+    // without preserveSymlinks its `import {Component} from "react"` resolves a
+    // different @types/react than the handler's App.tsx → TS2786
+    // 'ComponentErrorBoundary cannot be used as a JSX component'. preserveSymlinks
+    // pins every react import to the one hoisted copy under the plugin root.
+    const tsconfig = JSON.parse(readFileSync(join(viewTool, "tsconfig.json"), "utf8"));
+    expect(tsconfig.compilerOptions.preserveSymlinks).toBe(true);
+  });
+
   it("generates a handler-agnostic build script (loops over *.html, esbuilds {slug}-view.ts)", () => {
     const pkg = JSON.parse(readFileSync(join(viewTool, "package.json"), "utf8"));
     expect(pkg.scripts.build).toContain("for f in *.html");
