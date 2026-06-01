@@ -467,8 +467,8 @@ plugin-toolkit@agntux-plugin-dev`.
 
 The canonical checklist lives in [`CONTRIBUTING.md`](CONTRIBUTING.md#pr-review-checklist) — apply it on every plugin PR (also runnable via `/review-pr`). The semver rubric used by the version-bump bullet:
 
-- MAJOR: breaking change to public surface (prompts users rely on, `ux:` prompts, `requires_source_mcp.connector_slug`, removing a category or `ux_components` entry)
-- MINOR: additive non-breaking (new `ux_components`, new `supported_prompts`, new optional field, new screenshot, new category)
+- MAJOR: breaking change to public surface (prompts users rely on, `ux:` prompts, `requires_source_mcp.connector_slug`, removing a category or `ui_components` entry)
+- MINOR: additive non-breaking (new `ui_components`, new `supported_prompts`, new optional field, new screenshot, new category)
 - PATCH: no-surface change (copy fix, README typo, screenshot replacement, lint compliance, dependency bump)
 
 ---

@@ -6,9 +6,9 @@
 // Steps:
 //   1. Dynamically import dist/<slug>-view.js and read default.viewTools[].
 //   2. Read ../marketplace/listing.yaml (the plugin's listing) and pull
-//      ux_components[].
+//      ui_components[].
 //   3. Verify every view_tools[i].name and ui_resource_uri matches some
-//      ux_components[j].view_tool / resource_uri (listing.yaml ↔ manifest
+//      ui_components[j].view_tool / resource_uri (listing.yaml ↔ manifest
 //      consistency rule). Mismatch → exit 1.
 //   4. Read the per-resource HTML from dist/ui-resources/<resource>.html.
 //   5. Build the manifest, validate it against the Zod schema from
@@ -59,11 +59,10 @@ if (!existsSync(listingPath)) {
   process.exit(1);
 }
 const listing = yaml.load(readFileSync(listingPath, "utf8"));
-// listing.yaml uses `ui_components` in practice today; the schema doc
-// historically called the field `ux_components`. Accept either name so
-// canonical templates work against both spellings (the marketplace linter
-// is the source of truth for the on-disk name).
-const uxComponents = Array.isArray(listing?.ui_components)
+// `ui_components` is the canonical on-disk key — the marketplace linter rejects
+// anything else with E05. `ux_components` is a legacy alias kept ONLY as a
+// tolerant READ fallback so an older tree still emits; never write it on disk.
+const uiComponents = Array.isArray(listing?.ui_components)
   ? listing.ui_components
   : Array.isArray(listing?.ux_components)
   ? listing.ux_components
@@ -72,14 +71,14 @@ const uxComponents = Array.isArray(listing?.ui_components)
 // 3. listing.yaml ↔ manifest consistency rule.
 const matches = [];
 for (const vt of viewTools) {
-  const match = uxComponents.find(
+  const match = uiComponents.find(
     (uc) =>
       uc.view_tool === vt.descriptor.name &&
       uc.resource_uri === vt.descriptor.ui_resource_uri,
   );
   if (!match) {
     console.error(
-      `[emit-manifest] view_tools[].name=${vt.descriptor.name} ui_resource_uri=${vt.descriptor.ui_resource_uri} has no matching listing.yaml ux_components[] entry. listing.yaml.ux_components must declare every view tool the plugin ships.`,
+      `[emit-manifest] view_tools[].name=${vt.descriptor.name} ui_resource_uri=${vt.descriptor.ui_resource_uri} has no matching listing.yaml ui_components[] entry. listing.yaml.ui_components must declare every view tool the plugin ships.`,
     );
     process.exit(1);
   }
@@ -110,7 +109,7 @@ const viewToolEntries = [];
 // Empty arrays = no external origins (our bundles are fully inlined; no
 // fetch/XHR, no remote scripts/styles, no nested iframes). If a future
 // plugin needs e.g. a tile server, override via `mcp-app-meta.yaml` or
-// listing.yaml's ux_components[].csp.
+// listing.yaml's ui_components[].csp.
 const DEFAULT_CSP = {
   connectDomains: [],
   resourceDomains: [],

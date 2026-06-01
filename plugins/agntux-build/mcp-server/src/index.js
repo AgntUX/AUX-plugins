@@ -108,7 +108,7 @@ const TOOLS = [
       type: "object",
       properties: {
         slug: { type: "string", description: "Marker slug, e.g. agntux-gmail." },
-        plugin_dir: { type: "string", description: "Absolute path to the build sandbox plugin tree (…/.agntux-build/builds/{session}/agntux-{slug}/)." },
+        plugin_dir: { type: "string", description: "Absolute path to the build sandbox plugin tree (…/.agntux-build/builds/{session}/agntux-{slug}/). Created (with parents) if absent — you do not need to mkdir it first." },
         view_tool: { type: "boolean", description: "True when the plugin ships ≥1 UI handler — pre-places the build-critical view-tool floor (deps + apps-client + configs) so the specialist authors only the per-handler UI. Default false." },
       },
       required: ["slug", "plugin_dir"],
@@ -294,8 +294,16 @@ async function handleScaffold(args) {
   if (!slug || !pluginDir) {
     return { ok: false, error_kind: "usage", blocking: false, detail: "slug and plugin_dir are required" };
   }
-  if (!existsSync(pluginDir)) {
-    return { ok: false, error_kind: "usage", blocking: false, detail: `plugin dir not found: ${pluginDir}` };
+  // The build-sandbox plugin dir is THIS tool's to create — it lays the floor
+  // INTO it. Requiring the caller to pre-create it forced a Bash `mkdir` detour
+  // and (because the missing-dir verdict had no summary of its own) surfaced a
+  // misleading "scaffold failed in the build stage: compile error" envelope.
+  // Create it (and any missing parents) idempotently; a genuinely unwritable
+  // path surfaces as an internal tooling error below.
+  try {
+    mkdirSync(pluginDir, { recursive: true });
+  } catch (e) {
+    return { ok: false, error_kind: "internal", blocking: false, detail: `could not create plugin dir ${pluginDir}: ${errStr(e)}` };
   }
   // Pre-warm the renderer NOW (stage-7 start): kick the detached Chromium
   // install so it is ready by the first agntux_validate. The 7-specialist
@@ -746,6 +754,7 @@ async function withFeedback(payload, { tool } = {}) {
       routing: payload.routing,
       queued: payload.queued,
       reason: payload.reason,
+      detail: payload.detail,
     });
     if (typeof summary === "string") payload.summary = summary;
     // Don't clobber a next_action a handler already set.

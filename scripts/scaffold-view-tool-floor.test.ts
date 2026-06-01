@@ -93,6 +93,33 @@ describe("scaffold --view-tool floor", () => {
     expect(cfg).toContain("tailwindcss()");
   });
 
+  it("generates a vitest.config.ts that runs WITHOUT VITE_ENTRY (no vite.config fall-through)", () => {
+    // The bug: with no vitest.config.ts present, `vitest run` loaded
+    // vite.config.ts and threw "set VITE_ENTRY to the view name".
+    const p = join(viewTool, "vitest.config.ts");
+    expect(existsSync(p), "vitest.config.ts should be generated").toBe(true);
+    const cfg = readFileSync(p, "utf8");
+    // Must not READ the VITE_ENTRY env var (the bug was vitest loading
+    // vite.config.ts, which throws on `process.env.VITE_ENTRY` unset). A mention
+    // in an explanatory comment is fine; a `process.env.VITE_ENTRY` read is not.
+    expect(cfg).not.toContain("process.env.VITE_ENTRY");
+    expect(cfg).toContain('from "vitest/config"');
+    expect(cfg).toContain('environment: "jsdom"');
+    expect(cfg).toContain("./src/__tests__/setup.ts");
+    expect(cfg).toContain("__tests__/**/*.test.{ts,tsx}");
+  });
+
+  it("generates a self-contained test setup (jest-dom + cleanup), not the template's widget matchers", () => {
+    const p = join(viewTool, "src/__tests__/setup.ts");
+    expect(existsSync(p), "setup.ts should be generated").toBe(true);
+    const setup = readFileSync(p, "utf8");
+    expect(setup).toContain("@testing-library/jest-dom/vitest");
+    expect(setup).toContain("cleanup");
+    // Must NOT drag in the template-only widget matchers (would reference files
+    // the scaffold doesn't copy).
+    expect(setup).not.toContain("setupWidgetMatchers");
+  });
+
   it("places the E26-frozen apps-client files (simple-mcp-app, constants) identical to canonical", () => {
     // Only these two files are E26 byte-frozen vs plugins/agntux-core. The rest
     // of apps-client/** is template-sourced and intentionally not byte-checked.

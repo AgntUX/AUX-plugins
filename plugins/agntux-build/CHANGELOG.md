@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-06-01
+
+Cuts the validate round-count a real google-calendar build still burned on
+0.22.0 (2 scaffold attempts + **5** `agntux_validate` rounds — every extra
+round a fixable tooling defect, not authoring work). The build succeeded; this
+removes the friction so the next one needs far fewer rounds.
+
+### Added
+
+- **`agntux_scaffold` creates the build-sandbox plugin dir.** A missing
+  `plugin_dir` is no longer a `"plugin dir not found"` usage error — the tool
+  `mkdir`s it (with parents). Removes the Bash `mkdir` detour the model was
+  forced into, and the misleading `"scaffold failed in the build stage: compile
+  error"` envelope that detour produced.
+- **`agntux_scaffold` generates a self-contained view-tool `vitest.config.ts` +
+  `src/__tests__/setup.ts`** (jsdom; jest-dom + React cleanup). Previously the
+  floor shipped neither, so `vitest run` in `view-tool/` fell through to
+  `vite.config.ts` and threw `set VITE_ENTRY to the view name` — a whole
+  remediation round. The generated config never reads `VITE_ENTRY` and pulls in
+  no template-only widget matchers.
+- **Lint-stage feedback is now per-finding and multi-owner.** `agntux_validate`
+  consumes the marketplace linter's `--json` output and surfaces a structured
+  `lint_findings[]` (`{code, file, message, routing}`) plus the distinct
+  `routings[]` set — the same rich `failed_file`/`message` the build stage
+  already gave, instead of a bare `codes: E05,E15` string. Each code routes to
+  its owning specialist, so a mixed E05 (listing) + E15 (render-drift) failure
+  dispatches **both** `manifest-author` and `ingest-prompt-author` in ONE pass
+  (E15 no longer "wins" and silently strands the E05 owner).
+
+### Changed
+
+- **Error envelopes honor `error_kind`.** `usage` and `internal` verdicts get
+  their own summary/next_action — a usage error names the bad call ("fix the
+  arguments, don't re-dispatch a specialist"); an internal error routes to
+  `agntux_report_defect`. Neither is mislabeled "failed in the build stage:
+  compile error" anymore.
+- **Authoring-prompt hardening.** `view-tool-builder.md` gains a "String
+  literals in JSX" section (the unescaped-nested-quote esbuild parse error that
+  killed a build on one character) and a note that `ComponentErrorBoundary` must
+  be imported as a **value** (an `import type` is also TS2786);
+  `ui-handler-author.md` cross-references the quoting rule; `tests-author.md`
+  hardens the `idempotent.test.ts` cursor assertion to the **generic** advance
+  mechanism, not the source-specific cursor-field prose that drifted twice.
+- **`check-view-tool-imports.mjs` also bans a type-only import of
+  `ComponentErrorBoundary`** (the TS2786 cause the `as`-cast regex missed),
+  failing fast and routed to `view-tool-builder` before vite/tsc.
+- **`ux_components` → `ui_components`** doc/text cleanup: the repo semver rubric
+  (`CLAUDE.md`) and the scaffolded `emit-manifest.mjs` error message now name the
+  canonical on-disk key (the linter rejects `ux_components` with E05); the
+  tolerant read-fallback stays.
+
 ## [0.22.0] — 2026-05-31
 
 Closes the residual fix-loop a real google-calendar build still burned on

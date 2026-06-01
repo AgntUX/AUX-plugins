@@ -14,7 +14,8 @@
  */
 import { describe, it, expect } from "vitest";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -141,13 +142,44 @@ describe("agntux-build MCP server", () => {
     ]);
   });
 
-  it("agntux_scaffold returns a structured usage verdict (NOT a JSON-RPC error) for a missing tree", async () => {
+  it("agntux_scaffold CREATES a missing plugin_dir (A1) instead of erroring — no JSON-RPC error", async () => {
+    // A1: the build-sandbox plugin dir is the tool's to create; a missing dir is
+    // no longer a "plugin dir not found" usage error (which forced a Bash mkdir
+    // detour + a misleading 'compile error' envelope). Use a path that does NOT
+    // exist yet and clean it up afterward.
+    const parent = mkdtempSync(join(tmpdir(), "agntux-scaffold-a1-"));
+    const pluginDir = join(parent, "agntux-nope"); // not yet created
+    try {
+      const got = await rpc(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_scaffold", arguments: { slug: "agntux-nope", plugin_dir: pluginDir } },
+          },
+        ],
+        [2],
+      );
+      const resp = got.get(2);
+      expect(resp.error).toBeUndefined(); // never a protocol error
+      const v = toolPayload(resp);
+      expect(existsSync(pluginDir), "scaffold must create the missing dir").toBe(true);
+      // The A1 mislabel symptom is gone: a missing dir no longer produces the
+      // "scaffold failed in the build stage: compile error" envelope.
+      expect(String(v.summary ?? "")).not.toContain("compile error");
+      expect(v.ok).toBe(true);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("agntux_scaffold returns a structured usage verdict (NOT a JSON-RPC error) for missing args", async () => {
     const got = await rpc(
       [
         { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
         {
           jsonrpc: "2.0", id: 2, method: "tools/call",
-          params: { name: "agntux_scaffold", arguments: { slug: "agntux-nope", plugin_dir: "/tmp/nope-does-not-exist-xyz" } },
+          params: { name: "agntux_scaffold", arguments: { slug: "agntux-nope" } }, // plugin_dir omitted
         },
       ],
       [2],
@@ -161,23 +193,32 @@ describe("agntux-build MCP server", () => {
   });
 
   it("agntux_validate returns a structured usage verdict (NOT a JSON-RPC error) for a missing tree", async () => {
-    const got = await rpc(
-      [
-        { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
-        {
-          jsonrpc: "2.0", id: 2, method: "tools/call",
-          params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: "/tmp/nope-does-not-exist-xyz" } },
-        },
-      ],
-      [2],
-    );
-    const resp = got.get(2);
-    expect(resp.error).toBeUndefined(); // never a protocol error
-    const v = toolPayload(resp);
-    expect(v.ok).toBe(false);
-    expect(v.error_kind).toBe("usage");
-    expect(v.blocking).toBe(false);
-    expect(v.renderer?.status).toBe("disabled"); // AGNTUX_BUILD_SKIP_RENDER honored
+    // A guaranteed-absent path under a fresh tmp parent (NOT shared with the
+    // scaffold test, which now creates its target). runValidation guards a
+    // missing tree as `usage` before any build.
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-absent-"));
+    const absent = join(parent, "agntux-nope"); // never created
+    try {
+      const got = await rpc(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: absent } },
+          },
+        ],
+        [2],
+      );
+      const resp = got.get(2);
+      expect(resp.error).toBeUndefined(); // never a protocol error
+      const v = toolPayload(resp);
+      expect(v.ok).toBe(false);
+      expect(v.error_kind).toBe("usage");
+      expect(v.blocking).toBe(false);
+      expect(v.renderer?.status).toBe("disabled"); // AGNTUX_BUILD_SKIP_RENDER honored
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
   });
 
   it("agntux_write_submission refuses (no throw) when the plugin tree is absent", async () => {
