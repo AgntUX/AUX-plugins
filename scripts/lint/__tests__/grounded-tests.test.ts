@@ -161,4 +161,96 @@ describe("pass15GroundedTests (E30)", () => {
     pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
     expect(findings).toEqual([]);
   });
+
+  // ── Broadened predicate (agntux-build 0.27.0) — close the evasion paths the
+  //    2026-06-02 google-calendar build used to slip past the .md-only regex ──
+
+  it("flags a `_overrides/frontmatter.yaml` read with toContain (cold-start evasion)", () => {
+    // The model, told not to grep `_overrides/**.md`, greps the frontmatter
+    // substitution map instead — same reworded-prose brittleness, .yaml ext.
+    writeTest(
+      "cold-start.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { resolve } from 'node:path';\n` +
+        `const ROOT = resolve(__dirname, '..');\n` +
+        `it('frontmatter declares the cadence', () => {\n` +
+        `  const fm = readFileSync(resolve(ROOT, 'skills/agntux-foo/_overrides/frontmatter.yaml'), 'utf8');\n` +
+        `  expect(fm).toContain('source-cursor-semantics:');\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E30");
+  });
+
+  it("flags a `data/instructions/<slug>.md` read with toContain (draft-flow evasion)", () => {
+    writeTest(
+      "draft-flow.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { resolve } from 'node:path';\n` +
+        `const ROOT = resolve(__dirname, '..');\n` +
+        `it('instructions document the contract', () => {\n` +
+        `  const doc = readFileSync(resolve(ROOT, 'data/instructions/agntux-foo.md'), 'utf8');\n` +
+        `  expect(doc).toContain('type: plugin-instructions');\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E30");
+  });
+
+  it("flags a `_overrides/frontmatter.yml` read (the `.yml` arm of `ya?ml`)", () => {
+    writeTest(
+      "alt-ext.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { resolve } from 'node:path';\n` +
+        `const ROOT = resolve(__dirname, '..');\n` +
+        `it('frontmatter.yml', () => {\n` +
+        `  const fm = readFileSync(resolve(ROOT, 'skills/agntux-foo/_overrides/frontmatter.yml'), 'utf8');\n` +
+        `  expect(fm).toContain('plugin-slug:');\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E30");
+  });
+
+  it("does NOT flag a `data/instructions/<slug>.yaml` read (that arm is `.md`-only)", () => {
+    // The data/instructions alternative matches `.md` only — a structured
+    // `.yaml` data file there is parseable config, not reworded prose.
+    writeTest(
+      "data-yaml.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { resolve } from 'node:path';\n` +
+        `const ROOT = resolve(__dirname, '..');\n` +
+        `it('data yaml', () => {\n` +
+        `  const d = readFileSync(resolve(ROOT, 'data/instructions/agntux-foo.yaml'), 'utf8');\n` +
+        `  expect(d).toContain('kind:');\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag a `marketplace/listing.yaml` read with toContain (grounded source #2)", () => {
+    // listing.yaml is structured config the manifest-author owns — the golden
+    // rule's grounded source #2. It is NOT under `_overrides/`, so it stays legal.
+    writeTest(
+      "listing.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { resolve } from 'node:path';\n` +
+        `const ROOT = resolve(__dirname, '..');\n` +
+        `it('listing declares two ui_components', () => {\n` +
+        `  const y = readFileSync(resolve(ROOT, 'marketplace/listing.yaml'), 'utf8');\n` +
+        `  expect(y).toContain('ui_components:');\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
 });
