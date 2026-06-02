@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-18T21:29:27.770Z",
+  "generated_at": "2026-06-02T03:45:08.537Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a system AgntUX doesn't yet support.",
@@ -245,6 +245,164 @@
         ],
         "cursor_semantics": "Single JSON map (one line). Two key shapes: `inbox` for the discovery low-water-mark (Gmail epoch-seconds); `<thread_id>` for per-thread cursors (newest message internalDate processed).",
         "source_id_format": "`<thread_id>` for thread-rooted artefacts; `<thread_id>#<message_id>` for per-message artefacts when needed."
+      }
+    },
+    "agntux-google-calendar": {
+      "tagline": "Daily look-ahead of your calendar with prep context.",
+      "description": "Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).\n",
+      "categories": [
+        "productivity",
+        "communication"
+      ],
+      "keywords": [
+        "google-calendar",
+        "calendar",
+        "meetings",
+        "schedule",
+        "prep",
+        "agenda",
+        "invites"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "data_ingested": [
+        "Upcoming events on all your calendars over the next 7 days",
+        "Event metadata: attendees, location, description, video conference URL, organiser",
+        "Conflicts between events on overlapping time windows"
+      ],
+      "ui_components": [
+        {
+          "name": "schedule",
+          "title": "Find a time and schedule the meeting",
+          "purpose": "Pick attendees and a window; AgntUX surfaces free slots via Google Calendar; user picks one and Send creates the event with prep context attached.",
+          "view_tool": "agntux_google_calendar_schedule_view",
+          "resource_uri": "ui://agntux-google-calendar/schedule"
+        },
+        {
+          "name": "respond",
+          "title": "Accept, tentatively accept, or decline the invite",
+          "purpose": "Inline event card with conflicts and AgntUX prep links; mode tabs over a single Send button; optional note to organiser.",
+          "view_tool": "agntux_google_calendar_respond_view",
+          "resource_uri": "ui://agntux-google-calendar/respond"
+        }
+      ],
+      "screenshot_order": [],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-google-calendar",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "google-calendar",
+        "display_name": "Google Calendar"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "person",
+            "description": "Attendees by email; cross-source merge alias candidate.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "company",
+            "description": "Resolved from email domains in attendee lists.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "project",
+            "description": "Codename mined from event titles and descriptions; resolved via user glossary.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "topic",
+            "description": "Recurring meeting themes — standups, weekly syncs, customer reviews.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "deadline",
+            "description": "An event with hard prep work due before start; e.g. review deck, submit Q3 numbers."
+          },
+          {
+            "class": "response-needed",
+            "description": "An invite the user has not yet responded to."
+          },
+          {
+            "class": "meeting-prep",
+            "description": "An upcoming meeting the user is attending needs prep context surfaced before start."
+          },
+          {
+            "class": "risk",
+            "description": "Conflict, double-booking, or critical-meeting overlap."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A recurring meeting whose summary or outcome should be captured post-event."
+          },
+          {
+            "class": "other",
+            "description": "Escape hatch for calendar events not fitting the above classes."
+          }
+        ],
+        "cursor_semantics": "JSON map with `look_ahead_window_end` (RFC3339) and per-event `<calendar_id>#<event_id>` → `updated` timestamp pairs. Past events evict on each sync pass.",
+        "source_id_format": "`<calendar_id>#<event_id>` for events; add `#<occurrence_start>` for recurring event instances."
       }
     },
     "agntux-slack": {

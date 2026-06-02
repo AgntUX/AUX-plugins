@@ -49,6 +49,22 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-google-calendar",
+      "source": "./plugins/agntux-google-calendar",
+      "homepage": "https://agntux.ai/plugins/agntux-google-calendar",
+      "keywords": [
+        "google-calendar",
+        "calendar",
+        "meetings",
+        "schedule",
+        "prep",
+        "agenda",
+        "invites"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "homepage": "https://agntux.ai/plugins/agntux-slack",
