@@ -1,0 +1,270 @@
+{
+  "plugin_slug": "agntux_google_calendar",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-google-calendar-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_google_calendar_schedule_view",
+      "description": "Opens the AgntUX Google Calendar scheduling interface. Given an action_id for a scheduling action item, reads the pre-composed draft (title, attendees, duration, find-a-time window, prep context) and surfaces an interactive slot-picker form. The user selects a free slot and clicks Send to create the Google Calendar event via the connector. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "description": "The action item ID (filename stem under actions/)."
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "connector_intent": {
+            "type": "string"
+          },
+          "draft_summary": {
+            "type": "string"
+          },
+          "draft_description": {
+            "type": "string"
+          },
+          "attendee_emails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "duration_minutes": {
+            "type": "number"
+          },
+          "search_window_start": {
+            "type": "string"
+          },
+          "search_window_end": {
+            "type": "string"
+          },
+          "preferred_hours": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "type": "string"
+              },
+              "exclude_weekends": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "exclude_weekends"
+            ]
+          },
+          "candidate_slots": {
+            "type": "array"
+          },
+          "include_google_meet": {
+            "type": "boolean"
+          },
+          "user_timezone": {
+            "type": "string"
+          },
+          "user_primary_calendar_id": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_link": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action_id",
+          "connector_intent",
+          "draft_summary",
+          "candidate_slots",
+          "attendee_emails",
+          "duration_minutes",
+          "user_timezone",
+          "user_primary_calendar_id"
+        ],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-google-calendar/schedule",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_google_calendar_respond_view",
+      "description": "Opens the AgntUX Google Calendar RSVP interface for a meeting invite. Given an action_id for a response-needed or meeting-prep action item, reads the event card (title, time, location, Meet link, organizer, attendee list), any double-booking conflicts, and prep context (summary + source links). The user picks Accept / Tentative / Decline, optionally adds a note, and clicks Send response to submit their RSVP via the Google Calendar connector. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "description": "The action item ID (filename stem under actions/)."
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "connector_intent": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "calendar_id": {
+            "type": "string"
+          },
+          "event_summary": {
+            "type": "string"
+          },
+          "event_start": {
+            "type": "string"
+          },
+          "event_end": {
+            "type": "string"
+          },
+          "event_timezone": {
+            "type": "string"
+          },
+          "event_location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_meet_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_description_excerpt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizer_name": {
+            "type": "string"
+          },
+          "organizer_email": {
+            "type": "string"
+          },
+          "attendees": {
+            "type": "array"
+          },
+          "current_response_status": {
+            "type": "string"
+          },
+          "prep_summary": {
+            "type": "string"
+          },
+          "prep_signals": {
+            "type": "array"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_link": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action_id",
+          "connector_intent",
+          "event_id",
+          "calendar_id",
+          "event_summary",
+          "current_response_status",
+          "attendees"
+        ],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-google-calendar/respond",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-google-calendar/schedule",
+      "html_path": "view-tool/dist/ui-resources/schedule.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-google-calendar/respond",
+      "html_path": "view-tool/dist/ui-resources/respond.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}

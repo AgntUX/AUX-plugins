@@ -1,0 +1,44 @@
+# _overrides/frontmatter.yaml — agntux-google-calendar
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{placeholder}} in the canonical sync skill template must be covered
+# here; the renderer's assertNoPlaceholders guard fails the build otherwise.
+# Keep in lockstep with canonical/prompts/ingest/STUBS.md.
+
+plugin-slug: agntux-google-calendar
+plugin-version: 0.1.0
+source-display-name: Google Calendar
+source-slug: google-calendar
+recommended-cadence: "Daily at 04:00 local"
+source-cursor-semantics: "Windowed per-item updated-timestamp map. JSON object with `look_ahead_window_end` (RFC3339) and per-event `<calendar_id>#<event_id>` → `updated` timestamp pairs. Recurring event instances key as `<calendar_id>#<event_id>#<occurrence_start>` (requires explicit `singleEvents=true` on every list_events call). Per-event entries skip get_event and re-emission when event.updated matches exactly. Past events (start < now()) are flagged during Step 5i action-file archiving and their cursor keys removed in the Step 11 atomic write. Cursor advances only after all action writes in the run succeed (transactional rule)."
+source-mcp-tools: "list_calendars, list_events, get_event"
+thread-unit-name: event
+bootstrap-window-default-days: "7"
+example-channel: primary
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions derived from Google Calendar connector behaviour:
+  - google-calendar-cursor-evicted      # event evicted from cursor map (start < now())
+  - google-calendar-event-cancelled     # event.status == "cancelled"; action auto-resolved
+  - google-calendar-rate-limited        # 429 from Calendar API; back off and retry next run
+  - google-calendar-event-not-found     # get_event returned 404; event deleted upstream
+  - google-calendar-pagination-aborted  # volume cap (80 events) hit mid-pagination
