@@ -57,6 +57,41 @@ it('plugin.json declares a version', () => {
 });
 `;
 
+// The 2026-06-01 idempotent.test.ts gap: a `*-append.md` override splice lives at
+// the `_overrides/` ROOT, not under `reference/`, so the old `/reference/`-only
+// regex missed it entirely. The broadened predicate must flag it.
+const BRITTLE_APPEND = `import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const OVERRIDES = resolve(__dirname, '..', 'skills/agntux-foo/_overrides');
+it('step-11 documents the lookup heading', () => {
+  const text = readFileSync(resolve(OVERRIDES, 'step-11-append.md'), 'utf8');
+  expect(text).toContain('## Step 11 — agntux-foo _sources');
+});
+`;
+
+// Reading the marketplace CANONICAL template is the ONE allowed anchor — a
+// literal naming a canonical/ path must NOT be flagged even though it ends .md
+// and the file asserts with toContain.
+const CANONICAL_ANCHOR = `import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const ROOT = resolve(__dirname, '..');
+it('canonical sync.md documents lookup-before-write', () => {
+  const text = readFileSync(resolve(ROOT, '../../canonical/prompts/ingest/skills/sync/reference/sync.md'), 'utf8');
+  expect(text).toContain('lookup-before-write');
+});
+`;
+
+// Reading the RENDERED per-plugin tree (no _overrides/) for a short stable token
+// is allowed (golden rule source #3) — only the override SOURCE is brittle.
+const RENDERED_TOKEN = `import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const ROOT = resolve(__dirname, '..');
+it('rendered sync body documents the generic dedup mechanism', () => {
+  const text = readFileSync(resolve(ROOT, 'skills/agntux-foo/reference/sync.md'), 'utf8');
+  expect(text).toContain('lookup-before-write');
+});
+`;
+
 describe("pass15GroundedTests (E30)", () => {
   it("flags a test that greps reference prose with toContain", () => {
     writeTest("draft-flow.test.ts", BRITTLE);
@@ -101,5 +136,29 @@ describe("pass15GroundedTests (E30)", () => {
     pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
     expect(findings).toHaveLength(1);
     expect(findings[0].file).toBe("view-tool/__tests__/vt.test.ts");
+  });
+
+  // ── Broadened predicate (agntux-build 0.26.0) ──────────────────────────────
+
+  it("flags a `*-append.md` override read (the step-11 gap the old regex missed)", () => {
+    writeTest("idempotent.test.ts", BRITTLE_APPEND);
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E30");
+  });
+
+  it("does NOT flag a read of the marketplace CANONICAL template (allowed anchor)", () => {
+    writeTest("canonical-anchor.test.ts", CANONICAL_ANCHOR);
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag a stable-token read of the RENDERED tree (no _overrides/)", () => {
+    writeTest("rendered-token.test.ts", RENDERED_TOKEN);
+    const findings: Finding[] = [];
+    pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
   });
 });

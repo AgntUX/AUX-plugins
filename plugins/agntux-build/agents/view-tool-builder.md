@@ -139,6 +139,36 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
     exposes the field. The `check-view-tool-imports.mjs` gate fails the build on
     a `## `-prefixed extractSection call BEFORE vite.
 
+## Handler must be render-safe — the gate calls it with EMPTY args `{}`
+
+The headless render check (and the host's cold first paint) invokes every view
+tool with **default/empty args `{}`** — so a required arg like `action_id`
+arrives **`undefined`**. The handler MUST render a placeholder payload in that
+state and MUST NEVER throw: a thrown error surfaces to the iframe as
+`tool-call HTTP 500` and fails the render stage. This is the 2026-06-01
+calendar-build regression — `tool-call HTTP 500: {"error":"not-found:
+actions/undefined.md"}` — which cost three validate rounds and forced the
+orchestrator to hand-patch the handler. Author the canonical two-part shape (the
+template `__ui-name__-view.ts` already ships it — clone it, don't re-derive):
+
+1. **Guard the id up front.** `const actionId = typeof args.action_id ===
+   "string" ? args.action_id : "";` then `if (!actionId) return <placeholder>;`
+   — never build `` `actions/${args.action_id}.md` `` from a possibly-undefined
+   id (that's the literal `actions/undefined.md` read).
+2. **Catch-ALL around the read+parse — never rethrow.** Use a bare `catch {
+   return <placeholder>; }`. Do **NOT** narrow on `instanceof ViewToolFsError &&
+   err.code === "not-found"`: the error can cross the render-harness boundary as
+   a plain `Error` (or carry a different fs code — `forbidden`/`transient`), so a
+   narrow guard rethrows it and 500s. agntux-gmail / agntux-slack are the correct
+   precedent (guard the id, then degrade everything to the empty/placeholder
+   shape). The placeholder's `structuredContent` must carry exactly the iframe's
+   keys (the payload-shape test's `render-harness contract` block asserts this).
+
+One more recurring TS pitfall this build class hits: a `.map()`/`.filter()` that
+yields `(T | null)[]` assigned to a `T[]` field is **TS2322** (it cost a round on
+the calendar build: `({ start; end; label } | null)[]` → `CandidateSlot[]`).
+Narrow first — `.filter((x): x is T => x !== null)` — before assigning.
+
 ## `data_paths` — set it explicitly on the descriptor
 
 `ViewToolDescriptor` (in `@agntux/plugin-runtime`) carries an optional

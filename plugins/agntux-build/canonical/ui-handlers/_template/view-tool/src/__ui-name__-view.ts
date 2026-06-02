@@ -47,7 +47,6 @@ import {
   type ViewTool,
   type ViewToolContext,
   type ViewToolModule,
-  ViewToolFsError,
   parseActionFile,
   renderConfirmationText,
 } from "@agntux/plugin-runtime";
@@ -88,30 +87,43 @@ async function handle(
   content: Array<{ type: "text"; text: string }>;
   structuredContent: {{ui-name-pascal}}Payload;
 }> {
-  const path = `actions/${args.action_id}.md`;
+  // ── Render-harness contract (load-bearing) ──────────────────────────────────
+  // The headless render check — and any cold first paint in the real host —
+  // invokes this view with EMPTY args `{}`, so `action_id` arrives `undefined`.
+  // Guard it up front and render placeholders: never build `actions/undefined.md`
+  // and never let a backing-data failure escape as an HTTP 500 to the iframe.
+  // A view tool must ALWAYS render — missing/erroring data degrades to the empty
+  // state, it does not crash the surface. This mirrors the agntux-gmail /
+  // agntux-slack handlers (guard the id, then a catch-all that never rethrows).
+  // Dropping either half is the 2026-06-01 calendar-build render-500 regression
+  // (`tool-call HTTP 500: {"error":"not-found: actions/undefined.md"}`).
+  const actionId = typeof args.action_id === "string" ? args.action_id : "";
+  if (!actionId) {
+    return {
+      content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
+      structuredContent: { action_id: "", title: "", body: "" },
+    };
+  }
   try {
-    const buf = await ctx.fs.readFile(path);
+    const buf = await ctx.fs.readFile(`actions/${actionId}.md`);
     const parsed = parseActionFile(buf.toString("utf8"));
     return {
       content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
       structuredContent: {
-        action_id: args.action_id,
+        action_id: actionId,
         title: (parsed.frontmatter.title as string | undefined) ?? "",
         body: parsed.body ?? "",
       },
     };
-  } catch (err) {
-    if (err instanceof ViewToolFsError && err.code === "not-found") {
-      return {
-        content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
-        structuredContent: {
-          action_id: args.action_id,
-          title: "",
-          body: "",
-        },
-      };
-    }
-    throw err;
+  } catch {
+    // Any failure — missing fixture, an fs error code other than not-found, a
+    // parse error — degrades to the placeholder payload. Do NOT narrow on
+    // `instanceof ViewToolFsError`: the error can cross the render-harness
+    // boundary as a plain Error, so a narrow guard rethrows it → 500.
+    return {
+      content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
+      structuredContent: { action_id: actionId, title: "", body: "" },
+    };
   }
 }
 

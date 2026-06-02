@@ -41,10 +41,12 @@ import type {
   ListWithMetaEntry,
   ViewToolScope,
 } from "@agntux/plugin-runtime";
-// VALUE import (not type-only): the not-found branch must throw the real
-// ViewToolFsError so the handler's `err instanceof ViewToolFsError && err.code
-// === "not-found"` guard fires. A plain `new Error("not-found")` slips past
-// that guard and the missing-file fallback never runs.
+// VALUE import (not type-only): the missing-file fixture throws the real
+// ViewToolFsError("not-found", …) to simulate a realistic absent action file.
+// The handler degrades via a catch-ALL — it does NOT branch on
+// `instanceof ViewToolFsError` — so any thrown error (this one, or a plain
+// Error from a different fs backend) resolves to the placeholder payload
+// instead of escaping as an HTTP 500. See the "render-harness contract" block.
 import { ViewToolFsError } from "@agntux/plugin-runtime";
 import mod from "../src/{{ui-name}}-view.js";
 
@@ -73,10 +75,10 @@ function inMemoryFs(files: Record<string, string>): ViewToolFs {
   return {
     async readFile(path: string) {
       const content = files[path];
-      // Throw the real ViewToolFsError("not-found", …) — handlers branch on
-      // `err instanceof ViewToolFsError && err.code === "not-found"`, so a
-      // plain Error would never trigger the missing-file fallback the third
-      // test exercises.
+      // Throw the real ViewToolFsError("not-found", …) to simulate a missing
+      // action file. The handler's catch-all degrades it to the placeholder
+      // payload; the "render-harness contract" block below also covers the
+      // non-ViewToolFsError throw a narrow `instanceof` guard would 500 on.
       if (content == null) throw new ViewToolFsError("not-found", path);
       return Buffer.from(content, "utf8");
     },
@@ -154,7 +156,10 @@ describe("{{view-tool-name}} payload-shape regression guard", () => {
     // `heavyBody` below does NOT inflate the wire payload in the template
     // handler — the size guard here catches saturation from `title` (which
     // IS forwarded). When you customise the handler to forward the right
-    // fields, update this fixture to exercise your actual heavy paths.
+    // fields, update this fixture to exercise your actual heavy paths — and
+    // if you change which frontmatter field feeds `title`, update the
+    // `expect(sc.title).toBe(heavyTitle)` assertion below to match (it is
+    // grounded in handler output, so it silently breaks if the source moves).
     const heavyTitle = "T".repeat(2000); // exercise long-string path
     const heavyBody = "B".repeat(8000);
     const files = {
@@ -216,6 +221,48 @@ describe("{{view-tool-name}} payload-shape regression guard", () => {
     // documented fallback shape.
     const payloadBytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
     expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+  });
+});
+
+// =============================================================================
+// Render-harness contract — the headless render check invokes every view with
+// EMPTY args `{}` (cold first paint), so `action_id` arrives undefined. The
+// handler MUST render a placeholder payload and MUST NOT throw — a thrown error
+// surfaces to the iframe as `tool-call HTTP 500`. This is the 2026-06-01
+// calendar-build regression (`{"error":"not-found: actions/undefined.md"}`) that
+// cost three validate rounds; these two assertions lock it at the template.
+// =============================================================================
+
+describe("{{view-tool-name}} render-harness contract", () => {
+  it("renders a placeholder for empty args {} (cold render) without throwing", async () => {
+    const result = await viewTool.handle(
+      {} as { action_id: string },
+      makeCtx({}),
+    );
+    const sc = result.structuredContent as Record<string, unknown>;
+    // Placeholder ships only the iframe-rendered keys — never builds
+    // `actions/undefined.md`.
+    for (const k of Object.keys(sc)) {
+      expect(KEPT_KEYS.has(k), `unexpected key "${k}" in placeholder`).toBe(true);
+    }
+    const payloadBytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
+    expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+    expect(Array.isArray(result.content)).toBe(true);
+  });
+
+  it("degrades to a placeholder when ctx.fs throws a NON-ViewToolFsError", async () => {
+    // A different fs backend / the render harness can surface a plain Error
+    // rather than a ViewToolFsError. A handler that narrows on
+    // `instanceof ViewToolFsError` rethrows it → 500. The catch-all absorbs it.
+    const ctx = makeCtx({});
+    ctx.fs.readFile = async () => {
+      throw new Error("boom: backend unavailable");
+    };
+    const result = await viewTool.handle({ action_id: "anything" }, ctx);
+    const sc = result.structuredContent as Record<string, unknown>;
+    const payloadBytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
+    expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+    expect(Array.isArray(result.content)).toBe(true);
   });
 });
 

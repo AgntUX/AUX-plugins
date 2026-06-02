@@ -28,18 +28,23 @@
  *
  * Findings
  * --------
- *   E30 (warning) — a test file both reads a `reference/`-dir `.md` file (per-plugin
- *     prose owned by another author) AND calls `.toContain(...)`. Routed to
- *     `tests-author`. Warning-only: a handful of these greps may legitimately
- *     target a canonical anchor, so we educate rather than block. The message
- *     points at the golden rule's three grounded sources of truth.
+ *   E30 (warning) — a test file both reads a PER-PLUGIN override-source `.md` file
+ *     (under `_overrides/`, or an `*-append.md` splice — prose owned by another
+ *     author and reworded freely) AND calls `.toContain(...)`. Routed to
+ *     `tests-author`. **Severity stays `warning` so repo-level marketplace CI
+ *     doesn't break existing plugins** — but `agntux_validate` escalates E30 to
+ *     BLOCKING in the build flow (see `BLOCKING_WARNING_CODES` in
+ *     validate-plugin.mjs), because a phantom test would otherwise pass lint and
+ *     burn multiple rounds in the tests stage. A literal naming a `canonical/`
+ *     path is exempt (the one allowed anchor). The message points at the golden
+ *     rule's three grounded sources of truth.
  *
  * Scope
  * -----
  *   - Scans `__tests__/**` and `view-tool/__tests__/**` for `*.test.{ts,mts,mjs}`.
  *   - Whole-file match (the `readFileSync(...)` call and its path literal are
  *     routinely split across lines), so the two signals need only co-occur in
- *     the same file. Reports the line of the first reference-prose path literal.
+ *     the same file. Reports the line of the first per-plugin-prose path literal.
  *   - Skips plugins with no test directories.
  */
 
@@ -60,14 +65,26 @@ export interface Finding {
 
 const TEST_DIRS_REL = ["__tests__", "view-tool/__tests__"];
 const TEST_FILE_RE = /\.test\.(?:ts|mts|mjs)$/;
-// A string literal that points at a markdown file under a `reference/` dir —
-// e.g. 'skills/<slug>/_overrides/reference/fetch.md'. The per-plugin override /
-// rendered reference path is the brittle target. A read of the marketplace's
-// CANONICAL `canonical/.../reference/sync.md` would also match, but a plugin's
-// own `__tests__/` reaching into the marketplace canonical tree is vanishingly
-// rare (and the tree may not even exist in a contributor sandbox) — warning-only
-// severity absorbs that edge case.
-const REF_MD_RE = /['"`][^'"`\n]*\/reference\/[^'"`\n]*\.md['"`]/;
+// A string literal that points at a PER-PLUGIN OVERRIDE-SOURCE markdown file —
+// the brittle phantom-contract target. This is the prose ANOTHER specialist
+// (`ingest-prompt-author`) authors and rewords freely. Two shapes, because the
+// override source isn't all under one dir:
+//   • anything under an `_overrides/` dir — covers `_overrides/reference/fetch.md`
+//     (the 2026-06-01 cold-start.test.ts read) AND `_overrides/compose-payload.md`
+//   • an override append splice `*-append.md` — these live at the `_overrides/`
+//     ROOT, NOT under `reference/`, so the old `/reference/`-only regex MISSED
+//     `step-11-append.md` (the 2026-06-01 idempotent.test.ts read).
+// Deliberately NOT matched: a read of the RENDERED tree (`skills/<slug>/SKILL.md`,
+// `skills/<slug>/reference/*.md`) or the marketplace CANONICAL template
+// (`canonical/.../sync.md`). Those are the golden rule's grounded sources #3 — a
+// test may legitimately assert a short STABLE token (`lookup-before-write`,
+// `_sources.json`) from the rendered/canonical body, and `tests-author.md` even
+// documents a verbatim-with-provenance read of `reference/sync.md`. Since E30 now
+// BLOCKS the build flow, flagging only the override SOURCE keeps those legit
+// patterns working while killing the churn. (`canonical/` is excluded via the
+// negative lookahead too, belt-and-suspenders.)
+const PLUGIN_PROSE_MD_RE =
+  /['"`](?![^'"`\n]*canonical\/)[^'"`\n]*(?:_overrides\/[^'"`\n]*\.md|-append\.md)['"`]/;
 const TOCONTAIN_RE = /\.toContain\s*\(/;
 
 /** Collect *.test.* files under a directory, recursively. Never throws. */
@@ -108,12 +125,12 @@ export function pass15GroundedTests(
     } catch {
       continue;
     }
-    if (!TOCONTAIN_RE.test(body) || !REF_MD_RE.test(body)) continue;
-    // Anchor the finding on the first reference-prose path literal.
+    if (!TOCONTAIN_RE.test(body) || !PLUGIN_PROSE_MD_RE.test(body)) continue;
+    // Anchor the finding on the first per-plugin-prose path literal.
     let line: number | undefined;
     const lines = body.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      if (REF_MD_RE.test(lines[i])) {
+      if (PLUGIN_PROSE_MD_RE.test(lines[i])) {
         line = i + 1;
         break;
       }
@@ -126,7 +143,8 @@ export function pass15GroundedTests(
       line,
       message:
         `${path.basename(abs)} asserts \`.toContain(...)\` against a ` +
-        `per-plugin reference markdown file (a \`*/reference/*.md\` read). ` +
+        `per-plugin override-source markdown file (an \`_overrides/**.md\` or ` +
+        `\`*-append.md\` read — prose a different author owns and rewords). ` +
         `This is a phantom-contract test: it greps another author's prose for ` +
         `an invented string, so it fails the gate on wording — not behaviour — ` +
         `and editing the prose to satisfy one such test breaks the next. ` +
