@@ -1,0 +1,11 @@
+{
+  "name": "agntux-google-calendar",
+  "version": "0.1.0",
+  "description": "Daily look-ahead of your calendar with prep context pulled from your AgntUX store.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Daily 04:00"
+}
