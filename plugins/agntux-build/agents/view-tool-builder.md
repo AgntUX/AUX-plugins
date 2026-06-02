@@ -167,7 +167,16 @@ template `__ui-name__-view.ts` already ships it — clone it, don't re-derive):
 One more recurring TS pitfall this build class hits: a `.map()`/`.filter()` that
 yields `(T | null)[]` assigned to a `T[]` field is **TS2322** (it cost a round on
 the calendar build: `({ start; end; label } | null)[]` → `CandidateSlot[]`).
-Narrow first — `.filter((x): x is T => x !== null)` — before assigning.
+**Copy the list-builder idiom from the view-tool template's
+`src/components/main-component.tsx`** (the commented block above `MainComponent`)
+rather than re-deriving it: map to `(T | null)`, build required keys directly,
+assign optional keys **conditionally** (`if (v) o.opt = v;` — never set an
+optional key to `undefined`), then narrow with `.filter((x): x is T => x !== null)`
+**before** assigning to `T[]`. Two hard rules the `check-view-tool-imports.mjs`
+gate now enforces BEFORE vite: (1) **never** append `|| undefined` to an accessor
+call for an object-literal value (`label: safeString(x) || undefined` is the
+banned coercion — it forces a required-but-undefined key, the TS2322/TS2677
+root); (2) narrow the array, don't cast it.
 
 ## `data_paths` — set it explicitly on the descriptor
 

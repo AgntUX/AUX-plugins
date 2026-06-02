@@ -65,26 +65,35 @@ export interface Finding {
 
 const TEST_DIRS_REL = ["__tests__", "view-tool/__tests__"];
 const TEST_FILE_RE = /\.test\.(?:ts|mts|mjs)$/;
-// A string literal that points at a PER-PLUGIN OVERRIDE-SOURCE markdown file —
+// A string literal that points at a PER-PLUGIN OVERRIDE-SOURCE prose file —
 // the brittle phantom-contract target. This is the prose ANOTHER specialist
-// (`ingest-prompt-author`) authors and rewords freely. Two shapes, because the
-// override source isn't all under one dir:
-//   • anything under an `_overrides/` dir — covers `_overrides/reference/fetch.md`
-//     (the 2026-06-01 cold-start.test.ts read) AND `_overrides/compose-payload.md`
+// (`ingest-prompt-author` / `source-semantics-advisor`) authors and rewords
+// freely. Four shapes, because the override source isn't all under one dir AND
+// because — once told "don't grep `_overrides/reference/*.md`" — the model just
+// greps a DIFFERENT prose file the old path-regex missed (the 2026-06-01/02
+// google-calendar build did exactly this):
+//   • anything `.md` under an `_overrides/` dir — covers `_overrides/reference/
+//     fetch.md` (cold-start.test.ts read) AND `_overrides/compose-payload.md`
 //   • an override append splice `*-append.md` — these live at the `_overrides/`
 //     ROOT, NOT under `reference/`, so the old `/reference/`-only regex MISSED
-//     `step-11-append.md` (the 2026-06-01 idempotent.test.ts read).
+//     `step-11-append.md` (idempotent.test.ts read).
+//   • a `.yaml`/`.yml` under `_overrides/` — covers `_overrides/frontmatter.yaml`
+//     (cold-start.test.ts EVADED the `.md`-only regex by `.toContain`-grepping
+//     the frontmatter substitution map, which `ingest-prompt-author` rewords).
+//   • `data/instructions/<slug>.md` — the write-back data contract
+//     (`draft-flow.test.ts` EVADED E30 entirely by grepping THIS instead of the
+//     `_overrides/` prose it was steered off).
 // Deliberately NOT matched: a read of the RENDERED tree (`skills/<slug>/SKILL.md`,
-// `skills/<slug>/reference/*.md`) or the marketplace CANONICAL template
-// (`canonical/.../sync.md`). Those are the golden rule's grounded sources #3 — a
-// test may legitimately assert a short STABLE token (`lookup-before-write`,
-// `_sources.json`) from the rendered/canonical body, and `tests-author.md` even
-// documents a verbatim-with-provenance read of `reference/sync.md`. Since E30 now
-// BLOCKS the build flow, flagging only the override SOURCE keeps those legit
-// patterns working while killing the churn. (`canonical/` is excluded via the
-// negative lookahead too, belt-and-suspenders.)
+// `skills/<slug>/reference/*.md`), structured CONFIG (`plugin.json`,
+// `marketplace/listing.yaml` — the golden rule's grounded source #2), or the
+// marketplace CANONICAL template (`canonical/.../sync.md`, grounded source #3).
+// A test may legitimately assert a short STABLE token from the rendered/canonical
+// body or PARSE a config field. The fix for a flagged `.yaml`/`data/instructions`
+// read is to PARSE the field and assert the value, or ground in listing.yaml's
+// `proposed_schema` — not `.toContain` the prose. (`canonical/` is excluded via
+// the negative lookahead too, belt-and-suspenders.)
 const PLUGIN_PROSE_MD_RE =
-  /['"`](?![^'"`\n]*canonical\/)[^'"`\n]*(?:_overrides\/[^'"`\n]*\.md|-append\.md)['"`]/;
+  /['"`](?![^'"`\n]*canonical\/)[^'"`\n]*(?:_overrides\/[^'"`\n]*\.(?:md|ya?ml)|-append\.md|data\/instructions\/[^'"`\n]*\.md)['"`]/;
 const TOCONTAIN_RE = /\.toContain\s*\(/;
 
 /** Collect *.test.* files under a directory, recursively. Never throws. */
@@ -143,8 +152,9 @@ export function pass15GroundedTests(
       line,
       message:
         `${path.basename(abs)} asserts \`.toContain(...)\` against a ` +
-        `per-plugin override-source markdown file (an \`_overrides/**.md\` or ` +
-        `\`*-append.md\` read — prose a different author owns and rewords). ` +
+        `per-plugin override-source prose file (an \`_overrides/**.{md,yaml}\`, ` +
+        `\`*-append.md\`, or \`data/instructions/<slug>.md\` read — prose a ` +
+        `different author owns and rewords). ` +
         `This is a phantom-contract test: it greps another author's prose for ` +
         `an invented string, so it fails the gate on wording — not behaviour — ` +
         `and editing the prose to satisfy one such test breaks the next. ` +

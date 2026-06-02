@@ -127,6 +127,26 @@ lint **E05** on the very first validate (it cost a round in the 2026-06-01
 calendar build). Derive it from the source slug — the plugin slug minus the
 `agntux-` prefix — which is already kebab-case.
 
+### Edit the scaffold floor — never re-author `developer`/`support` from scratch
+
+`agntux_scaffold` already wrote a **lint-clean `listing.yaml` floor** with valid
+`developer` and `support` blocks. **`Edit` it additively** — inject `tagline`,
+`description`, `categories`, `keywords`, `ui_components`, `supported_prompts`,
+`proposed_schema`, etc. — and **preserve the `developer:` block verbatim** unless
+the contributor supplied a real personal GitHub handle (the default is the org
+handle `agntux`). Re-authoring the whole file from scratch with `Write` is what
+re-introduced the **E05 round** on the 2026-06-01 calendar build.
+
+Two hard rules for the `developer` block (schema is `.strict()` — only these keys
+exist; the linter is the source of truth at `scripts/lint-marketplace-metadata.ts`):
+
+- `developer` allows EXACTLY `{ name, url?, github_handle }`. `github_handle` is
+  **required** — dropping it is `E05 developer.github_handle: Required`.
+- **Never put `email` in `developer`** — it is not an allowed key (`E05`
+  unknown-field). The support email belongs in the top-level `support: { url,
+  email }` block, which the floor already carries. (The calendar build's E05 was
+  exactly `developer.email` + missing `github_handle`.)
+
 ### Required top-level fields
 
 | Field | Type | Constraints |

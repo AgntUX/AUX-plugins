@@ -100,6 +100,39 @@ function parsePayload(toolOutput?: Record<string, unknown>) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// List-builder idiom — copy this when turning `unknown[]` into a typed list.
+//
+// THE TRAP (TS2322 + TS2677, cost a validate round on the 2026-06-02 calendar
+// build): never append `|| undefined` to a string-safe accessor for an
+// OPTIONAL field. `label: str(r.label) || undefined` gives the key a REQUIRED
+// `string | undefined` value. When the `.map()` return type is INFERRED (no
+// `(x): T | null` annotation), the element becomes `{ ...; label: string |
+// undefined }` (label required) — so the `(elem | null)[]` won't assign to
+// `T[]` (TS2322) AND the `.filter((x): x is T)` predicate is rejected (TS2677,
+// because T's optional `label?` is not assignable to that required key). The
+// `check-view-tool-imports` gate now rejects `key: fn(...) || undefined`.
+//
+// THE FIX — map to `(T | null)`, build required keys directly, assign optional
+// keys CONDITIONALLY, then narrow with a type predicate before assigning to
+// `T[]`:
+//
+//   interface Slot { start: string; end: string; label?: string } // label OPTIONAL
+//   const slots: Slot[] = (Array.isArray(raw) ? raw : [])
+//     .map((x): Slot | null => {
+//       if (!x || typeof x !== 'object') return null;
+//       const r = x as Record<string, unknown>;
+//       const slot: Slot = { start: str(r.start), end: str(r.end) }; // required
+//       const label = str(r.label);
+//       if (label) slot.label = label;        // optional: assign ONLY when present
+//       return slot;
+//     })
+//     .filter((s): s is Slot => s !== null && !!s.start && !!s.end); // narrow, THEN assign
+//
+// `str()` here is a string-safe accessor that always returns a string
+// (`typeof v === 'string' ? v : ''`) — never `string | undefined`.
+// ─────────────────────────────────────────────────────────────────────────
+
 /**
  * MainComponent — PRIMARY EDIT POINT
  *

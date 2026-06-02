@@ -119,6 +119,21 @@ they are not judgement calls:
    #3). If you genuinely need an ingest-contract fact, assert it against the
    handler output, a parsed `plugin.json`/`listing.yaml` field, or a canonical
    anchor — never the per-plugin override prose.
+   - **Do NOT try to evade E30 by grepping a DIFFERENT prose file.** As of
+     agntux-build 0.27.0 the gate also flags `.toContain` against
+     **`_overrides/**.yaml`** (e.g. `frontmatter.yaml` — `source-cursor-semantics`
+     and friends are reworded prose, not a contract) and
+     **`data/instructions/<slug>.md`** (the write-back data contract). The
+     2026-06-02 calendar build evaded the old `.md`-only predicate exactly this
+     way: `cold-start.test.ts` grepped `frontmatter.yaml` and `draft-flow.test.ts`
+     grepped `data/instructions/agntux-google-calendar.md`. The correct grounding
+     for a cursor/idempotency/draft fact is **`listing.yaml`'s parsed
+     `proposed_schema`** (`cursor_semantics`, `source_id_format`, `action_classes`
+     — load the YAML and assert the object, per mechanical rule 5) or the
+     **handler's `outputSchema`/`structuredContent`** — both machine-readable and
+     author-stable. agntux-slack's and agntux-gmail's `cold-start.test.ts` already
+     assert `proposed_schema` from `listing.yaml` this way; copy that, not a
+     `.toContain` of the override prose.
 
 ## When to add which test
 

@@ -467,6 +467,46 @@ export function scanBannedConstructs(fileAbs, content, allowedPanelProps) {
     });
   }
 
+  // 1e. `key: accessor(...) || undefined` ban. Coercing a call-expression value
+  //     to `undefined` for an object-literal property is the recurring TS2322/
+  //     TS2677 trap (the 2026-06-01 calendar build: `label: safeString(obj.label)
+  //     || undefined` produced `label: string | undefined` — a REQUIRED-but-
+  //     undefined key, wider than the optional `label?: string` it targets — so
+  //     the `.map((x): T | null)` element stopped satisfying `CandidateSlot` and
+  //     the `x is CandidateSlot` filter predicate became invalid). Under
+  //     `exactOptionalPropertyTypes` an optional field must be OMITTED, never set
+  //     to `undefined`. tsc DOES catch this — but only after the slow vite build —
+  //     so fail it here, fast and legibly. Scan the stripped copy (the
+  //     `|| undefined` is code, not a string). Anchored TWO ways so it fires
+  //     ONLY on a real object-literal key: (a) a CALL expression `ident(...)`
+  //     before `|| undefined` (so a plain-var coercion `description: description
+  //     || undefined` or the JSX attr `min={x || undefined}` is never flagged),
+  //     and (b) a `(?<=[{,]\s*)` lookbehind so the `key:` is in object-literal
+  //     position — a ternary's `cond ? a : fn() || undefined` (the `a :` is not
+  //     preceded by `{`/`,`) is NOT mistaken for a key.
+  const orUndefinedRe =
+    /(?<=[{,]\s*)([A-Za-z_$][\w$]*)\s*:\s*[A-Za-z_$][\w$.]*\s*\((?:[^()]|\([^()]*\))*\)\s*\|\|\s*undefined\b/g;
+  for (const m of scan.matchAll(orUndefinedRe)) {
+    violations.push({
+      kind: "banned-or-undefined-coercion",
+      name: m[1],
+      file: rel,
+      line: lineAt(scan, m.index),
+      detail:
+        `\`${m[1]}: <call>() || undefined\` coerces a value to \`undefined\` for ` +
+        "an object-literal key — the recurring TS2322/TS2677 trap. A safe-string " +
+        "accessor already returns a string, so `|| undefined` only widens it to a " +
+        "required-but-undefined `string | undefined` key. When the enclosing " +
+        "`.map()` return type is INFERRED, that required key stops the element " +
+        "satisfying `T`: the `(elem | null)[] -> T[]` assignment fails TS2322 and " +
+        "the `.filter((x): x is T)` predicate fails TS2677 (T's optional `key?` is " +
+        "not assignable to the required key). Annotate the map return `(x): T | " +
+        "null`, build required keys directly, and assign optional keys " +
+        "CONDITIONALLY: `const o: T = { req }; if (v) o.opt = v;` — clone the " +
+        "list-builder idiom in the view-tool template's main-component.tsx.",
+    });
+  }
+
   // 2. ScrollablePanel prop allow-list. Find each `<ScrollablePanel` opening
   //    tag (word-boundary so `<ScrollablePanelFoo` is ignored), isolate its
   //    opening-tag inner text, and flag any attribute not in the allow-list.

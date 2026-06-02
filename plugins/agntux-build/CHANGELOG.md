@@ -6,6 +6,63 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-06-02
+
+Closes the three round-1 round-eaters that **still recurred on the otherwise-
+successful 0.26.0 google-calendar build** (it queued cleanly in 2 validate
+rounds, but round 1 burned on three authoring defects the gate had to re-catch).
+Each is pushed down to the **scaffold floor / canonical template / static check /
+lint predicate** so round 1 starts clean, instead of relying on prose steers that
+keep failing to take. Post-mortem source: session `b07d4b09`.
+
+### Fixed
+
+- **TS2322/TS2677 `(T|null)[]` → `CandidateSlot[]` recurred despite the 0.26.0
+  prose rule.** The view-tool-builder authored `label: safeString(obj.label) ||
+  undefined`, giving the key a *required* `string | undefined` value. With an
+  **inferred** `.map()` return (no `(x): T | null` annotation) that required key
+  made the element incompatible with the optional `label?: string` — the
+  `(elem|null)[]` → `CandidateSlot[]` assignment failed TS2322 and the
+  `.filter((x): x is T)` predicate failed TS2677. Now fixed deterministically:
+  (1) the canonical view-tool template (`canonical/ui-handlers/_template/
+  view-tool/src/components/main-component.tsx`) ships a **copyable list-builder
+  idiom** (map to `(T|null)`, build required keys directly, assign optional keys
+  conditionally, narrow with a type predicate, *then* assign); (2)
+  `check-view-tool-imports.mjs` gains a **`key: accessor(...) || undefined` ban**
+  that fails fast and legibly BEFORE the slow vite build. The check is anchored
+  on a call-expression value, so a legitimate plain-variable coercion
+  (`description: description || undefined`, the JSX attr `min={x || undefined}`)
+  is never flagged.
+- **E05 `developer.github_handle: Required` + disallowed `developer.email`.** The
+  scaffold already emits a lint-clean `listing.yaml` floor, but manifest-author
+  **overwrote** it from scratch — re-adding `email` (not an allowed `developer`
+  key) and dropping the required `github_handle`. `manifest-author.md` now has an
+  **edit-the-floor rule**: `Edit` the scaffold `listing.yaml` additively, preserve
+  the `developer:`/`support:` blocks verbatim, and never put `email` in
+  `developer` (it lives in top-level `support:`).
+- **Phantom-contract tests evaded E30 by grepping a DIFFERENT prose file.** The
+  pass-15 / E30 predicate only matched `_overrides/**.md` + `*-append.md`, so —
+  once steered off those — the tests-author just `.toContain`-grepped
+  `_overrides/frontmatter.yaml` (`.yaml`, in cold-start) and
+  `data/instructions/<slug>.md` (in draft-flow). The predicate now **also catches
+  `_overrides/**.{yaml,yml}` and `data/instructions/**.md`** reads paired with
+  `.toContain` (still warning-only in repo CI; still blocking inside
+  `agntux_validate`). `tests-author.md` documents both newly-closed evasion paths
+  and points authors at the grounded technique — parse `listing.yaml`'s
+  `proposed_schema` (as agntux-slack/agntux-gmail `cold-start.test.ts` do) or
+  assert handler `outputSchema`/`structuredContent`. Structured config
+  reads (`plugin.json`, `marketplace/listing.yaml`) and rendered-tree / canonical
+  reads stay legal.
+
+### Note
+
+- Surfaced a **submission-pipeline divergence** (tracked separately in
+  plugin-submission-handler): the committed `agntux-google-calendar` carries the
+  *pre-fix* phantom-contract tests while its view-tool source is post-fix — i.e.
+  the bytes on `main` do not match the validated submission `tree_sha256`
+  (`55dbcc32`). Root fix (recompute `tree_sha256` from reconstructed files at
+  intake; reject mismatches) belongs to the submission-handler, not this plugin.
+
 ## [0.26.0] — 2026-06-01
 
 Cuts the two recurring round-eaters that still cost ~5 `agntux_validate` rounds on

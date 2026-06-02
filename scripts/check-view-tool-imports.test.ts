@@ -496,4 +496,72 @@ describe("scanBannedConstructs", () => {
       `<ScrollablePanel title="t">k</ScrollablePanel>`;
     expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
   });
+
+  // --- `key: accessor(...) || undefined` coercion ban (TS2322/TS2677 trap) ---
+
+  it("flags `label: safeString(...) || undefined` (the 2026-06-02 calendar TS2322)", () => {
+    const src =
+      `const slot = {\n` +
+      `  start: safeString(r.start),\n` +
+      `  label: safeString(r.label) || undefined,\n` +
+      `};\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v).toHaveLength(1);
+    expect(v[0].kind).toBe("banned-or-undefined-coercion");
+    expect(v[0].name).toBe("label");
+    expect(v[0].line).toBe(3);
+  });
+
+  it("flags a dotted/nested-arg accessor call coerced to undefined", () => {
+    const src = `const o = { label: str(get(r.label)) || undefined };\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v.some((x: { kind: string }) => x.kind === "banned-or-undefined-coercion")).toBe(true);
+  });
+
+  it("does NOT flag a plain-variable coercion `description: description || undefined`", () => {
+    // Legitimate: building optional args where `undefined` means "omit"; the
+    // value is a bare identifier (no call), so it is NOT the typed-list trap.
+    const src = `const args = { title: t, description: description || undefined };\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("does NOT flag a JSX attribute `min={minValue || undefined}`", () => {
+    const src = `export const A = () => <input min={minValue || undefined} />;\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("does NOT flag `|| undefined` mentioned only in a comment or string", () => {
+    const src =
+      `// never write label: safeString(x) || undefined for an optional key\n` +
+      `const help = "label: fn() || undefined is the TS2322 trap";\n` +
+      `const o = { start: safeString(r.start) };\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("does NOT flag a ternary `cond ? a : fn() || undefined` (not an object key)", () => {
+    // The `:` here is a ternary alternative, not an object-literal key — the
+    // `(?<=[{,]\\s*)` lookbehind excludes it (the candidate `a` is preceded by
+    // `? `, not `{`/`,`). Without the lookbehind this was a false positive.
+    const src = `const z = cond ? a : fn() || undefined;\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("does NOT flag a ternary nested inside an object value", () => {
+    const src = `const o = { label: cond ? a : compute() || undefined };\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
+
+  it("still flags the real key on a multi-property object literal (lookbehind via `,`)", () => {
+    const src = `const o = { start: str(r.start), label: safeString(r.label) || undefined };\n`;
+    const v = scanBannedConstructs("/p/App.tsx", src, props);
+    expect(v).toHaveLength(1);
+    expect(v[0].name).toBe("label");
+  });
+
+  it("does NOT flag a 2-deep nested-call arg (documented depth limit; tsc backstops)", () => {
+    // The arg-paren matcher handles one level of nesting; `a(b(c(d)))` is two.
+    // Pinned so a future regex tweak can't silently change the boundary.
+    const src = `const o = { label: a(b(c(d))) || undefined };\n`;
+    expect(scanBannedConstructs("/p/App.tsx", src, props)).toHaveLength(0);
+  });
 });

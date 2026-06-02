@@ -9023,7 +9023,7 @@ import * as fs9 from "node:fs";
 import * as path9 from "node:path";
 var TEST_DIRS_REL = ["__tests__", "view-tool/__tests__"];
 var TEST_FILE_RE = /\.test\.(?:ts|mts|mjs)$/;
-var PLUGIN_PROSE_MD_RE = /['"`](?![^'"`\n]*canonical\/)[^'"`\n]*(?:_overrides\/[^'"`\n]*\.md|-append\.md)['"`]/;
+var PLUGIN_PROSE_MD_RE = /['"`](?![^'"`\n]*canonical\/)[^'"`\n]*(?:_overrides\/[^'"`\n]*\.(?:md|ya?ml)|-append\.md|data\/instructions\/[^'"`\n]*\.md)['"`]/;
 var TOCONTAIN_RE = /\.toContain\s*\(/;
 function collectTestFiles(dir, out) {
   let entries;
@@ -9070,7 +9070,7 @@ function pass15GroundedTests(pluginSlug, pluginDir, _repoRoot, findings) {
       plugin: pluginSlug,
       file: path9.relative(pluginDir, abs),
       line,
-      message: `${path9.basename(abs)} asserts \`.toContain(...)\` against a per-plugin override-source markdown file (an \`_overrides/**.md\` or \`*-append.md\` read \u2014 prose a different author owns and rewords). This is a phantom-contract test: it greps another author's prose for an invented string, so it fails the gate on wording \u2014 not behaviour \u2014 and editing the prose to satisfy one such test breaks the next. Ground assertions in one of the three stable sources instead: (1) the handler's actual output (call viewTool.handle(args, ctx) and assert the real structuredContent keyset/byte size), (2) a declared machine-readable field (inputSchema/outputSchema/data_paths, or a value in plugin.json / listing.yaml), or (3) a phrase that lives in the CANONICAL sync.md template (never a per-plugin override phrasing). See plugins/agntux-build/agents/tests-author.md \u2192 the golden rule.`
+      message: `${path9.basename(abs)} asserts \`.toContain(...)\` against a per-plugin override-source prose file (an \`_overrides/**.{md,yaml}\`, \`*-append.md\`, or \`data/instructions/<slug>.md\` read \u2014 prose a different author owns and rewords). This is a phantom-contract test: it greps another author's prose for an invented string, so it fails the gate on wording \u2014 not behaviour \u2014 and editing the prose to satisfy one such test breaks the next. Ground assertions in one of the three stable sources instead: (1) the handler's actual output (call viewTool.handle(args, ctx) and assert the real structuredContent keyset/byte size), (2) a declared machine-readable field (inputSchema/outputSchema/data_paths, or a value in plugin.json / listing.yaml), or (3) a phrase that lives in the CANONICAL sync.md template (never a per-plugin override phrasing). See plugins/agntux-build/agents/tests-author.md \u2192 the golden rule.`
     });
   }
 }
