@@ -229,6 +229,39 @@ export function parseConsoleErrors(text) {
   }
 }
 
+/**
+ * Scan harness `out` for the render CLI's `tool error: …` line and lift the
+ * ACTIONABLE detail into `error_message`. When a view-tool's tool-call handler
+ * throws, the host-renderer returns `HTTP <status>: {"error":"<detail>"}` and the
+ * CLI prints `tool error: tool-call HTTP 500: {"error":"not-found:
+ * actions/undefined.md"}`. The generic console line the iframe logs ("Failed to
+ * load resource … 500") wins the `parseConsoleErrors` branch and buries the
+ * `actions/undefined.md` detail in `stdout_tail` — so the specialist sees only a
+ * 500, not WHAT 500'd. This hoists the JSON body's `error` field (falling back to
+ * the whole `tool error:` line) into `error_message`. Bounded + never-throws.
+ * Returns `{}` when no `tool error:` line is present.
+ */
+export function parseToolError(text) {
+  let s = text == null ? "" : String(text);
+  if (!s) return {};
+  if (s.length > PARSE_ERROR_MAX_CHARS) s = s.slice(0, PARSE_ERROR_MAX_CHARS);
+  try {
+    const m = s.match(/^tool error:\s*(.*)$/m);
+    if (!m) return {};
+    const line = m[1].trim();
+    // Prefer the JSON response body's `error` field (the real cause); else the
+    // whole line (e.g. a non-JSON `tool-call HTTP 500: …`). Match the `error`
+    // field anywhere in the (already `tool error:`-scoped) line rather than
+    // requiring it to be the ONLY key, so a richer host envelope like
+    // `{"error":"…","meta":{…}}` still yields the actionable detail.
+    const body = line.match(/"error"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const error_message = body ? body[1] : line;
+    return { error_message, tool_error: line };
+  } catch {
+    return {};
+  }
+}
+
 export function parseFirstError(text) {
   let s = text == null ? "" : String(text);
   if (!s) return {};
@@ -823,16 +856,33 @@ export async function runValidation({
           ? run("npm", ["run", "lint:marketplace", "--", ...lintArgs], tc.base, { capture: true })
           : run("node", [tc.lintEntry, ...lintArgs], tc.base, { capture: true });
       process.stderr.write(r.stderr);
-      if (r.status !== 0) {
-        // --json emits one finding per stdout line ({code,severity,file,line,
-        // message}). Parse it so the fix loop can surface EACH finding's
-        // file+message AND route each code to its owning specialist — instead of
-        // collapsing the whole stage to a single "codes: E05,E15" string routed
-        // to one specialist (which left the E05 owner, manifest-author, never
-        // dispatched when E05 co-occurred with E15).
-        const findings = parseLintFindings(r.stdout);
+      // --json emits one finding per stdout line ({code,severity,file,line,
+      // message}) — including warnings, even on a status-0 (passing) run. The
+      // linter sets a non-zero exit ONLY on `severity:"error"` findings, so a
+      // warning-only code never trips r.status. A small set of warning codes are
+      // nonetheless BLOCKING in the build flow (NOT in repo CI): E30, the
+      // grounded-tests guard. A phantom-contract test would otherwise sail past
+      // lint and burn multiple rounds in the tests stage re-aligning prose. Treat
+      // those as a stop here while leaving the linter's own exit code (and the
+      // repo-level marketplace lint) unchanged.
+      const findings = parseLintFindings(r.stdout);
+      const blockingWarnings = findings.filter(
+        (f) => f.severity === "warning" && BLOCKING_WARNING_CODES.has(f.code),
+      );
+      if (r.status !== 0 || blockingWarnings.length) {
+        // Parse it so the fix loop can surface EACH finding's file+message AND
+        // route each code to its owning specialist — instead of collapsing the
+        // whole stage to a single "codes: E05,E15" string routed to one
+        // specialist (which left the E05 owner, manifest-author, never dispatched
+        // when E05 co-occurred with E15).
         const errs = findings.filter((f) => f.severity !== "warning");
-        const used = errs.length ? errs : findings;
+        // The punch-list = every hard error PLUS the blocking warnings. When the
+        // linter passed (status 0) but a blocking warning fired, the list is just
+        // those warnings.
+        const used =
+          errs.length || blockingWarnings.length
+            ? [...errs, ...blockingWarnings]
+            : findings;
         const lint_findings = used.map((f) => ({
           code: f.code,
           severity: f.severity,
@@ -1353,6 +1403,15 @@ export function parseLintFindings(stdout) {
   return out;
 }
 
+/**
+ * Lint codes that are `severity:"warning"` in the marketplace linter (so they do
+ * NOT fail repo-level CI) but are nonetheless BLOCKING inside `agntux_validate`'s
+ * build flow. E30 (grounded-tests / phantom-contract guard) is here: catching it
+ * at the lint stage — before vitest runs — converts what used to be multiple
+ * rounds of test-assertion churn into one actionable stop routed to tests-author.
+ */
+export const BLOCKING_WARNING_CODES = new Set(["E30"]);
+
 /** Map ONE lint code to its owning specialist for the fix loop. */
 export function routeFromLintCode(code) {
   if (!code) return "manifest-author";
@@ -1476,6 +1535,11 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
           _stderr_full: out,
           _stdout_full: r.stdout,
           ...parseConsoleErrors(out),
+          // A generic "Failed to load resource … 500" console line wins above,
+          // but if the render ALSO printed a `tool error:` line, its JSON body
+          // (e.g. `not-found: actions/undefined.md`) is the real cause — let it
+          // override error_message while keeping the console_errors array.
+          ...parseToolError(out),
         },
       });
     }
@@ -1491,6 +1555,9 @@ function runRenderGate(slug, pluginDir, { installBrowser = true } = {}) {
           _stderr_full: out,
           _stdout_full: r.stdout,
           ...parseFirstError(out),
+          // The JSON response body (`{"error":"…"}`) is the actionable cause —
+          // override any compiler-shaped guess from parseFirstError.
+          ...parseToolError(out),
         },
       });
     }

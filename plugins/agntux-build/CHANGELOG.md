@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-06-01
+
+Cuts the two recurring round-eaters that still cost ~5 `agntux_validate` rounds on
+the (otherwise successful) 0.25.0 google-calendar build — fixed at the **template
+and gate** so they can't recur per-plugin, plus two smaller DX wins.
+
+### Fixed
+
+- **View-tool render 500 on empty render-harness args (cost ~3 rounds + an
+  orchestrator hand-patch).** The headless render check invokes every view with
+  empty args `{}`, so `action_id` arrived `undefined`, the handler read
+  `actions/undefined.md`, and an error that was not a not-found `ViewToolFsError`
+  (it can cross the harness boundary as a plain `Error`) re-threw → `tool-call
+  HTTP 500`. The scaffold **template** (`canonical/ui-handlers/_template/view-tool/
+  src/__ui-name__-view.ts`) now guards the id up front and uses a catch-ALL that
+  never rethrows — a view always renders placeholders, never 500s — mirroring the
+  shipped agntux-gmail / agntux-slack handlers. `view-tool-builder` gains a
+  "render-harness contract" rule (empty-args + catch-all + the `(T|null)[]→T[]`
+  TS2322 narrowing), and the template's `payload-shape.test.ts` adds two
+  render-harness regression tests (empty `{}` args; a non-`ViewToolFsError` throw)
+  that lock the fix.
+- **Brittle phantom-contract test churn (3 validate rounds of "re-align
+  assertions").** Generated `cold-start`/`idempotent` tests grepped another
+  author's override prose (`_overrides/reference/fetch.md`, `step-11-append.md`)
+  with `.toContain(...)`. The pass-15 / E30 guard MISSED `*-append.md` (it only
+  matched `/reference/` paths) **and** was warning-only, so it never blocked. E30's
+  predicate now also catches `_overrides/**.md` and `*-append.md` reads (excluding
+  the allowed `canonical/` anchor and rendered-tree reads), and `agntux_validate`
+  now treats **E30 as blocking** (repo CI stays warning) via a new
+  `BLOCKING_WARNING_CODES` set — a phantom-contract test fails the lint stage
+  *before* vitest runs, so it's fixed once instead of churning.
+
+### Changed (DX)
+
+- **Render HTTP-500 body hoisted into the structured error.** When a view's
+  tool-call handler 500s, the actionable response body (e.g. `not-found:
+  actions/undefined.md`) was buried in `stdout_tail` while `error_message` showed
+  only a generic "Failed to load resource … 500". A new `parseToolError` helper
+  lifts the `{"error":"…"}` body into `error_message` so the specialist sees *what*
+  500'd.
+- **`ingest-prompt-author` told which appends feed `reference/sync.md`.** Every
+  `step-*`/`bounded-lists`/`out-of-scope`/`tool-surface` append splices into
+  `sync.md` (only `honesty-append.md` does not), so their combined length counts
+  against the 600-line cap — sum them and keep under ~120 to avoid the "trim
+  sync.md" round.
+
 ## [0.25.0] — 2026-06-01
 
 Fixes the defects behind the **7-round** google-calendar build on 0.24.0. The

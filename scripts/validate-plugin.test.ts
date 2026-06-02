@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   parseConsoleErrors,
+  parseToolError,
   parseVitestJsonFailures,
   buildStageResults,
   buildSummary,
   routeFromLintCode,
   parseLintFindings,
   lintArgsFor,
+  BLOCKING_WARNING_CODES,
   // @ts-expect-error — .mjs has no .d.ts
 } from "./validate-plugin.mjs";
 // The CLI-side printer + cap, imported to prove the printer↔parser contract
@@ -63,6 +65,75 @@ describe("parseConsoleErrors", () => {
       (_, i) => `  console error: e${i}`,
     ).join("\n");
     expect(parseConsoleErrors(out).console_errors).toHaveLength(20);
+  });
+});
+
+describe("parseToolError (render HTTP-500 body hoist)", () => {
+  // The exact line the render CLI printed on the 2026-06-01 calendar build, where
+  // the schedule view's handler 500'd on `actions/undefined.md`. The actionable
+  // detail must reach error_message, not stay buried in stdout_tail.
+  const TOOL_ERR =
+    'tool error: tool-call HTTP 500: {"error":"not-found: actions/undefined.md"}';
+
+  it("lifts the JSON body's error field into error_message", () => {
+    const r = parseToolError(`[FAIL] schedule_view  state=error\n${TOOL_ERR}\n`);
+    expect(r.error_message).toBe("not-found: actions/undefined.md");
+    expect(r.tool_error).toBe(
+      'tool-call HTTP 500: {"error":"not-found: actions/undefined.md"}',
+    );
+  });
+
+  it("falls back to the whole line when the body is not JSON", () => {
+    const r = parseToolError("tool error: tool-call HTTP 503: upstream down\n");
+    expect(r.error_message).toBe("tool-call HTTP 503: upstream down");
+  });
+
+  it("lifts the error field even when the envelope carries sibling keys", () => {
+    // A richer host envelope (`{"error":"…","meta":{…}}`) must still yield the
+    // actionable detail, not degrade to the whole line.
+    const r = parseToolError(
+      'tool error: tool-call HTTP 500: {"error":"not-found: actions/x.md","meta":{"k":1}}\n',
+    );
+    expect(r.error_message).toBe("not-found: actions/x.md");
+  });
+
+  it("preserves an escaped quote inside the JSON error body", () => {
+    const r = parseToolError(
+      'tool error: tool-call HTTP 500: {"error":"bad \\"quote\\" here"}\n',
+    );
+    expect(r.error_message).toBe('bad \\"quote\\" here');
+  });
+
+  it("returns {} when there is no `tool error:` line", () => {
+    expect(parseToolError("[PASS] view  consoleErrors=0\n")).toEqual({});
+    expect(parseToolError("")).toEqual({});
+    expect(parseToolError(null)).toEqual({});
+  });
+
+  it("overrides a generic console-error message when spread after parseConsoleErrors", () => {
+    // This mirrors the render-stage extra: {...parseConsoleErrors, ...parseToolError}
+    // ordering — the generic 'Failed to load resource … 500' must lose to the
+    // actionable tool-error body, while the console_errors array survives.
+    const out = [
+      "  console error: Failed to load resource: the server responded with a status of 500 (Internal Server Error)  @ http://localhost:1/api/tool-call:0:0",
+      TOOL_ERR,
+    ].join("\n");
+    const merged = { ...parseConsoleErrors(out), ...parseToolError(out) };
+    expect(merged.error_message).toBe("not-found: actions/undefined.md");
+    expect(merged.console_errors).toHaveLength(1);
+  });
+});
+
+describe("BLOCKING_WARNING_CODES", () => {
+  it("escalates E30 (grounded-tests) to blocking inside the build flow", () => {
+    expect(BLOCKING_WARNING_CODES.has("E30")).toBe(true);
+  });
+  it("does not escalate unrelated warning codes", () => {
+    expect(BLOCKING_WARNING_CODES.has("E25")).toBe(false);
+    expect(BLOCKING_WARNING_CODES.has("E28")).toBe(false);
+  });
+  it("locks the exact set membership (an accidental extra entry must fail)", () => {
+    expect([...BLOCKING_WARNING_CODES].sort()).toEqual(["E30"]);
   });
 });
 

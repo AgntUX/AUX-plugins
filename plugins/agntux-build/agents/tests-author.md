@@ -102,16 +102,23 @@ they are not judgement calls:
    `listing.yaml` field, `js-yaml`-load it and assert on the object
    (`expect(listing.ui_components).toHaveLength(2)`), never `/^ux_components:/m` —
    a text regex both hardcodes the (wrong) field name and is brittle to formatting.
-6. **NEVER `toContain` a `reference/*.md` body — the gate flags it (E30).** A test
-   that does `readFileSync('skills/{slug}/_overrides/reference/<file>.md').toContain('…')`
-   is the exact phantom-contract that burned four validate rounds on the calendar
-   build (`draft-flow.test.ts` and `thread-association.test.ts` both grepped the same
-   `fetch.md` for different invented strings, so fixing one broke the other). The
-   marketplace linter's **pass 15 (E30, warning, routed to you)** detects this
-   pattern mechanically. If you genuinely need an ingest-contract fact, assert it
-   against the handler output, a parsed `plugin.json`/`listing.yaml` field, or a
-   CANONICAL `sync.md` anchor (golden rule, sources 1–3) — never the per-plugin
-   reference prose.
+6. **NEVER `toContain` an `_overrides/**.md` or `*-append.md` body — the gate
+   BLOCKS the build on it (E30).** A test that does
+   `readFileSync('skills/{slug}/_overrides/reference/<file>.md').toContain('…')`
+   **or** `readFileSync('…/_overrides/step-11-append.md').toContain('…')` is the
+   exact phantom-contract that burned validate rounds on every calendar build:
+   `cold-start.test.ts` grepped `fetch.md` and `idempotent.test.ts` grepped
+   `step-11-append.md` for invented strings, so editing the prose to satisfy one
+   broke the next. The marketplace linter's **pass 15 (E30)** detects this
+   mechanically and is routed to you. **As of agntux-build 0.26.0, E30 is BLOCKING
+   inside `agntux_validate`** (it stays a warning in repo CI) — a phantom-contract
+   test now fails the lint stage *before* vitest runs, so you fix it once instead
+   of churning. The override-SOURCE files (`_overrides/`, `*-append.md`) are the
+   flagged target; reading the RENDERED `skills/{slug}/reference/*.md` for a short
+   stable token, or the CANONICAL `sync.md`, is still allowed (golden rule, source
+   #3). If you genuinely need an ingest-contract fact, assert it against the
+   handler output, a parsed `plugin.json`/`listing.yaml` field, or a canonical
+   anchor — never the per-plugin override prose.
 
 ## When to add which test
 

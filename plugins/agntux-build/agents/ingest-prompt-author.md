@@ -147,6 +147,16 @@ prose inline. Write the minimum that changes behavior; push anything longer
 into a wholesale `_overrides/reference/{name}.md` replacement of a sibling
 detail file (those keep the 500-line cap each) rather than fattening sync.md.
 
+**Know which appends land in sync.md.** Almost every marker splices into
+`reference/sync.md`, so its append counts against that 600-line cap:
+`bounded-lists`, `out-of-scope`, `tool-surface`, and **every** `step-*`
+(`step-0, step-2, step-4, step-6, step-7, step-8, step-8-signals, step-8a,
+step-10, step-11`). The ONLY append that lands elsewhere is `honesty-append.md`
+(→ `reference/honesty.md`). Before finishing, mentally **sum the line counts of
+all your sync.md-bound `*-append.md` files** and keep the total under ~120 — if
+you're over, the calendar build's "trim sync.md" round repeats. Anything bulky
+belongs in a wholesale `_overrides/reference/{name}.md` detail file instead.
+
 Real examples to copy from:
 - `plugins/agntux-slack/skills/agntux-slack/_overrides/step-2-append.md`
 - `plugins/agntux-slack/skills/agntux-slack/_overrides/step-6-append.md`
