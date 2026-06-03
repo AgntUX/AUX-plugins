@@ -135,8 +135,18 @@ describe("agntux-core skills directory structure", () => {
     it("frontmatter declares argument-hint enumerating every sub-command", () => {
       const fm = readFrontmatter(skillPath);
       expect(fm["argument-hint"]).toBeTruthy();
+      // Parse the bracketed, pipe-delimited option list so the `triage`
+      // command is distinguished from `triage-digest` (a plain substring
+      // match can't tell them apart — `triage` is a prefix of the other).
+      const m = fm["argument-hint"]!.match(/\[([^\]]+)\]/);
+      expect(
+        m,
+        "argument-hint should contain a [a|b|…] option list",
+      ).toBeTruthy();
+      const options = m![1].split("|").map((s) => s.trim());
       for (const sub of [
         "onboard",
+        "triage",
         "profile",
         "schema",
         "teach",
@@ -146,8 +156,8 @@ describe("agntux-core skills directory structure", () => {
         "triage-digest",
       ]) {
         expect(
-          fm["argument-hint"]!.includes(sub),
-          `argument-hint should mention ${sub}`,
+          options.includes(sub),
+          `argument-hint should list ${sub} as an option`,
         ).toBe(true);
       }
     });
@@ -204,6 +214,31 @@ describe("agntux-core skills directory structure", () => {
       // missing user.md to /agntux onboard, which is wrong on an
       // unattended fire. The reason has to live in the prompt.
       expect(skillSrc).toMatch(/unattended|no user present|silent/i);
+    });
+  });
+
+  describe("/agntux triage interactive command wiring (10.3.0)", () => {
+    // Regression guard for the 10.3.0 change that made `/agntux triage` a
+    // first-class, deterministic command instead of relying on the host
+    // inferring "what's hot" / "show triage" from natural language.
+    const skillSrc = readFileSync(join(AGNTUX_SKILL_DIR, "SKILL.md"), "utf-8");
+
+    it("routing table has a `triage` row that invokes agntux_core_triage_view", () => {
+      expect(skillSrc).toMatch(
+        /\|\s*`triage`\s*\|[\s\S]*?agntux_core_triage_view/,
+      );
+    });
+
+    it("triage is NOT backed by a reference/triage.md resource (it calls the tool directly)", () => {
+      expect(existsSync(join(REFERENCE_DIR, "triage.md"))).toBe(false);
+      // The prose may mention the path to explain its absence; what must
+      // never appear is a loadable markdown link `](reference/triage.md)`.
+      expect(skillSrc).not.toMatch(/\]\(reference\/triage\.md\)/);
+    });
+
+    it("triage runs the full precondition check ladder (it is an interactive command)", () => {
+      expect(skillSrc).toMatch(/full check ladder/);
+      expect(skillSrc).toMatch(/`triage`,[\s\S]*?full check ladder/);
     });
   });
 

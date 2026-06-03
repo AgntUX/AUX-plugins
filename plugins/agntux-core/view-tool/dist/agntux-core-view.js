@@ -919,7 +919,7 @@ async function handleTriageView(_args, ctx) {
 var triageView = {
   descriptor: {
     name: "agntux_core_triage_view",
-    description: "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments \u2014 call with `{}`. Use when the user types `/agntux triage-digest`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+    description: "Render the AgntUX triage UI populated with priority-sorted open action items and the most recently-handled items. Zero arguments \u2014 call with `{}`. Use when the user types `/agntux triage`, or asks any of: 'show triage' / 'what's hot' / 'what should I look at' / 'what's on my plate' / 'triage me' / 'show me my action items' / 'what should I do today' / 'what do I need to handle'. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
     inputSchema: {
       type: "object",
       properties: {},

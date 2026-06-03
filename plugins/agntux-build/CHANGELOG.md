@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-06-03
+
+### Changed
+
+- **Generated marketplace copy is now plain-language by default.** Added a
+  "Voice & audience" rule to the `manifest-author` agent (lead with the
+  benefit, keep it short, avoid jargon like "ingest" / "cursor" / "MCP" /
+  "knowledge store" / "$ARGUMENTS") with ✓/✗ examples, and replaced the
+  scaffold's `listing.yaml` placeholder tagline/description with concise,
+  jargon-free examples. New plugins now start from non-technical copy instead
+  of "Ingests X into the AgntUX knowledge store."
+- **Plain-language listing and README for agntux-build itself.** Dropped
+  "connector", "write-back UI", "headed preview", "sync iteration", "design
+  tokens", and "knowledge workers" in favour of everyday words.
+
 ## [0.28.0] — 2026-06-02
 
 Fixes the **stale marketplace existence-check** that let stage 1 offer to build a

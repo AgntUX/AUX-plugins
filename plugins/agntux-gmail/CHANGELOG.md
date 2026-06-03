@@ -6,6 +6,15 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.2.4] — 2026-06-03
+
+### Changed
+
+- **Plain-language listing and README copy.** Rewrote the tagline, description,
+  `supported_prompts`, and README intro for non-technical readers — dropped
+  internal terms ("knowledge store", "ingest pass", "first token", "cursor",
+  "entities", `<thread_id>`). No behaviour change.
+
 ## [4.2.3] — 2026-05-28
 
 ### Fixed

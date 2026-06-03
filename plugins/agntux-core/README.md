@@ -1,43 +1,39 @@
 # AgntUX Core
 
-The AgntUX orchestrator. Triages action items and queries your knowledge store.
+Your AgntUX home base. Run `/agntux onboard` to get set up, then `/agntux triage` to see your action items.
 
 ## What it does
 
-AgntUX Core is the foundation plugin that all other AgntUX plugins build upon. It maintains
-your knowledge store, triages action items according to your preferences, and coordinates
-between ingest plugins to keep your data fresh and organized.
+AgntUX Core is the first plugin you install — every other AgntUX plugin builds on it.
+It keeps your information organized, shows your action items in priority order, and keeps
+everything current as your other plugins bring in new updates.
 
 ## Install
 
-Install AgntUX Core first before installing any other AgntUX plugin. It provides the
-shared knowledge store and orchestration layer that other plugins depend on.
+Install AgntUX Core first, before any other AgntUX plugin — everything else builds on it.
 
-After installing, run `/agntux onboard` once to create your `<agntux project root>/user.md` profile
-and bootstrap the tenant schema.
+After installing, run `/agntux onboard` once. That sets up your profile and gets
+everything ready. Run it again any time you install a new plugin.
 
 ## Quickstart
 
-agntux-core ships a single entry-point skill — `/agntux`. Sub-commands route
-to the right behaviour by reading the first token of `$ARGUMENTS`; bare
-`/agntux` defaults to ask-mode and infers from the natural-language prompt.
+AgntUX gives you one command — `/agntux` — that handles everything. Type what you
+want after it, and AgntUX figures out the rest. The two you'll use most are at the
+top of this list:
 
-| Command | Purpose |
+| Command | What it does |
 |---|---|
-| `/agntux onboard` | First-run interview + schema bootstrap. Run once. Re-runs walk newly-installed plugins. |
-| `/agntux profile` | Edit preferences, glossary, identity, sources. |
-| `/agntux teach {plugin-slug}` | Capture per-plugin rules ("never raise email from X"). |
-| `/agntux schema [review\|edit] [plugin-slug]` | Review or edit the tenant schema. |
-| `/agntux sync {plugin-slug}` | Manually trigger an ingest pass for an installed plugin (bare names like `slack` expand). |
-| `/agntux ask "..."` | Catch-all for natural-language queries and inline status edits. |
-| `/agntux feedback-review` | Background pattern detection over resolved actions (scheduled task target). |
-| `/agntux triage-digest` | Daily text-digest fallback when the interactive triage UI doesn't render (scheduled task target). |
+| `/agntux onboard` | **Do this first** — and again any time you install a new plugin. Sets up your profile and gets everything ready. |
+| `/agntux triage` | **Your everyday command.** Shows your action-items list, sorted by what matters most. You'll use this all day. |
+| `/agntux profile` | Edit your preferences, glossary, and sources. |
+| `/agntux teach {plugin}` | Set a rule for one plugin (e.g. "never flag email from X"). |
+| `/agntux schema` | Review or adjust how your information is organized. |
+| `/agntux sync {plugin}` | Check a connected plugin for new updates now (e.g. `/agntux sync slack`). |
+| `/agntux ask "..."` | Ask a question about your information, or update an item. |
 
-You can also speak naturally — Claude auto-dispatches to `/agntux` from
-its description, and the router infers the right sub-command from the
-prompt (e.g. saying "show triage" or "what's hot" invokes the
-interactive triage UI directly via the `agntux_core_triage_view` MCP
-tool — no skill in the loop).
+You can also just talk to AgntUX. Saying "show my action items", "what's hot",
+or "what should I look at" opens the same list as `/agntux triage` — but the
+command is the reliable way to get there, so reach for it first.
 
 ## Recommended scheduled tasks
 
@@ -46,36 +42,29 @@ tool — no skill in the loop).
 | Daily action-item digest | `/agntux triage-digest` | Daily 08:00 |
 | Daily feedback review | `/agntux feedback-review` | Daily 16:00 |
 
-## UI
+## The triage view
 
-agntux-core renders one MCP App: `ui://triage`. Saying "what's hot",
-"show triage", or "what should I look at" triggers the host's tool
-selector to invoke `agntux_core_triage_view` directly — that tool's
-description carries the trigger phrases. The UI shows priority-sorted
-open action items with inline mutation controls and per-item
-suggested-action buttons that route into source plugins via
-`sendFollowUpMessage`. The component runs server-side reads against
-`<agntux project root>/actions/`; arguments to the view tool are
-zero-required so the LLM spends ~no tokens on tool args.
+Running `/agntux triage` (or saying "what's hot" / "show my action items")
+opens your action-items list. It shows your open items in priority order,
+with buttons to snooze, dismiss, or mark each one done — plus per-item
+shortcuts that hand off to the right plugin (reply in Slack, draft in
+Gmail, and so on).
 
-For scheduled-background fires (Daily 08:00 by default), the
-`/agntux triage-digest` sub-command emits a text digest via the same
-data source — no UI, no audience required.
+For a scheduled morning summary, the `/agntux triage-digest` task sends a
+plain-text version of the same list — handy when no one's at the screen.
 
-The previous `entity-browser` UI handler was retired in 5.0.0. Entity
-navigation now goes through `/agntux ask` (e.g. "tell me about
-person/avery-rivera").
+The old entity-browser screen was retired in 5.0.0. To look something up,
+just ask — e.g. `/agntux ask "tell me about Avery Rivera"`.
 
 ## Configuration
 
-Configure your preferences in `<agntux project root>/user.md`. This
-file controls how the orchestrator prioritizes action items and manages
-your workflow. Run `/agntux profile` to edit it.
+Run `/agntux profile` to set your preferences — these control how AgntUX
+prioritizes your action items and tailors things to you.
 
 ## Limitations
 
-- Requires at least one ingest plugin to populate the knowledge store with real data.
-- Knowledge store lives on your local machine; no cloud sync at MVP.
+- Needs at least one other AgntUX plugin (like Slack or Gmail) to bring in real data.
+- Your information stays on your own machine — there's no cloud sync yet.
 
 ## Hooks
 

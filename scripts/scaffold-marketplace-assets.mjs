@@ -382,11 +382,14 @@ if (!existsSync(LISTING_DEST)) {
     `# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):\n` +
     `# productivity, communication, crm, project-management, developer-tools,\n` +
     `# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).\n` +
-    `tagline: "${floorDisplay}, surfaced as AgntUX entities."  # ≤80 chars\n` +
-    `description: |  # ≤500 chars\n` +
-    `  Ingests ${floorDisplay} into the AgntUX knowledge store. Replace this\n` +
-    `  placeholder with a real one-paragraph summary (markdown allowed, 500\n` +
-    `  chars max) before the plugin goes to launch review.\n` +
+    `# Write for non-technical users: lead with the benefit, keep it short, and\n` +
+    `# avoid jargon (ingest, cursor, MCP, schema, entities, knowledge store,\n` +
+    `# $ARGUMENTS). The caps are ceilings, not targets — shorter is better.\n` +
+    `tagline: "See your ${floorDisplay} in AgntUX, with one-click actions."  # ≤80 chars — replace\n` +
+    `description: |  # ≤500 chars — replace with a real, plain-language summary\n` +
+    `  Brings your ${floorDisplay} into AgntUX so the things that need you show\n` +
+    `  up in one place. Replace this with a short, plain-language summary of\n` +
+    `  what your plugin does and what someone can do with it.\n` +
     `categories:\n` +
     `  - productivity\n` +
     `keywords:\n` +

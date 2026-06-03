@@ -173,6 +173,39 @@ exist; the linter is the source of truth at `scripts/lint-marketplace-metadata.t
 | `contributors` | array of objects | up to 8; `developer.github_handle` must NOT also appear here |
 | `proposed_schema` | object | **REQUIRED for any ingest plugin** — i.e. any plugin whose `requires_plugins` includes `agntux-core` (lint code E14). The consumer-repo linter (`scripts/lint-marketplace-metadata.ts` E14 rule, currently around line 271) still keys off the legacy `*-ingest` suffix as of 2026-05-07 — new `agntux-*` plugins are authoritative, but the linter does NOT currently fire E14 on them. **Provide `proposed_schema` for every new ingest plugin regardless** of the linter's current trigger; the runtime contract pipeline (`agntux-core`'s data-architect Mode B) reads it from `listing.yaml` directly and the lint trigger is on track to be re-keyed off `requires_plugins`. |
 
+### Voice & audience — write for non-technical users
+
+Every marketplace string you author (`tagline`, `description`,
+`supported_prompts[].purpose`, `ui_components[].title` / `.purpose`,
+`data_ingested[]`, and every `proposed_schema` description) is read by
+**non-technical people** deciding whether to install the plugin. Write the
+way you'd explain it to a friend, not the way you'd document it for an
+engineer.
+
+- **Lead with the benefit, in plain words.** Say what the user gets, not how
+  the system works.
+- **Keep it short.** Tight sentences. The character caps are ceilings, not
+  targets — shorter is better.
+- **Never ship internal jargon to users.** Avoid: "ingest", "ingest pass",
+  "sync pass", "cursor", "first token", "$ARGUMENTS", "knowledge store",
+  "entities", "schema", "connector", "MCP", "iframe", "envelope",
+  "dispatch", "router", "payload". Use everyday equivalents instead ("check
+  for new …", "bring in", "the people and topics it finds", "tool", "a
+  window", "what you type").
+
+Examples:
+
+- tagline ✓ `See the Slack messages that need a reply, and draft responses safely.`
+- tagline ✗ `Ingests Slack thread-entities into the AgntUX knowledge store.`
+- description ✓ `Watches your inbox for the emails that need you, and drafts replies you review and send.`
+- description ✗ `Surfaces response-needed signals via cursor-indexed ingest; emits draft payloads to the compose iframe.`
+- supported_prompts purpose ✓ `Type /agntux-slack to check for new messages. Or ask a question about your Slack — it just looks things up.`
+- supported_prompts purpose ✗ `Bare or sync runs an ingest pass; any other first token is a live NL query — no cursor advance, no knowledge-store write.`
+
+This is the same bar the ingest skill already meets — see the user-facing
+voice rule in `agents/ingest-prompt-author.md` ("must not reference internal
+architecture"). Marketplace copy is held to it too.
+
 ### listing.yaml ↔ view-tools.manifest.json consistency rule
 
 The view-tool subtree emits `view-tool/dist/view-tools.manifest.json`

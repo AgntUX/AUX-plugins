@@ -1,7 +1,7 @@
 # AgntUX Gmail
 
-Turn your Gmail inbox into an AgntUX knowledge store, and let Claude draft
-replies on demand — but only ever save them to your Gmail Drafts. You review
+Bring your Gmail into AgntUX. It spots the emails that need a reply and drafts
+responses for you — but only ever saves them to your Gmail Drafts. You review
 and click Send in Gmail itself.
 
 ## What it does
@@ -11,15 +11,14 @@ and click Send in Gmail itself.
   - threads where you've replied and someone has responded since
   - your sent items that have been awaiting a reply for ≥3 days
   - threads with the `IMPORTANT` Gmail label
-- Extracts entities: email correspondents (people), organisations resolved
-  from sender domains, workstreams from your `# Glossary`, and recurring
-  topics across threads.
+- Recognizes the people, companies, projects, and topics that come up across
+  your email, so AgntUX can connect related items for you.
 - Triages action items: response-needed (you've been asked something),
   deadlines mentioned in subjects or bodies, knowledge updates from
   decision-summary or status-update emails.
-- Handles threads correctly: every action item links back to the parent
-  thread's `<thread_id>`. New messages on threads we've seen before are
-  caught via a per-thread cursor map.
+- Keeps each task tied to its email conversation, so you can always open the
+  full thread. New messages on threads it's seen before are picked up
+  automatically.
 - **Drafts replies on demand.** Click `Draft a reply` on an action item; the
   plugin renders an inline compose card with a pre-composed body informed by
   your `user.md`, your per-plugin instructions, related entity files, prior

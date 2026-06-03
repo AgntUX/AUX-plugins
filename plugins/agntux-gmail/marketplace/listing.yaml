@@ -1,12 +1,12 @@
-tagline: "Turn your Gmail inbox into an AgntUX knowledge store, with safe drafts."
+tagline: "See the emails that need a reply, and draft responses safely."
 description: |
-  Watches your Gmail inbox: emails sent to you, threads where you've replied,
-  and sent items awaiting follow-up. Surfaces response-needed signals,
-  deadlines, and decisions worth remembering. The Draft button opens an
-  inline composer with a pre-composed reply informed by your profile and
-  prior conversations with the same person. Save creates a Gmail draft and
-  opens it in a new tab — you review and click Send in Gmail itself. Replies
-  sent from Gmail auto-resolve matching items on the next sync.
+  Watches your inbox for the emails that actually need you — messages sent
+  to you, threads you're waiting on, and replies you owe — plus deadlines
+  and decisions worth remembering. When you want to respond, the Draft
+  button writes a reply for you, using what it knows about you and your past
+  conversations with that person. Save puts it in your Gmail Drafts and opens
+  it so you can review and send in Gmail itself. Once you reply, matching
+  items clear themselves the next time it checks.
 categories:
   - communication
   - productivity
@@ -29,7 +29,7 @@ data_ingested:
   - "Subject and snippet metadata from related threads (for reply-context)"
 supported_prompts:
   - prompt: "/agntux-gmail"
-    purpose: "Bare or `sync` runs an ingest pass (recommended cadence: hourly). Any other first token is a live NL question about Gmail — no cursor advance, no knowledge-store write."
+    purpose: "Type `/agntux-gmail` to check for new email now. Or ask a question about your inbox — that just looks things up, it doesn't change anything."
 ui_components:
   - name: "compose"
     title: "Gmail reply composer"
