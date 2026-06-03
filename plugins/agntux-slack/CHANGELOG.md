@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.2.3] — 2026-06-03
+
+### Changed
+
+- **Plain-language listing and README copy.** Rewrote the tagline, description,
+  `supported_prompts`, and README intro for non-technical readers — dropped
+  internal terms ("knowledge store", "ingest pass", "first token", "cursor",
+  "entities", "iframe", "authorisation gate", "tracked-threads registry").
+  No behaviour change.
+
 ## [8.2.2] — 2026-05-21
 
 Republish at fresh tag. No source changes — pairs with the agntux/app

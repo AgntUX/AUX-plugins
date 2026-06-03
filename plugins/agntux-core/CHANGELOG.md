@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.3.0] — 2026-06-03
+
+### Added
+
+- **`/agntux triage` is now a first-class command.** It deterministically
+  opens the interactive action-items UI (`agntux_core_triage_view`) instead of
+  relying on the host inferring "show triage" / "what's hot" from natural
+  language. This is the command users run all day to see their action items;
+  it's featured right after `/agntux onboard` in the listing and README. The
+  `/agntux` router gains an explicit `triage` route (skips the reference-file
+  load and invokes the view tool directly after the preflight + preconditions).
+
+### Changed
+
+- **Plain-language listing, README, and skill copy.** Rewrote the tagline,
+  description, `supported_prompts`, and README for non-technical readers —
+  dropped internal terms ("knowledge store", "orchestrator", "ingest pass",
+  "$ARGUMENTS", "router", `_index.md`). The two everyday commands —
+  `/agntux onboard` (do this first) and `/agntux triage` (your daily list) —
+  now lead the command list.
+
 ## [10.2.1] — 2026-06-01
 
 ### Fixed

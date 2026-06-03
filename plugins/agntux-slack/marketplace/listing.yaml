@@ -1,12 +1,11 @@
-tagline: "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts."
+tagline: "See the Slack messages that need a reply, and draft responses safely."
 description: |
-  Watches your Slack DMs, @mentions, and active threads; extracts people,
-  companies, projects, and topics. Surfaces response-needed signals,
-  deadlines, and decisions. One-click buttons — Draft, Schedule, Open in
-  Slack, Mark done — open the reply iframe with a pre-composed draft
-  informed by your profile and prior action items. Replies sent in Slack
-  auto-resolve matching open items on the next sync. The iframe Send
-  button is the explicit authorisation gate for any Slack write.
+  Watches your DMs, @mentions, and active threads for the messages that need
+  your attention — plus deadlines and decisions worth keeping. One-click
+  buttons — Draft, Schedule, Open in Slack, Mark done — open a reply window
+  with a ready-made draft based on what it knows about you and your earlier
+  items. Reply in Slack and matching items clear themselves on the next
+  check. Nothing posts to Slack until you press Send.
 categories:
   - communication
   - productivity
@@ -29,7 +28,7 @@ data_ingested:
   - "Pinned messages and canvases referenced from monitored channels"
 supported_prompts:
   - prompt: "/agntux-slack"
-    purpose: "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–7pm weekdays local). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
+    purpose: "Type `/agntux-slack` to check for new messages now. Or ask a question about your Slack — that just looks things up, it doesn't change anything."
 ui_components:
   - name: "compose"
     title: "Slack reply composer"

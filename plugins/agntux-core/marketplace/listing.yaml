@@ -1,8 +1,15 @@
-tagline: "The AgntUX orchestrator. Triages action items and queries your knowledge store."
+tagline: "Your AgntUX home base — onboarding and your daily action-items list."
 description: |
-  Installs first; everything else hangs off it. Maintains your `<agntux project root>/`
-  knowledge store, triages action items per your `user.md` preferences,
-  and keeps `_index.md` files in sync as ingest plugins write new data.
+  AgntUX Core is the first thing you install — every other AgntUX plugin
+  builds on it.
+
+  Start with `/agntux onboard` to get set up. After that, `/agntux triage`
+  is your everyday command: it shows your action items, sorted by what
+  matters most, with one-click buttons to snooze, dismiss, or mark
+  something done.
+
+  As your other plugins bring in updates from Slack, Gmail, and your
+  calendar, Core keeps everything organized and ready whenever you ask.
 categories:
   - meta
 keywords:
@@ -17,7 +24,11 @@ available_on:
   - enterprise
 supported_prompts:
   - prompt: "/agntux"
-    purpose: "One entry point for AgntUX. Sub-commands: onboard, profile, schema, teach {slug}, sync {slug}, ask {…}, feedback-review, triage-digest. Bare /agntux defaults to ask-mode."
+    purpose: "**`/agntux onboard`** — DO THIS FIRST - and then again any time you install a new plugin. This runs your onboarding flow and gets everything set up."
+  - prompt: "/agntux"
+    purpose: "**`/agntux triage`** — This is your go-to command after you're onboarded. Use this to see your action items list. You'll be using this command all day every day."
+  - prompt: "/agntux"
+    purpose: "**`/agntux`** — Ask anything about your information, edit your profile, teach a plugin a rule, or sync a source."
 ui_components:
   - name: "triage"
     title: "Action item triage"

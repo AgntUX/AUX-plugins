@@ -1,7 +1,7 @@
 # AgntUX Slack
 
-Turn your Slack workspace into an AgntUX knowledge store, and let Claude draft
-replies on demand — but only ever send them after you confirm.
+Bring your Slack into AgntUX. It spots the messages that need a reply and drafts
+responses for you — but never posts anything until you confirm.
 
 ## What it does
 
@@ -10,15 +10,14 @@ replies on demand — but only ever send them after you confirm.
   @mentions, and active threads are time-sensitive while you're working
   but don't need overnight or weekend polling — quiet hours conserve
   tokens.
-- Extracts entities: Slack users (people), organisations referenced in
-  shared links, workstreams from your `# Glossary`, and recurring topics.
+- Recognizes the people, companies, projects, and topics that come up across
+  your Slack, so AgntUX can connect related items for you.
 - Triages action items: response-needed (DMs, @mentions), deadlines,
   decisions buried in long threads, knowledge updates from pinned
   messages and canvases.
-- Handles threads correctly: every reply, every entity row, and every
-  action item links back to the parent thread's
-  `(channel_id, thread_ts)`. New replies on old threads are caught via
-  a tracked-threads registry — no missed activity.
+- Keeps each task tied to its channel and thread, so you can always open the
+  full conversation. New replies on older threads are picked up automatically
+  — nothing slips through.
 - Drafts replies on demand. Click a `Draft a reply` button on an action
   item; the plugin fetches the thread, drafts a reply in chat, and shows
   an inline compose card. The actual `slack_send_message` call only fires

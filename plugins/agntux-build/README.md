@@ -1,12 +1,11 @@
 # AgntUX Build
 
-Build a new AgntUX plugin for a system AgntUX doesn't yet support.
+Build a new AgntUX plugin for a tool AgntUX doesn't support yet.
 
-If AgntUX doesn't yet cover the tool you live in — your project tracker,
-your CRM, your notes app, your meeting recorder — this plugin walks you
-through making one. You don't need to be a developer. You need an hour,
-your laptop, and a willingness to test the new plugin against your real
-data three to five times until it feels right.
+If AgntUX doesn't yet cover a tool you use — your project tracker, your
+CRM, your notes app, your meeting recorder — this plugin walks you through
+making one. You don't need to be a developer. Plan for about an hour, and
+expect to test it against your real data a few times until it feels right.
 
 ## What it does
 
@@ -28,7 +27,7 @@ data three to five times until it feels right.
 6. Builds the plugin.
 7. Tests the new screen on your machine — no extra apps to start,
    nothing to install separately.
-8. Iterates with you using the **real** sync output from your system —
+8. Iterates with you using the **real** results from your system —
    you run the plugin, paste the run back to Claude Code, we read it,
    edit the prompts, and you re-run. This usually takes 3 to 5 rounds.
    That's normal — not a sign of failure.

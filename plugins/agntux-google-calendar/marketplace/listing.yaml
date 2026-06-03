@@ -1,6 +1,6 @@
-tagline: "Daily look-ahead of your calendar with prep context."
+tagline: "See your day ahead, with prep notes for each meeting."
 description: |
-  Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).
+  Each morning, AgntUX looks at your meetings for the next 7 days and creates a to-do for each one. For every meeting it pulls together helpful notes — related Slack threads, Gmail conversations, and past notes — so you walk in prepared. Two buttons let you act right there: find a time and schedule a meeting, or respond to an invite (accept, tentative, or decline).
 categories:
   - productivity
   - communication
