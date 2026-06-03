@@ -176,6 +176,21 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "agntux_marketplace_lookup",
+    description:
+      "Stage-1 ANTI-DUPLICATE GATE: check whether an AgntUX plugin for the requested system already exists BEFORE scaffolding a new one. Fetches marketplace/index.json reading PAST the GitHub CDN — the GitHub Contents API with the raw media type returns the file at its CURRENT commit (api.github.com is NOT the raw CDN, so no stale edge cache; no base64 to decode; the raw media type also handles files past the 1 MB base64 cap), falling back to a cache-busted raw URL, then a local dev clone, then a previously-cached copy. Matches server-side and returns ONLY the matched entries + a bounded slug list, so the full index (21 KB today, megabytes at scale) NEVER floods the model context. Returns {ok:true, source, fetched_at, stale, total_plugins, exact_match, keyword_matches, slugs, summary}. exact_match!==null ⇒ the plugin ALREADY EXISTS (route to install/update — never build a duplicate). ok:false ⇒ the marketplace could NOT be verified (network down AND no cache) — treat as UNKNOWN, tell the user, and confirm before building; NEVER read a failure as 'no plugin exists'. NEVER throws. Replaces the old host-side WebFetch of raw.githubusercontent.com, which served 2-week-stale content and offered duplicate builds.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        slug: { type: "string", description: "The candidate plugin slug — bare ('linear') or already agntux- prefixed ('agntux-linear'). Drives the exact-match check." },
+        query: { type: "string", description: "The user's system name plus any obvious aliases (e.g. 'github gh', 'google calendar gcal', 'gmail mail'). Drives the soft keyword/tagline match. Always pass it." },
+        agntux_root: { type: "string", description: "Absolute agntux project root (the stage-0 resolver result). Optional — enables caching the fetched index to .agntux-build/marketplace-index.cache.json for an offline fallback." },
+      },
+      required: ["slug"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ── renderer bootstrap (detached + polled; never blocks a tool call) ──────────
@@ -645,6 +660,301 @@ export async function handleReportDefect(args) {
   }
 }
 
+// ── marketplace existence-check (stage-1 anti-duplicate gate) ─────────────────
+// The build skill's stage 1 must learn whether a plugin already exists before
+// offering to scaffold a new one. The previous path — the host WebFetching
+// raw.githubusercontent.com — served STALE CDN content (a 2-week-old edge cache
+// missed a freshly-landed plugin and offered to build a duplicate). This tool
+// reads PAST the CDN deterministically and matches server-side, so the full
+// index never floods the model context.
+
+const MARKETPLACE_OWNER_REPO = "AgntUX/AUX-plugins";
+const MARKETPLACE_BRANCH = "main";
+const MARKETPLACE_FILE = "marketplace/index.json";
+// The Contents API + raw media type returns the file's CURRENT-commit bytes with
+// NO CDN in the path (api.github.com is not the raw CDN) and no base64 to decode.
+const MARKETPLACE_CONTENTS_API = `https://api.github.com/repos/${MARKETPLACE_OWNER_REPO}/contents/${MARKETPLACE_FILE}?ref=${MARKETPLACE_BRANCH}`;
+const MARKETPLACE_RAW_URL = `https://raw.githubusercontent.com/${MARKETPLACE_OWNER_REPO}/${MARKETPLACE_BRANCH}/${MARKETPLACE_FILE}`;
+const MARKETPLACE_FETCH_TIMEOUT_MS = 10_000;
+const MARKETPLACE_SLUGS_CAP = 200;
+// The real index is ~21 KB; cap the read so a hijacked/hostile endpoint can't
+// OOM the server with a fast multi-GB body (the timeout bounds slow drips, not
+// large fast responses).
+const MARKETPLACE_MAX_BYTES = 8 * 1024 * 1024;
+
+// Generic words that would soft-match half the marketplace — dropped so a
+// keyword/tagline hit means something. The user's input is a product name
+// ("Linear", "Notion"), so meaningful tokens survive.
+const MARKETPLACE_STOPWORDS = new Set([
+  "the", "and", "for", "with", "app", "tool", "plugin", "agntux", "into",
+  "from", "your", "this", "that", "new", "support", "connector", "system",
+]);
+
+/** Normalize a candidate slug to its canonical `agntux-{slug}` marketplace key. */
+export function canonicalPluginSlug(slug) {
+  const s = String(slug || "").trim().toLowerCase();
+  if (!s) return "";
+  return s.startsWith("agntux-") ? s : `agntux-${s}`;
+}
+
+/** A parsed object is the AgntUX aggregate index iff it carries a plugins OBJECT. */
+function isAgntuxMarketplace(parsed) {
+  return Boolean(
+    parsed &&
+      typeof parsed === "object" &&
+      parsed.plugins &&
+      typeof parsed.plugins === "object" &&
+      !Array.isArray(parsed.plugins),
+  );
+}
+
+/** Tokenize free text into distinct, meaningful lowercase search tokens. */
+function marketplaceTokens(text) {
+  return [
+    ...new Set(
+      String(text || "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 2 && !MARKETPLACE_STOPWORDS.has(t)),
+    ),
+  ];
+}
+
+/** Split text into lowercase alphanumeric word parts. */
+function wordParts(text) {
+  return String(text || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * First soft-match reason (slug / keyword / tagline) for an entry, or null.
+ * Matches on WORD parts, not raw substrings — a raw `.includes` falsely paired
+ * "box" with "inbox", "go" with "google-calendar", etc. (advisory-path noise).
+ * Checked slug → keyword → tagline; the prefix in the returned reason encodes
+ * that precedence.
+ */
+function marketplaceMatchReason(tokens, pluginSlug, entry) {
+  const slugParts = wordParts(pluginSlug.replace(/^agntux-/, ""));
+  const kwParts = (Array.isArray(entry?.keywords) ? entry.keywords : []).flatMap((k) => wordParts(k));
+  const tagParts = wordParts(str(entry?.tagline));
+  for (const t of tokens) {
+    if (slugParts.includes(t)) return `slug:${t}`;
+    if (kwParts.includes(t)) return `keyword:${t}`;
+    if (tagParts.includes(t)) return `tagline:${t}`;
+  }
+  return null;
+}
+
+/**
+ * Match a candidate against the aggregate index. Pure (no I/O), exported for
+ * unit tests. Returns the EXACT slug hit (the load-bearing anti-duplicate
+ * signal) plus soft keyword/tagline hits — never the whole index. The exact hit
+ * is excluded from keyword_matches so it is reported exactly once.
+ */
+export function matchMarketplace(index, { slug, query } = {}) {
+  const plugins = isAgntuxMarketplace(index) ? index.plugins : {};
+  const allSlugs = Object.keys(plugins);
+  const canonical = canonicalPluginSlug(slug);
+  const bare = canonical.replace(/^agntux-/, "");
+
+  let exact_match = null;
+  if (canonical && Object.prototype.hasOwnProperty.call(plugins, canonical)) {
+    const e = plugins[canonical] || {};
+    exact_match = { slug: canonical, tagline: str(e.tagline), description: str(e.description) };
+  }
+
+  // Fall back to the bare slug for tokens when no free-text query is supplied.
+  const tokens = marketplaceTokens(query || bare);
+  const keyword_matches = [];
+  if (tokens.length) {
+    for (const ps of allSlugs) {
+      if (ps === canonical) continue; // the exact hit is reported separately
+      const reason = marketplaceMatchReason(tokens, ps, plugins[ps] || {});
+      if (reason) {
+        keyword_matches.push({ slug: ps, tagline: str((plugins[ps] || {}).tagline), matched_on: reason });
+      }
+    }
+  }
+
+  return { total_plugins: allSlugs.length, exact_match, keyword_matches };
+}
+
+/** GET a URL as text with a hard timeout; never throws. */
+async function httpGetText(url, headers) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MARKETPLACE_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
+    if (!res.ok) return { ok: false, detail: `HTTP ${res.status} from ${url}` };
+    const declared = Number(res.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > MARKETPLACE_MAX_BYTES) {
+      return { ok: false, detail: `response too large (${declared} bytes) from ${url}` };
+    }
+    const text = await res.text();
+    if (Buffer.byteLength(text) > MARKETPLACE_MAX_BYTES) {
+      return { ok: false, detail: `response exceeded ${MARKETPLACE_MAX_BYTES} bytes from ${url}` };
+    }
+    return { ok: true, text };
+  } catch (e) {
+    return { ok: false, detail: errStr(e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function marketplaceCachePath(agntuxRoot) {
+  // Only honor an absolute root — a relative/garbage value would resolve the
+  // cache against the server's cwd. The fixed trailing segments mean the write
+  // can only ever land on `.agntux-build/marketplace-index.cache.json`.
+  if (!agntuxRoot || !path.isAbsolute(agntuxRoot)) return null;
+  return path.join(agntuxRoot, ".agntux-build", "marketplace-index.cache.json");
+}
+
+/**
+ * Fetch the marketplace index, reading PAST the GitHub CDN. Order: a local dev
+ * clone (maintainer fast path, only when it is unmistakably THIS marketplace) →
+ * the Contents API raw media type (current commit, no CDN) → the raw URL with a
+ * cache-buster → a previously-cached copy (offline last resort). Writes every
+ * fresh network fetch to the cache so the last resort is real. The cache is read
+ * ONLY when the network fails, so it never reintroduces staleness. Never throws.
+ */
+async function fetchMarketplaceIndex({ agntuxRoot } = {}) {
+  const cachePath = marketplaceCachePath(agntuxRoot);
+
+  // 1) Local dev clone — four levels up from mcp-server/{src,dist}/index.js is
+  // the repo root. Guarded by isAgntuxMarketplace so an unrelated four-levels-up
+  // marketplace/index.json on an end-user machine can't masquerade as ours.
+  try {
+    const localPath = fileURLToPath(new URL("../../../../marketplace/index.json", import.meta.url));
+    if (existsSync(localPath)) {
+      const parsed = JSON.parse(readFileSync(localPath, "utf8"));
+      if (isAgntuxMarketplace(parsed)) {
+        return { ok: true, index: parsed, source: "local-dev", fetched_at: new Date().toISOString() };
+      }
+    }
+  } catch {
+    /* not a dev clone / unreadable — fall through to the network */
+  }
+
+  // 2) Contents API (raw media type) → 3) raw URL, cache-busted.
+  let net = await httpGetText(MARKETPLACE_CONTENTS_API, {
+    Accept: "application/vnd.github.raw+json",
+    "User-Agent": "agntux-build",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Cache-Control": "no-cache",
+  });
+  let source = "contents-api";
+  if (!net.ok) {
+    // Fallback only if the Contents API failed (e.g. unauthenticated 403/429
+    // rate-limit). NOTE: the `?t=` buster defeats browser/proxy caches but
+    // raw.githubusercontent.com's edge can still serve a stale object for a
+    // path, so `source:"raw-cachebusted"` is NOT a guarantee of freshness — the
+    // `source` field exists so a stale read is at least diagnosable.
+    net = await httpGetText(`${MARKETPLACE_RAW_URL}?t=${Date.now()}`, {
+      "User-Agent": "agntux-build",
+      "Cache-Control": "no-cache",
+    });
+    source = "raw-cachebusted";
+  }
+  if (net.ok) {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(net.text);
+    } catch {
+      parsed = null;
+    }
+    if (isAgntuxMarketplace(parsed)) {
+      const fetched_at = new Date().toISOString();
+      if (cachePath) {
+        try {
+          mkdirSync(path.dirname(cachePath), { recursive: true });
+          const tmp = `${cachePath}.tmp`;
+          writeFileSync(tmp, JSON.stringify({ fetched_at, source, index: parsed }));
+          renameSync(tmp, cachePath);
+        } catch {
+          /* cache is best-effort; a write failure must not fail the lookup */
+        }
+      }
+      return { ok: true, index: parsed, source, fetched_at };
+    }
+  }
+
+  // 4) Stale cache — a known-old answer beats a false "nothing exists".
+  if (cachePath && existsSync(cachePath)) {
+    try {
+      const c = JSON.parse(readFileSync(cachePath, "utf8"));
+      if (isAgntuxMarketplace(c?.index)) {
+        return { ok: true, index: c.index, source: "cache-stale", fetched_at: c.fetched_at || null, stale: true };
+      }
+    } catch {
+      /* unreadable cache */
+    }
+  }
+
+  return { ok: false, error_kind: "network", detail: net.detail || "could not fetch the marketplace index" };
+}
+
+/**
+ * Stage-1 anti-duplicate gate. Fetches the index past the CDN and matches
+ * server-side, returning only the matched entries + a bounded slug list. NEVER
+ * throws. A fetch failure returns ok:false (UNKNOWN) — the orchestrator must NOT
+ * read that as "no plugin exists".
+ */
+async function handleMarketplaceLookup(args) {
+  const slug = str(args.slug);
+  const query = args.query ? str(args.query) : "";
+  const agntuxRoot = args.agntux_root ? str(args.agntux_root) : "";
+  const canonical = canonicalPluginSlug(slug);
+  if (!slug) {
+    return {
+      ok: false,
+      error_kind: "usage",
+      blocking: false,
+      detail: "slug is required",
+      summary: "Cannot check the marketplace without a slug.",
+    };
+  }
+
+  const fetched = await fetchMarketplaceIndex({ agntuxRoot });
+  if (!fetched.ok) {
+    return {
+      ok: false,
+      error_kind: fetched.error_kind || "network",
+      blocking: false,
+      detail: fetched.detail,
+      summary:
+        `Couldn't verify the AgntUX marketplace right now (${fetched.detail}). Do NOT assume ` +
+        `${canonical} is new — tell the user and confirm before building a new plugin.`,
+    };
+  }
+
+  const { total_plugins, exact_match, keyword_matches } = matchMarketplace(fetched.index, { slug, query });
+  const allSlugs = Object.keys(fetched.index.plugins).sort();
+  const slugs = allSlugs.slice(0, MARKETPLACE_SLUGS_CAP);
+
+  const summary = exact_match
+    ? `${exact_match.slug} already exists in the marketplace — route to install/update, do NOT build a duplicate.`
+    : keyword_matches.length
+      ? `No exact match for ${canonical}; ${keyword_matches.length} related plugin(s) found — confirm same-or-different with the user before building.`
+      : `No marketplace match for ${canonical} (${total_plugins} plugin(s) checked, source: ${fetched.source}). Safe to build new.`;
+
+  return {
+    ok: true,
+    source: fetched.source,
+    fetched_at: fetched.fetched_at,
+    stale: fetched.stale === true,
+    total_plugins,
+    query: { slug: canonical, text: query || null },
+    exact_match,
+    keyword_matches,
+    slugs,
+    slugs_truncated: allSlugs.length > slugs.length,
+    summary,
+  };
+}
+
 // ── JSON-RPC plumbing ─────────────────────────────────────────────────────────
 
 function send(msg) {
@@ -694,6 +1004,7 @@ async function handle(req) {
         else if (name === "agntux_write_submission") payload = await handleWriteSubmission(args);
         else if (name === "agntux_confirm_submission") payload = await handleConfirmSubmission(args);
         else if (name === "agntux_report_defect") payload = await handleReportDefect(args);
+        else if (name === "agntux_marketplace_lookup") payload = await handleMarketplaceLookup(args);
         else payload = { ok: false, error_kind: "usage", blocking: false, detail: `unknown tool: ${name}` };
       } catch (e) {
         payload = { ok: false, error_kind: "internal", blocking: false, detail: errStr(e) };

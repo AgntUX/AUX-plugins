@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-06-02
+
+Fixes the **stale marketplace existence-check** that let stage 1 offer to build a
+duplicate of a plugin that already shipped. The check fetched
+`raw.githubusercontent.com/.../marketplace/index.json` via host `WebFetch` —
+GitHub's CDN served **2-week-old** edge-cached content, so a freshly-landed
+plugin looked absent and the build proceeded from scratch (the worst outcome the
+stage exists to prevent).
+
+### Added
+
+- **`agntux_marketplace_lookup` MCP tool** — the new stage-1 anti-duplicate gate.
+  Runs natively in the server (the same context as `agntux_validate`) and reads
+  the index **past the CDN**: the GitHub **Contents API with the raw media type**
+  returns the file at its current commit (api.github.com is not the raw CDN, and
+  the raw media type needs no base64 decode), with a cache-busted raw URL, a
+  local dev clone, and a previously-cached copy as ordered fallbacks. Matches
+  server-side and returns **only** the matched entries + a bounded slug list, so
+  the full index never floods the model context (21 KB today, megabytes at
+  scale). A fetch failure returns `ok:false` (UNKNOWN) — never a false "nothing
+  exists". Backed by `matchMarketplace` / `canonicalPluginSlug` unit tests
+  (`mcp-server/__tests__/marketplace-lookup.test.mjs`).
+
+### Changed
+
+- **Stage 1 (`skills/build/references/01-search-marketplace.md`)** now calls
+  `agntux_marketplace_lookup` instead of `WebFetch`-ing the raw URL, branches on
+  the structured result (`exact_match` / `keyword_matches` / `slugs`), and adds a
+  **branch 0** for `ok:false`: when the marketplace can't be verified, tell the
+  user and confirm before building rather than assuming the plugin is new.
+
 ## [0.27.0] — 2026-06-02
 
 Closes the three round-1 round-eaters that **still recurred on the otherwise-
