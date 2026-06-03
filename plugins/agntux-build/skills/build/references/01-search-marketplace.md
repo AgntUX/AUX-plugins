@@ -52,23 +52,31 @@ spelling or naming.
 
 ## Search the marketplace
 
-## Where to look
+Call the agntux-build MCP tool — it reads `marketplace/index.json`
+*past* the GitHub CDN and matches server-side, so the full index
+never floods this conversation:
+
+```
+agntux_marketplace_lookup({
+  slug: "{slug}",                        // bare or agntux- prefixed
+  query: "{display-name} {aliases}",     // e.g. "GitHub gh", "Google Calendar gcal"
+  agntux_root: "{stage-0 agntux root}"   // enables the offline cache
+})
+```
+
+Always pass `query` — the user's system name plus any obvious
+aliases (`gh`, `gcal`, `mail`) — so the soft keyword/tagline match
+can fire. If the tool isn't loaded yet, resolve it first with
+`ToolSearch({query: "select:agntux_marketplace_lookup", max_results: 1})`.
+
+Why a tool and not `WebFetch`: the old path fetched
+`raw.githubusercontent.com`, which is CDN-cached and once served
+**2-week-stale** content — it missed a freshly-landed plugin and
+offered to build a duplicate. The tool fetches via the GitHub
+Contents API (current-commit bytes, no edge cache) with cache-busted
+fallbacks.
 
 The AgntUX marketplace is the *only* registry that matters here.
-Other Claude Code plugins (Anthropic-shipped, third-party) are out
-of scope — even if a plugin called "Jira" exists somewhere else,
-it's not an AgntUX plugin and won't ingest into the user's AgntUX
-knowledge store.
-
-Two sources, in order:
-
-1. **Local first.** If `<repo-root>/AUX-plugins/marketplace/index.json`
-   exists on the user's machine (developer setup), read it.
-2. **Public fallback.** Otherwise fetch
-   `https://raw.githubusercontent.com/AgntUX/AUX-plugins/main/marketplace/index.json`
-   via `WebFetch`. This is CI-regenerated on every merge to `main`
-   and is the canonical "what AgntUX plugins exist today" answer.
-
 Do NOT reach for `mcp__plugins__list_plugins`, `ToolSearch query:
 "list plugins"`, or any other host-level plugin discovery — those
 enumerate the host's full plugin universe (all marketplaces) and
@@ -76,21 +84,47 @@ will produce false negatives ("nothing called agntux-jira") that
 are really false positives ("the host knows about non-AgntUX
 Atlassian plugins, but they don't ingest into AgntUX").
 
-## How to match
+## How to read the result
 
-Match against entries in `marketplace/index.json` only — every
-AgntUX plugin's slug starts with `agntux-`, and the keyword /
-tagline scope is bounded by that file. Search both:
+- **`exact_match` non-null** → **branch 1** (the plugin already
+  exists). Use its `slug` / `tagline` / `description` for the
+  install card.
+- **`exact_match` null but `keyword_matches` non-empty** → **branch
+  2** (a related plugin might be the same system). Use
+  `keyword_matches[].slug` + `.tagline`. The `slugs` array is the
+  full name list — scan it for an alias the soft match missed (e.g.
+  the bare slug `mail` → `agntux-gmail`, `gcal` →
+  `agntux-google-calendar`; these are illustrative, scan the actual
+  `slugs`) before concluding it's a true miss. If `slugs_truncated`
+  is `true` the list was capped, so a soft miss is NOT authoritative —
+  treat it like branch 0 and confirm with the user.
+- **both empty** → **branch 3** (nothing exists; build new).
+- **`ok: false`** → the marketplace could NOT be verified (network
+  down, no cache). This is UNKNOWN, never "nothing exists" — see
+  **branch 0**.
 
-1. **Slug match.** If `agntux-{guessed-slug}` appears in the index,
-   that's a hit (e.g., `agntux-linear` for `Linear`).
-2. **Keyword match.** If the user's input appears in any plugin's
-   `keywords[]` or `tagline` *within `marketplace/index.json`*,
-   that's a softer hit. Common alias cases: `gh` →
-   `agntux-github`, `gcal` → `agntux-google-calendar`,
-   `mail` → `agntux-gmail`.
+**If `stale` is `true`** (`source: "cache-stale"`): the live
+marketplace was unreachable, so this answer is a cached snapshot from
+`fetched_at` and may be out of date. An `exact_match` is still
+trustworthy (a plugin that existed still exists), but before a
+**branch 3** new build, tell the user you're reading a cached snapshot
+and confirm — a very recently-added plugin might not be in it.
 
-## Three branches
+## Three branches (plus the can't-verify guard)
+
+### 0. Couldn't verify (`ok: false`)
+
+The tool could not reach the marketplace and had no cached copy. Do
+**not** assume the plugin is new. Tell the user plainly and confirm
+before proceeding:
+
+> I couldn't reach the AgntUX marketplace just now to check whether a
+> {connector-display-name} plugin already exists. You can check
+> directly at
+> https://github.com/AgntUX/AUX-plugins/tree/main/plugins — want me
+> to go ahead and build a new one, or hold off until we can confirm?
+
+Only continue to a new build (branch 3) on an explicit go-ahead.
 
 ### 1. Exact slug match
 
@@ -109,9 +143,9 @@ Branch on the answer:
   > flow.
 
   If yes, render the install card for the matched AgntUX plugin via
-  Cowork's plugin-suggest tool. **The pluginId comes from the
-  `marketplace/index.json` entry you just matched** — never from a
-  host-wide plugin search, which would broaden the scope past AgntUX:
+  Cowork's plugin-suggest tool. **The pluginId comes from the tool's
+  `exact_match`** — never from a host-wide plugin search, which would
+  broaden the scope past AgntUX:
 
   1. Resolve the tool:
      `ToolSearch({query: "select:mcp__plugins__suggest_plugin_install", max_results: 1})`.
@@ -121,7 +155,7 @@ Branch on the answer:
        plugins: [{
          pluginId: "agntux-{slug}",
          pluginName: "agntux-{slug}",
-         description: "{tagline-from-marketplace-index-json}"
+         description: "{exact_match.tagline}"
        }],
        contextLabel: "Already in the AgntUX marketplace"
      })
@@ -150,7 +184,7 @@ A related plugin exists but doesn't exactly match. Tell the user
 what we found and ask whether it's the same system:
 
 > I see there's `agntux-{related-slug}` in the marketplace —
-> {tagline-from-listing-yaml}. Is that the same system you mean, or
+> {keyword_matches[].tagline}. Is that the same system you mean, or
 > is {user's-input} something different?
 
 If same: treat as branch 1. If different: continue to branch 3.
