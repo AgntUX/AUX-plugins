@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-06-02T03:45:08.537Z",
+  "generated_at": "2026-06-03T17:41:24.153Z",
   "plugins": {
     "agntux-build": {
-      "tagline": "Build a new AgntUX plugin for a system AgntUX doesn't yet support.",
-      "description": "Walks you through extending AgntUX to a new connector — search the\nmarketplace, install or improve, design a simple write-back UI,\npreview, build, test, install, iterate against real sync output, and\nsubmit. Built for knowledge workers, not engineers — no jargon, no\nextra tools running, gratitude at every milestone, the standard\nAgntUX look enforced (light mode + the shared design tokens). The\n3–5-iteration sync loop is normal and expected.\n",
+      "tagline": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet.",
+      "description": "Step-by-step help to add a tool AgntUX doesn't support yet. You'll pick\nthe tool, design a simple action button, preview it, and test it against\nyour real data. Built for everyone, not just engineers — plain language,\na clean standard look, and a little encouragement at each step. Expect to\ntest it a few times until it feels right; that's completely normal.\n",
       "categories": [
         "meta",
         "developer-tools"
@@ -24,7 +24,7 @@
       "supported_prompts": [
         {
           "prompt": "/agntux-build:build",
-          "purpose": "Walks you through building a plugin for a system AgntUX doesn't yet support. Also fixes an existing plugin if you've hit something specific (update mode)."
+          "purpose": "Walks you through building a plugin for a tool AgntUX doesn't support yet. Can also fix an existing plugin if you've run into something specific."
         }
       ],
       "support": {
@@ -38,8 +38,8 @@
       }
     },
     "agntux-core": {
-      "tagline": "The AgntUX orchestrator. Triages action items and queries your knowledge store.",
-      "description": "Installs first; everything else hangs off it. Maintains your `<agntux project root>/`\nknowledge store, triages action items per your `user.md` preferences,\nand keeps `_index.md` files in sync as ingest plugins write new data.\n",
+      "tagline": "Your AgntUX home base — onboarding and your daily action-items list.",
+      "description": "AgntUX Core is the first thing you install — every other AgntUX plugin\nbuilds on it.\n\nStart with `/agntux onboard` to get set up. After that, `/agntux triage`\nis your everyday command: it shows your action items, sorted by what\nmatters most, with one-click buttons to snooze, dismiss, or mark\nsomething done.\n\nAs your other plugins bring in updates from Slack, Gmail, and your\ncalendar, Core keeps everything organized and ready whenever you ask.\n",
       "categories": [
         "meta"
       ],
@@ -58,7 +58,15 @@
       "supported_prompts": [
         {
           "prompt": "/agntux",
-          "purpose": "One entry point for AgntUX. Sub-commands: onboard, profile, schema, teach {slug}, sync {slug}, ask {…}, feedback-review, triage-digest. Bare /agntux defaults to ask-mode."
+          "purpose": "**`/agntux onboard`** — DO THIS FIRST - and then again any time you install a new plugin. This runs your onboarding flow and gets everything set up."
+        },
+        {
+          "prompt": "/agntux",
+          "purpose": "**`/agntux triage`** — This is your go-to command after you're onboarded. Use this to see your action items list. You'll be using this command all day every day."
+        },
+        {
+          "prompt": "/agntux",
+          "purpose": "**`/agntux`** — Ask anything about your information, edit your profile, teach a plugin a rule, or sync a source."
         }
       ],
       "ui_components": [
@@ -87,8 +95,8 @@
       }
     },
     "agntux-gmail": {
-      "tagline": "Turn your Gmail inbox into an AgntUX knowledge store, with safe drafts.",
-      "description": "Watches your Gmail inbox: emails sent to you, threads where you've replied,\nand sent items awaiting follow-up. Surfaces response-needed signals,\ndeadlines, and decisions worth remembering. The Draft button opens an\ninline composer with a pre-composed reply informed by your profile and\nprior conversations with the same person. Save creates a Gmail draft and\nopens it in a new tab — you review and click Send in Gmail itself. Replies\nsent from Gmail auto-resolve matching items on the next sync.\n",
+      "tagline": "See the emails that need a reply, and draft responses safely.",
+      "description": "Watches your inbox for the emails that actually need you — messages sent\nto you, threads you're waiting on, and replies you owe — plus deadlines\nand decisions worth remembering. When you want to respond, the Draft\nbutton writes a reply for you, using what it knows about you and your past\nconversations with that person. Save puts it in your Gmail Drafts and opens\nit so you can review and send in Gmail itself. Once you reply, matching\nitems clear themselves the next time it checks.\n",
       "categories": [
         "communication",
         "productivity"
@@ -116,7 +124,7 @@
       "supported_prompts": [
         {
           "prompt": "/agntux-gmail",
-          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: hourly). Any other first token is a live NL question about Gmail — no cursor advance, no knowledge-store write."
+          "purpose": "Type `/agntux-gmail` to check for new email now. Or ask a question about your inbox — that just looks things up, it doesn't change anything."
         }
       ],
       "ui_components": [
@@ -248,8 +256,8 @@
       }
     },
     "agntux-google-calendar": {
-      "tagline": "Daily look-ahead of your calendar with prep context.",
-      "description": "Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).\n",
+      "tagline": "See your day ahead, with prep notes for each meeting.",
+      "description": "Each morning, AgntUX looks at your meetings for the next 7 days and creates a to-do for each one. For every meeting it pulls together helpful notes — related Slack threads, Gmail conversations, and past notes — so you walk in prepared. Two buttons let you act right there: find a time and schedule a meeting, or respond to an invite (accept, tentative, or decline).\n",
       "categories": [
         "productivity",
         "communication"
@@ -406,8 +414,8 @@
       }
     },
     "agntux-slack": {
-      "tagline": "Turn your Slack workspace into an AgntUX knowledge store, with safe drafts.",
-      "description": "Watches your Slack DMs, @mentions, and active threads; extracts people,\ncompanies, projects, and topics. Surfaces response-needed signals,\ndeadlines, and decisions. One-click buttons — Draft, Schedule, Open in\nSlack, Mark done — open the reply iframe with a pre-composed draft\ninformed by your profile and prior action items. Replies sent in Slack\nauto-resolve matching open items on the next sync. The iframe Send\nbutton is the explicit authorisation gate for any Slack write.\n",
+      "tagline": "See the Slack messages that need a reply, and draft responses safely.",
+      "description": "Watches your DMs, @mentions, and active threads for the messages that need\nyour attention — plus deadlines and decisions worth keeping. One-click\nbuttons — Draft, Schedule, Open in Slack, Mark done — open a reply window\nwith a ready-made draft based on what it knows about you and your earlier\nitems. Reply in Slack and matching items clear themselves on the next\ncheck. Nothing posts to Slack until you press Send.\n",
       "categories": [
         "communication",
         "productivity"
@@ -435,7 +443,7 @@
       "supported_prompts": [
         {
           "prompt": "/agntux-slack",
-          "purpose": "Bare or `sync` runs an ingest pass (recommended cadence: every 30 min, 7am–7pm weekdays local). Any other first token is a live NL question about Slack — no cursor advance, no knowledge-store write."
+          "purpose": "Type `/agntux-slack` to check for new messages now. Or ask a question about your Slack — that just looks things up, it doesn't change anything."
         }
       ],
       "ui_components": [
