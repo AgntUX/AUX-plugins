@@ -220,4 +220,3 @@ root for full terms.
 ## Support
 
 - Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-slack
-- Email: support@agntux.ai
