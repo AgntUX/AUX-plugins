@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_gmail",
-  "plugin_version": "4.2.3",
+  "plugin_version": "4.2.4",
   "handler_module": "view-tool/dist/agntux-gmail-view.js",
   "view_tools": [
     {
