@@ -1,0 +1,13 @@
+# Keep GitHub Actions current. Dependabot's github-actions ecosystem updates
+# SHA-pinned actions too: it bumps the commit and rewrites the trailing
+# "# vX.Y.Z" comment, so we keep both the immutability of SHA pins and timely
+# updates (e.g. the Node 20 -> Node 24 action runtime migration). See:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
