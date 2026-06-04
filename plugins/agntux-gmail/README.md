@@ -199,4 +199,3 @@ root for full terms.
 ## Support
 
 - Bugs and proposals: https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-gmail
-- Email: support@agntux.ai

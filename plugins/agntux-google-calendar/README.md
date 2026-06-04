@@ -21,5 +21,3 @@ The plugin requires the `agntux-core` plugin and Google Calendar MCP connector.
 ## Support
 
 For issues and feature requests, see the [AgntUX plugins repo](https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-google-calendar).
-
-Contact: support@agntux.ai
