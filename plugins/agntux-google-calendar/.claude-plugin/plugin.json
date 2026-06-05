@@ -1,7 +1,7 @@
 {
   "name": "agntux-google-calendar",
   "version": "0.1.1",
-  "description": "A daily look-ahead at your calendar, with helpful notes for each meeting pulled from your past messages and notes.",
+  "description": "Daily look-ahead of your calendar with prep context pulled from your AgntUX store.",
   "author": {
     "name": "AgntUX",
     "email": "support@agntux.ai"
