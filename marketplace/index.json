@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T17:41:24.153Z",
+  "generated_at": "2026-06-05T12:53:47.586Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet.",
@@ -256,20 +256,23 @@
       }
     },
     "agntux-google-calendar": {
-      "tagline": "See your day ahead, with prep notes for each meeting.",
-      "description": "Each morning, AgntUX looks at your meetings for the next 7 days and creates a to-do for each one. For every meeting it pulls together helpful notes — related Slack threads, Gmail conversations, and past notes — so you walk in prepared. Two buttons let you act right there: find a time and schedule a meeting, or respond to an invite (accept, tentative, or decline).\n",
+      "tagline": "Daily look-ahead of your calendar with prep context.",
+      "description": "Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).\n",
       "categories": [
         "productivity",
         "communication"
       ],
       "keywords": [
         "google-calendar",
+        "gcal",
         "calendar",
         "meetings",
+        "meeting",
         "schedule",
         "prep",
         "agenda",
-        "invites"
+        "invites",
+        "rsvp"
       ],
       "available_on": [
         "trial",

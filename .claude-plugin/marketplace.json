@@ -54,12 +54,15 @@
       "homepage": "https://agntux.ai/plugins/agntux-google-calendar",
       "keywords": [
         "google-calendar",
+        "gcal",
         "calendar",
         "meetings",
+        "meeting",
         "schedule",
         "prep",
         "agenda",
-        "invites"
+        "invites",
+        "rsvp"
       ],
       "category": "productivity",
       "kind": "remote-view-only"
