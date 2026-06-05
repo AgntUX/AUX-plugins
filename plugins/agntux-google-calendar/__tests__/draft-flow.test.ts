@@ -6,13 +6,19 @@
  * assertions here are the structural-shape backstop per the
  * "connector-envelope.test.ts" pattern (named draft-flow per build convention).
  *
- * Assertions are grounded in golden rule sources 1 and 2 only:
- *   - Source 2: plugin.json, listing.yaml (parsed), data_paths,
- *               and files whose existence is a declared contract.
+ * Assertion sources (E30-safe, per golden rule):
+ *   2. parsed listing.yaml fields (js-yaml, mechanical rule 5):
+ *        ui_components[*] (name / view_tool / resource_uri),
+ *        proposed_schema.cursor_semantics,
+ *        proposed_schema.source_id_format,
+ *        proposed_schema.action_classes[*].class
+ *   Structural existsSync checks on _overrides/reference/ files
+ *   (file existence is a structural contract, not body prose — E30-safe).
  *
- * Reference/*.md body prose is NOT grepped (E30 / rule 6).
- * data/instructions/agntux-google-calendar.md body is NOT grepped for
- * invented strings — only structural section headers are confirmed.
+ * data/instructions/agntux-google-calendar.md body prose is NOT grepped
+ * (E30 violation per agntux-build 0.27.0 gate extension to
+ * data/instructions/<slug>.md). The action_classes facts it documented
+ * are re-grounded in listing.yaml proposed_schema.action_classes instead.
  *
  * Every verbatim string comes from a file Read before authoring this test.
  */
@@ -25,35 +31,56 @@ const PLUGIN_ROOT = join(__dirname, "..");
 const SLUG = "agntux-google-calendar";
 
 // ---------------------------------------------------------------------------
-// data/instructions — four canonical sections present, frontmatter correct
+// listing.yaml — action_classes in proposed_schema
+// Parsed via js-yaml (golden rule source 2). Replaces the removed
+// data/instructions/agntux-google-calendar.md describe block.
+// action_classes are the canonical write-back classes the draft flow acts on.
 // ---------------------------------------------------------------------------
 
-describe("data/instructions/agntux-google-calendar.md — canonical structure", () => {
-  const INSTRUCTIONS = join(PLUGIN_ROOT, "data/instructions/agntux-google-calendar.md");
+describe("listing.yaml proposed_schema action_classes", () => {
+  async function parsedActionClasses(): Promise<string[]> {
+    const { load } = await import("js-yaml");
+    const raw = readFileSync(join(PLUGIN_ROOT, "marketplace/listing.yaml"), "utf-8");
+    const listing = load(raw) as Record<string, unknown>;
+    const schema = listing.proposed_schema as Record<string, unknown>;
+    const classes = schema.action_classes as Array<Record<string, unknown>>;
+    return classes.map((c) => c.class as string);
+  }
 
-  it("file exists", () => {
-    expect(existsSync(INSTRUCTIONS)).toBe(true);
+  it("declares response-needed class", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("response-needed");
   });
 
-  it("frontmatter declares type: plugin-instructions", () => {
-    const doc = readFileSync(INSTRUCTIONS, "utf-8");
-    // Verbatim from data/instructions/agntux-google-calendar.md frontmatter
-    expect(doc).toContain("type: plugin-instructions");
+  it("declares meeting-prep class", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("meeting-prep");
   });
 
-  it("frontmatter declares plugin: agntux-google-calendar", () => {
-    const doc = readFileSync(INSTRUCTIONS, "utf-8");
-    // Verbatim from data/instructions/agntux-google-calendar.md frontmatter
-    expect(doc).toContain("plugin: agntux-google-calendar");
+  it("declares risk class", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("risk");
   });
 
-  it("contains the four canonical section headers", () => {
-    const doc = readFileSync(INSTRUCTIONS, "utf-8");
-    // Verbatim from data/instructions/agntux-google-calendar.md body
-    expect(doc).toContain("# Always raise");
-    expect(doc).toContain("# Never raise");
-    expect(doc).toContain("# Rewrites");
-    expect(doc).toContain("# Notes");
+  it("declares knowledge-update class", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("knowledge-update");
+  });
+
+  it("declares deadline class", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("deadline");
+  });
+
+  it("declares other class (escape hatch)", async () => {
+    const classes = await parsedActionClasses();
+    // Verbatim from listing.yaml proposed_schema.action_classes[].class
+    expect(classes).toContain("other");
   });
 });
 

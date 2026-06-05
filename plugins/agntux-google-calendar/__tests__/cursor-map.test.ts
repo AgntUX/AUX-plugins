@@ -1,9 +1,24 @@
 /**
- * cursor-map.test.ts — Static assertions that the per-event updated-timestamp
- * cursor map shape is documented verbatim in _overrides/reference/cursor.md.
+ * cursor-map.test.ts — Static assertions for the per-event updated-timestamp
+ * cursor map and source ID dedup contract for agntux-google-calendar.
  *
- * Every toContain string is a verbatim substring copied from the on-disk file.
- * No LLM at test time; no phantom contracts.
+ * Assertion sources (E30-safe, per golden rule):
+ *   2. parsed listing.yaml proposed_schema.cursor_semantics and
+ *      proposed_schema.source_id_format fields (js-yaml, mechanical rule 5)
+ *
+ * _overrides/reference/cursor.md body prose is NOT grepped (E30 violation
+ * per agntux-build 0.26.0+ gate — override .md files are off limits).
+ * All cursor identity facts stated below are verbatim substrings of the
+ * listing.yaml proposed_schema fields, read before authoring this test.
+ *
+ * Verbatim field values (from marketplace/listing.yaml, confirmed by Read):
+ *   cursor_semantics:
+ *     "JSON map with `look_ahead_window_end` (RFC3339) and per-event
+ *      `<calendar_id>#<event_id>` → `updated` timestamp pairs.
+ *      Past events evict on each sync pass."
+ *   source_id_format:
+ *     "`<calendar_id>#<event_id>` for events; add `#<occurrence_start>`
+ *      for recurring event instances."
  */
 
 import { describe, it, expect } from "vitest";
@@ -11,215 +26,87 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PLUGIN_ROOT = join(__dirname, "..");
-const SLUG = "agntux-google-calendar";
-const CURSOR_MD = join(PLUGIN_ROOT, `skills/${SLUG}/_overrides/reference/cursor.md`);
 
-function cursorDoc(): string {
-  return readFileSync(CURSOR_MD, "utf-8");
+async function parsedSchema(): Promise<Record<string, unknown>> {
+  const { load } = await import("js-yaml");
+  const raw = readFileSync(join(PLUGIN_ROOT, "marketplace/listing.yaml"), "utf-8");
+  const listing = load(raw) as Record<string, unknown>;
+  return listing.proposed_schema as Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
-// Cursor type and storage shape
+// cursor_semantics field — shape, window key, per-event key, eviction
+// All substrings are verbatim from listing.yaml proposed_schema.cursor_semantics.
 // ---------------------------------------------------------------------------
 
-describe("cursor type and storage shape (cursor.md §1)", () => {
-  it("documents the cursor as a JSON object with two dimensions", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1: "**Type:** JSON object with two dimensions:"
-    expect(doc).toContain("**Type:** JSON object with two dimensions:");
+describe("cursor_semantics field (listing.yaml proposed_schema)", () => {
+  it("is a non-empty string", async () => {
+    const schema = await parsedSchema();
+    expect(typeof schema.cursor_semantics).toBe("string");
+    expect((schema.cursor_semantics as string).length).toBeGreaterThan(0);
   });
 
-  it("documents look_ahead_window_end as RFC3339 timestamp", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1
-    expect(doc).toContain("`look_ahead_window_end`");
-    expect(doc).toContain("RFC3339 timestamp marking the end of the last");
+  it("describes the look_ahead_window_end RFC3339 window key", async () => {
+    const schema = await parsedSchema();
+    const cs = schema.cursor_semantics as string;
+    // Verbatim from listing.yaml cursor_semantics: "look_ahead_window_end"
+    expect(cs).toContain("look_ahead_window_end");
+    // Verbatim: "(RFC3339)"
+    expect(cs).toContain("RFC3339");
   });
 
-  it("documents the per-event key shape as <calendarId>#<eventId>", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1: Per-event entries key pattern
-    expect(doc).toContain('"<calendarId>#<eventId>"');
+  it("describes the per-event <calendar_id>#<event_id> key format", async () => {
+    const schema = await parsedSchema();
+    const cs = schema.cursor_semantics as string;
+    // Verbatim from listing.yaml cursor_semantics: "<calendar_id>#<event_id>"
+    expect(cs).toContain("<calendar_id>#<event_id>");
   });
 
-  it("documents the recurring-instance compound key with occurrenceStart", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1: recurring event instances compound key
-    expect(doc).toContain('"<calendarId>#<eventId>#<occurrenceStart>"');
+  it("describes the per-event entries as updated timestamp pairs", async () => {
+    const schema = await parsedSchema();
+    const cs = schema.cursor_semantics as string;
+    // Verbatim from listing.yaml cursor_semantics: "updated"
+    expect(cs).toContain("updated");
   });
 
-  it("documents YAML storage location in data/learnings/agntux-google-calendar/sync.md", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1 Storage section
-    expect(doc).toContain("data/learnings/agntux-google-calendar/sync.md");
-  });
-
-  it("shows a concrete example cursor YAML block with look_ahead_window_end key", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §1 YAML example
-    expect(doc).toContain('"look_ahead_window_end"');
+  it("declares the past-events-evict-on-each-sync-pass semantic", async () => {
+    const schema = await parsedSchema();
+    const cs = schema.cursor_semantics as string;
+    // Verbatim from listing.yaml cursor_semantics: "Past events evict on each sync pass."
+    expect(cs).toContain("Past events evict on each sync pass.");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Per-event cursor entries — match / mismatch / absent logic
+// source_id_format field — per-event key and recurring instance key
+// All substrings are verbatim from listing.yaml proposed_schema.source_id_format.
 // ---------------------------------------------------------------------------
 
-describe("per-event cursor entries — diff semantics (cursor.md §2)", () => {
-  it("documents Match (equal): event unchanged; skip get_event", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §2: match branch
-    expect(doc).toContain("**Match (equal):** event unchanged since last run; skip `get_event` call");
+describe("source_id_format field (listing.yaml proposed_schema)", () => {
+  it("is a non-empty string", async () => {
+    const schema = await parsedSchema();
+    expect(typeof schema.source_id_format).toBe("string");
+    expect((schema.source_id_format as string).length).toBeGreaterThan(0);
   });
 
-  it("documents Mismatch: event was modified; fetch full detail", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §2: mismatch branch
-    expect(doc).toContain("**Mismatch (cursor entry < event.updated):** event was modified;");
+  it("uses <calendar_id>#<event_id> as the dedup key for events", async () => {
+    const schema = await parsedSchema();
+    const sif = schema.source_id_format as string;
+    // Verbatim from listing.yaml source_id_format: "<calendar_id>#<event_id>"
+    expect(sif).toContain("<calendar_id>#<event_id>");
   });
 
-  it("documents No cursor entry: event is new; fetch and emit action file", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §2: no-entry branch
-    expect(doc).toContain("**No cursor entry:** event is new to this run;");
+  it("documents the recurring instance compound key with #<occurrence_start>", async () => {
+    const schema = await parsedSchema();
+    const sif = schema.source_id_format as string;
+    // Verbatim from listing.yaml source_id_format: "#<occurrence_start>"
+    expect(sif).toContain("#<occurrence_start>");
   });
 
-  it("documents recurring instance compound key uses originalStartTime.dateTime", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §2
-    expect(doc).toContain("The `occurrenceStart` is the occurrence's");
-    expect(doc).toContain("`originalStartTime.dateTime` as returned by the Calendar API.");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Advance rule — transactional (cursor.md §3)
-// ---------------------------------------------------------------------------
-
-describe("advance rule — transactional (cursor.md §3)", () => {
-  it("documents the transactional rule: advance only at Step 11 after successful action write", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §3
-    expect(doc).toContain("Per-event cursor entries are written **only at Step 11, and only when the");
-    expect(doc).toContain("corresponding action file write for that event succeeded.**");
-  });
-
-  it("documents the failure path: do NOT update cursor on action write failure", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §3
-    expect(doc).toContain("Do NOT update the cursor entry for that event.");
-    expect(doc).toContain("Leave the previous cursor entry value (or absent key) in place.");
-  });
-
-  it("documents look_ahead_window_end advancing regardless of individual write failures", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §3
-    expect(doc).toContain("It advances regardless of individual event write failures");
-  });
-
-  it("documents the cursor advance log format", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §3
-    expect(doc).toContain("cursor advance — new:");
-    expect(doc).toContain("updated:");
-    expect(doc).toContain("evicted:");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Eviction — past events (cursor.md §4)
-// ---------------------------------------------------------------------------
-
-describe("eviction — past events (cursor.md §4)", () => {
-  it("documents eviction condition: start.dateTime < now() at time of run", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4
-    expect(doc).toContain("Events whose `start.dateTime < now()` at the time of the run evict from");
-  });
-
-  it("documents eviction as part of Step 11 atomic write, not Step 5i", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4
-    expect(doc).toContain("the cursor map as part of the **Step 11 atomic write** — not during Step 5i.");
-  });
-
-  it("documents Step 5i vs Step 11 sequencing distinction", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4 sequencing-distinction block
-    expect(doc).toContain("**Step 5i** handles the *action file* side of eviction:");
-    expect(doc).toContain("**Step 11** performs the *cursor map* side:");
-  });
-
-  it("documents google-calendar-cursor-evicted log kind", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4
-    expect(doc).toContain("Log `kind: google-calendar-cursor-evicted` per eviction at Step 11.");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// singleEvents requirement (cursor.md §4a)
-// ---------------------------------------------------------------------------
-
-describe("singleEvents expansion requirement (cursor.md §4a)", () => {
-  it("documents Every list_events call must pass singleEvents: true explicitly", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4a
-    expect(doc).toContain("**Requirement:** Every `list_events` call in this plugin passes");
-    expect(doc).toContain("`singleEvents: true` explicitly.");
-  });
-
-  it("documents the consequence of singleEvents: false (series object, not instances)", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4a
-    expect(doc).toContain("returns a single recurrence-rule object per recurring series rather than");
-  });
-
-  it("documents the Do not rely on the API default warning", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §4a
-    expect(doc).toContain("Do not rely on the API default.");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Cold-start behaviour (cursor.md §5)
-// ---------------------------------------------------------------------------
-
-describe("cold-start behaviour (cursor.md §5)", () => {
-  it("documents cold-start detection via empty cursor or absent look_ahead_window_end", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §5
-    expect(doc).toContain("When `cursor` is empty (`{}`) or `look_ahead_window_end` is absent:");
-  });
-
-  it("documents bootstrap_window_days is NOT applied for Google Calendar", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §5
-    expect(doc).toContain("`bootstrap_window_default_days` from `user.md` is NOT applied here");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Sync state frontmatter keys (cursor.md §7)
-// ---------------------------------------------------------------------------
-
-describe("sync state frontmatter keys (cursor.md §7)", () => {
-  it("documents the cursor key as Compact JSON string", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §7 table
-    expect(doc).toContain("| `cursor` | Compact JSON string |");
-  });
-
-  it("documents events_processed as an integer key", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §7 table
-    expect(doc).toContain("| `events_processed` | integer |");
-  });
-
-  it("documents volume_cap_hit as a boolean key", () => {
-    const doc = cursorDoc();
-    // Verbatim from cursor.md §7 table
-    expect(doc).toContain("| `volume_cap_hit` | boolean |");
+  it("scopes the recurring instance key to recurring event instances", async () => {
+    const schema = await parsedSchema();
+    const sif = schema.source_id_format as string;
+    // Verbatim from listing.yaml source_id_format: "recurring event instances"
+    expect(sif).toContain("recurring event instances");
   });
 });

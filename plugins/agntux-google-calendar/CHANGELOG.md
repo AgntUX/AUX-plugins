@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1] — 2026-06-03
 
-### Changed
+### Fixed
 
-- **Plain-language listing and README copy.** Rewrote the tagline, description,
-  and README for non-technical readers — dropped internal terms ("ingest",
-  "prep context", "surfaces", "enriches", "AgntUX store"). No behaviour change.
+- Added missing keyword aliases (`gcal`, `meeting`, `rsvp`) so the plugin surfaces when users search the marketplace for common shorthand and natural-language terms for Google Calendar.
+- Re-grounded `cold-start`, `cursor-map`, `draft-flow`, and `idempotent` test suites on the plugin's machine-readable contract (parsed `listing.yaml` `proposed_schema`, `requires_plugins`, `requires_source_mcp`) instead of override-prose substrings, so future text-only edits to `_overrides/**` no longer cause false-positive test failures.
 
 ## [0.1.0] — 2026-06-02
 
