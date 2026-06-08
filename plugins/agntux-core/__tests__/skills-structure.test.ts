@@ -217,10 +217,11 @@ describe("agntux-core skills directory structure", () => {
     });
   });
 
-  describe("/agntux triage interactive command wiring (10.3.0)", () => {
+  describe("/agntux triage interactive command wiring (10.4.0)", () => {
     // Regression guard for the 10.3.0 change that made `/agntux triage` a
     // first-class, deterministic command instead of relying on the host
-    // inferring "what's hot" / "show triage" from natural language.
+    // inferring "what's hot" / "show triage" from natural language, and the
+    // 10.4.0 change that made it open the UI instantly (no preflight/ladder).
     const skillSrc = readFileSync(join(AGNTUX_SKILL_DIR, "SKILL.md"), "utf-8");
 
     it("routing table has a `triage` row that invokes agntux_core_triage_view", () => {
@@ -236,9 +237,60 @@ describe("agntux-core skills directory structure", () => {
       expect(skillSrc).not.toMatch(/\]\(reference\/triage\.md\)/);
     });
 
-    it("triage runs the full precondition check ladder (it is an interactive command)", () => {
-      expect(skillSrc).toMatch(/full check ladder/);
-      expect(skillSrc).toMatch(/`triage`,[\s\S]*?full check ladder/);
+    it("triage is carved out of the preflight + precondition ladder — instant zero-arg call (10.4.0)", () => {
+      // /agntux triage calls agntux_core_triage_view immediately with `{}` —
+      // no preflight, no preconditions. The view tool self-resolves root/data
+      // and surfaces an onboarding pointer in-UI, so the ladder is
+      // unnecessary here. Regression guard against re-adding the ramp that
+      // delayed first paint (the multi-file-read churn in the bug report).
+
+      // 1. An explicit carve-out bullet opts triage out of the ladder. Match
+      //    the bullet's intent ("`triage` … opt(s) out"), not exact prose, so
+      //    a benign reword (e.g. "entire" → "whole") doesn't fail the test —
+      //    same durable style as the feedback-review / triage-digest guards.
+      expect(skillSrc).toMatch(/`triage`[\s\S]{0,40}?opts? out/);
+
+      // 2. The "remaining sub-commands … run the full check ladder" line must
+      //    NOT list triage (it used to, pre-10.4.0). Structural fact-check,
+      //    not a phrase-grep.
+      const remaining = skillSrc.match(
+        /remaining sub-commands\s*\(([^)]*)\)[\s\S]*?run\s+the\s+full\s+check\s+ladder/,
+      );
+      expect(
+        remaining,
+        "expected a 'remaining sub-commands (…) run the full check ladder' line",
+      ).toBeTruthy();
+      expect(remaining![1]).not.toMatch(/triage/);
+
+      // 3. The routing-table triage row instructs an immediate call that skips
+      //    the ladder. Assert intent (immediate + skips preflight/preconditions)
+      //    rather than the exact comma-joined phrasing, so a reword survives.
+      const row = skillSrc.match(/\|\s*`triage`\s*\|[^\n]*\n/);
+      expect(row, "expected a `triage` routing-table row").toBeTruthy();
+      expect(row![0]).toMatch(/immediately/i);
+      expect(row![0]).toMatch(/no\s+pre(flight|condition)|skip/i);
+    });
+
+    it("the natural-language 'show triage' heuristic also fires the tool instantly (10.4.0)", () => {
+      // The 10.4.0 change introduces a SECOND instant-call site: an empty-args
+      // "what's hot / show triage" must invoke agntux_core_triage_view
+      // immediately too, not run the ladder. Guard it so a revert of the
+      // heuristic bullet to the old "after the preflight + preconditions"
+      // wording is caught — the explicit-`triage`-token guard above would not
+      // catch that. Anchored on the bullet's unique phrasing
+      // ("what should I look at / show triage") so it can't accidentally match
+      // the triage-digest routing row, which also mentions "show triage".
+      const heuristic = skillSrc.match(
+        /what should I look at \/ show triage[\s\S]{0,300}/i,
+      );
+      expect(
+        heuristic,
+        "expected the 'what's hot / what should I look at / show triage' heuristic bullet",
+      ).toBeTruthy();
+      expect(heuristic![0]).toMatch(/immediately/i);
+      expect(heuristic![0]).toMatch(
+        /skipping the preflight|no\s+pre(flight|condition)/i,
+      );
     });
   });
 

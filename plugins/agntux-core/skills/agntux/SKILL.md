@@ -20,20 +20,25 @@ its body.
 
 ## Schema-drift preflight
 
-For sub-commands other than `onboard` / `schema`, run
+For sub-commands other than `onboard` / `schema` / `triage`, run
 [`_preflight.md`](../_preflight.md) before the resource body. The two
 background sub-commands (`feedback-review`, `triage-digest`) follow
 `_preflight.md`'s background-mode carve-out — skip the nudge when no
 user is present.
 
 `onboard` runs its own walkthrough; `schema` IS what resolves the
-preflight nudge state — neither runs the preflight themselves.
+preflight nudge state — neither runs the preflight themselves. `triage`
+skips the preflight too so the action-items UI opens instantly (see the
+Preconditions carve-out below).
 
 ## Preconditions
 
-Run [`_preconditions.md`](../_preconditions.md). Check 0 walks
+For sub-commands other than `triage` (and the two background commands
+`feedback-review` / `triage-digest`), run
+[`_preconditions.md`](../_preconditions.md). Check 0 walks
 [`_resolve-root.md`](../_resolve-root.md). On a divert, follow the
-redirect and stop.
+redirect and stop. `triage` skips the ladder entirely and calls the
+view tool immediately — see its carve-out below.
 
 Carve-outs:
 
@@ -47,9 +52,18 @@ Carve-outs:
   the wrong behaviour for a Daily 16:00 / Daily 08:00 fire with no
   user present. Inline preconditions exit silently on divert and let
   the next user-initiated session surface and fix.
+- `triage` opts out of the **entire** check ladder (and the
+  preflight). It calls `agntux_core_triage_view` immediately with `{}`
+  so the action-items UI opens with zero ramp. Skipping the ladder is
+  safe because the tool is self-sufficient: it resolves the project
+  root and gathers its own data server-side, and when the store isn't
+  set up it surfaces an onboarding pointer inside the UI (the
+  `actions_index_missing` / `bootstrap_mode` states) rather than
+  diverting. The schema-review / new-plugin nudges and plugin
+  reconciliation still run on every other `/agntux` command.
 
-The remaining sub-commands (`triage`, `profile`, `schema`, `teach`,
-`sync`, `ask`) run the full check ladder.
+The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
+`ask`) run the full check ladder.
 
 ## Routing table
 
@@ -57,7 +71,7 @@ The remaining sub-commands (`triage`, `profile`, `schema`, `teach`,
 |---|---|---|
 | (empty / natural language) | infer from chat; default to [`reference/ask.md`](reference/ask.md) | Catch-all behaviour preserved. |
 | `onboard` | [`reference/onboard.md`](reference/onboard.md) | Re-entry mode handled inside the resource. |
-| `triage` | invoke `mcp__agntux-core__agntux_core_triage_view` directly — no reference file | Opens your action-items list (the interactive triage UI). Run the preflight + preconditions first, then call the tool. |
+| `triage` | invoke `mcp__agntux-core__agntux_core_triage_view` directly — no reference file | Opens your action-items list (the interactive triage UI). Call the tool immediately with `{}` — no preflight, no preconditions. The tool resolves the project root and gathers its own data, and shows an onboarding pointer in-UI if the store isn't set up. |
 | `profile` | [`reference/profile.md`](reference/profile.md) | Edit `user.md`. |
 | `schema` (+ optional `review {slug}` / `edit`) | [`reference/schema.md`](reference/schema.md) | Sub-modes preserved from old skill. |
 | `teach` (+ optional `{plugin-slug}`) | [`reference/teach.md`](reference/teach.md) | Per-plugin instructions. |
@@ -73,10 +87,10 @@ The remaining sub-commands (`triage`, `profile`, `schema`, `teach`,
    `reference/{token}.md` and follow it. The remainder of `$ARGUMENTS`
    is the resource's input (e.g., `agntux schema review agntux-slack`
    loads `reference/schema.md` with sub-args `review agntux-slack`).
-   **`triage` is the one exception — it has no `reference/triage.md`.**
-   After the preflight + preconditions, invoke
-   `mcp__agntux-core__agntux_core_triage_view` directly to open the
-   interactive action-items UI.
+   **`triage` is the one exception — it has no `reference/triage.md`,
+   and it skips the preflight + preconditions.** Invoke
+   `mcp__agntux-core__agntux_core_triage_view` immediately with `{}`
+   to open the interactive action-items UI with zero ramp.
 3. **No match** → infer intent from the natural-language prompt and
    pick the matching resource. Heuristics:
    - "onboard / set me up / get started / I added a new plugin" →
@@ -86,9 +100,10 @@ The remaining sub-commands (`triage`, `profile`, `schema`, `teach`,
    - "teach {plugin} / never raise X from {source}" → `teach.md`.
    - "sync {source} / ingest {source} now" → `sync.md`.
    - "what's hot / what should I look at / show triage" → invoke
-     `mcp__agntux-core__agntux_core_triage_view` directly (the
-     interactive UI). Do NOT load `triage-digest.md` for this case —
-     that resource is background-only.
+     `mcp__agntux-core__agntux_core_triage_view` immediately with `{}`
+     (the interactive UI), skipping the preflight + preconditions just
+     like the explicit `triage` command. Do NOT load `triage-digest.md`
+     for this case — that resource is background-only.
    - Anything else (entity lookups, time queries, prep, status edits)
      → `ask.md`.
 4. When the prompt could plausibly match `profile` (global) or
