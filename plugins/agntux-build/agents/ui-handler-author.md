@@ -173,6 +173,57 @@ not to render the connector's native UI after the connector tool
 returns — model the wording on `agntux_slack_compose_view`'s
 description.
 
+**Authoring rule — trigger mode (action-item vs user-initiated).** Decide
+how the view is triggered before writing the `inputSchema` and
+`description`; it flips both. (The full contract + resolution rule live in
+`draft-flow-author.md` §2b — read it once.)
+
+- **Action-item-triggered** (opened from a suggested-action button that
+  carries an `action_id` — triage, compose, canvas): the default template
+  shape is correct — `inputSchema` is `required: ["action_id"]`,
+  `additionalProperties: false`, and the description maps click-time
+  trigger phrases to `{action_id}` only.
+- **User-initiated / ad-hoc** (opened from a conversational request with no
+  backing action file — e.g. calendar's "find a time to meet"): the
+  `inputSchema` is **optional `action_id` + typed inline params**
+  (`required: []`, `additionalProperties: true` — NOT
+  `required: ["action_id"]` / `additionalProperties: false`), and the
+  `{{view-tool-description}}` MUST be **trigger-intent-forward** — lead with
+  "Use this whenever the user wants to {X}" and document both call shapes.
+  An `action_id`-centric description ("Given an action_id, …") will NOT be
+  selected by the host for an ad-hoc request; that is the exact bug that
+  left the calendar schedule view unreachable from "find a time to meet …".
+
+Dual-trigger handler skeleton (the agntux-google-calendar `handleSchedule`
+shape; the agntux-build view-tool template carries this as a commented
+opt-in block):
+
+```ts
+interface ViewArgs {
+  action_id?: string;          // OPTIONAL for user-initiated views
+  // …one optional field per structuredContent value the lane resolves…
+}
+
+function hasInlineArgs(args: ViewArgs): boolean {
+  // presence (not truthiness) of ANY inline field selects the inline path
+  return args.draft_summary !== undefined /* || … */;
+}
+
+async function handle(args: ViewArgs, ctx: ViewToolContext) {
+  const actionId = typeof args.action_id === "string" ? args.action_id : "";
+  // inline → disk → empty (never read fs on the inline branch)
+  if (hasInlineArgs(args)) {
+    return { content: [...], structuredContent: buildFromInline(args) };
+  }
+  if (!actionId) return { content: [...], structuredContent: EMPTY };
+  try { /* ctx.fs.readFile(`actions/${actionId}.md`) → parse */ }
+  catch { return { content: [...], structuredContent: EMPTY }; }
+}
+```
+
+The empty-args cold render (`{}`) still lands on the empty placeholder via
+the `!actionId` branch — the §6 render-harness contract is preserved.
+
 **Two placeholder spellings.** File **contents** use `{{ui-name}}` (etc.).
 On-disk **filenames** in the template tree use `__ui-name__` instead —
 the brace form is rejected by Claude Desktop's plugin-zip upload

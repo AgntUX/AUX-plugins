@@ -304,8 +304,11 @@ function ScheduleInner() {
     return vars[name] ? `var(${name})` : fallback;
   }
 
+  // `||` (not `??`) so an empty-string url — which the handler emits for a
+  // partial inline source_link `{ label }` — falls back rather than rendering
+  // an `<a href="">` that points at the current page.
   const calendarUrl =
-    data.source_link?.url ?? 'https://calendar.google.com';
+    data.source_link?.url || 'https://calendar.google.com';
 
   const openLink = (
     <a

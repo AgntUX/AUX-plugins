@@ -2,9 +2,11 @@
 #
 # This is the substitution map every ingest plugin's render pipeline consumes
 # (canonical/prompts/ingest/skills/sync/ → plugins/{slug}/skills/{slug}/).
-# The ten placeholder keys below are EXACTLY the ones the canonical sync
-# template references; the renderer's surviving-placeholder guard fails the
-# build if any are missing. Keep this list in lockstep with the canonical
+# The ten {{...}} placeholder keys below are the build-state-substituted ones
+# the canonical sync template references; the renderer's surviving-placeholder
+# guard fails the build if any are missing. `extra-skill-triggers` is an
+# eleventh referenced key but ships as a literal empty default (not a
+# build-state placeholder). Keep this list in lockstep with the canonical
 # template (scripts/render-skill.mjs --self-test surfaces drift).
 #
 # Consumed by:
@@ -30,6 +32,12 @@ source-mcp-tools: "{{source-mcp-tools}}"            # comma-list of source MCP t
 thread-unit-name: {{thread-unit-name}}              # singular: thread | channel | issue | row
 bootstrap-window-default-days: "{{bootstrap-window-default-days}}"
 example-channel: {{example-channel}}                # one source-native scope name
+# Optional extra skill-dispatch trigger phrases for the SKILL description.
+# Defaults to empty (no user-initiated view lane). A literal here — NOT a
+# build-state placeholder — so a fresh scaffold renders cleanly. Populate it
+# (with a trailing ", ") only if this plugin ships a user-initiated view lane;
+# see canonical/prompts/ingest/STUBS.md → "Optional user-initiated view lane".
+extra-skill-triggers: ""
 
 # Documentation-only declarations (NOT {{...}} placeholders — the renderer's
 # scalar-only parser skips list bodies; these are read by invariant-checker

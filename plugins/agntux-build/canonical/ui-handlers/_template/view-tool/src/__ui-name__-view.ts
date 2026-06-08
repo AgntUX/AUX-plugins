@@ -127,6 +127,65 @@ async function handle(
   }
 }
 
+// ── OPT-IN: user-initiated (dual-trigger) mode ──────────────────────────────
+//
+// The default handler above is action_id-only — correct for views opened FROM
+// an action item (triage, compose, canvas: the user clicks a suggested-action
+// button and the host passes the action_id). If instead your view is
+// USER-INITIATED — the user asks for it conversationally with no backing action
+// file ("find a time to meet next week with Alice", "open the X composer for
+// these three rows") — opt into the dual-trigger shape. See
+// draft-flow-author.md §2b "user-initiated mode" for the full contract; the
+// worked example is agntux-google-calendar's schedule view.
+//
+// 1) Widen the Args with the inline fields the skill lane will pass:
+//
+//      interface {{ui-name-pascal}}Args {
+//        action_id?: string;            // now OPTIONAL
+//        // … one optional field per structuredContent value the lane resolves
+//        //    (e.g. draft_summary?, attendee_emails?, candidate_slots?) …
+//      }
+//
+//      function hasInlineArgs(args: {{ui-name-pascal}}Args): boolean {
+//        // presence (not truthiness) of ANY inline field → inline path
+//        return args.draft_summary !== undefined /* || … */;
+//      }
+//
+// 2) Resolve inline → disk → empty (NEVER read a fs path on the inline branch):
+//
+//      const actionId = typeof args.action_id === "string" ? args.action_id : "";
+//      if (hasInlineArgs(args)) {
+//        return { content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
+//                 structuredContent: buildFromInline(args) };   // coerce over defaults
+//      }
+//      if (!actionId) return /* empty placeholder payload */;
+//      try { /* existing ctx.fs read of actions/${actionId}.md */ } catch { /* empty */ }
+//
+// 3) Loosen the inputSchema so the host knows it MAY pass the inline fields —
+//    optional action_id + typed inline props, NOT required:["action_id"] /
+//    additionalProperties:false:
+//
+//      inputSchema: {
+//        type: "object",
+//        properties: { action_id: { type: "string" }, /* …inline props… */ },
+//        required: [],                 // not ["action_id"]
+//        additionalProperties: true,   // not false
+//      },
+//
+// 4) Write a TRIGGER-INTENT-FORWARD {{view-tool-description}} ("Use this
+//    whenever the user wants to …") so the host selects the view for a
+//    conversational request — an action_id-centric description ("Given an
+//    action_id, …") will NOT be selected for an ad-hoc ask. Document both call
+//    shapes (inline params for user-initiated; action_id for an action item).
+//
+// Skill side: the plugin's user-initiated lane (an additive
+// _overrides/reference/{verb}.md, opted in via the canonical
+// <!-- append:sub-commands -->/<!-- append:argument-parsing -->/
+// <!-- append:ask-intent-redirect --> markers — see ingest STUBS.md) gathers
+// the data (including any read-tool calls like suggest_time) and passes it
+// inline. The iframe Send button stays the only write gate.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Descriptor ──────────────────────────────────────────────────────────────
 
 const viewTool: ViewTool<{{ui-name-pascal}}Args, {{ui-name-pascal}}Payload> = {

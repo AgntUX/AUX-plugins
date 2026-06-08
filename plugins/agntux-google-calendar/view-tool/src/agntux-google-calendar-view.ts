@@ -91,8 +91,61 @@ function parseSectionYaml(
 
 // ── SCHEDULE view tool ───────────────────────────────────────────────────────
 
+// Dual-trigger args. The schedule view is reachable two ways:
+//   1. User-initiated (ad-hoc) — the skill's schedule lane resolves attendees,
+//      window, and candidate slots (via suggest_time) and opens the view with
+//      every field passed INLINE. `action_id` may be "" / absent.
+//   2. Action-item — `action_id` only; the handler reads the pre-composed
+//      `## Schedule payload` from actions/{action_id}.md on disk.
+// Resolution order (mirrors draft-flow-author.md §2b): inline → disk → empty.
+// All inline fields are optional; coerced over EMPTY_PAYLOAD defaults.
+// Inline presence wins UNCONDITIONALLY: if ANY inline field is supplied, the
+// action file is NOT read even when action_id is also present. In practice the
+// two shapes never co-occur — the skill lane passes inline fields XOR an
+// action_id — but the precedence is defined so a future cross-plugin caller
+// that supplies both gets the inline payload, not a surprise disk read.
 interface ScheduleArgs {
-  action_id: string;
+  action_id?: string;
+  draft_summary?: string;
+  draft_description?: string;
+  attendee_emails?: string[];
+  duration_minutes?: number;
+  search_window_start?: string;
+  search_window_end?: string;
+  preferred_hours?: {
+    start?: string;
+    end?: string;
+    exclude_weekends?: boolean;
+  };
+  candidate_slots?: unknown[];
+  include_google_meet?: boolean;
+  user_timezone?: string;
+  user_primary_calendar_id?: string;
+  personalization_signals?: string[];
+  source_link?: { label?: string; url?: string } | null;
+}
+
+/** True when the caller supplied any inline scheduling field — the signal of a
+ * user-initiated (ad-hoc) request rather than an action-file trigger. Presence
+ * (not truthiness) is the test: an explicitly-passed empty array / "" still
+ * selects the inline path so the view renders the user's resolved inputs rather
+ * than silently falling back to a disk read of a non-existent action file. */
+function hasInlineScheduleArgs(args: ScheduleArgs): boolean {
+  return (
+    args.draft_summary !== undefined ||
+    args.draft_description !== undefined ||
+    args.attendee_emails !== undefined ||
+    args.duration_minutes !== undefined ||
+    args.search_window_start !== undefined ||
+    args.search_window_end !== undefined ||
+    args.preferred_hours !== undefined ||
+    args.candidate_slots !== undefined ||
+    args.include_google_meet !== undefined ||
+    args.user_timezone !== undefined ||
+    args.user_primary_calendar_id !== undefined ||
+    args.personalization_signals !== undefined ||
+    args.source_link !== undefined
+  );
 }
 
 interface SchedulePayload {
@@ -127,10 +180,13 @@ async function handleSchedule(
   content: Array<{ type: "text"; text: string }>;
   structuredContent: SchedulePayload;
 }> {
-  const path = `actions/${args.action_id}.md`;
+  // Render-harness contract: empty args ({}) must render placeholders, never
+  // build actions/undefined.md. Normalise action_id up front; "" is valid.
+  const actionId = typeof args.action_id === "string" ? args.action_id : "";
+  const path = `actions/${actionId}.md`;
 
   const EMPTY_PAYLOAD: SchedulePayload = {
-    action_id: args.action_id,
+    action_id: actionId,
     connector_intent: "google-calendar-connector-create-event",
     draft_summary: "",
     draft_description: "",
@@ -146,6 +202,67 @@ async function handleSchedule(
     personalization_signals: [],
     source_link: null,
   };
+
+  // ── Inline (user-initiated) path ────────────────────────────────────────────
+  // The skill's schedule lane resolved attendees, window, draft, and candidate
+  // slots and passed them inline. Build the payload from those over the
+  // EMPTY_PAYLOAD defaults — no fs read, no action file required. action_id may
+  // be "" here (ad-hoc requests have no backing action item).
+  if (hasInlineScheduleArgs(args)) {
+    const preferredHoursRaw = asRecord(args.preferred_hours);
+    const sourceLinkRaw = asRecord(args.source_link);
+
+    const structuredContent: SchedulePayload = {
+      action_id: actionId,
+      connector_intent: "google-calendar-connector-create-event",
+      draft_summary: asString(args.draft_summary),
+      draft_description: asString(args.draft_description),
+      attendee_emails: asStringArray(args.attendee_emails),
+      duration_minutes: asNumber(args.duration_minutes, 30),
+      search_window_start: asString(args.search_window_start),
+      search_window_end: asString(args.search_window_end),
+      preferred_hours: {
+        start: asString(preferredHoursRaw.start, "09:00"),
+        end: asString(preferredHoursRaw.end, "17:00"),
+        exclude_weekends:
+          typeof preferredHoursRaw.exclude_weekends === "boolean"
+            ? preferredHoursRaw.exclude_weekends
+            : true,
+      },
+      candidate_slots: asUnknownArray(args.candidate_slots),
+      include_google_meet:
+        typeof args.include_google_meet === "boolean"
+          ? args.include_google_meet
+          : true,
+      user_timezone: asString(args.user_timezone, "UTC"),
+      user_primary_calendar_id: asString(
+        args.user_primary_calendar_id,
+        "primary",
+      ),
+      personalization_signals: asStringArray(args.personalization_signals),
+      source_link:
+        Object.keys(sourceLinkRaw).length > 0
+          ? {
+              label: asString(sourceLinkRaw.label),
+              url: asString(sourceLinkRaw.url),
+            }
+          : null,
+    };
+
+    return {
+      content: [{ type: "text", text: renderConfirmationText(SCHEDULE_UI_LABEL) }],
+      structuredContent,
+    };
+  }
+
+  // ── Action-file path ────────────────────────────────────────────────────────
+  // No inline args: an empty action_id can only yield the empty form.
+  if (!actionId) {
+    return {
+      content: [{ type: "text", text: renderConfirmationText(SCHEDULE_UI_LABEL) }],
+      structuredContent: EMPTY_PAYLOAD,
+    };
+  }
 
   try {
     const buf = await ctx.fs.readFile(path);
@@ -164,7 +281,7 @@ async function handleSchedule(
     const sourceLinkRaw = asRecord(raw.source_link);
 
     const structuredContent: SchedulePayload = {
-      action_id: args.action_id,
+      action_id: actionId,
       connector_intent: "google-calendar-connector-create-event",
       draft_summary: asString(raw.draft_summary),
       draft_description: asString(raw.draft_description),
@@ -219,11 +336,19 @@ const scheduleViewTool: ViewTool<ScheduleArgs, SchedulePayload> = {
   descriptor: {
     name: "agntux_google_calendar_schedule_view",
     description:
-      "Opens the AgntUX Google Calendar scheduling interface. " +
-      "Given an action_id for a scheduling action item, reads the pre-composed " +
-      "draft (title, attendees, duration, find-a-time window, prep context) and " +
-      "surfaces an interactive slot-picker form. The user selects a free slot and " +
-      "clicks Send to create the Google Calendar event via the connector. " +
+      "Use this whenever the user wants to find a time to meet or schedule a " +
+      "meeting on Google Calendar — both ad-hoc user-initiated requests " +
+      "(\"find a time next week with Alice and Bob about the roadmap\", " +
+      "\"set up a 30-min call with the design team\") and pre-composed " +
+      "scheduling action items. Two call shapes: (1) USER-INITIATED — pass the " +
+      "meeting fields inline (draft_summary, draft_description, attendee_emails, " +
+      "duration_minutes, search_window_start/end, candidate_slots, user_timezone, " +
+      "user_primary_calendar_id, include_google_meet); the view opens " +
+      "pre-populated with the title, attendees, and candidate slots so the user " +
+      "just picks one and clicks Schedule. (2) ACTION-ITEM — pass an action_id and " +
+      "the handler reads the pre-composed draft from actions/{action_id}.md. " +
+      "The user selects a free slot and clicks Send to create the Google Calendar " +
+      "event via the connector. " +
       "This tool is an MCP App view tool: it returns a structured data " +
       "payload that the host (Claude Desktop / Claude Cowork / Claude Code) " +
       "renders into an interactive iframe shown above the next assistant " +
@@ -235,11 +360,79 @@ const scheduleViewTool: ViewTool<ScheduleArgs, SchedulePayload> = {
       properties: {
         action_id: {
           type: "string",
-          description: "The action item ID (filename stem under actions/).",
+          description:
+            "Action-item trigger: the action item ID (filename stem under " +
+            "actions/). Optional — omit (or pass \"\") for user-initiated " +
+            "requests that supply the scheduling fields inline instead.",
+        },
+        draft_summary: {
+          type: "string",
+          description: "User-initiated: pre-filled meeting title (editable).",
+        },
+        draft_description: {
+          type: "string",
+          description: "User-initiated: pre-filled meeting description / agenda.",
+        },
+        attendee_emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "User-initiated: attendee email addresses (exclude the user's own).",
+        },
+        duration_minutes: {
+          type: "number",
+          description: "User-initiated: meeting length in minutes (default 30).",
+        },
+        search_window_start: {
+          type: "string",
+          description:
+            "User-initiated: ISO-8601 start of the find-a-time window.",
+        },
+        search_window_end: {
+          type: "string",
+          description: "User-initiated: ISO-8601 end of the find-a-time window.",
+        },
+        preferred_hours: {
+          type: "object",
+          properties: {
+            start: { type: "string" },
+            end: { type: "string" },
+            exclude_weekends: { type: "boolean" },
+          },
+          description:
+            "User-initiated: working-hours bounds for slot suggestions.",
+        },
+        candidate_slots: {
+          type: "array",
+          description:
+            "User-initiated: pre-computed free/busy slots from suggest_time " +
+            "({start,end,label?}). Pre-fills the slot picker.",
+        },
+        include_google_meet: {
+          type: "boolean",
+          description: "User-initiated: add a Google Meet link (default true).",
+        },
+        user_timezone: {
+          type: "string",
+          description: "User-initiated: IANA timezone (e.g. America/Denver).",
+        },
+        user_primary_calendar_id: {
+          type: "string",
+          description: "User-initiated: target calendar id (default \"primary\").",
+        },
+        personalization_signals: {
+          type: "array",
+          items: { type: "string" },
+          description: "User-initiated: short prep-context bullets.",
+        },
+        source_link: {
+          type: ["object", "null"],
+          description:
+            "User-initiated: {label,url} link back to the triggering context.",
         },
       },
-      required: ["action_id"],
-      additionalProperties: false,
+      required: [],
+      additionalProperties: true,
     },
     outputSchema: {
       type: "object" as const,

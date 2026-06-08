@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-06-08
+
+### Added
+
+- **User-initiated view lane — first-class authoring pattern.** Promoted the
+  inline-args view trigger from "legacy/testing" to a documented, opt-in
+  trigger mode for views the user opens conversationally (e.g. "find a time to
+  meet") rather than from an action-item button:
+  - `draft-flow-author` §2b is reframed as a **trigger-mode decision**
+    (action-item-triggered vs user-initiated), with one shared resolution rule
+    (inline → on-disk → empty) and per-mode `inputSchema`/description guidance.
+  - `ui-handler-author` §3 gains a trigger-mode authoring rule plus the
+    dual-trigger handler skeleton; user-initiated views use optional
+    `action_id` + typed inline params and a trigger-intent-forward description.
+  - The canonical ingest skill router gains three additive, default-off
+    append markers (`sub-commands`, `argument-parsing`, `ask-intent-redirect`)
+    so a plugin can add a user-initiated lane with **zero impact** on
+    read-only plugins, plus an optional `extra-skill-triggers` description
+    placeholder. Documented in `canonical/prompts/ingest/STUBS.md`.
+  - The view-tool template ships a commented opt-in block showing the
+    dual-trigger `Args` + resolution + loosened `inputSchema`.
+  - Worked example: agntux-google-calendar 0.2.0's schedule view.
+
 ## [0.29.0] — 2026-06-03
 
 ### Changed

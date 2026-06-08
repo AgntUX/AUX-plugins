@@ -6,7 +6,7 @@
 # Keep in lockstep with canonical/prompts/ingest/STUBS.md.
 
 plugin-slug: agntux-google-calendar
-plugin-version: 0.1.0
+plugin-version: 0.2.0
 source-display-name: Google Calendar
 source-slug: google-calendar
 recommended-cadence: "Daily at 04:00 local"
@@ -15,6 +15,12 @@ source-mcp-tools: "list_calendars, list_events, get_event"
 thread-unit-name: event
 bootstrap-window-default-days: "7"
 example-channel: primary
+# Extra skill-dispatch trigger phrases for the SKILL description — Google
+# Calendar ships a user-initiated scheduling lane, so add the find-a-time /
+# schedule-a-meeting phrasings the host should dispatch this skill for. The
+# value is spliced verbatim into the description's trigger list; keep the
+# trailing ", " so the surrounding phrasing reads cleanly.
+extra-skill-triggers: '"find a time to meet", "schedule a meeting with {person}", "set up a call", "book time on my calendar", '
 
 # Documentation-only declarations (NOT {{...}} placeholders — the renderer's
 # scalar-only parser skips list bodies; these are read by invariant-checker

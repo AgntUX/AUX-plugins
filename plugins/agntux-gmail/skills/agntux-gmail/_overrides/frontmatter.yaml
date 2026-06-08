@@ -11,6 +11,11 @@ source-mcp-tools: "search_threads, get_thread, list_labels (read-only); the writ
 thread-unit-name: thread
 bootstrap-window-default-days: "14"
 example-channel: Inbox
+# Optional extra skill-dispatch trigger phrases for the SKILL description.
+# Empty for read-only plugins (no user-initiated view lane). When set, the
+# value is spliced verbatim into the description's trigger list — keep the
+# trailing ", " so the surrounding phrasing reads cleanly.
+extra-skill-triggers: ""
 
 # Documentation-only declarations (referenced by canonical sync.md / runbook.md
 # in prose; toolkit lint pass 6 will enforce these in a follow-up).

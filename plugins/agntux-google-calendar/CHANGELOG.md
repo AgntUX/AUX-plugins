@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-08
+
+### Added
+
+- **User-initiated scheduling.** You can now ask conversationally — "find a
+  time to meet next week with Alice and Bob about the roadmap" — and the
+  scheduling view opens **pre-populated** with the meeting title, attendees,
+  and candidate time slots where everyone is free. Pick a slot and click
+  Schedule. Previously the schedule view only opened from a pre-existing
+  action item, so ad-hoc requests fell through to a plain-chat answer.
+- **`schedule` command lane.** `/agntux-google-calendar schedule …` (and
+  natural "find a time / set up a meeting / book time" phrasing) routes to the
+  new scheduling lane. The lane only reads (`suggest_time`); the event is
+  created solely when you click Schedule in the iframe.
+
+### Changed
+
+- **`agntux_google_calendar_schedule_view` is now dual-trigger.** The handler
+  resolves its payload inline → on-disk action file → empty. The tool
+  description leads with the user-initiated trigger so the host selects the
+  view for conversational requests, and the input schema accepts the inline
+  scheduling fields (`action_id` is no longer required).
+- **Field-name reconciliation.** The cross-plugin schedule handoff
+  (`reference/cross-plugin.md`) now uses the handler's field names
+  (`draft_summary`, `attendee_emails`, `candidate_slots`,
+  `user_primary_calendar_id`) so a Slack/Gmail "Schedule a meeting" handoff
+  maps onto the same inline path. No on-disk schema change.
+
 ## [0.1.1] — 2026-06-03
 
 ### Fixed
