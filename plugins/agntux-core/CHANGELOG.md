@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.4.0] — 2026-06-08
+
+### Changed
+
+- **`/agntux triage` now opens the action-items UI instantly.** The command
+  calls `agntux_core_triage_view` immediately with `{}` and no longer runs
+  the schema-drift preflight or the precondition check ladder on this path.
+  Previously every `/agntux triage` paid for reading `user.md`, the schema,
+  every plugin contract, the schema-requests queue, the project-root walk,
+  and a `list_plugins` reconciliation before the UI ever rendered. Skipping
+  that ramp is safe because the view tool is self-sufficient — it resolves
+  the project root and gathers its own data server-side, and surfaces an
+  onboarding pointer in-UI (`actions_index_missing` / `bootstrap_mode`) when
+  the store isn't set up, rather than diverting to `/agntux onboard`. The
+  schema-review / new-plugin nudges and plugin reconciliation still run on
+  every other `/agntux` command. The same instant path applies to the
+  natural-language "show triage" / "what's hot" heuristic. The router gains
+  a `triage` carve-out from both the preflight and the precondition ladder.
+  One deliberate consequence: a user whose only `/agntux` command is `triage`
+  won't get the installed-plugins reconciliation or the connector-refresh
+  nudge (both live in the precondition ladder) until they next run any other
+  `/agntux` command — `triage` is now a pure, side-effect-free read.
+
 ## [10.3.0] — 2026-06-03
 
 ### Added
