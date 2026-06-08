@@ -1,6 +1,6 @@
 ---
 name: agntux-google-calendar
-description: The Google Calendar command surface for AgntUX. Runs an ingest pass against Google Calendar or answers natural-language questions about google-calendar content live. Use for "/agntux-google-calendar", "sync google-calendar", "ingest google-calendar now", "refresh google-calendar", "fire a google-calendar pass", "what's happening in #primary", "what's in my google-calendar", "what did {person} say in google-calendar this week", "summarise last week's {topic} thread", "any new threads about {project}", "any unread google-calendar", or any Google Calendar-scoped question.
+description: The Google Calendar command surface for AgntUX. Runs an ingest pass against Google Calendar or answers natural-language questions about google-calendar content live. Use for "/agntux-google-calendar", "sync google-calendar", "ingest google-calendar now", "refresh google-calendar", "fire a google-calendar pass", "what's happening in #primary", "what's in my google-calendar", "what did {person} say in google-calendar this week", "summarise last week's {topic} thread", "any new threads about {project}", "any unread google-calendar", "find a time to meet", "schedule a meeting with {person}", "set up a call", "book time on my calendar", or any Google Calendar-scoped question.
 argument-hint: "[sync | <natural-language question>]"
 ---
 
@@ -49,6 +49,7 @@ check.
 |---|---|---|
 | (empty) or `sync` | [`reference/sync.md`](./reference/sync.md) | Run an ingest pass. Steps 0–11. Owns project-root preflight, orchestrator gate, cursor advance. |
 | anything else | [`reference/ask.md`](./reference/ask.md) | Live natural-language query. **Read-only.** No cursor advance, no knowledge-store write. |
+| `schedule …` | [`reference/schedule.md`](./reference/schedule.md) | User-initiated scheduling ("find a time to meet …"). Resolves attendees + window, pre-computes candidate slots via `suggest_time`, and opens the schedule view **pre-populated**. The skill calls only the read tool `suggest_time`; the iframe Send is the only write gate. |
 
 ## Argument parsing
 
@@ -56,6 +57,10 @@ check.
 2. Lowercase the first whitespace-delimited token. If it equals
    `sync`, strip the token from `$ARGUMENTS` and load
    `reference/sync.md`.
+   - If that token instead equals `schedule` — or the request reads as a
+     scheduling ask ("find a time", "set up a meeting", "book time") — strip
+     the keyword and load `reference/schedule.md` (the user-initiated
+     scheduling lane), NOT `ask.md`.
 3. Otherwise, load `reference/ask.md` with the full untrimmed
    `$ARGUMENTS` as the natural-language query.
 

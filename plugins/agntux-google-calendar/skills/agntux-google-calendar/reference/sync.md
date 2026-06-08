@@ -185,7 +185,7 @@ The soft lock prevents concurrent runs from corrupting indexes and entity files.
    - Held: `- lock: held by <holder> since <RFC 3339>( (pid <int>))?`
 3. **If free OR if held but `since` is more than 1 hour ago (stale):** acquire the lock by rewriting that line to:
    ```
-   - lock: held by agntux-google-calendar@0.1.0 since {now RFC 3339} (pid {pid})
+   - lock: held by agntux-google-calendar@0.2.0 since {now RFC 3339} (pid {pid})
    ```
    Update frontmatter `updated_at` to now. Write atomically (temp + fsync + rename). Re-read immediately and verify the lock line is yours. If it is not (race lost), log kind `lock-acquire-race` and exit cleanly.
 4. **If the write itself fails:** log a one-line error with kind `lock-acquire-failed`, and exit. Do NOT proceed without the lock.

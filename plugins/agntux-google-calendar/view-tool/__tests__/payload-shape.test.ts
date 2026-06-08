@@ -158,7 +158,15 @@ function makeCtx(body: string) {
 // ---------------------------------------------------------------------------
 
 type ViewToolEntry = {
-  descriptor: { name: string; outputSchema?: { required?: string[] } };
+  descriptor: {
+    name: string;
+    outputSchema?: { required?: string[] };
+    inputSchema?: {
+      required?: string[];
+      additionalProperties?: boolean;
+      properties?: Record<string, unknown>;
+    };
+  };
   handle: (
     args: Record<string, unknown>,
     ctx: ReturnType<typeof makeCtx>,
@@ -311,6 +319,204 @@ describe("agntux_google_calendar_schedule_view — structuredContent shape", () 
     const bytes = Buffer.byteLength(JSON.stringify(result.structuredContent), "utf-8");
     // 8 kB is a generous cap; a typical schedule payload is well under 2 kB.
     expect(bytes).toBeLessThan(8192);
+  });
+
+  // ── Dual-trigger: user-initiated (inline-args) path ─────────────────────────
+  // The schedule view is reachable conversationally ("find a time to meet …")
+  // with NO backing action file: the skill lane resolves attendees + window +
+  // candidate slots and passes everything inline. The handler must build the
+  // payload from inline args WITHOUT touching fs, and `action_id` may be absent.
+
+  const INLINE_SCHEDULE_ARGS = {
+    draft_summary: "Product roadmap sync",
+    draft_description: "Agenda: Q3 roadmap priorities; align on owners.",
+    attendee_emails: ["yousef@example.com", "dana@example.com"],
+    duration_minutes: 45,
+    search_window_start: "2026-06-09T00:00:00-06:00",
+    search_window_end: "2026-06-13T23:59:59-06:00",
+    candidate_slots: [
+      {
+        start: "2026-06-09T15:00:00-06:00",
+        end: "2026-06-09T15:45:00-06:00",
+        label: "Tue 3:00 PM",
+      },
+    ],
+    include_google_meet: true,
+    user_timezone: "America/Denver",
+    personalization_signals: ["Last met with Dana 9 days ago about the roadmap."],
+  };
+
+  /** ctx whose fs.readFile throws if touched — proves the inline path never
+   * reads disk (the EMPTY_PAYLOAD / action-file branch would). */
+  function makeThrowingCtx() {
+    return {
+      fs: {
+        readFile: vi
+          .fn()
+          .mockRejectedValue(new Error("fs must not be read on the inline path")),
+      },
+    };
+  }
+
+  it("inline args build a prefilled payload without reading fs (no action_id)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle({ ...INLINE_SCHEDULE_ARGS }, ctx);
+    const sc = result.structuredContent;
+
+    expect(ctx.fs.readFile).not.toHaveBeenCalled();
+    expect(sc.draft_summary).toBe("Product roadmap sync");
+    expect(sc.attendee_emails).toEqual(["yousef@example.com", "dana@example.com"]);
+    expect(sc.duration_minutes).toBe(45);
+    expect(sc.user_timezone).toBe("America/Denver");
+    expect(Array.isArray(sc.candidate_slots)).toBe(true);
+    expect((sc.candidate_slots as unknown[]).length).toBe(1);
+    // action_id absent → normalised to "" (never the string "undefined").
+    expect(sc.action_id).toBe("");
+    // Response envelope is present on the inline branch too (E29 / §3.1).
+    expect(result.content[0].text).toContain("iframe");
+  });
+
+  it("inline candidate_slots survive into the payload prefilled (not []) ", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle({ ...INLINE_SCHEDULE_ARGS }, ctx);
+    const slots = result.structuredContent.candidate_slots as Array<
+      Record<string, unknown>
+    >;
+    expect(slots[0]).toMatchObject({
+      start: "2026-06-09T15:00:00-06:00",
+      end: "2026-06-09T15:45:00-06:00",
+    });
+  });
+
+  it("inline path stays within the 8 kB byte budget", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle({ ...INLINE_SCHEDULE_ARGS }, ctx);
+    const bytes = Buffer.byteLength(
+      JSON.stringify(result.structuredContent),
+      "utf-8",
+    );
+    expect(bytes).toBeLessThan(8192);
+  });
+
+  it("empty args ({}) render the empty placeholder payload (cold render)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    // No inline fields, no action_id, fs untouched: the render-harness cold
+    // path must degrade to placeholders, never build actions/undefined.md.
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle({}, ctx);
+    const sc = result.structuredContent;
+
+    expect(ctx.fs.readFile).not.toHaveBeenCalled();
+    expect(sc.action_id).toBe("");
+    expect(sc.draft_summary).toBe("");
+    expect(Array.isArray(sc.candidate_slots)).toBe(true);
+    expect((sc.candidate_slots as unknown[]).length).toBe(0);
+  });
+
+  it("descriptor inputSchema no longer requires action_id (dual-trigger)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+    const inputSchema = schedule.descriptor.inputSchema as {
+      required?: string[];
+      additionalProperties?: boolean;
+      properties?: Record<string, unknown>;
+    };
+    // action_id is optional now; inline scheduling fields are accepted.
+    expect(inputSchema.required ?? []).not.toContain("action_id");
+    expect(inputSchema.additionalProperties).toBe(true);
+    expect(inputSchema.properties).toHaveProperty("attendee_emails");
+    expect(inputSchema.properties).toHaveProperty("candidate_slots");
+  });
+
+  it("inline fields win over a co-present action_id (precedence: inline → disk → empty)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    // Both an action_id AND an inline field are present. The load-bearing rule
+    // is "inline wins unconditionally" — the fs must NOT be read, and action_id
+    // is echoed back but the payload comes from the inline args. A branch
+    // reorder that read disk first would break the cross-plugin handoff.
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle(
+      { action_id: "should-be-ignored", draft_summary: "Inline wins" },
+      ctx,
+    );
+    const sc = result.structuredContent;
+
+    expect(ctx.fs.readFile).not.toHaveBeenCalled();
+    expect(sc.draft_summary).toBe("Inline wins");
+    expect(sc.action_id).toBe("should-be-ignored");
+  });
+
+  it("inline preferred_hours round-trips (exclude_weekends:false not defaulted true)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle(
+      {
+        ...INLINE_SCHEDULE_ARGS,
+        preferred_hours: { start: "08:00", end: "16:00", exclude_weekends: false },
+      },
+      ctx,
+    );
+    const ph = result.structuredContent.preferred_hours as Record<string, unknown>;
+    expect(ph.start).toBe("08:00");
+    expect(ph.end).toBe("16:00");
+    // The explicit `false` must survive — a `||`-style default would clobber it to true.
+    expect(ph.exclude_weekends).toBe(false);
+  });
+
+  it("inline malformed candidate_slots pass through without throwing (validated downstream)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const schedule = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_schedule_view",
+    )!;
+
+    // The handler passes candidate_slots through asUnknownArray verbatim;
+    // per-element validation lives in ScheduleApp.tsx. Garbage entries must
+    // neither throw nor be silently dropped at the handler boundary.
+    const ctx = makeThrowingCtx();
+    const result = await schedule.handle(
+      { candidate_slots: [null, 42, { start: "a" }] as unknown[] },
+      ctx,
+    );
+    const slots = result.structuredContent.candidate_slots as unknown[];
+    expect(Array.isArray(slots)).toBe(true);
+    expect(slots.length).toBe(3);
   });
 });
 

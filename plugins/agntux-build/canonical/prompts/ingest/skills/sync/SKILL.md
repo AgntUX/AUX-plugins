@@ -1,6 +1,6 @@
 ---
 name: {{plugin-slug}}
-description: The {{source-display-name}} command surface for AgntUX. Runs an ingest pass against {{source-display-name}} or answers natural-language questions about {{source-slug}} content live. Use for "/{{plugin-slug}}", "sync {{source-slug}}", "ingest {{source-slug}} now", "refresh {{source-slug}}", "fire a {{source-slug}} pass", "what's happening in #{{example-channel}}", "what's in my {{source-slug}}", "what did {person} say in {{source-slug}} this week", "summarise last week's {topic} thread", "any new threads about {project}", "any unread {{source-slug}}", or any {{source-display-name}}-scoped question.
+description: The {{source-display-name}} command surface for AgntUX. Runs an ingest pass against {{source-display-name}} or answers natural-language questions about {{source-slug}} content live. Use for "/{{plugin-slug}}", "sync {{source-slug}}", "ingest {{source-slug}} now", "refresh {{source-slug}}", "fire a {{source-slug}} pass", "what's happening in #{{example-channel}}", "what's in my {{source-slug}}", "what did {person} say in {{source-slug}} this week", "summarise last week's {topic} thread", "any new threads about {project}", "any unread {{source-slug}}", {{extra-skill-triggers}}or any {{source-display-name}}-scoped question.
 argument-hint: "[sync | <natural-language question>]"
 ---
 
@@ -49,6 +49,7 @@ check.
 |---|---|---|
 | (empty) or `sync` | [`reference/sync.md`](./reference/sync.md) | Run an ingest pass. Steps 0–11. Owns project-root preflight, orchestrator gate, cursor advance. |
 | anything else | [`reference/ask.md`](./reference/ask.md) | Live natural-language query. **Read-only.** No cursor advance, no knowledge-store write. |
+<!-- append:sub-commands -->
 
 ## Argument parsing
 
@@ -56,6 +57,7 @@ check.
 2. Lowercase the first whitespace-delimited token. If it equals
    `sync`, strip the token from `$ARGUMENTS` and load
    `reference/sync.md`.
+<!-- append:argument-parsing -->
 3. Otherwise, load `reference/ask.md` with the full untrimmed
    `$ARGUMENTS` as the natural-language query.
 

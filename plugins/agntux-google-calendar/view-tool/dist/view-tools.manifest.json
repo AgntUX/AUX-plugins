@@ -1,23 +1,93 @@
 {
   "plugin_slug": "agntux_google_calendar",
-  "plugin_version": "0.1.1",
+  "plugin_version": "0.2.0",
   "handler_module": "view-tool/dist/agntux-google-calendar-view.js",
   "view_tools": [
     {
       "name": "agntux_google_calendar_schedule_view",
-      "description": "Opens the AgntUX Google Calendar scheduling interface. Given an action_id for a scheduling action item, reads the pre-composed draft (title, attendees, duration, find-a-time window, prep context) and surfaces an interactive slot-picker form. The user selects a free slot and clicks Send to create the Google Calendar event via the connector. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "description": "Use this whenever the user wants to find a time to meet or schedule a meeting on Google Calendar — both ad-hoc user-initiated requests (\"find a time next week with Alice and Bob about the roadmap\", \"set up a 30-min call with the design team\") and pre-composed scheduling action items. Two call shapes: (1) USER-INITIATED — pass the meeting fields inline (draft_summary, draft_description, attendee_emails, duration_minutes, search_window_start/end, candidate_slots, user_timezone, user_primary_calendar_id, include_google_meet); the view opens pre-populated with the title, attendees, and candidate slots so the user just picks one and clicks Schedule. (2) ACTION-ITEM — pass an action_id and the handler reads the pre-composed draft from actions/{action_id}.md. The user selects a free slot and clicks Send to create the Google Calendar event via the connector. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "action_id": {
             "type": "string",
-            "description": "The action item ID (filename stem under actions/)."
+            "description": "Action-item trigger: the action item ID (filename stem under actions/). Optional — omit (or pass \"\") for user-initiated requests that supply the scheduling fields inline instead."
+          },
+          "draft_summary": {
+            "type": "string",
+            "description": "User-initiated: pre-filled meeting title (editable)."
+          },
+          "draft_description": {
+            "type": "string",
+            "description": "User-initiated: pre-filled meeting description / agenda."
+          },
+          "attendee_emails": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "User-initiated: attendee email addresses (exclude the user's own)."
+          },
+          "duration_minutes": {
+            "type": "number",
+            "description": "User-initiated: meeting length in minutes (default 30)."
+          },
+          "search_window_start": {
+            "type": "string",
+            "description": "User-initiated: ISO-8601 start of the find-a-time window."
+          },
+          "search_window_end": {
+            "type": "string",
+            "description": "User-initiated: ISO-8601 end of the find-a-time window."
+          },
+          "preferred_hours": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "type": "string"
+              },
+              "exclude_weekends": {
+                "type": "boolean"
+              }
+            },
+            "description": "User-initiated: working-hours bounds for slot suggestions."
+          },
+          "candidate_slots": {
+            "type": "array",
+            "description": "User-initiated: pre-computed free/busy slots from suggest_time ({start,end,label?}). Pre-fills the slot picker."
+          },
+          "include_google_meet": {
+            "type": "boolean",
+            "description": "User-initiated: add a Google Meet link (default true)."
+          },
+          "user_timezone": {
+            "type": "string",
+            "description": "User-initiated: IANA timezone (e.g. America/Denver)."
+          },
+          "user_primary_calendar_id": {
+            "type": "string",
+            "description": "User-initiated: target calendar id (default \"primary\")."
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "User-initiated: short prep-context bullets."
+          },
+          "source_link": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "User-initiated: {label,url} link back to the triggering context."
           }
         },
-        "required": [
-          "action_id"
-        ],
-        "additionalProperties": false
+        "required": [],
+        "additionalProperties": true
       },
       "outputSchema": {
         "type": "object",

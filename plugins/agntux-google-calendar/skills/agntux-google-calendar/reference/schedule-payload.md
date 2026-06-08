@@ -23,6 +23,32 @@ disk at click time via `extractFencedYaml(content, "Schedule payload")`.
 
 ---
 
+## Two trigger paths (inline vs. action-file)
+
+The schedule view has a **dual-trigger** handler (mirrors the inline → disk →
+empty resolution rule documented in `draft-flow-author.md` §2b):
+
+- **User-initiated (inline) trigger.** When the user asks conversationally
+  ("find a time to meet next week with …"), the skill's scheduling lane
+  resolves attendees + window, calls `suggest_time` to compute
+  `candidate_slots` **before** opening the view, and passes every field —
+  including the already-populated `candidate_slots` — **inline** as the
+  tool's args. No action file is read; `action_id` may be absent. The view
+  opens pre-filled. The inline arg names are exactly the on-disk field names
+  below.
+- **Action-file trigger.** For an ingest-raised or cross-plugin action item,
+  the handler reads this `## Schedule payload` section from
+  `actions/{action_id}.md`. Ingest writes `candidate_slots: []` **by
+  convention** (the handler passes through whatever the YAML contains — it is
+  not a handler-enforced invariant); the user then fills the slot list with the
+  in-iframe "Find available times" button (see below).
+
+So `candidate_slots` arrives pre-filled on the inline path and, by ingest
+convention, `[]` on the action-file path. Both paths converge on the same
+`structuredContent` shape and the same Send envelope.
+
+---
+
 ## On-disk schema (what ingest writes and the view tool reads)
 
 Field names are snake_case in the YAML block. They are stable contracts between
@@ -70,8 +96,9 @@ source_link:
   to `{09:00, 17:00, exclude_weekends: true}`.
 - `user_timezone`: read from `user.md` frontmatter `timezone` field. Default
   `"UTC"` when absent (but do NOT hardcode in skill — read at runtime).
-- `candidate_slots`: always write as `[]` at ingest time. The `suggest_time`
-  helper populates this at render time (see below).
+- `candidate_slots`: always write as `[]` at ingest time. It is populated later
+  — the user-initiated lane pre-computes it via `suggest_time`, or the user
+  clicks the in-iframe "Find available times" button (see below).
 - `personalization_signals`: one bullet per source used to compose
   `draft_description`. Omit key if no personalization signals apply.
 - `source_link.url`: use `event.htmlLink` from the connector response for
@@ -81,9 +108,12 @@ source_link:
 
 ## suggest_time pre-Send helper (NOT the authorisation gate)
 
-The schedule handler calls `mcp__claude_ai_GoogleCalendar__suggest_time` at
-render time (or on user click of the in-iframe "Find available times" button) to
-populate `candidate_slots`. This is a **read call**, not the authorisation gate.
+`suggest_time` populates `candidate_slots` two ways: the user-initiated skill
+lane calls it **before** opening the view (slots arrive pre-filled), and the
+iframe component calls it **on click** of the in-iframe "Find available times"
+button (NOT automatically at render). The view-tool handler itself never calls
+it — it only reads inline args or the on-disk payload. Either way this is a
+**read call**, not the authorisation gate.
 
 ```
 mcp__claude_ai_GoogleCalendar__suggest_time(

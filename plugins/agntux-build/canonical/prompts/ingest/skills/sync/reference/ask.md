@@ -2,6 +2,7 @@
 
 The user typed `/{{plugin-slug}} <words>` where the first token is
 not `sync`. They want a live answer about {{source-display-name}}.
+<!-- append:ask-intent-redirect -->
 
 ## Contents
 

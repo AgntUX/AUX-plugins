@@ -1,0 +1,1 @@
+| `schedule …` | [`reference/schedule.md`](./reference/schedule.md) | User-initiated scheduling ("find a time to meet …"). Resolves attendees + window, pre-computes candidate slots via `suggest_time`, and opens the schedule view **pre-populated**. The skill calls only the read tool `suggest_time`; the iframe Send is the only write gate. |

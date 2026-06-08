@@ -32,6 +32,7 @@ runtime/host-filled — NOT P6-substituted.
 | `{{thread-unit-name}}` | `thread` | `thread` | per-source spec; the per-source name for the cursor-keyed unit ("thread", "channel", "issue", "row"). Singular form; appears in prose ("once per {{thread-unit-name}}, not once per reply"). |
 | `{{bootstrap-window-default-days}}` | `14` | `7` | per-source spec; default value for `bootstrap_window_days` when `user.md` doesn't override. Slack=7 (high volume), Gmail=14 (moderate), generic=30. |
 | `{{example-channel}}` | `Inbox` | `general` | per-source spec; one plausible source-native scope name used in the SKILL `description`'s trigger-phrase examples (e.g. "what's happening in #{{example-channel}}"). Slack uses a real channel name (`general`); sources without channel-shaped scopes (Gmail, Drive) use a benign label like `Inbox`. Cold-start matching surface only — the value never reaches user-facing prose. |
+| `{{extra-skill-triggers}}` | `""` (empty) | `""` (empty) | per-source spec; **optional, defaults to empty**. Extra skill-dispatch trigger phrases spliced verbatim into the SKILL `description`'s trigger list, right before "or any {{source-display-name}}-scoped question". Empty for read-only plugins (renders byte-identically to no value); set for plugins with a user-initiated view lane (e.g. agntux-google-calendar: `"find a time to meet", "schedule a meeting with {person}", … `). **Keep a trailing `", "`** so the surrounding phrasing reads cleanly. Every ingest plugin's `_overrides/frontmatter.yaml` MUST define this key (the renderer fails on surviving placeholders); read-only plugins set `extra-skill-triggers: ""`. |
 
 ### UI-handler subagent template only (`agents/ui-handlers/_template.md`)
 
@@ -111,6 +112,34 @@ Per-plugin extra references (slack's `canvas-payload.md`, gmail's
 `email-context.md` / `denylist.md`) are written directly under
 `_overrides/reference/` and copied through verbatim — the renderer
 treats them additively.
+
+### Optional user-initiated view lane (opt-in, default off)
+
+The canonical router is binary by default — `sync` (ingest) and `ask`
+(read-only live query). A plugin that ships a **user-initiated view**
+(one the user opens conversationally, not from an action item — e.g.
+agntux-google-calendar's "find a time to meet") opts into a third lane
+**purely additively**, with zero impact on read-only plugins. Three
+append markers in the canonical surfaces are the opt-in points; a
+read-only plugin ships no override files for them, so the markers strip
+to empty and its rendered tree is byte-identical:
+
+| Marker (in canonical) | Surface | Override file a plugin ships to opt in |
+|---|---|---|
+| `<!-- append:sub-commands -->` | `SKILL.md` Sub-commands table | `_overrides/sub-commands-append.md` — a router row for the lane |
+| `<!-- append:argument-parsing -->` | `SKILL.md` Argument parsing | `_overrides/argument-parsing-append.md` — the keyword/intent branch |
+| `<!-- append:ask-intent-redirect -->` | `reference/ask.md` (top) | `_overrides/ask-intent-redirect-append.md` — redirect when the live query is actually an action intent (read-only answer stays the default otherwise) |
+
+The lane's procedural body is an **additive per-plugin reference**
+(`_overrides/reference/{verb}.md`, e.g. `schedule.md`) with no canonical
+counterpart — there is deliberately no canonical `act.md`/lane skeleton,
+because every canonical `reference/*.md` renders into EVERY ingest plugin
+(forcing a re-render of the read-only plugins). Keeping the lane body
+per-plugin keeps the opt-in truly zero-collateral. The reference must
+obey the one-level-deep rule (no markdown link to a sibling reference;
+mention siblings by prose). The worked example is agntux-google-calendar
+(`reference/schedule.md`); the authoring guidance is in agntux-build's
+`draft-flow-author.md` §2b and `ui-handler-author.md` §2/§3.
 
 The lint pass `pass8SkillRender` (in
 `scripts/lint/lint-skill-render.ts`) enforces four invariants per

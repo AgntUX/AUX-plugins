@@ -256,23 +256,38 @@ expected filename set from the headers you emit — so the two stay in
 lock-step). Don't emit a header and leave the override unwritten on the
 assumption the renderer or some other agent will backfill it; nothing does.
 
-### 2b. Dual-mode view tools
+### 2b. Dual-trigger view tools — pick the trigger mode FIRST
 
-The view tool that powers the iframe is **dual-mode**:
+A view tool resolves its payload one of two ways. **Which one is primary
+depends on how the view is triggered — decide this before writing the
+handler**, because it flips both the inputSchema and the tool description.
 
-1. **On-disk path (modern default)** — read the action file's
-   `## Compose payload` body section via `parseBodySection` and lift
-   the drafted body, thread context, channel info, personalization
-   signals, and slack permalink. Zero source MCP calls. Pure read.
-2. **Inline-args path (legacy / testing)** — accept `drafted_body`,
-   `thread_context`, `channel`, `personalization_signals`,
-   `proposed_send_time`, `slack_permalink` as direct arguments. Used
-   by out-of-band working-memory callers and by the testing harness.
+| Trigger mode | Primary input | `action_id` | Examples |
+|---|---|---|---|
+| **Action-item-triggered** | the on-disk `## {Verb} payload` body section | **required** | slack/gmail compose, slack canvas — opened from a suggested-action button that carries the action_id |
+| **User-initiated / ad-hoc** | **inline args** the skill lane resolved | optional (often absent) | google-calendar schedule ("find a time to meet …") — opened from a conversational request with no backing action file |
 
-The resolution rule: prefer inline args when present (signal of an
-explicit out-of-band caller); fall back to the on-disk payload
-otherwise. When both are absent, surface the `compose_payload_missing`
-structured error envelope:
+Both modes share ONE resolution rule (the single source of truth — the
+calendar handler, the slack/gmail handlers, and the agntux-build view-tool
+template all implement it identically):
+
+> **inline → disk → empty.** If any inline payload field is present, build
+> the payload from the inline args (coerced over the empty-payload
+> defaults) and do NOT read fs. Else if `action_id` is a non-empty string,
+> read `actions/{action_id}.md`. Else render the empty placeholder payload.
+
+The difference between the modes is not the resolution rule — it's which
+branch is the *intended* entry point, and therefore how you write the
+inputSchema and description.
+
+#### Action-item-triggered (slack/gmail compose, canvas)
+
+The on-disk path is the intended entry point; inline is a narrow legacy
+back-compat surface for out-of-band working-memory callers. Read the
+action file's `## Compose payload` body section via `parseBodySection`
+and lift the drafted body, thread context, channel info, personalization
+signals, and permalink. When both inline and disk are absent, surface the
+`compose_payload_missing` structured error envelope:
 
 ```ts
 if (!hasInlineBody && !onDisk) {
@@ -283,15 +298,9 @@ if (!hasInlineBody && !onDisk) {
 }
 ```
 
-The reference `parseBodySection` / `parseActionFile` helpers live in
-`@agntux/plugin-runtime` (imported as
-`import { parseActionFile, extractFencedYaml } from "@agntux/plugin-runtime"`).
-See `agntux-slack`'s `view-tool/src/agntux-slack-view.ts` for the
-canonical resolution sequence.
-
-The view tool's tool description (visible to the host LLM) should
-**clearly distinguish click-time trigger phrases from out-of-band
-inline-args calls**. Example shape:
+For this mode the description must **steer the host AWAY from inline args**
+— the click-time prompt carries only the action_id, and a hallucinated
+partial inline object clobbers the on-disk payload:
 
 > TRIGGER PHRASES (map verbatim to args — do not paraphrase):
 > 'open the reply composer for action {id}' → call with `{action_id: id}`;
@@ -308,11 +317,47 @@ inline-args calls**. Example shape:
 > destructively, producing an empty UI.
 
 This wording prevents the host LLM from hallucinating partial inline
-args when the user clicks a button — the click-time prompts are
-narrow-and-explicit; the inline-args surface is labelled LEGACY back-compat
-only. agntux-slack 5.1.1 fixed a regression where the host LLM was
-synthesising empty `channel: {}`, `thread_context: {}` from the
-`Schedule a reply` prompt and clobbering the on-disk payload.
+args when the user clicks a button. agntux-slack 5.1.1 fixed a regression
+where the host LLM was synthesising empty `channel: {}`,
+`thread_context: {}` from the `Schedule a reply` prompt and clobbering
+the on-disk payload. **Keep this warning for action-item views.**
+
+#### User-initiated / ad-hoc (calendar schedule, "find a time")
+
+Here inline params are the **primary** input, not a legacy surface. There
+is often no action file at all: the user asks conversationally, the
+plugin's skill lane gathers the data — **including read-tool calls** like
+`suggest_time` to pre-compute candidate slots — and passes every field
+inline when it opens the view. `action_id` is optional (`""` is fine).
+
+For this mode:
+
+- **inputSchema** is optional `action_id` + typed inline params —
+  `required: []`, `additionalProperties: true` — NOT
+  `required: ["action_id"]` / `additionalProperties: false`. The host has
+  to know it MAY pass the inline fields.
+- **description** is **trigger-intent-forward** — lead with "Use this
+  whenever the user wants to {X}", document BOTH call shapes (inline for
+  user-initiated; action_id for an existing action item). An action_id-
+  centric description ("Given an action_id, …") will NOT be selected by
+  the host for an ad-hoc request — that is exactly the bug that left the
+  calendar schedule view unreachable from "find a time to meet …".
+- The inline values still pass through the same coercers and over the same
+  empty-payload defaults, so a partial inline object degrades gracefully
+  (it pre-fills what it can) rather than clobbering anything.
+
+Worked example: `agntux-google-calendar`'s `schedule_view`
+(`view-tool/src/agntux-google-calendar-view.ts` `handleSchedule`) +
+its skill lane (`_overrides/reference/schedule.md`). The agntux-build
+view-tool template carries a commented opt-in block (`__ui-name__-view.ts`
+"OPT-IN: user-initiated (dual-trigger) mode") with the skeleton.
+
+The reference `parseBodySection` / `parseActionFile` helpers live in
+`@agntux/plugin-runtime` (imported as
+`import { parseActionFile, extractFencedYaml } from "@agntux/plugin-runtime"`).
+See `agntux-slack`'s `view-tool/src/agntux-slack-view.ts` for the
+action-item resolution sequence and `agntux-google-calendar`'s for the
+user-initiated one.
 
 ### 2c. Hard rules (absolute)
 
