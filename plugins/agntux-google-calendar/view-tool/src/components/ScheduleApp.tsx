@@ -23,11 +23,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   useAppsClient,
   useToolResult,
-  useHostContext,
   useDocumentTheme,
   useHostStyleVariables,
 } from '../lib/apps-react/index.js';
 import { ScrollablePanel, ComponentErrorBoundary, ServerErrorScreen, detectErrorEnvelope } from "@agntux/ui-primitives";
+import { ExternalLink } from './external-link.js';
 
 // ── Payload types ─────────────────────────────────────────────────────────────
 
@@ -147,7 +147,6 @@ function formatSlot(slot: CandidateSlot, tz: string): string {
 function ScheduleInner() {
   const client = useAppsClient();
   const toolResult = useToolResult();
-  const hostContext = useHostContext();
 
   const toolOutput = useMemo(() => {
     if (!toolResult || Object.keys(toolResult).length === 0) return undefined;
@@ -298,27 +297,20 @@ function ScheduleInner() {
     setAttendees((prev) => prev.filter((e) => e !== email));
   }, []);
 
-  // CSS variable helpers (use host style variables, fallback to sensible defaults)
-  const vars = hostContext?.styles?.variables ?? {};
-  function cssVar(name: string, fallback: string): string {
-    return vars[name] ? `var(${name})` : fallback;
-  }
-
   // `||` (not `??`) so an empty-string url — which the handler emits for a
-  // partial inline source_link `{ label }` — falls back rather than rendering
-  // an `<a href="">` that points at the current page.
+  // partial inline source_link `{ label }` — falls back rather than opening
+  // the current page.
   const calendarUrl =
     data.source_link?.url || 'https://calendar.google.com';
 
   const openLink = (
-    <a
+    <ExternalLink
       href={calendarUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{ fontSize: '0.75rem', color: cssVar('--color-primary', '#0055CC') }}
+      ariaLabel="Open in Google Calendar"
+      className="text-xs text-primary hover:underline p-0"
     >
       Open in Google Calendar &#x2197;
-    </a>
+    </ExternalLink>
   );
 
   if (isLoading) {

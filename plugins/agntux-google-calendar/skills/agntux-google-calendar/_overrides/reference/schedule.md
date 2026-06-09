@@ -29,18 +29,28 @@ orchestrator gate — `<agntux project root>/user.md` may not exist, and that's
 fine. If the user appears to be in a scheduled-task context (no chat input),
 exit cleanly with no message — scheduling is interactive only.
 
+Before resolving attendees or user context from the knowledge store, run the
+access preflight in the data-access reference: resolve the project root and,
+if it isn't readable (e.g. Cowork hasn't mounted the folder), connect it via
+the `mcp__cowork__request_cowork_directory` grant before reading. Read the
+documented knowledge-store paths rather than blind-scanning the filesystem.
+
 ## Procedure
 
 ### 1. Resolve attendees
 
-Collect attendee email addresses from the request and the knowledge store:
+Collect attendee email addresses from the request and the knowledge store
+(see the data-access reference for the layout and the person→email recipe):
 
-- Match named people ("Yousef and Dana") against entity files under
-  `<agntux project root>/data/entities/` (and any `# Contacts` the user keeps)
-  to recover their email addresses. Prefer an email already associated with
-  the entity.
-- If a name resolves to no email, keep the display name and leave its address
-  for the user to fill in the iframe — do NOT invent an address.
+- Match named people ("Yousef and Dana") against person entities under
+  `<agntux project root>/entities/person/{slug}.md` (check `name:` and
+  `aliases:`). Prefer an email already recorded on the entity.
+- If the entity has no email, grep the ~30 most-recent
+  `<agntux project root>/actions/*.md` (by date-prefixed filename) for an
+  `@`-address near the person's name — calendar-sourced actions in particular
+  carry attendee / participant emails.
+- If a name still resolves to no email, keep the display name and leave its
+  address for the user to fill in the iframe — do NOT invent an address.
 - **Exclude the user's own email** (from `user.md` frontmatter) — the
   organiser is implicit.
 - Cap the list at **10** attendees.

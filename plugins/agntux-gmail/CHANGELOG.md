@@ -6,6 +6,17 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.3.0] — 2026-06-08
+
+### Changed
+
+- **The assistant now knows where your AgntUX data lives when you ask a
+  question.** Added a shared "data access" guide so that when you query your
+  email conversationally, the assistant resolves your AgntUX project, connects
+  to the folder if it isn't mounted yet, and reads the right places
+  (`entities/`, `actions/`, `user.md`) — instead of guessing or scanning your
+  whole disk. No change to syncing or draft handling.
+
 ## [4.2.4] — 2026-06-03
 
 ### Changed

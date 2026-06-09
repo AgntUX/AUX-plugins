@@ -568,8 +568,15 @@ the contributor (see `skills/build/references/self-validation.md`):
   Do not introduce a `*-pending.md` reader/writer. (briefing-learnings.md §2.1.)
 - **No `PendingAction` cross-app debounce union.** (§2.2.)
 - **No custom hotkey layers.** Host's keymap wins. (§2.3.)
-- **No `<a href>` for external links.** Use `<button>` +
-  `useAppsClient().openLink()`. Sandboxed iframe blocks anchors. (§1.7.)
+- **No `<a href>` / `target="_blank"` / `window.open` for external links.**
+  The sandboxed iframe silently blocks anchor navigation and `window.open`, so
+  the click is a dead no-op (the agntux-google-calendar 2026-06 dead-button
+  class). Render the shared `ExternalLink` component — scaffolded at
+  `view-tool/src/components/external-link.tsx` — which wraps
+  `useAppsClient().openLink(url)` and emits the host's `ui/open-link`
+  postMessage, or call `openLink()` directly from a `<button onClick>`.
+  **Enforced:** lint pass 16 (E31) hard-fails any view-tool component carrying
+  one of these patterns. (§1.7.)
 - **No raw color hex codes.** Use semantic Tailwind tokens.
 - **No code-split bundles.** `vite-plugin-singlefile` only.
 - **No host-side state writes from the component.** The component

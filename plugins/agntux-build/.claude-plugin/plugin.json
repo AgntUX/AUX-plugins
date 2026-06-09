@@ -1,6 +1,6 @@
 {
   "name": "agntux-build",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "description": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet. It guides you step by step — no coding needed.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0"

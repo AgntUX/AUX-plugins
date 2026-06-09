@@ -40,8 +40,11 @@ The sync sub-command's project-root resolution and orchestrator-gate
 checks are inlined in [`reference/sync.md`](./reference/sync.md)
 (canonical-mirrored from `agntux-core/skills/_resolve-root.md` —
 ingest plugins ship independently and can't cross-plugin-link). The
-ask sub-command inlines its own lighter-weight interactive-context
-check.
+ask sub-command (and any other interactive lane) runs the lighter
+access preflight in [`reference/data-access.md`](./reference/data-access.md)
+— what AgntUX is, how to resolve the project root, how to connect the
+folder when Cowork hasn't mounted it, the on-disk data layout, and how to
+resolve a person to a contact detail — before reading the knowledge store.
 
 ## Sub-commands
 

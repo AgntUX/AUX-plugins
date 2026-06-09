@@ -23,11 +23,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   useAppsClient,
   useToolResult,
-  useHostContext,
   useDocumentTheme,
   useHostStyleVariables,
 } from '../lib/apps-react/index.js';
 import { ScrollablePanel, ComponentErrorBoundary, ServerErrorScreen, detectErrorEnvelope } from "@agntux/ui-primitives";
+import { ExternalLink } from './external-link.js';
 
 // ── Payload types ─────────────────────────────────────────────────────────────
 
@@ -268,14 +268,13 @@ function RespondInner() {
   const calendarUrl = data.source_link?.url ?? 'https://calendar.google.com';
 
   const openLink = (
-    <a
+    <ExternalLink
       href={calendarUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-xs text-primary hover:underline"
+      ariaLabel="Open in Google Calendar"
+      className="text-xs text-primary hover:underline p-0"
     >
       Open in Google Calendar &#x2197;
-    </a>
+    </ExternalLink>
   );
 
   if (isLoading) {
@@ -376,14 +375,13 @@ function RespondInner() {
                 </p>
               )}
               {data.event_meet_url && (
-                <a
+                <ExternalLink
                   href={data.event_meet_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
+                  ariaLabel="Join Google Meet"
+                  className="text-xs text-primary hover:underline p-0"
                 >
                   Join Google Meet &#x2197;
-                </a>
+                </ExternalLink>
               )}
               {data.organizer_name && (
                 <p className="text-xs text-muted-foreground">
@@ -447,14 +445,12 @@ function RespondInner() {
                 <ul className="space-y-1">
                   {data.prep_signals.map((sig, idx) => (
                     <li key={idx} className="text-xs">
-                      <a
+                      <ExternalLink
                         href={sig.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
+                        className="text-primary hover:underline p-0 text-left"
                       >
                         {sig.label} &#x2197;
-                      </a>
+                      </ExternalLink>
                     </li>
                   ))}
                 </ul>

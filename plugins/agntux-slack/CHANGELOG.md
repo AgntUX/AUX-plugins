@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.3.0] — 2026-06-08
+
+### Changed
+
+- **The assistant now knows where your AgntUX data lives when you ask a
+  question.** Added a shared "data access" guide so that when you query Slack
+  conversationally, the assistant resolves your AgntUX project, connects to the
+  folder if it isn't mounted yet, and reads the right places (`entities/`,
+  `actions/`, `user.md`) — instead of guessing or scanning your whole disk. No
+  change to syncing or message handling.
+
 ## [8.2.3] — 2026-06-03
 
 ### Changed
