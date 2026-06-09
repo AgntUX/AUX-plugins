@@ -1,6 +1,6 @@
 {
   "name": "agntux-google-calendar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Daily look-ahead of your calendar with prep context pulled from your AgntUX store.",
   "author": {
     "name": "AgntUX",

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-08
+
+### Fixed
+
+- **"Open in Google Calendar" (and "Join Google Meet" / prep "Sources") links
+  now actually open.** They were plain links that a secure embedded view
+  silently blocks, so clicking did nothing. They now open through the host so
+  the page loads in your browser as expected.
+
+### Changed
+
+- **Scheduling now finds people in your AgntUX data reliably.** When you ask to
+  "schedule a meeting with Dana and Yousef", the assistant now knows where your
+  AgntUX project lives, connects to it if needed, looks people up in the right
+  place (`entities/person/`, with a fallback to recent action items for an email
+  address), and pre-fills attendees — instead of opening an empty form and
+  asking you to type the addresses. Fixes a wrong internal path that pointed the
+  lookup at a folder that doesn't exist.
+
 ## [0.2.0] — 2026-06-08
 
 ### Added

@@ -3,8 +3,8 @@
 // Source: scripts/lint-marketplace-metadata.ts (+ scripts/lint/, lib/marketplace-schema.ts).
 
 // scripts/lint-marketplace-metadata.ts
-import * as fs10 from "node:fs";
-import * as path10 from "node:path";
+import * as fs11 from "node:fs";
+import * as path11 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
@@ -3881,8 +3881,8 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 var makeIssue = (params) => {
-  const { data, path: path11, errorMaps, issueData } = params;
-  const fullPath = [...path11, ...issueData.path || []];
+  const { data, path: path12, errorMaps, issueData } = params;
+  const fullPath = [...path12, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -4007,11 +4007,11 @@ var errorUtil;
 var _ZodEnum_cache;
 var _ZodNativeEnum_cache;
 var ParseInputLazyPath = class {
-  constructor(parent, value, path11, key) {
+  constructor(parent, value, path12, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path11;
+    this._path = path12;
     this._key = key;
   }
   get path() {
@@ -9075,10 +9075,133 @@ function pass15GroundedTests(pluginSlug, pluginDir, _repoRoot, findings) {
   }
 }
 
+// scripts/lint/lint-view-tool-external-links.ts
+import * as fs10 from "node:fs";
+import * as path10 from "node:path";
+var VIEW_TOOL_SRC_REL2 = "view-tool/src";
+var PATTERNS = [
+  { re: /\btarget\s*=\s*\{?\s*["']_blank["']/, what: 'target="_blank"' },
+  { re: /\bwindow\.open\s*\(/, what: "window.open(" },
+  // JSX anchor element carrying an href attribute (`href=` or `href ={`).
+  { re: /<a\s[^>]*\bhref\b\s*=/, what: "<a href>" }
+];
+function stripComments(src) {
+  let out = "";
+  let i = 0;
+  const len = src.length;
+  let inStr = null;
+  while (i < len) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (inStr) {
+      if (c === "\\") {
+        out += c + (next ?? "");
+        i += 2;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < len && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < len && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      out += c;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function isExcluded(relFromSrc) {
+  const parts = relFromSrc.split(path10.sep);
+  if (parts.includes("lib")) return true;
+  if (parts.includes("__tests__")) return true;
+  if (parts.some((p) => p === "test-utils")) return true;
+  const base = parts[parts.length - 1];
+  if (base.endsWith(".d.ts")) return true;
+  if (base === "setup.ts") return true;
+  return false;
+}
+function collectSources(dir, srcRoot, acc) {
+  let entries;
+  try {
+    entries = fs10.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const abs = path10.join(dir, e.name);
+    if (e.isDirectory()) {
+      collectSources(abs, srcRoot, acc);
+      continue;
+    }
+    if (!e.isFile()) continue;
+    if (!/\.(ts|tsx)$/.test(e.name)) continue;
+    const relFromSrc = path10.relative(srcRoot, abs);
+    if (isExcluded(relFromSrc)) continue;
+    acc.push(abs);
+  }
+}
+function pass16ViewToolExternalLinks(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path10.join(pluginDir, VIEW_TOOL_SRC_REL2);
+  if (!fs10.existsSync(srcDir) || !fs10.statSync(srcDir).isDirectory()) return;
+  const files = [];
+  collectSources(srcDir, srcDir, files);
+  files.sort();
+  for (const abs of files) {
+    let body;
+    try {
+      body = fs10.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const scrubbed = stripComments(body);
+    const lines = scrubbed.split("\n");
+    const relFile = path10.join(VIEW_TOOL_SRC_REL2, path10.relative(srcDir, abs));
+    for (let li = 0; li < lines.length; li++) {
+      for (const { re, what } of PATTERNS) {
+        const m = re.exec(lines[li]);
+        if (m) {
+          findings.push({
+            code: "E31",
+            severity: "error",
+            plugin: pluginSlug,
+            file: relFile,
+            line: li + 1,
+            col: (m.index ?? 0) + 1,
+            message: `${what} in a view-tool component. Sandboxed MCP App iframes block raw anchor navigation and window.open, so the click is a dead no-op. Route external links through the host bridge: render the shared <ExternalLink href={url}> component, or a <button onClick={() => useAppsClient().openLink(url)}>. See plugins/agntux-build/agents/ui-handler-author.md \xA71.7 and the ExternalLink template under plugins/agntux-build/canonical/ui-handlers/_template/view-tool/src/components/external-link.tsx.`
+          });
+        }
+      }
+    }
+  }
+}
+
 // scripts/lint-marketplace-metadata.ts
 function fileExists2(p) {
   try {
-    fs10.accessSync(p, fs10.constants.F_OK);
+    fs11.accessSync(p, fs11.constants.F_OK);
     return true;
   } catch {
     return false;
@@ -9086,7 +9209,7 @@ function fileExists2(p) {
 }
 function isDirectory2(p) {
   try {
-    return fs10.statSync(p).isDirectory();
+    return fs11.statSync(p).isDirectory();
   } catch {
     return false;
   }
@@ -9096,13 +9219,13 @@ function emit2(findings, f) {
 }
 function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path10.relative(repoRoot, p);
+    return path11.relative(repoRoot, p);
   }
   const required = [
-    path10.join(pluginDir, "marketplace", "listing.yaml"),
-    path10.join(pluginDir, "marketplace", "icon.png"),
-    path10.join(pluginDir, "README.md"),
-    path10.join(pluginDir, "CHANGELOG.md")
+    path11.join(pluginDir, "marketplace", "listing.yaml"),
+    path11.join(pluginDir, "marketplace", "icon.png"),
+    path11.join(pluginDir, "README.md"),
+    path11.join(pluginDir, "CHANGELOG.md")
   ];
   for (const f of required) {
     if (!fileExists2(f)) {
@@ -9118,13 +9241,13 @@ function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
 }
 function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   function rel2(p) {
-    return path10.relative(repoRoot, p);
+    return path11.relative(repoRoot, p);
   }
-  const listingPath = path10.join(pluginDir, "marketplace", "listing.yaml");
+  const listingPath = path11.join(pluginDir, "marketplace", "listing.yaml");
   if (!fileExists2(listingPath)) return;
   let raw;
   try {
-    raw = fs10.readFileSync(listingPath, "utf-8");
+    raw = fs11.readFileSync(listingPath, "utf-8");
   } catch (e) {
     emit2(findings, {
       code: "E05",
@@ -9198,9 +9321,9 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   if (result.success) {
     const listing = result.data;
     if (listing.screenshot_order) {
-      const screenshotsDir = path10.join(pluginDir, "marketplace", "screenshots");
+      const screenshotsDir = path11.join(pluginDir, "marketplace", "screenshots");
       for (const fname of listing.screenshot_order) {
-        const fpath = path10.join(screenshotsDir, fname);
+        const fpath = path11.join(screenshotsDir, fname);
         if (!fileExists2(fpath)) {
           emit2(findings, {
             code: "E06",
@@ -9214,7 +9337,7 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
     }
     if (listing.requires_plugins && isDirectory2(pluginsDir)) {
       for (const slug of listing.requires_plugins) {
-        const depDir = path10.join(pluginsDir, slug);
+        const depDir = path11.join(pluginsDir, slug);
         if (!isDirectory2(depDir)) {
           emit2(findings, {
             code: "E06",
@@ -9240,15 +9363,15 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
 var SCREENSHOT_RE = /^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$/;
 function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path10.relative(repoRoot, p);
+    return path11.relative(repoRoot, p);
   }
-  const iconPath = path10.join(pluginDir, "marketplace", "icon.png");
+  const iconPath = path11.join(pluginDir, "marketplace", "icon.png");
   if (fileExists2(iconPath)) {
     validateIcon(pluginSlug, iconPath, rel2(iconPath), findings);
   }
-  const screenshotsDir = path10.join(pluginDir, "marketplace", "screenshots");
+  const screenshotsDir = path11.join(pluginDir, "marketplace", "screenshots");
   if (!isDirectory2(screenshotsDir)) return;
-  const files = fs10.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
+  const files = fs11.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
   if (files.length > 8) {
     emit2(findings, {
       code: "E02",
@@ -9259,14 +9382,14 @@ function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
     });
   }
   for (const fname of files) {
-    const fpath = path10.join(screenshotsDir, fname);
+    const fpath = path11.join(screenshotsDir, fname);
     validateScreenshot(pluginSlug, fpath, rel2(fpath), fname, findings);
   }
 }
 function validateIcon(pluginSlug, iconPath, relFile, findings) {
   let dims;
   try {
-    const buf = fs10.readFileSync(iconPath);
+    const buf = fs11.readFileSync(iconPath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9296,7 +9419,7 @@ function validateIcon(pluginSlug, iconPath, relFile, findings) {
       message: `icon is ${dims.width}\xD7${dims.height}, expected 512\xD7512`
     });
   }
-  const stat = fs10.statSync(iconPath);
+  const stat = fs11.statSync(iconPath);
   if (stat.size > 512 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9318,10 +9441,10 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
     });
     return;
   }
-  const ext = path10.extname(fname).toLowerCase().slice(1);
+  const ext = path11.extname(fname).toLowerCase().slice(1);
   let dims;
   try {
-    const buf = fs10.readFileSync(fpath);
+    const buf = fs11.readFileSync(fpath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9367,7 +9490,7 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
       });
     }
   }
-  const stat = fs10.statSync(fpath);
+  const stat = fs11.statSync(fpath);
   if (stat.size > 2 * 1024 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9381,13 +9504,13 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
 var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path10.relative(repoRoot, p);
+    return path11.relative(repoRoot, p);
   }
-  const readmePath = path10.join(pluginDir, "README.md");
-  const changelogPath = path10.join(pluginDir, "CHANGELOG.md");
-  const pluginJsonPath = path10.join(pluginDir, ".claude-plugin", "plugin.json");
+  const readmePath = path11.join(pluginDir, "README.md");
+  const changelogPath = path11.join(pluginDir, "CHANGELOG.md");
+  const pluginJsonPath = path11.join(pluginDir, ".claude-plugin", "plugin.json");
   if (fileExists2(readmePath)) {
-    const content = fs10.readFileSync(readmePath, "utf-8");
+    const content = fs11.readFileSync(readmePath, "utf-8");
     if (content.trim().length < 200) {
       emit2(findings, {
         code: "E05",
@@ -9409,7 +9532,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
     }
   }
   if (!fileExists2(changelogPath)) return;
-  const changelog = fs10.readFileSync(changelogPath, "utf-8");
+  const changelog = fs11.readFileSync(changelogPath, "utf-8");
   if (!changelog.trimStart().startsWith("# Changelog")) {
     emit2(findings, {
       code: "E03",
@@ -9449,7 +9572,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   let pluginJson;
   try {
     pluginJson = JSON.parse(
-      fs10.readFileSync(pluginJsonPath, "utf-8")
+      fs11.readFileSync(pluginJsonPath, "utf-8")
     );
   } catch {
     return;
@@ -9502,6 +9625,7 @@ function lintPlugin(pluginSlug, pluginDir, opts) {
     findings
   );
   pass15GroundedTests(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass16ViewToolExternalLinks(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 var __filename = fileURLToPath(import.meta.url);
@@ -9512,7 +9636,7 @@ if (isMain) {
     if (idx === -1) return void 0;
     return cliArgs[idx + 1];
   }, relPath = function(absPath) {
-    return path10.relative(repoRoot, absPath);
+    return path11.relative(repoRoot, absPath);
   }, formatHuman = function(f) {
     const loc = f.line != null ? `:${f.line}${f.col != null ? `:${f.col}` : ""}` : "";
     const sev = f.severity.toUpperCase();
@@ -9535,15 +9659,15 @@ if (isMain) {
   const appsClientCanonicalRootFlag = getFlag("--apps-client-canonical-root");
   const tmpRootFlag = getFlag("--tmp-root");
   const jsonMode = cliArgs.includes("--json");
-  const __dirname = path10.dirname(__filename);
-  const repoRoot = path10.resolve(__dirname, "..");
-  const pluginsDir = path10.join(repoRoot, "plugins");
+  const __dirname = path11.dirname(__filename);
+  const repoRoot = path11.resolve(__dirname, "..");
+  const pluginsDir = path11.join(repoRoot, "plugins");
   const lintRoots = {
-    canonicalRoot: canonicalRootFlag ? path10.resolve(canonicalRootFlag) : repoRoot,
-    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path10.resolve(appsClientCanonicalRootFlag) : repoRoot,
-    tmpRoot: tmpRootFlag ? path10.resolve(tmpRootFlag) : repoRoot
+    canonicalRoot: canonicalRootFlag ? path11.resolve(canonicalRootFlag) : repoRoot,
+    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path11.resolve(appsClientCanonicalRootFlag) : repoRoot,
+    tmpRoot: tmpRootFlag ? path11.resolve(tmpRootFlag) : repoRoot
   };
-  const explicitPluginDir = pluginDirFlag ? path10.resolve(pluginDirFlag) : null;
+  const explicitPluginDir = pluginDirFlag ? path11.resolve(pluginDirFlag) : null;
   let slugs;
   if (explicitPluginDir) {
     if (!isDirectory2(explicitPluginDir)) {
@@ -9553,9 +9677,9 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = [pluginFilter ?? path10.basename(explicitPluginDir)];
+    slugs = [pluginFilter ?? path11.basename(explicitPluginDir)];
   } else if (pluginFilter) {
-    const pluginDir = path10.join(pluginsDir, pluginFilter);
+    const pluginDir = path11.join(pluginsDir, pluginFilter);
     if (!isDirectory2(pluginDir)) {
       process.stderr.write(
         `Error: plugin "${pluginFilter}" not found in ${relPath(pluginsDir)}
@@ -9572,14 +9696,14 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = fs10.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path10.join(pluginsDir, n))).filter(
-      (n) => fileExists2(path10.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
+    slugs = fs11.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path11.join(pluginsDir, n))).filter(
+      (n) => fileExists2(path11.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
     ).sort();
   }
   const allFindings = [];
   const failedPlugins = /* @__PURE__ */ new Set();
   for (const slug of slugs) {
-    const pluginDir = explicitPluginDir ?? path10.join(pluginsDir, slug);
+    const pluginDir = explicitPluginDir ?? path11.join(pluginsDir, slug);
     const findings = lintPlugin(slug, pluginDir, {
       repoRoot,
       pluginsDir,

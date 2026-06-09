@@ -33,6 +33,7 @@ import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
 import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
 import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-envelope.js";
 import { pass15GroundedTests } from "./lint/lint-grounded-tests.js";
+import { pass16ViewToolExternalLinks } from "./lint/lint-view-tool-external-links.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -709,6 +710,12 @@ export function lintPlugin(
   // multi-round test-churn class from the 2026-06-01 calendar build).
   // Warning-only; routed to tests-author.
   pass15GroundedTests(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 16 — view-tool components must never navigate via raw `<a href>`,
+  // `target="_blank"`, or `window.open` (the sandbox blocks them and the click
+  // is a dead no-op). Route external links through `openLink()` / the shared
+  // ExternalLink component. Hard error (E31) — the agntux-google-calendar 2026-06
+  // dead-button class. Routed to ui-handler-author.
+  pass16ViewToolExternalLinks(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

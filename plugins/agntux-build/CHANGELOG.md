@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-06-08
+
+### Added
+
+- **Enforced: view-tool links must open through the host.** New marketplace lint
+  pass 16 (E31, hard error) flags any view-tool component using `target="_blank"`,
+  `window.open(`, or `<a href>` — patterns a sandboxed MCP App iframe silently
+  blocks, producing dead buttons (the agntux-google-calendar "Open in Google
+  Calendar" regression). The scaffold now ships a shared `ExternalLink`
+  component (`view-tool/src/components/external-link.tsx`) that routes clicks
+  through `useAppsClient().openLink(url)`, and `ui-handler-author` §1.7 is
+  strengthened to require it.
+- **Shared "data access" reference for interactive lanes.** New canonical
+  `reference/data-access.md` (rendered into every ingest plugin) teaches the
+  host what AgntUX is, how to resolve the project root, how to connect the
+  folder when the host hasn't mounted it, the on-disk data layout
+  (`entities/{subtype}/`, `actions/`, `user.md` — top-level, **not** under
+  `data/`), and how to resolve a person to a contact detail. `ask.md` and
+  `ingest-prompt-author` now require interactive lanes to run this preflight
+  before reading the knowledge store — closing the gap where the host had no
+  idea where a user's data lived.
+
 ## [0.30.0] — 2026-06-08
 
 ### Added

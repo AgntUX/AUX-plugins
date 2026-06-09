@@ -18,6 +18,13 @@ fire. Skip the orchestrator gate — `<agntux project root>/user.md`
 may not exist, and that's fine. The {{source-display-name}} read MCP
 tools work without a knowledge store.
 
+If you intend to enrich the answer with knowledge-store context
+(resolving a named person, the user's timezone, prior threads), first
+run the access preflight in the data-access reference — resolve the
+project root and connect the folder if it isn't readable — and read the
+paths it documents (`entities/`, `actions/`, `user.md`) rather than
+blind-scanning the filesystem. If you only need the live source, skip it.
+
 If the user appears to be in a scheduled-task context (no chat input,
 typical scheduled-task scaffold), exit cleanly with no message —
 ask-mode is interactive only.

@@ -254,6 +254,20 @@ This is the unified `/agntux-{source}` shape post-7.0.0. Don't author
 two top-level skills (`sync/` + `ask/`) — the routing is built into
 the single SKILL.md.
 
+**Interactive lanes must teach the host where data lives.** `ask.md` and any
+custom interactive verb lane (e.g. a `schedule.md` that resolves attendees from
+the store) personalize by reading `<agntux project root>`. Unlike the sync
+lane, they do NOT run the full Step-1 preflight — so they MUST run the lighter
+access preflight in the canonical `reference/data-access.md` (what AgntUX is,
+resolve the project root, **connect the folder via
+`mcp__cowork__request_cowork_directory` when Cowork hasn't mounted it**, the
+on-disk layout, and the person→email recipe) before their first read. Reference
+it by prose (one-level-deep rule), use the documented paths
+(`entities/{subtype}/`, `actions/`, `user.md` — **entities are top-level, NOT
+under `data/`**), and never instruct the host to blind-scan the filesystem
+(`find /`, home globs). This closes the agntux-google-calendar 2026-06 gap where
+the host had no idea where data lived and asked the user to hand-feed the path.
+
 ## The 12-step contract — read once, reference, never inline
 
 The procedural body lives in `canonical/prompts/ingest/skills/sync/reference/sync.md`. Steps 0–11 + preflight + bounded-list discipline. Your work as a prompt author is to:
