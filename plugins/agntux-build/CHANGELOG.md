@@ -6,6 +6,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.32.1] — 2026-06-09
+
+### Fixed
+
+- **Stage-7 specialist dispatch order — author the view-tool source before
+  anything depends on it.** `view-tool-builder` now runs at position 4 (before
+  `draft-flow-author` and `tests-author`) and explicitly owns each write
+  handler's `view-tool/src/apps/<handler>/lib/build-envelope.ts`. Previously
+  `tests-author` (which asserts those builders exist) and `draft-flow-author`
+  (which verifies the Send wiring on them) were dispatched **before**
+  `view-tool-builder` authored them — producing a round-1 wall of "missing
+  build-envelope.ts" test failures plus a redundant second `view-tool-builder`
+  pass in real builds. Fixed the order in `references/07-build.md` (numbered
+  list, the user-facing status sequence, the `specialists_run` example, and the
+  "implicit ordering" note) and aligned the `view-tool-builder` /
+  `draft-flow-author` agent prompts (authors-vs-verifies).
+- **`README.md` / `CHANGELOG.md` ownership — no longer falls through the
+  cracks.** `manifest-author` now authoritatively authors the plugin-root
+  `README.md` and `CHANGELOG.md` at build time. Its prompt previously
+  contradicted itself — the banner said it authored them while the "what you
+  own" block delegated them to `release-checker`, which the stage-7 flow never
+  dispatches — so the required `README.md` went unwritten and the build hit a
+  lint **E01** ("missing required file"). `release-checker` remains the pre-PR
+  shape reviewer only.
+- **`useDisplayMode()` display-mode footgun (TS2339).** The scaffold template
+  hook now additively returns a `displayMode` alias of `mode`, so a handler that
+  reads `useDisplayMode().displayMode` (the name every prop, layout, and
+  component uses) no longer fails the `build`/`typecheck` gate. Documented the
+  alias in the `view-tool-builder` prompt.
+
+### Changed
+
+- **Fix-loop guidance: don't burn re-validates.** `references/07-build.md` now
+  tells the orchestrator never to re-validate an unchanged tree and, once green,
+  to skip a fresh full-pipeline validate (including the Chromium render) for
+  ingest-skill markdown-only edits — those ride into the single final
+  pre-submission validate, which `agntux_write_submission` re-runs fail-closed
+  anyway.
+
 ## [0.32.0] — 2026-06-08
 
 ### Added

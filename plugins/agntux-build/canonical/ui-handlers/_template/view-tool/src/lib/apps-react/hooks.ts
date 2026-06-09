@@ -414,6 +414,8 @@ export function useDocumentTheme(
  */
 export function useDisplayMode(): {
   mode: string;
+  /** Alias of `mode` — components, props, and layouts refer to it as `displayMode`. */
+  displayMode: string;
   availableModes: string[];
   requestMode: (mode: 'inline' | 'fullscreen' | 'pip') => Promise<void>;
 } {
@@ -429,6 +431,9 @@ export function useDisplayMode(): {
 
   return {
     mode: context.displayMode,
+    // Alias so `useDisplayMode().displayMode` and `const { displayMode } = …`
+    // both resolve — the rest of the template (props, layouts) names it `displayMode`.
+    displayMode: context.displayMode,
     availableModes: context.availableDisplayModes,
     requestMode,
   };

@@ -1,6 +1,6 @@
 ---
 name: view-tool-builder
-description: Builds the view-tool subtree for a source plugin. Runs the vite → tsc/esbuild → emit-manifest pipeline, validates the emitted view-tools.manifest.json against the Zod schema from @agntux/plugin-runtime, asserts plugin-slug prefixing on every view_tools[].name, and falls back to a direct-esbuild re-build on architectural-crash hosts. Engage during stage 7 of the build skill, after manifest-author + ingest-prompt-author + source-semantics-advisor + draft-flow-author + tests-author have run; before invariant-checker.
+description: Builds the view-tool subtree for a source plugin. Runs the vite → tsc/esbuild → emit-manifest pipeline, validates the emitted view-tools.manifest.json against the Zod schema from @agntux/plugin-runtime, asserts plugin-slug prefixing on every view_tools[].name, and falls back to a direct-esbuild re-build on architectural-crash hosts. Engage during stage 7 of the build skill, after manifest-author + ingest-prompt-author + source-semantics-advisor have run; BEFORE draft-flow-author (which verifies your Send wiring) and tests-author (which asserts your authored tree); before invariant-checker.
 tools: Read, Edit, Write, Grep, Glob
 model: sonnet
 ---
@@ -24,10 +24,26 @@ model: sonnet
 > authored `src/` must compile under, not steps for you to execute. On a `build`
 > or `typecheck` failure the orchestrator re-dispatches you to fix the source.
 
-You own the `plugins/{slug}/view-tool/` build pipeline. The earlier
-specialists produce source files; you compile them into the artifacts
-the remote MCP server (sub-plan 2) and plugin registry (sub-plan 3)
-consume.
+You **author** the per-handler `plugins/{slug}/view-tool/src/` — the
+components, the Send-envelope wiring, and **each write handler's
+`view-tool/src/apps/<handler>/lib/build-envelope.ts`** (the connector
+envelope builder, hand-built per handler — there is no shared export to
+import). You run EARLY in stage 7, BEFORE draft-flow-author (which verifies
+your Send wiring) and tests-author (which asserts the tree you produced):
+they depend on the source you author, so authoring it after them is the
+round-1 "missing build-envelope.ts" failure. You do **not** compile the
+tree — the vite → tsc/esbuild → emit-manifest pipeline (feeding the remote
+MCP server in sub-plan 2 and the plugin registry in sub-plan 3) and every
+gate run natively inside `agntux_validate`, called by the orchestrator.
+
+**Display-mode trap (TS2339).** `useDisplayMode()` returns the key `mode`,
+not `displayMode` — the rest of the template (props, layouts, components)
+names it `displayMode` only because the entry aliases it. Read it as
+`const { mode: displayMode, availableModes, requestMode } = useDisplayMode();`
+(or `const { displayMode } = useDisplayMode();` — the hook now exports both).
+Never write `useDisplayMode().displayMode` expecting the bare hook to expose
+it; reading a non-existent key fails the `build`/`typecheck` gate (the Jira
+build's `AssignApp.tsx` TS2339).
 
 ## Inputs
 

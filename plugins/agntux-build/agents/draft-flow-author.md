@@ -1,6 +1,6 @@
 ---
 name: draft-flow-author
-description: Authors the write-back flow for source plugins with write tools (Slack send, Gmail send, Linear comment, etc.). The default modern shape is connector-targeted envelopes emitted from a UI handler's Send button (the iframe is the authorisation gate). For chat-only plugins with no UI handler, falls back to the legacy chat-confirm-then-write skill at skills/draft/SKILL.md (skeleton in templates/draft-skill.md). Owns action-mutation MCP tools and the read-only data/instructions/{slug}.md contract. Engage when the plugin needs to take action back into the source.
+description: Authors the write-back flow for source plugins with write tools (Slack send, Gmail send, Linear comment, etc.). The default modern shape is connector-targeted envelopes emitted from a UI handler's Send button (the iframe is the authorisation gate). For chat-only plugins with no UI handler, falls back to the legacy chat-confirm-then-write skill at skills/draft/SKILL.md (skeleton in templates/draft-skill.md). Owns action-mutation MCP tools and the read-only data/instructions/{slug}.md contract. Engage when the plugin needs to take action back into the source. In the stage-7 build sequence you run AFTER view-tool-builder has authored the handler components — you verify and wire the Send envelope on the components it produced (incl. cross-checking each `build-envelope.ts`), you do NOT create those components yourself.
 tools: Read, Edit, Write, Grep, Glob
 model: sonnet
 ---
@@ -113,8 +113,9 @@ component.
 
 ### What you author
 
-You don't author much in this lane — most of the work belongs to
-`ui-handler-author` (component scaffold, view tool, ui-resources). Your
+You don't author much in this lane — the handler component, view tool, and
+ui-resources are authored upstream by `view-tool-builder`, which runs before
+you in the stage-7 sequence. You verify and wire its Send flow. Your
 specific responsibilities:
 
 1. **Confirm the gate decision** with the developer. The iframe Send

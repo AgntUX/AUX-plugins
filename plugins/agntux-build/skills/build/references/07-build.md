@@ -26,15 +26,40 @@ In order:
    connector's read tools support (per-channel cursor map, single
    timestamp, ETag, etc.) and writes the override into
    `_overrides/reference/cursor.md` if non-default.
-4. **`draft-flow-author`** — for the write-back path: ensures the
-   UI handler's component emits a connector-targeted envelope on
-   Send (no chat round-trip) and that the view tool reads the
-   action file's `## Compose payload` section.
-5. **`tests-author`** — generates the vitest static-grep tests
-   under `__tests__/`: cold-start, cursor-map (when non-trivial),
-   thread-association (when threads), draft-flow (write-capable),
-   render-reproducibility (mirrors lint pass 8). No LLM at test time.
-   For UI-bearing plugins (anything that ships `view-tool/`), also
+**The order is load-bearing: view-tool-builder authors the per-handler
+source — the components AND each `build-envelope.ts` — BEFORE draft-flow-author
+verifies the Send wiring and BEFORE tests-author asserts the tree. Author the
+artifacts first; depend on them second. (Running tests-author or draft-flow-author
+ahead of view-tool-builder is what produced the round-1 "missing build-envelope.ts"
+wall + a redundant view-tool-builder pass in the Jira test build.)**
+
+4. **`view-tool-builder`** — authors the per-handler `view-tool/src/` UI:
+   the component, the Send-envelope wiring, **and each write handler's
+   `view-tool/src/apps/<handler>/lib/build-envelope.ts`** (the connector
+   envelope builder is hand-built per handler — there is no shared export to
+   import). It also authors the sibling `{name}.html` entries. It does **not**
+   author `package.json` / `vite.config.ts` / `tsconfig.json` / `src/lib/**` —
+   those are the pre-placed scaffold floor (`view_tool: true`), and re-authoring
+   them is what dropped the `@agntux/ui-primitives` dep and drifted the
+   apps-client in Test #5. It does **not** run the build: the view-tool pipeline
+   (vite → tsc/esbuild → emit-manifest, the Zod-schema validation of
+   `view-tools.manifest.json` against @agntux/plugin-runtime, the
+   plugin-slug prefix assertion on every view_tools[].name, and the
+   architectural-crash esbuild fallback per §3 below) runs natively
+   inside `agntux_validate`'s build step. Never run vite / `npm run
+   build` / `emit-manifest` yourself via Bash.
+5. **`draft-flow-author`** — for the write-back path, runs AFTER
+   view-tool-builder: it **verifies** the handler components it authored emit a
+   connector-targeted envelope on Send (no chat round-trip), cross-checks each
+   `build-envelope.ts` intent key, and confirms the view tool reads the action
+   file's `## Compose payload` section. It verifies/wires the already-authored
+   components — it does not create them.
+6. **`tests-author`** — runs LAST (before invariant-checker), once the full
+   tree exists, so every assertion targets a file that is actually present.
+   Generates the vitest static-grep tests under `__tests__/`: cold-start,
+   cursor-map (when non-trivial), thread-association (when threads), draft-flow
+   (write-capable), render-reproducibility (mirrors lint pass 8). No LLM at test
+   time. For UI-bearing plugins (anything that ships `view-tool/`), also
    generates `view-tool/__tests__/payload-shape.test.ts` from the
    canonical scaffold at
    `canonical/ui-handlers/_template/view-tool/__tests__/payload-shape.test.ts`
@@ -51,19 +76,6 @@ In order:
    tree** per its golden rule (Read the file, copy a verbatim substring); pass
    only the plugin's shape facts (is the cursor non-trivial, are there threads,
    are there write tools), not the assertion strings.
-6. **`view-tool-builder`** — authors the per-handler `view-tool/src/` UI
-   (the component, the Send-envelope wiring) and its sibling `{name}.html`
-   entries. It does **not** author `package.json` / `vite.config.ts` /
-   `tsconfig.json` / `src/lib/**` — those are the pre-placed scaffold floor
-   (`view_tool: true`), and re-authoring them is what dropped the
-   `@agntux/ui-primitives` dep and drifted the apps-client in Test #5. It does
-   **not** run the build: the view-tool pipeline
-   (vite → tsc/esbuild → emit-manifest, the Zod-schema validation of
-   `view-tools.manifest.json` against @agntux/plugin-runtime, the
-   plugin-slug prefix assertion on every view_tools[].name, and the
-   architectural-crash esbuild fallback per §3 below) runs natively
-   inside `agntux_validate`'s build step. Never run vite / `npm run
-   build` / `emit-manifest` yourself via Bash.
 7. **`invariant-checker`** — checks the source-plugin shape invariants
    by **reading** the tree (no `mcp-server/`, no `.mcp.json`, manifest
    emitted, prefix-asserted, no forbidden host imports), plus
@@ -275,9 +287,9 @@ A single status line that updates per specialist completion:
 > Building... (1/7) metadata
 > Building... (2/7) sync flow
 > Building... (3/7) refresh strategy
-> Building... (4/7) action buttons
-> Building... (5/7) tests
-> Building... (6/7) view tool
+> Building... (4/7) view tool
+> Building... (5/7) action buttons
+> Building... (6/7) tests
 > Building... (7/7) shape checks
 
 When all seven are done, summarise in plain language:
@@ -414,6 +426,19 @@ fixing only that one wastes a full re-validate surfacing the next. Build-gated
 stages show `status:"skipped", reason:"build_failed"` until the build is green —
 fix the build first, then they run.
 
+**Don't burn re-validates.** Each `agntux_validate` call re-runs the whole gate
+end-to-end (build → lint → typecheck → tests → structural validate → the real
+Chromium render), so it is not free: (a) **never re-validate without an
+intervening edit** — an unchanged tree returns the identical verdict (the Jira
+build paid a wasted round re-running the same `cursor-map.test.ts` syntax error
+with nothing changed between the two calls); and (b) once the gate is GREEN,
+only re-validate when you changed build / typecheck / test / `view-tool/**`-
+affecting files. Late ingest-skill tuning (markdown under `skills/**`,
+`_overrides/**`) can ride into the SINGLE final pre-submission validate rather
+than triggering a fresh full-pipeline render per edit — and
+`agntux_write_submission` re-validates the final tree internally (fail-closed)
+anyway, so nothing ships unvalidated.
+
 The `failed_stage` → specialist mapping (a `build` failure can be a render-skill
 error — surviving `{{placeholders}}` in `_overrides/frontmatter.yaml` →
 `ingest-prompt-author`):
@@ -446,7 +471,7 @@ NOT hand-write a marker to get past a failure, and do NOT let the flow claim
 {
   ...,
   "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-linear",
-  "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "draft-flow", "tests", "view-tool-builder", "invariant-checker"],
+  "specialists_run": ["manifest", "ingest-prompt", "source-semantics", "view-tool-builder", "draft-flow", "tests", "invariant-checker"],
   "build_completed_at": "2026-05-08T..."
 }
 ```
@@ -494,9 +519,9 @@ After all seven specialists complete without error, write
 - Don't dispatch in parallel — the specialists have implicit
   ordering (manifest-author writes the plugin slug; ingest-prompt-
   author needs that slug to render the skill tree). Sequential.
-  view-tool-builder must run AFTER ui-handler-author has produced
-  view-tool/src/*.ts (typically via the manifest-author +
-  draft-flow-author chain), and BEFORE invariant-checker which
-  asserts the build output shape.
+  view-tool-builder authors `view-tool/src/**` (the components + each
+  `build-envelope.ts`), so it must run BEFORE draft-flow-author (which
+  verifies the Send wiring) and tests-author (which asserts the authored
+  tree), and BEFORE invariant-checker which asserts the build output shape.
 - Don't skip the invariant check — even if the user is in a hurry,
   the check is fast and catches mid-build drift.
