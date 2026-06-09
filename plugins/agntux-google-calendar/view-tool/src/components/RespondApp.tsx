@@ -250,14 +250,14 @@ function RespondInner() {
     const envelope = lines.join('\n');
 
     try {
-      await client.callTool('mcp__claude_ai_GoogleCalendar__respond_to_event', {
-        _agntux_envelope: envelope,
-        eventId: data.event_id,
-        calendarId: data.calendar_id,
-        responseStatus: mode,
-        notificationLevel,
-        ...(comment ? { responseComment: comment } : {}),
-      });
+      // Dispatch the connector-targeted envelope to the host's LLM, which
+      // resolves the user's Google Calendar connector and runs respond_to_event.
+      // We do NOT call a hard-coded `mcp__…__respond_to_event` directly: connector
+      // tool names are host-specific (UUID-prefixed in local agent mode,
+      // `mcp__claude_ai_Google_Calendar__…` on claude.ai), so a literal name
+      // throws "Tool not found". sendFollowUpMessage is the canonical write gate
+      // (connector-envelopes.md; matches agntux-slack / agntux-gmail).
+      await client.sendFollowUpMessage(envelope);
       setSendStatus('done');
     } catch (err) {
       setSendStatus('error');

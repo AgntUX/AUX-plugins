@@ -250,6 +250,29 @@ The mechanical difference:
 | `Use the agntux-slack plugin to commit…` | `Use the Slack Connector to send…` |
 | Envelope routes to a chat-confirm draft skill | Envelope routes directly to the connector |
 | channel_id, thread_ts read from disk by the skill | channel_id, thread_ts inline in the envelope |
+
+## Anti-pattern: direct `callTool` to a connector tool
+
+Do NOT dispatch the write by calling the connector tool directly from the
+component:
+
+```ts
+// WRONG — connector tool names are host-specific, so a hard-coded literal
+// throws "MCP error -32602: Tool not found" at click time.
+await client.callTool("mcp__claude_ai_Google_Calendar__create_event", { … });
+```
+
+Connector tool names differ per host: UUID-prefixed in local agent mode
+(`mcp__<uuid>__create_event`) and `mcp__claude_ai_<Connector>__create_event`
+on claude.ai. A hard-coded literal matches neither reliably (this was the
+agntux-google-calendar 2026-06 "Tool not found: create_event" bug). **Always
+dispatch via `client.sendFollowUpMessage(envelope)`** and let the host's LLM
+resolve the connector tool. This also covers connector *reads* whose result
+must reach the iframe (e.g. "find available times"): the iframe cannot receive
+a connector tool's return, so instruct the host to run the read and **re-open
+the view pre-populated** instead of awaiting a `callTool` result. The only
+tools a component may call directly are the plugin's own action-mutation
+server tools (`mcp__agntux…`). Lint pass 17 (E32) enforces this.
 | Send is gated by a chat `yes` turn | Send is gated by the iframe Send click |
 | Three round-trips (button → skill → connector → ack) | One round-trip (button → connector) |
 

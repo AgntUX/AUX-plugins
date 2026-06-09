@@ -34,6 +34,7 @@ import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
 import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-envelope.js";
 import { pass15GroundedTests } from "./lint/lint-grounded-tests.js";
 import { pass16ViewToolExternalLinks } from "./lint/lint-view-tool-external-links.js";
+import { pass17ViewToolConnectorCalls } from "./lint/lint-view-tool-connector-calls.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -716,6 +717,11 @@ export function lintPlugin(
   // ExternalLink component. Hard error (E31) — the agntux-google-calendar 2026-06
   // dead-button class. Routed to ui-handler-author.
   pass16ViewToolExternalLinks(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 17 — view-tool components must not call a connector tool by a
+  // hard-coded `mcp__…` name (host-specific → "Tool not found"). Connector
+  // writes dispatch via client.sendFollowUpMessage(envelope). Hard error (E32) —
+  // the agntux-google-calendar 2026-06 "Tool not found: create_event" class.
+  pass17ViewToolConnectorCalls(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

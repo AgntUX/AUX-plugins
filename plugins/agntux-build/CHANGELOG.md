@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-06-08
+
+### Added
+
+- **Enforced: connector writes must go through the host, not a hard-coded tool
+  name.** New marketplace lint pass 17 (E32, hard error) flags any view-tool
+  component that calls `client.callTool("mcp__…")` with a hard-coded non-`agntux`
+  connector tool name. Connector tool names are host-specific (UUID-prefixed in
+  local agent mode, `mcp__claude_ai_<Connector>__…` on claude.ai), so a literal
+  name throws `Tool not found` at click time (the agntux-google-calendar 2026-06
+  Schedule/Send regression). The canonical write-back path —
+  `client.sendFollowUpMessage(envelope)`, which lets the host's LLM resolve the
+  connector tool — is now documented as the only valid dispatch in
+  `connector-envelopes.md` and `draft-flow-author` §2, with an explicit
+  anti-pattern callout. Only the plugin's own `mcp__agntux…` action-mutation
+  tools may be called directly.
+
 ## [0.31.0] — 2026-06-08
 
 ### Added
