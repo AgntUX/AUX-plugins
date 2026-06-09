@@ -184,7 +184,12 @@ function ScheduleInner() {
 
   const isLoading = !toolOutput;
 
-  // Find available time slots
+  // Find available time slots. A connector read (suggest_time) cannot return
+  // results into the sandboxed iframe, and the connector tool name is
+  // host-specific (UUID-prefixed locally, `mcp__claude_ai_Google_Calendar__…`
+  // on claude.ai) — a hard-coded `callTool('mcp__…__suggest_time')` throws
+  // "Tool not found". So we ask the host's LLM to recompute free/busy and
+  // RE-OPEN this view pre-populated with the new slots.
   const handleFindSlots = useCallback(async () => {
     if (!data.search_window_start || !data.search_window_end || attendees.length === 0) {
       setFindSlotsError('Add at least one attendee and ensure a search window is set.');
@@ -192,42 +197,24 @@ function ScheduleInner() {
     }
     setIsFindingSlots(true);
     setFindSlotsError(null);
+    const instruction = [
+      'Use the Google Calendar Connector to find available meeting times, then',
+      're-open the AgntUX Google Calendar schedule view pre-populated with the results.',
+      `attendeeEmails: [${attendees.join(', ')}], durationMinutes: ${data.duration_minutes},`,
+      `startTime: ${data.search_window_start}, endTime: ${data.search_window_end},`,
+      `timeZone: ${data.user_timezone}.`,
+      `Keep the current title "${summary}", the attendees, and the description, and`,
+      'pass the returned free/busy overlaps as candidate_slots. Do NOT create the',
+      'event — the user picks a slot and clicks Schedule in the iframe (the only write gate).',
+    ].join('\n');
     try {
-      const result = await client.callTool(
-        'mcp__claude_ai_GoogleCalendar__suggest_time',
-        {
-          attendeeEmails: attendees,
-          startTime: data.search_window_start,
-          endTime: data.search_window_end,
-          durationMinutes: data.duration_minutes,
-          timeZone: data.user_timezone,
-        },
-      );
-      const rawResult = result as Record<string, unknown> | null | undefined;
-      if (rawResult && Array.isArray(rawResult.slots)) {
-        const newSlots = (rawResult.slots as Array<Record<string, unknown>>)
-          .map((s) => ({
-            start: typeof s.start === 'string' ? s.start : '',
-            end: typeof s.end === 'string' ? s.end : '',
-            label: typeof s.label === 'string' ? s.label : undefined,
-          }))
-          .filter((s) => !!s.start && !!s.end);
-        setCandidateSlots(newSlots);
-        setSelectedSlot(null);
-        if (newSlots.length === 0) {
-          setFindSlotsError('No available slots found in the selected window.');
-        }
-      } else {
-        setFindSlotsError('No slots returned. Try expanding the search window.');
-      }
+      await client.sendFollowUpMessage(instruction);
     } catch {
-      setCandidateSlots([]);
-      setSelectedSlot(null);
-      setFindSlotsError('No times found — adjust the window and try again.');
+      setFindSlotsError('Could not request new times — try again.');
     } finally {
       setIsFindingSlots(false);
     }
-  }, [client, attendees, data]);
+  }, [client, attendees, data, summary]);
 
   // Send envelope
   const handleSchedule = useCallback(async () => {
@@ -256,18 +243,14 @@ function ScheduleInner() {
       .join('\n');
 
     try {
-      await client.callTool('mcp__claude_ai_GoogleCalendar__create_event', {
-        _agntux_envelope: envelope,
-        summary,
-        startTime: selectedSlot.start,
-        endTime: selectedSlot.end,
-        attendeeEmails: attendees,
-        addGoogleMeetUrl: includeMeet,
-        timeZone: data.user_timezone,
-        calendarId: data.user_primary_calendar_id,
-        notificationLevel,
-        description: description || undefined,
-      });
+      // Dispatch the connector-targeted envelope to the host's LLM, which
+      // resolves the user's Google Calendar connector and runs create_event.
+      // We do NOT call a hard-coded `mcp__…__create_event` directly: connector
+      // tool names are host-specific (UUID-prefixed in local agent mode,
+      // `mcp__claude_ai_Google_Calendar__…` on claude.ai), so a literal name
+      // throws "Tool not found". sendFollowUpMessage is the canonical write gate
+      // (connector-envelopes.md; matches agntux-slack / agntux-gmail).
+      await client.sendFollowUpMessage(envelope);
       setSendStatus('done');
     } catch (err) {
       setSendStatus('error');

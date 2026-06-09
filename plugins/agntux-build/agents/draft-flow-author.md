@@ -97,6 +97,20 @@ pattern, and worked examples live in
 `${CLAUDE_PLUGIN_ROOT}/canonical/prompts/ui/connector-envelopes.md`.
 Read it once before scaffolding the component's commit handler.
 
+**Dispatch is always `client.sendFollowUpMessage(envelope)`** — never a
+direct `client.callTool("mcp__…__<verb>", …)` to the connector. Connector
+tool names are host-specific (UUID-prefixed in local agent mode,
+`mcp__claude_ai_<Connector>__…` on claude.ai), so a hard-coded literal throws
+`MCP error -32602: Tool not found` at click time (the agntux-google-calendar
+2026-06 bug). The LLM that receives the envelope resolves the connector tool
+itself. This also applies to connector *reads* whose result must render in the
+iframe (e.g. "find available times"): the sandboxed iframe can't receive a
+connector tool's return, so instruct the host to run the read and **re-open the
+view pre-populated** rather than awaiting a `callTool` result. Only the
+plugin's own `mcp__agntux…` action-mutation tools may be called directly. Lint
+pass 17 (E32) hard-fails any hard-coded connector `callTool` in a view-tool
+component.
+
 ### What you author
 
 You don't author much in this lane — most of the work belongs to

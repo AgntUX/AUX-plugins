@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-08
+
+### Fixed
+
+- **Schedule and Send-response now actually work.** Clicking Schedule (or
+  Send response) previously failed with `Tool not found:
+  …__create_event`. The view was calling the Google Calendar connector by a
+  hard-coded name that doesn't exist in your host — connector tool names differ
+  per host. The Send button now hands the request to the assistant, which runs
+  your Google Calendar connector to create the event / submit the RSVP. Same
+  one-click authorisation; it just reaches the connector reliably now.
+- **"Find available times" works the same way** — it now asks the assistant to
+  recompute free/busy and re-open the scheduler pre-filled, instead of calling a
+  connector tool the iframe can't reach.
+
 ## [0.3.0] — 2026-06-08
 
 ### Fixed
