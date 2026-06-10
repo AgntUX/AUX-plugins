@@ -68,6 +68,20 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-jira",
+      "source": "./plugins/agntux-jira",
+      "homepage": "https://agntux.ai/plugins/agntux-jira",
+      "keywords": [
+        "jira",
+        "issues",
+        "atlassian",
+        "project-management",
+        "agile"
+      ],
+      "category": "project-management",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "homepage": "https://agntux.ai/plugins/agntux-slack",

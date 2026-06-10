@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T12:53:47.586Z",
+  "generated_at": "2026-06-10T01:21:12.155Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet.",
@@ -414,6 +414,123 @@
         ],
         "cursor_semantics": "JSON map with `look_ahead_window_end` (RFC3339) and per-event `<calendar_id>#<event_id>` → `updated` timestamp pairs. Past events evict on each sync pass.",
         "source_id_format": "`<calendar_id>#<event_id>` for events; add `#<occurrence_start>` for recurring event instances."
+      }
+    },
+    "agntux-jira": {
+      "tagline": "See your Jira issues and act on them without leaving your workflow.",
+      "description": "Brings your Jira issues into AgntUX so the work that needs you shows up in one place. See assignments, replies on watched issues, and work that's stalling — then comment, transition, assign, edit, or log time directly from AgntUX.\n",
+      "categories": [
+        "project-management",
+        "developer-tools"
+      ],
+      "keywords": [
+        "jira",
+        "issues",
+        "atlassian",
+        "project-management",
+        "agile"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "jira",
+        "display_name": "Jira Cloud"
+      },
+      "supported_prompts": [
+        {
+          "prompt": "ux:agntux-jira",
+          "purpose": "Scheduled check for new Jira issues and updates. Or ask a question about your Jira — it just looks things up."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "comment-issue",
+          "title": "Comment on issue",
+          "purpose": "Add a comment to a Jira issue.",
+          "view_tool": "agntux_jira_comment_view",
+          "resource_uri": "ui://agntux-jira/comment"
+        },
+        {
+          "name": "transition-issue",
+          "title": "Transition issue",
+          "purpose": "Change an issue's status (e.g., In Progress to In Review).",
+          "view_tool": "agntux_jira_transition_view",
+          "resource_uri": "ui://agntux-jira/transition"
+        },
+        {
+          "name": "assign-issue",
+          "title": "Assign issue",
+          "purpose": "Assign an issue to a person or team.",
+          "view_tool": "agntux_jira_assign_view",
+          "resource_uri": "ui://agntux-jira/assign"
+        },
+        {
+          "name": "edit-issue-fields",
+          "title": "Edit issue details",
+          "purpose": "Update priority, labels, summary, or other issue fields.",
+          "view_tool": "agntux_jira_edit_view",
+          "resource_uri": "ui://agntux-jira/edit"
+        },
+        {
+          "name": "log-work-time",
+          "title": "Log time",
+          "purpose": "Record work hours spent on an issue.",
+          "view_tool": "agntux_jira_log_work_view",
+          "resource_uri": "ui://agntux-jira/log-work"
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "issue",
+            "description": "A Jira issue or task that appears in a project."
+          },
+          {
+            "subtype": "comment",
+            "description": "A comment left on a Jira issue."
+          },
+          {
+            "subtype": "transition",
+            "description": "A workflow state change available for an issue."
+          },
+          {
+            "subtype": "worklog",
+            "description": "A time entry logged against an issue."
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "An issue is waiting for a reply or action from the user."
+          },
+          {
+            "class": "needs-decision",
+            "description": "An issue requires a decision or state change as an SLA approaches."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A status update or new information on a watched issue."
+          }
+        ],
+        "cursor_semantics": "Per-project cursor map keyed by projectKey; value is the most-recent issue updated timestamp in ISO8601 format.",
+        "source_id_format": "`jira:{cloudId}:issue:{issueKey}` for issues; `jira:{cloudId}:issue:{issueKey}:comment:{commentId}` for comments."
       }
     },
     "agntux-slack": {
