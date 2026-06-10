@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.4.1] — 2026-06-09
+
+### Changed
+
+- Plain-language pass on the action-item triage listing copy — clearer about
+  what the buttons do, less internal jargon.
+
 ## [10.4.0] — 2026-06-08
 
 ### Changed

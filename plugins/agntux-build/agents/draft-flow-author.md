@@ -69,7 +69,7 @@ If your plugin has write tools but **no UI handler** (rare today —
 typically a source whose UI surface is so minimal that an iframe is
 overkill, or a niche-source plugin where authoring a UI handler hasn't
 landed yet), fall back to the chat-confirm-then-write skill. The flow:
-the user's click on a `suggested_action` button emits a `ux:` prompt; a
+the user's click on a `suggested_action` button emits a bare-slash `/{plugin-slug}` prompt; a
 top-level skill at `skills/draft/SKILL.md` receives the prompt, drafts
 the payload in working memory, shows it in chat, and waits for an
 explicit `yes` turn before calling the source's write tool.
@@ -141,7 +141,7 @@ specific responsibilities:
 ### 2a. Pre-compose at ingest into a body section
 
 The historical pattern was "draft at click time": the chat-confirm skill
-received a `ux:` prompt with no body, fetched fresh source-side context,
+received a bare-slash `/{plugin-slug}` prompt with no body, fetched fresh source-side context,
 drafted in working memory, and asked the user to confirm. With the
 UI-handler pattern, the analogous pre-compose step happens at ingest
 time and the result is persisted in the action file's body so the view
@@ -469,7 +469,7 @@ Top-level skills auto-route by their `description:` frontmatter. When
 the host receives a prompt matching the description, it engages the
 skill in a fresh forked context. Your `skills/draft/SKILL.md`'s
 description must be specific enough that prompts like
-`ux: Use the {slug} plugin to draft a reply for action {id}` route
+`/{slug} draft a reply for action {id}` route
 straight to it (and NOT to the sibling sync skill).
 
 The sync skill and the draft skill are independent dispatch targets;
@@ -479,11 +479,10 @@ picks the right one.
 ### The flow (mirrors the skeleton's Step 1–7)
 
 1. Ingest writes an action item with `suggested_actions` buttons.
-   Each button's `host_prompt` starts with
-   `ux: Use the {plugin-slug} plugin to {imperative} {ref}`.
-2. User clicks a button. Host strips the `ux: ` prefix and auto-routes
-   the prompt to the matching skill (the draft skill, by description
-   match).
+   Each button's `host_prompt` starts with the bare-slash form
+   `/{plugin-slug} {imperative} {ref}` (4.0.0+).
+2. User clicks a button. The host auto-routes the prompt to the matching
+   skill (the draft skill, by description match).
 3. `skills/draft/SKILL.md` receives the prompt in a fresh forked
    context. It parses the action ID and verb from the prompt body.
 4. Drafting skill reads the action, fetches full source context
@@ -583,7 +582,7 @@ pass the matching `outcome` value to capture that signal.
 
 Surface this in your `suggested_actions` list at ingest-side too —
 each suggested-action button's `host_prompt` can encode the outcome:
-e.g. `ux: Use the {slug} plugin to dismiss action {id} as noise`.
+e.g. `/{slug} dismiss action {id} as noise`.
 The drafting flow then routes that prompt to the appropriate `dismiss`
 call with `outcome="noise"`.
 

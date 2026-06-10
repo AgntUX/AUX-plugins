@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.3.1] — 2026-06-09
+
+### Changed
+
+- Plain-language pass on the reply-composer and canvas listing copy — dropped
+  the internal jargon.
+
 ## [8.3.0] — 2026-06-08
 
 ### Changed

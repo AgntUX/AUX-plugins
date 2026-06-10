@@ -15,8 +15,8 @@ available_on:
   - team
   - enterprise
 supported_prompts:
-  - prompt: "ux:agntux-notes"
-    purpose: "Scheduled task — fires the ingest agent on the user's chosen cadence."
+  - prompt: "/agntux-notes"
+    purpose: "Type /agntux-notes to check for new notes now. Or ask a question about your notes — it just looks things up."
 support:
   url: "https://github.com/AgntUX/AUX-plugins/issues?q=label%3Aagntux-notes"
   email: "support@agntux.ai"

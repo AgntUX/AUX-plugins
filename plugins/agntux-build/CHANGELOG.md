@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-06-09
+
+### Changed
+
+- **`supported_prompts` now require the slash-command syntax.** The marketplace
+  validator no longer accepts the legacy `ux:` / `/ux` prefixes for a listing's
+  `supported_prompts[].prompt` — the prompt must be a slash command (`/{slug}`
+  or `/{slug}:{skill}`). The plugin scaffold now seeds `/{slug}` by default, and
+  the manifest-author guidance documents the slash-command rule.
+- Updated the draft-flow and ingest-prompt authoring docs to teach the
+  4.0.0+ bare-slash `host_prompt` envelope form instead of the legacy `ux:`
+  form (the legacy form is still accepted on disk for backwards compatibility).
+
 ## [0.32.1] — 2026-06-09
 
 ### Fixed

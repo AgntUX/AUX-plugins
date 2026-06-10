@@ -171,18 +171,21 @@ export type RequiresSourceMcp = z.infer<typeof RequiresSourceMcpSchema>;
 /**
  * Supported prompt entry. P15 §3.6.
  *
- * Linter rule: `prompt` MUST be one of:
- *   - `ux:` payload (host-protocol; P3 §9.1)
- *   - `/ux` legacy prefix (pre-3.0.0 orchestrator)
+ * Linter rule: `prompt` MUST be a slash command, one of:
  *   - `/{plugin-slug}:{skill}` form (namespaced slash command on hosts that
  *     auto-prefix by plugin slug)
- *   - `/{slug}` bare slash command (4.0.0 — hosts like Cowork don't
+ *   - `/{slug}` bare slash command (4.0.0+ — hosts like Cowork don't
  *     auto-prefix, so plugins ship explicit prefixed names like
- *     `/agntux onboard`).
+ *     `/agntux` or `/agntux-jira`).
  *
- * `min(3)` is intentional: `/ux` and `ux:` are both 3 chars, and the
- * shortest valid `/{plugin-slug}:` form would be `/x:`. Bare slash
- * commands like `/ab` (3 chars) are allowed too.
+ * The legacy `ux:` host-protocol payload and the pre-3.0.0 `/ux` orchestrator
+ * prefix are NO LONGER accepted for `supported_prompts` — the user-facing
+ * prompt list is the host's slash-command surface. (The `ux:` host_prompt
+ * *envelope* used by click-time suggested actions is a separate feature and
+ * is unaffected by this rule.)
+ *
+ * `min(3)` is intentional: the shortest valid `/{plugin-slug}:` form would be
+ * `/x:`, and bare slash commands like `/ab` (3 chars) are allowed too.
  */
 export const SupportedPromptSchema = z
   .object({
@@ -192,13 +195,11 @@ export const SupportedPromptSchema = z
       .max(200)
       .refine(
         (v) =>
-          v.startsWith("ux:") ||
-          v.startsWith("/ux") ||
           /^\/[a-z][a-z0-9-]*:/.test(v) ||
           /^\/[a-z][a-z0-9-]+$/.test(v),
         {
           message:
-            'prompt must start with "ux:", "/ux", "/{plugin-slug}:", or "/{slug}" (bare slash command, 4.0.0+)',
+            'prompt must start with a slash command: "/{plugin-slug}" (bare) or "/{plugin-slug}:{skill}" (namespaced)',
         },
       ),
     purpose: z.string().min(1).max(200),

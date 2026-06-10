@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-09
+
+### Added
+
+- A `/agntux-google-calendar` slash command to check your upcoming calendar
+  on demand.
+
+### Changed
+
+- Plain-language pass on the tagline, description, listing copy, and README —
+  led with what you get and dropped the internal jargon.
+
 ## [0.4.0] — 2026-06-08
 
 ### Fixed

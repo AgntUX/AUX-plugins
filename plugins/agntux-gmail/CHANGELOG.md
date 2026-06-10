@@ -6,6 +6,13 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.3.1] — 2026-06-09
+
+### Changed
+
+- Plain-language pass on the listing copy — de-jargoned the reply-composer
+  description and the "what it brings in" list.
+
 ## [4.3.0] — 2026-06-08
 
 ### Changed
