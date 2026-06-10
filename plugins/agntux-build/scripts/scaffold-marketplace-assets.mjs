@@ -400,8 +400,8 @@ if (!existsSync(LISTING_DEST)) {
     `  - team\n` +
     `  - enterprise\n` +
     `supported_prompts:\n` +
-    `  - prompt: "ux:${slug}"\n` +
-    `    purpose: "Scheduled task — fires the ${floorDisplay} ingest agent on the configured cadence."\n` +
+    `  - prompt: "/${slug}"\n` +
+    `    purpose: "Type /${slug} to check for new ${floorDisplay} now. Or ask a question about your ${floorDisplay} — it just looks things up."\n` +
     `support:\n` +
     `  url: "https://github.com/AgntUX/AUX-plugins/issues"\n` +
     `  email: "support@agntux.ai"\n` +

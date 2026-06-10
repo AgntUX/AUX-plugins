@@ -1,7 +1,7 @@
 {
   "name": "agntux-google-calendar",
-  "version": "0.4.0",
-  "description": "Daily look-ahead of your calendar with prep context pulled from your AgntUX store.",
+  "version": "0.5.0",
+  "description": "Brings your Google Calendar into AgntUX with a daily look at the week ahead and everything you need to prepare.",
   "author": {
     "name": "AgntUX",
     "email": "support@agntux.ai"

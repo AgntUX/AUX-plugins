@@ -1,6 +1,20 @@
-tagline: "Daily look-ahead of your calendar with prep context."
+# Marketplace lint hard-fails any string field over its cap (E05) and any
+# category outside the closed enum (E04). Caps: tagline ≤80, description
+# ≤500, ui_components[].title ≤60, ui_components[].purpose ≤200,
+# proposed_schema.{entity_subtypes,action_classes}[].description ≤200,
+# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):
+# productivity, communication, crm, project-management, developer-tools,
+# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).
+# Write for non-technical users: lead with the benefit, keep it short, and
+# avoid jargon (ingest, cursor, MCP, schema, entities, knowledge store,
+# $ARGUMENTS). The caps are ceilings, not targets — shorter is better.
+tagline: "A daily look at your week ahead, with everything you need to prepare."
 description: |
-  Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).
+  Brings your Google Calendar into AgntUX. Each morning it reads the week
+  ahead and, for every meeting, pulls together what you need to prepare —
+  related Slack threads, emails, and past notes — right where you'll see it.
+  When you want to act, two buttons let you find a time and schedule a
+  meeting, or accept, tentatively accept, or decline an invite.
 categories:
   - productivity
   - communication
@@ -22,17 +36,20 @@ available_on:
   - enterprise
 data_ingested:
   - Upcoming events on all your calendars over the next 7 days
-  - "Event metadata: attendees, location, description, video conference URL, organiser"
-  - Conflicts between events on overlapping time windows
+  - "Each event's attendees, location, description, video link, and organizer"
+  - Times where two events overlap
+supported_prompts:
+  - prompt: "/agntux-google-calendar"
+    purpose: "Type `/agntux-google-calendar` to check your upcoming calendar now. Or ask a question about your schedule — it just looks things up."
 ui_components:
   - name: schedule
     title: "Find a time and schedule the meeting"
-    purpose: "Pick attendees and a window; AgntUX surfaces free slots via Google Calendar; user picks one and Send creates the event with prep context attached."
+    purpose: "Pick who to invite and a rough window; AgntUX shows the open slots. Choose one and Send creates the meeting with your prep notes attached."
     view_tool: agntux_google_calendar_schedule_view
     resource_uri: "ui://agntux-google-calendar/schedule"
   - name: respond
     title: "Accept, tentatively accept, or decline the invite"
-    purpose: "Inline event card with conflicts and AgntUX prep links; mode tabs over a single Send button; optional note to organiser."
+    purpose: "See the invite with any conflicts and your prep notes. Accept, tentatively accept, or decline — with an optional note to the organizer."
     view_tool: agntux_google_calendar_respond_view
     resource_uri: "ui://agntux-google-calendar/respond"
 screenshot_order: []
@@ -52,7 +69,7 @@ requires_source_mcp:
 proposed_schema:
   entity_subtypes:
     - subtype: person
-      description: "Attendees by email; cross-source merge alias candidate."
+      description: "People invited to your events, matched up by email address."
       required_frontmatter:
         - id
         - type
@@ -78,7 +95,7 @@ proposed_schema:
         - last_active
         - deleted_upstream
     - subtype: project
-      description: "Codename mined from event titles and descriptions; resolved via user glossary."
+      description: "Project names found in event titles and descriptions."
       required_frontmatter:
         - id
         - type

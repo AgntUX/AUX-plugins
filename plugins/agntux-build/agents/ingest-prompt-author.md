@@ -320,8 +320,8 @@ not optional, and `tests-author` derives the expected filename set from them.
 
 The pre-existing rule "do NOT pre-fill orchestrator-authored content"
 applies to the `suggested_actions[].host_prompt` strings — those stay
-as `ux: Use the {plugin-slug} plugin to open the reply composer for
-action {id}` and the host substitutes the action id at click time. The
+as `/{plugin-slug} open the reply composer for action {id}` (bare-slash,
+4.0.0+) and the host substitutes the action id at click time. The
 `## Compose payload` section is a **separate** concern: it's a
 pre-composed body the view tool reads from disk, not a host-prompt the
 user sees.

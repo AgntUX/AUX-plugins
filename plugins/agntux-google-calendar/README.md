@@ -1,22 +1,22 @@
 # agntux-google-calendar
 
-Daily look-ahead of your calendar with prep context pulled from your AgntUX store.
+A daily look at your week ahead, with everything you need to prepare.
 
 ## Overview
 
-The Google Calendar plugin ingests your calendar events, creates action items for upcoming meetings, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source.
+Brings your Google Calendar into AgntUX. Each morning it reads the week ahead and, for every meeting, gathers what you need to prepare — related Slack threads, emails, and past notes — right where you'll see it. When you want to act, you can find a time and schedule a meeting, or respond to an invite, without leaving AgntUX.
 
 ## Features
 
-- **Daily ingest**: Early-morning sync reads the next 7 days of events across all your calendars
-- **Prep context**: Automatically surfaces related communications and notes from your AgntUX store
-- **Schedule meetings**: Find-a-time via Google Calendar's suggest_time API and create events directly
-- **Respond to invites**: Accept, tentatively accept, or decline invites with optional notes to organiser
-- **Conflict detection**: Highlights double-bookings and overlapping critical meetings
+- **Daily look-ahead**: Each morning it reads the next 7 days across all your calendars
+- **Prep context**: Automatically gathers the related messages and notes you'll want before each meeting
+- **Schedule meetings**: Find a time that works and create the event directly
+- **Respond to invites**: Accept, tentatively accept, or decline — with an optional note to the organizer
+- **Conflict detection**: Flags double-bookings and overlapping meetings
 
 ## Installation
 
-The plugin requires the `agntux-core` plugin and Google Calendar MCP connector.
+Requires the `agntux-core` plugin and a connected Google Calendar account.
 
 ## Support
 

@@ -7641,9 +7641,9 @@ var RequiresSourceMcpSchema = z.discriminatedUnion("source", [
 ]);
 var SupportedPromptSchema = z.object({
   prompt: z.string().min(3).max(200).refine(
-    (v) => v.startsWith("ux:") || v.startsWith("/ux") || /^\/[a-z][a-z0-9-]*:/.test(v) || /^\/[a-z][a-z0-9-]+$/.test(v),
+    (v) => /^\/[a-z][a-z0-9-]*:/.test(v) || /^\/[a-z][a-z0-9-]+$/.test(v),
     {
-      message: 'prompt must start with "ux:", "/ux", "/{plugin-slug}:", or "/{slug}" (bare slash command, 4.0.0+)'
+      message: 'prompt must start with a slash command: "/{plugin-slug}" (bare) or "/{plugin-slug}:{skill}" (namespaced)'
     }
   ),
   purpose: z.string().min(1).max(200)

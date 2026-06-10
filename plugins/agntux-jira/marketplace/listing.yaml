@@ -32,8 +32,8 @@ requires_source_mcp:
   connector_slug: jira
   display_name: "Jira Cloud"
 supported_prompts:
-  - prompt: "ux:agntux-jira"
-    purpose: "Scheduled check for new Jira issues and updates. Or ask a question about your Jira — it just looks things up."
+  - prompt: "/agntux-jira"
+    purpose: "Type `/agntux-jira` to check for new Jira issues and updates now. Or ask a question about your Jira — it just looks things up."
 ui_components:
   - name: comment-issue
     title: "Comment on issue"

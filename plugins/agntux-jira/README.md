@@ -1,8 +1,8 @@
 # agntux-jira
 
-**Bring your Jira issues into your AgntUX triage and act on them without leaving the host.**
+**Bring your Jira issues into AgntUX and act on them without leaving your workflow.**
 
-This plugin syncs your visible Jira projects into your AgntUX knowledge store every 60 minutes during weekday business hours (7am–7pm, local time). It surfaces issues assigned to you, replies on watched issues, and work approaching SLA deadlines.
+This plugin checks your Jira projects every 60 minutes during weekday business hours (7am–7pm, local time) and surfaces the work that needs you — issues assigned to you, replies on issues you're watching, and work approaching its deadline.
 
 When you spot an issue that needs action, use these five tools to respond without switching apps:
 
@@ -15,8 +15,8 @@ When you spot an issue that needs action, use these five tools to respond withou
 ## Requirements
 
 - Active Jira Cloud account
-- AgntUX host with `agntux-core` installed
-- Access to the Jira Cloud connector via your host's MCP settings
+- AgntUX with `agntux-core` installed
+- Jira Cloud connected to AgntUX
 
 ## License
 

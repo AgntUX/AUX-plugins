@@ -16,11 +16,11 @@ available_on:
   - team
   - enterprise
 supported_prompts:
-  - prompt: "/ux"
+  - prompt: "/agntux"
     purpose: "Open the AgntUX chat orchestrator. Auto-routes to retrieval, feedback, or personalization based on intent."
-  - prompt: "ux: triage today"
+  - prompt: "/agntux:triage"
     purpose: "Daily action-item digest. Recommended scheduled task at Daily 08:00."
-  - prompt: "ux: feedback review"
+  - prompt: "/agntux:feedback"
     purpose: "Daily pattern detection over recently-resolved action items. Recommended scheduled task at Daily 16:00."
 ui_components:
   - name: "triage-ui"

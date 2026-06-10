@@ -169,7 +169,7 @@ exist; the linter is the source of truth at `scripts/lint-marketplace-metadata.t
 | Field | Type | Notes |
 |---|---|---|
 | `data_ingested` | array of string | up to 12 entries, each 1–120 chars |
-| `supported_prompts` | array of objects | up to 20; each `{prompt, purpose}`; `prompt` must start with `ux:`, `/ux`, `/{slug}:`, or `/{slug}` |
+| `supported_prompts` | array of objects | up to 20; each `{prompt, purpose}`; `prompt` must be a slash command — `/{slug}` (bare, e.g. `/agntux-jira`) or `/{slug}:{skill}` (namespaced, e.g. `/agntux-build:build`). The legacy `ux:`/`/ux` prefixes are no longer accepted. |
 | `ui_components` | array of objects | up to 20. The on-disk key is **`ui_components`** (NOT `ux_components` — that is lint E05 "unknown field"). Each entry's schema is `.strict()`, so the ONLY allowed keys are `{name: kebab-case, title: 1–60 chars, purpose: 1–200 chars, view_tool?: snake_case ending `_view`, resource_uri?: two-segment `^ui://{plugin-slug}/{handler}$` e.g. `ui://agntux-google-calendar/rsvp`}`. **Any other key — including `verb_phrases` — is a lint E05 error**; the verb is conveyed through `name` + `title` + `purpose`, never a separate field. **Omit `ui_components` entirely if your plugin ships zero UI**. `view_tool` + `resource_uri` are required when the entry corresponds to a real MCP App UI handler (one for which the view-tool specialist produced files under `view-tool/src/`); they may be omitted only for placeholder catalog entries that document an upcoming UI. |
 | `screenshot_order` | array of string | each filename matches `^[0-9]{2}-[a-z0-9-]+\.(png\|jpg)$`; must reference real files |
 | `demo_url` | string | https URL |
