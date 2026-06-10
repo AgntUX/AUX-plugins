@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-10T03:24:02.773Z",
+  "generated_at": "2026-06-10T04:28:03.476Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet.",
@@ -96,7 +96,7 @@
     },
     "agntux-gmail": {
       "tagline": "See the emails that need a reply, and draft responses safely.",
-      "description": "Watches your inbox for the emails that actually need you — messages sent\nto you, threads you're waiting on, and replies you owe — plus deadlines\nand decisions worth remembering. When you want to respond, the Draft\nbutton writes a reply for you, using what it knows about you and your past\nconversations with that person. Save puts it in your Gmail Drafts and opens\nit so you can review and send in Gmail itself. Once you reply, matching\nitems clear themselves the next time it checks.\n",
+      "description": "Brings your Gmail into AgntUX. It spots the emails that need a reply —\nmessages to you, threads you're waiting on, replies you owe — and drafts a\nresponse for you. It only ever saves to your Gmail Drafts; you review and\nhit Send in Gmail.\n",
       "categories": [
         "communication",
         "productivity"
@@ -541,7 +541,7 @@
     },
     "agntux-slack": {
       "tagline": "See the Slack messages that need a reply, and draft responses safely.",
-      "description": "Watches your DMs, @mentions, and active threads for the messages that need\nyour attention — plus deadlines and decisions worth keeping. One-click\nbuttons — Draft, Schedule, Open in Slack, Mark done — open a reply window\nwith a ready-made draft based on what it knows about you and your earlier\nitems. Reply in Slack and matching items clear themselves on the next\ncheck. Nothing posts to Slack until you press Send.\n",
+      "description": "Brings your Slack into AgntUX. It spots the messages that need a reply —\nyour DMs, mentions, and threads — and drafts a response for you to review.\nNothing posts until you press Send.\n",
       "categories": [
         "communication",
         "productivity"
