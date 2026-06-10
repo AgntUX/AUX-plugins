@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.33.1] — 2026-06-09
+
+### Changed
+
+- Replaced a contributor's personal name/email with generic placeholders in
+  an example registry snippet in the source-semantics-advisor agent doc.
+
 ## [0.33.0] — 2026-06-09
 
 ### Changed

@@ -12,8 +12,8 @@ kinds you'll see in Gmail (only when your contract approves them):
   email is the canonical cross-source alias used to merge with people
   surfaced by Slack and other sources. Extract `real_name` from the
   display-name portion of the `From:` header (e.g.
-  `"John Jordan" <john@oatfinancial.com>` → `real_name: "John Jordan"`,
-  `email: "john@oatfinancial.com"`).
+  `"Alex Rivera" <alex@example.com>` → `real_name: "Alex Rivera"`,
+  `email: "alex@example.com"`).
 - `company` — organisations resolved from sender email domains
   (`@oatfinancial.com` → `oatfi`) and signature blocks. Skip generic
   domains (`gmail.com`, `outlook.com`, `yahoo.com`, `hotmail.com`,

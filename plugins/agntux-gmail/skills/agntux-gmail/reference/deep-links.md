@@ -52,11 +52,11 @@ stop at the first match:
 gmail_thread_url := "https://mail.google.com/mail/u/2/?idr=inbox/19db06deec2c912f"
 ```
 
-`account_index: <unset>`, `user_email: "john@oatfinancial.com"`,
+`account_index: <unset>`, `user_email: "alex@example.com"`,
 `source_ref: "1934f56abcdef012"` →
 
 ```
-gmail_thread_url := "https://mail.google.com/mail/?authuser=john@oatfinancial.com#inbox/1934f56abcdef012"
+gmail_thread_url := "https://mail.google.com/mail/?authuser=alex@example.com#inbox/1934f56abcdef012"
 ```
 
 `account_index: <unset>`, `user_email: null`, `source_ref: …` →

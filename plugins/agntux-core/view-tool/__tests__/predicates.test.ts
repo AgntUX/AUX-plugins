@@ -102,7 +102,7 @@ describe("isActionFilePath", () => {
   it("rejects agntux-teams conflicted-copy siblings", () => {
     expect(
       isActionFilePath(
-        "actions/2026-05-06-relay-2025-scope-decision-5pm (John Jordan's conflicted copy 20260510-1430).md",
+        "actions/2026-05-06-relay-2025-scope-decision-5pm (Alex Rivera's conflicted copy 20260510-1430).md",
       ),
     ).toBe(false);
     expect(

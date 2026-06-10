@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-06-09
+
+### Changed
+
+- Removed a contributor's personal name from the plugin metadata: the
+  `author` block, the README contributors list, the DCO signature, and an
+  example assignee name in a test now use the AgntUX org identity / a generic
+  placeholder.
+
 ## [0.1.1] — 2026-06-09
 
 ### Changed
