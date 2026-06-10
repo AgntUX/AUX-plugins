@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-10T01:21:12.155Z",
+  "generated_at": "2026-06-10T03:24:02.773Z",
   "plugins": {
     "agntux-build": {
       "tagline": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet.",
@@ -73,7 +73,7 @@
         {
           "name": "triage",
           "title": "Action item triage",
-          "purpose": "The primary inline UI. Priority-sorted open action items with snooze / dismiss / done buttons and per-item suggested-action buttons that route into source plugins.",
+          "purpose": "Your open action items in priority order, each with snooze, dismiss, and done buttons — plus quick buttons that take you straight into the right plugin to act.",
           "view_tool": "agntux_core_triage_view",
           "resource_uri": "ui://agntux-core/triage"
         }
@@ -119,7 +119,7 @@
         "Threads where you have sent a message and someone has replied since",
         "Your sent items awaiting reply for ≥3 days",
         "Threads carrying the IMPORTANT Gmail label",
-        "Subject and snippet metadata from related threads (for reply-context)"
+        "Subject lines and short previews from related conversations, used to write better replies"
       ],
       "supported_prompts": [
         {
@@ -131,7 +131,7 @@
         {
           "name": "compose",
           "title": "Gmail reply composer",
-          "purpose": "Draft replies inline with editable to/cc/bcc/subject/body, prior-conversation context, and personalization signals. Save creates a Gmail draft and opens it in a new tab for review-and-send.",
+          "purpose": "Write a reply right here — edit the recipients, subject, and body, with context from your past emails. Save puts it in your Gmail Drafts and opens it for you to review and send.",
           "view_tool": "agntux_gmail_compose_view",
           "resource_uri": "ui://agntux-gmail/compose"
         }
@@ -256,8 +256,8 @@
       }
     },
     "agntux-google-calendar": {
-      "tagline": "Daily look-ahead of your calendar with prep context.",
-      "description": "Daily early-morning ingest reads the next 7 days of events across your calendars, creates action items per upcoming meeting, and enriches each with prep context — related Slack threads, Gmail conversations, prior notes — summarised inline and linked back to source. Two write-back buttons: schedule a meeting via find-a-time, and respond to an invite (accept / tentative / decline).\n",
+      "tagline": "A daily look at your week ahead, with everything you need to prepare.",
+      "description": "Brings your Google Calendar into AgntUX. Each morning it reads the week\nahead and, for every meeting, pulls together what you need to prepare —\nrelated Slack threads, emails, and past notes — right where you'll see it.\nWhen you want to act, two buttons let you find a time and schedule a\nmeeting, or accept, tentatively accept, or decline an invite.\n",
       "categories": [
         "productivity",
         "communication"
@@ -282,21 +282,27 @@
       ],
       "data_ingested": [
         "Upcoming events on all your calendars over the next 7 days",
-        "Event metadata: attendees, location, description, video conference URL, organiser",
-        "Conflicts between events on overlapping time windows"
+        "Each event's attendees, location, description, video link, and organizer",
+        "Times where two events overlap"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-google-calendar",
+          "purpose": "Type `/agntux-google-calendar` to check your upcoming calendar now. Or ask a question about your schedule — it just looks things up."
+        }
       ],
       "ui_components": [
         {
           "name": "schedule",
           "title": "Find a time and schedule the meeting",
-          "purpose": "Pick attendees and a window; AgntUX surfaces free slots via Google Calendar; user picks one and Send creates the event with prep context attached.",
+          "purpose": "Pick who to invite and a rough window; AgntUX shows the open slots. Choose one and Send creates the meeting with your prep notes attached.",
           "view_tool": "agntux_google_calendar_schedule_view",
           "resource_uri": "ui://agntux-google-calendar/schedule"
         },
         {
           "name": "respond",
           "title": "Accept, tentatively accept, or decline the invite",
-          "purpose": "Inline event card with conflicts and AgntUX prep links; mode tabs over a single Send button; optional note to organiser.",
+          "purpose": "See the invite with any conflicts and your prep notes. Accept, tentatively accept, or decline — with an optional note to the organizer.",
           "view_tool": "agntux_google_calendar_respond_view",
           "resource_uri": "ui://agntux-google-calendar/respond"
         }
@@ -323,7 +329,7 @@
         "entity_subtypes": [
           {
             "subtype": "person",
-            "description": "Attendees by email; cross-source merge alias candidate.",
+            "description": "People invited to your events, matched up by email address.",
             "required_frontmatter": [
               "id",
               "type",
@@ -355,7 +361,7 @@
           },
           {
             "subtype": "project",
-            "description": "Codename mined from event titles and descriptions; resolved via user glossary.",
+            "description": "Project names found in event titles and descriptions.",
             "required_frontmatter": [
               "id",
               "type",
@@ -446,8 +452,8 @@
       },
       "supported_prompts": [
         {
-          "prompt": "ux:agntux-jira",
-          "purpose": "Scheduled check for new Jira issues and updates. Or ask a question about your Jira — it just looks things up."
+          "prompt": "/agntux-jira",
+          "purpose": "Type `/agntux-jira` to check for new Jira issues and updates now. Or ask a question about your Jira — it just looks things up."
         }
       ],
       "ui_components": [
@@ -570,14 +576,14 @@
         {
           "name": "compose",
           "title": "Slack reply composer",
-          "purpose": "Draft replies inline with thread context, editable body, and mode tabs (Send / Schedule / Save draft). Personalization signals visible. Send button commits the action.",
+          "purpose": "Write a reply right here with the thread for context. Send it now, schedule it for later, or save it as a draft.",
           "view_tool": "agntux_slack_compose_view",
           "resource_uri": "ui://agntux-slack/compose"
         },
         {
           "name": "canvas",
           "title": "Slack canvas summariser",
-          "purpose": "Summarize threads to Slack canvases inline. Edit title, TL;DR, decisions, open questions, and participants. Create button posts the canvas to the thread.",
+          "purpose": "Turn a thread into a Slack canvas summary. Edit the title, recap, decisions, open questions, and who was involved, then post it to the thread.",
           "view_tool": "agntux_slack_canvas_view",
           "resource_uri": "ui://agntux-slack/canvas"
         }
