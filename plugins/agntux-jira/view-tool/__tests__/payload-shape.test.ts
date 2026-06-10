@@ -181,7 +181,7 @@ issue_key: "OFM-412"
 issue_url: "https://agntux.atlassian.net/browse/OFM-412"
 issue_title: "Fix the login redirect"
 issue_status: "In Review"
-issue_assignee: "John Jordan"
+issue_assignee: "Alex Rivera"
 issue_priority: "High"
 draft_body: |
   ${draftBody}

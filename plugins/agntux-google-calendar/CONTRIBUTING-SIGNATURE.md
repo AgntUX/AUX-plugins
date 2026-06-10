@@ -1,6 +1,6 @@
 ---
 contributor:
-  name: John Jordan
+  name: AgntUX
   email: plugins@agntux.ai
 dco:
   version: "1.1"
@@ -11,7 +11,7 @@ submission:
   plugin_version: 0.1.0
   submitted_at: 2026-06-02T02:07:00Z
   mode: create
-signed_off_by: "John Jordan <plugins@agntux.ai>"
+signed_off_by: "AgntUX <plugins@agntux.ai>"
 ---
 
 By submitting this contribution, I confirm that I have read and
@@ -21,7 +21,7 @@ agree to the Developer Certificate of Origin v1.1
 When committing this contribution, AgntUX maintainers MUST include
 the following trailer in the commit message:
 
-    Signed-off-by: John Jordan <plugins@agntux.ai>
+    Signed-off-by: AgntUX <plugins@agntux.ai>
 
 ---
 

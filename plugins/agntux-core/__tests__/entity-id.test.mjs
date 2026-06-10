@@ -33,7 +33,7 @@ describe("computeEntityId", () => {
     const cases = [
       ["agntux-slack", "T01XYZ:U02ABC123"],
       ["agntux-gmail", "thread-id-with-dashes"],
-      ["agntux-core", "john-jordan"],
+      ["agntux-core", "alex-rivera"],
       ["agntux-notes", "/Users/me/note.md"],
     ];
     for (const [source, ref] of cases) {

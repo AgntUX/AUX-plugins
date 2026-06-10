@@ -133,8 +133,8 @@ Shape:
   "version": "1.0.0",
   "generated_at": "<ISO 8601 UTC>",
   "entries": [
-    {"subtype": "person", "source": "slack", "source_id": "U030YKZBSDC", "slug": "john-jordan"},
-    {"subtype": "person", "source": "gmail", "source_id": "john@agntux.ai", "slug": "john-jordan"}
+    {"subtype": "person", "source": "slack", "source_id": "U030YKZBSDC", "slug": "alex-rivera"},
+    {"subtype": "person", "source": "gmail", "source_id": "alex@example.com", "slug": "alex-rivera"}
   ]
 }
 ```

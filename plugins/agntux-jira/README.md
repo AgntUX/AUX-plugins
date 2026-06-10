@@ -21,7 +21,3 @@ When you spot an issue that needs action, use these five tools to respond withou
 ## License
 
 Apache-2.0
-
-## Contributors
-
-- John Jordan (@johnjordan)

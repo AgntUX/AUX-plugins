@@ -1,10 +1,10 @@
 {
   "name": "agntux-jira",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Brings your Jira issues into AgntUX — comment, transition, assign, edit, or log time without leaving your workflow.",
   "author": {
-    "name": "John Jordan",
-    "email": "john@agntux.ai"
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
   },
   "license": "Apache-2.0",
   "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"

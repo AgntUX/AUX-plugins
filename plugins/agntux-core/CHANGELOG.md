@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.4.2] — 2026-06-09
+
+### Changed
+
+- Replaced a contributor's personal name with a generic placeholder in test
+  example data (no behavior change).
+
 ## [10.4.1] — 2026-06-09
 
 ### Changed

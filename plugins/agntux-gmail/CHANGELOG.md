@@ -6,6 +6,13 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.3.2] — 2026-06-09
+
+### Changed
+
+- Replaced a contributor's personal name and email with generic placeholders
+  in the triage/deep-link skill examples.
+
 ## [4.3.1] — 2026-06-09
 
 ### Changed
