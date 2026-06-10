@@ -1,11 +1,8 @@
 tagline: "See the Slack messages that need a reply, and draft responses safely."
 description: |
-  Watches your DMs, @mentions, and active threads for the messages that need
-  your attention — plus deadlines and decisions worth keeping. One-click
-  buttons — Draft, Schedule, Open in Slack, Mark done — open a reply window
-  with a ready-made draft based on what it knows about you and your earlier
-  items. Reply in Slack and matching items clear themselves on the next
-  check. Nothing posts to Slack until you press Send.
+  Brings your Slack into AgntUX. It spots the messages that need a reply —
+  your DMs, mentions, and threads — and drafts a response for you to review.
+  Nothing posts until you press Send.
 categories:
   - communication
   - productivity
