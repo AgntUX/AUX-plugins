@@ -1,0 +1,11 @@
+{
+  "name": "agntux-jira",
+  "version": "0.1.0",
+  "description": "Jira issues and projects in your AgntUX knowledge store.",
+  "author": {
+    "name": "John Jordan",
+    "email": "john@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
+}

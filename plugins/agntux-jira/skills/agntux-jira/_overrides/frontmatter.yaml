@@ -1,0 +1,52 @@
+# Per-plugin substitution map for agntux-jira.
+# Every {{placeholder}} in the canonical ingest skill template must appear here.
+# Run: node scripts/render-skill.mjs agntux-jira
+
+plugin-slug: agntux-jira
+plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+source-display-name: Jira (Atlassian Cloud)
+source-slug: jira
+recommended-cadence: "Every 60 min, 7am–7pm weekdays local"  # matches plugin.json
+
+# Cursor semantics — per-project updated-timestamp map. Full shape in reference/cursor.md.
+source-cursor-semantics: "Per-project updated-timestamp map (one JSON line) under `cursor`. Key: projectKey exactly as returned by getVisibleJiraProjects (e.g. OFM). Value: ISO-8601 UTC timestamp of the newest issue.fields.updated seen in that project during the last successful run. Absent key = bootstrap mode for that project. Cursor advances only when every action write in the run succeeds (transactional). 60-second safety margin applied at query time."
+
+source-mcp-tools: "getAccessibleAtlassianResources, getVisibleJiraProjects, searchJiraIssuesUsingJql, getJiraIssue, getJiraIssueRemoteIssueLinks, getTransitionsForJiraIssue, lookupJiraAccountId, search"
+
+# The unit of work — one Jira issue = one thread unit.
+thread-unit-name: issue
+
+bootstrap-window-default-days: "30"
+
+# Example scope name shown in the skill description trigger phrase.
+example-channel: OFM
+
+# Optional extra skill-dispatch trigger phrases for the SKILL description.
+# Defaults to empty (no user-initiated view lane). A literal here — NOT a
+# build-state placeholder — so a fresh scaffold renders cleanly.
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from connector read-tool error paths):
+  - jira-cursor-evicted          # cursor entry invalidated by project key change or gap >90 days
+  - jira-rate-limited            # Atlassian API 429 or per-tenant rate cap hit mid-run
+  - jira-project-discovery-empty # getVisibleJiraProjects returned no usable projects

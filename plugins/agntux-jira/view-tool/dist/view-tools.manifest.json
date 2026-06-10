@@ -1,0 +1,456 @@
+{
+  "plugin_slug": "agntux_jira",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-jira-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_jira_comment_view",
+      "description": "Use this to add a comment to a Jira issue on behalf of the user. Opens a comment composer pre-filled with the draft body from the action item, letting the user review and edit before posting. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "cloud_id": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "issue_status": {
+            "type": "string"
+          },
+          "issue_assignee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issue_priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-jira/comment",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_jira_transition_view",
+      "description": "Use this to change the status of a Jira issue (e.g., move from In Progress to In Review or Done). Opens a transition picker showing all available transitions with the suggested one pre-selected. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "cloud_id": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "current_state": {
+            "type": "string"
+          },
+          "available_transitions": {
+            "type": "array"
+          },
+          "suggested_transition_id": {
+            "type": "string"
+          },
+          "optional_comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-jira/transition",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_jira_assign_view",
+      "description": "Use this to assign or re-assign a Jira issue to a person. Opens an assignee picker with candidates pre-loaded and the suggested pick pre-selected. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "cloud_id": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "current_assignee": {},
+          "candidate_assignees": {
+            "type": "array"
+          },
+          "suggested_assignee_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-jira/assign",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_jira_edit_view",
+      "description": "Use this to edit the fields of a Jira issue — summary, priority, and labels. Opens an edit form pre-filled with draft suggestions; only changed fields are sent. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "cloud_id": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "current_summary": {
+            "type": "string"
+          },
+          "current_priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "available_priorities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "available_labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "draft_summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft_priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft_labels": {},
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-jira/edit",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_jira_log_work_view",
+      "description": "Use this to log work time spent on a Jira issue. Opens a worklog form pre-filled with a suggested time estimate and start time. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "cloud_id": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "suggested_time_spent": {
+            "type": "string"
+          },
+          "suggested_started": {
+            "type": "string"
+          },
+          "draft_comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generated_at": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-jira/log-work",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-jira/comment",
+      "html_path": "view-tool/dist/ui-resources/comment.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-jira/transition",
+      "html_path": "view-tool/dist/ui-resources/transition.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-jira/assign",
+      "html_path": "view-tool/dist/ui-resources/assign.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-jira/edit",
+      "html_path": "view-tool/dist/ui-resources/edit.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-jira/log-work",
+      "html_path": "view-tool/dist/ui-resources/log-work.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
