@@ -6,6 +6,13 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.3.3] — 2026-06-09
+
+### Changed
+
+- Shortened the marketplace description to a tighter, benefit-first summary
+  (was a long five-sentence paragraph).
+
 ## [4.3.2] — 2026-06-09
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "agntux-gmail",
-  "version": "4.3.2",
+  "version": "4.3.3",
   "description": "Brings your Gmail into AgntUX. Spots emails that need a reply and drafts responses you review and send yourself.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0",

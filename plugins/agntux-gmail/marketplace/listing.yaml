@@ -1,12 +1,9 @@
 tagline: "See the emails that need a reply, and draft responses safely."
 description: |
-  Watches your inbox for the emails that actually need you — messages sent
-  to you, threads you're waiting on, and replies you owe — plus deadlines
-  and decisions worth remembering. When you want to respond, the Draft
-  button writes a reply for you, using what it knows about you and your past
-  conversations with that person. Save puts it in your Gmail Drafts and opens
-  it so you can review and send in Gmail itself. Once you reply, matching
-  items clear themselves the next time it checks.
+  Brings your Gmail into AgntUX. It spots the emails that need a reply —
+  messages to you, threads you're waiting on, replies you owe — and drafts a
+  response for you. It only ever saves to your Gmail Drafts; you review and
+  hit Send in Gmail.
 categories:
   - communication
   - productivity
