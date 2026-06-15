@@ -6,13 +6,7 @@
 // undefined never propagates into JSX.
 // =============================================================================
 
-import {
-  safeArray,
-  safeString,
-  safeNumber,
-  safeObject,
-  safeEnum,
-} from "@agntux/ui-primitives";
+import { safeArray, safeString, safeNumber, safeObject, safeEnum } from "@agntux/ui-primitives";
 import type {
   ComposePayload,
   ComposeError,

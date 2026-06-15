@@ -28,35 +28,35 @@ agntux-core's triage chrome covers those.
 ```yaml
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "/agntux-slack open the reply composer for action {id}"
+    host_prompt: "Use the agntux-slack plugin to open the reply composer for action {id}"
   - label: "Schedule a reply"
-    host_prompt: "/agntux-slack open the reply composer in schedule mode for action {id}"
+    host_prompt: "Use the agntux-slack plugin to open the reply composer in schedule mode for action {id}"
   # Include the next row ONLY IF slack_open_url is non-null. Drop both
   # lines if null.
   - label: "Open in Slack"
     url: "{slack_open_url}"
   # Include the next row ONLY for thread-summary-worthy items.
   - label: "Summarise to canvas"
-    host_prompt: "/agntux-slack open the canvas summariser for action {id}"
+    host_prompt: "Use the agntux-slack plugin to open the canvas summariser for action {id}"
 ```
 
 The host's tool selector matches each `host_prompt` against the target
 view tool's `description` (which carries the trigger phrases inline).
-The Draft button also accepts the alternative phrasing `/agntux-slack
-draft a reply for action {id}` and the Schedule button accepts
-`/agntux-slack draft a reply and schedule it for action {id}` — the
-view tool's description matches either form.
+The Draft button also accepts the alternative phrasing `Use the
+agntux-slack plugin to draft a reply for action {id}` and the Schedule
+button accepts `Use the agntux-slack plugin to draft a reply and
+schedule it for action {id}` — the view tool's description matches
+either form.
 
-The canvas summariser additionally matches `/agntux-slack summarise the
-thread for action {id}`.
+The canvas summariser additionally matches `Use the agntux-slack plugin
+to summarise the thread for action {id}`.
 
 **Prefix history.** Prior to agntux-slack 8.2.0 these prompts used the
 legacy `"ux: Use the agntux-slack plugin to …"` shape (P3 §9.1
-host-protocol prefix). The bare slash-command form
-(`"/agntux-slack …"`, 4.0.0+ schema) is the going-forward shape;
-the view-tool `description` still recognises the legacy form for
-backwards compatibility with action items written before the
-migration.
+host-protocol prefix). The natural-language form
+(`"Use the agntux-slack plugin to …"`) is the going-forward shape;
+the slash-command and `ux:` forms remain accepted on disk for backwards
+compatibility with action items written before the migration.
 
 ## ## Why this matters — citing both parent and reply ts
 

@@ -31,11 +31,7 @@ import {
   MainComponent,
   type MainComponentProps,
 } from './components/main-component';
-import {
-  ComponentErrorBoundary,
-  ServerErrorScreen,
-  detectErrorEnvelope,
-} from '@agntux/ui-primitives';
+import { ComponentErrorBoundary, ServerErrorScreen, detectErrorEnvelope } from "@agntux/ui-primitives";
 
 export function App() {
   // Apply theme class to document body

@@ -3,8 +3,8 @@
 // Source: scripts/lint-marketplace-metadata.ts (+ scripts/lint/, lib/marketplace-schema.ts).
 
 // scripts/lint-marketplace-metadata.ts
-import * as fs12 from "node:fs";
-import * as path12 from "node:path";
+import * as fs14 from "node:fs";
+import * as path14 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
@@ -3881,8 +3881,8 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 var makeIssue = (params) => {
-  const { data, path: path13, errorMaps, issueData } = params;
-  const fullPath = [...path13, ...issueData.path || []];
+  const { data, path: path15, errorMaps, issueData } = params;
+  const fullPath = [...path15, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -4007,11 +4007,11 @@ var errorUtil;
 var _ZodEnum_cache;
 var _ZodNativeEnum_cache;
 var ParseInputLazyPath = class {
-  constructor(parent, value, path13, key) {
+  constructor(parent, value, path15, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path13;
+    this._path = path15;
     this._key = key;
   }
   get path() {
@@ -7925,7 +7925,7 @@ import * as path2 from "node:path";
 import { renderSkill, RenderSkillError } from "./render-skill.mjs";
 var SKILL_MAX_LINES = 500;
 var RESOURCE_MAX_LINES = 500;
-var SYNC_REFERENCE_MAX_LINES = 600;
+var SYNC_REFERENCE_MAX_LINES = 610;
 var SHARED_SIBLING_MAX_LINES = 200;
 function rel(repoRoot, p) {
   return path2.relative(repoRoot, p);
@@ -9313,10 +9313,322 @@ function pass17ViewToolConnectorCalls(pluginSlug, pluginDir, _repoRoot, findings
   }
 }
 
+// scripts/lint/lint-host-prompt-slash.ts
+import * as fs12 from "node:fs";
+import * as path12 from "node:path";
+var VIEW_TOOL_SRC_REL4 = "view-tool/src";
+var SKILLS_REL = "skills";
+var SEND_SLASH = /sendFollowUpMessage\s*\(\s*['"`]\s*\//g;
+var SLUG_SLASH = /['"`]\/agntux-[a-z]/g;
+var SLASH_HOST_PROMPT = /^\s*host_prompt:\s*["'`]?\s*\//;
+function posOf(body, index) {
+  let line = 1;
+  let lastNl = -1;
+  for (let i = 0; i < index; i++) {
+    if (body[i] === "\n") {
+      line++;
+      lastNl = i;
+    }
+  }
+  return { line, col: index - lastNl };
+}
+function stripComments3(src) {
+  let out = "";
+  let i = 0;
+  const len = src.length;
+  let inStr = null;
+  while (i < len) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (inStr) {
+      if (c === "\\") {
+        out += c + (next ?? "");
+        i += 2;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < len && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < len && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      out += c;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function isExcludedSrc(relFromSrc) {
+  const parts = relFromSrc.split(path12.sep);
+  if (parts.includes("lib")) return true;
+  if (parts.includes("__tests__")) return true;
+  if (parts.some((p) => p === "test-utils")) return true;
+  const base = parts[parts.length - 1];
+  if (base.endsWith(".d.ts")) return true;
+  if (base === "setup.ts") return true;
+  return false;
+}
+function collect(dir, root, match, acc) {
+  let entries;
+  try {
+    entries = fs12.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const abs = path12.join(dir, e.name);
+    if (e.isDirectory()) {
+      collect(abs, root, match, acc);
+      continue;
+    }
+    if (!e.isFile()) continue;
+    if (!match.test(e.name)) continue;
+    acc.push(abs);
+  }
+}
+function pass18HostPromptSlash(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path12.join(pluginDir, VIEW_TOOL_SRC_REL4);
+  if (fs12.existsSync(srcDir) && fs12.statSync(srcDir).isDirectory()) {
+    const files = [];
+    collect(srcDir, srcDir, /\.(ts|tsx)$/, files);
+    files.sort();
+    for (const abs of files) {
+      const relFromSrc = path12.relative(srcDir, abs);
+      if (isExcludedSrc(relFromSrc)) continue;
+      let body;
+      try {
+        body = fs12.readFileSync(abs, "utf8");
+      } catch {
+        continue;
+      }
+      const scrubbed = stripComments3(body);
+      const relFile = path12.join(VIEW_TOOL_SRC_REL4, relFromSrc);
+      const flaggedLines = /* @__PURE__ */ new Set();
+      for (const re of [SEND_SLASH, SLUG_SLASH]) {
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(scrubbed)) !== null) {
+          const { line, col } = posOf(scrubbed, m.index);
+          if (flaggedLines.has(line)) continue;
+          flaggedLines.add(line);
+          findings.push({
+            code: "E33",
+            severity: "error",
+            plugin: pluginSlug,
+            file: relFile,
+            line,
+            col,
+            message: `Slash-command prompt in a view-tool component. The host only fires a slash command when the user manually types "/"; one sent programmatically (sendFollowUpMessage arg, or a description "trigger phrase" the host matches against) is inert text the host cannot route, so the button does nothing. Use a natural-language description instead: "Use the ${pluginSlug} plugin to \u2026" (see plugins/agntux-build/canonical/prompts/agntux-core-hub-contract.md and agents/ingest-prompt-author.md).`
+          });
+        }
+      }
+    }
+  }
+  const skillsDir = path12.join(pluginDir, SKILLS_REL);
+  if (fs12.existsSync(skillsDir) && fs12.statSync(skillsDir).isDirectory()) {
+    const mdFiles = [];
+    collect(skillsDir, skillsDir, /\.md$/, mdFiles);
+    mdFiles.sort();
+    for (const abs of mdFiles) {
+      let body;
+      try {
+        body = fs12.readFileSync(abs, "utf8");
+      } catch {
+        continue;
+      }
+      const lines = body.split("\n");
+      const relFile = path12.join(SKILLS_REL, path12.relative(skillsDir, abs));
+      for (let li = 0; li < lines.length; li++) {
+        const m = SLASH_HOST_PROMPT.exec(lines[li]);
+        if (m) {
+          findings.push({
+            code: "E33",
+            severity: "error",
+            plugin: pluginSlug,
+            file: relFile,
+            line: li + 1,
+            col: (m.index ?? 0) + 1,
+            message: `host_prompt is a slash command. Suggested-action host_prompts are dispatched verbatim by agntux-core via sendFollowUpMessage, so a slash command silently fails to route. Write a natural-language description: host_prompt: "Use the ${pluginSlug} plugin to {imperative} for action {id}". (Edit the _overrides/ source, then re-render \u2014 do not hand-edit the rendered reference tree.)`
+          });
+        }
+      }
+    }
+  }
+}
+
+// scripts/lint/lint-view-payload-coverage.ts
+import * as fs13 from "node:fs";
+import * as path13 from "node:path";
+var VIEW_TOOL_SRC_REL5 = "view-tool/src";
+var SECTION_READ = /(?:extractFencedYaml|parseYamlSection|parseSectionYaml)\s*\(\s*[A-Za-z0-9_.]+\s*,\s*["'`]([^"'`]+)["'`]/g;
+function stripComments4(src) {
+  let out = "";
+  let i = 0;
+  const len = src.length;
+  let inStr = null;
+  while (i < len) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (inStr) {
+      if (c === "\\") {
+        out += c + (next ?? "");
+        i += 2;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < len && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < len && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      out += c;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function isExcluded3(relFromSrc) {
+  const parts = relFromSrc.split(path13.sep);
+  if (parts.includes("lib")) return true;
+  if (parts.includes("__tests__")) return true;
+  if (parts.some((p) => p === "test-utils")) return true;
+  const base = parts[parts.length - 1];
+  if (base.endsWith(".d.ts")) return true;
+  if (base === "setup.ts") return true;
+  return false;
+}
+function collectSources3(dir, srcRoot, acc) {
+  let entries;
+  try {
+    entries = fs13.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const abs = path13.join(dir, e.name);
+    if (e.isDirectory()) {
+      collectSources3(abs, srcRoot, acc);
+      continue;
+    }
+    if (!e.isFile()) continue;
+    if (!/\.(ts|tsx)$/.test(e.name)) continue;
+    const relFromSrc = path13.relative(srcRoot, abs);
+    if (isExcluded3(relFromSrc)) continue;
+    acc.push(abs);
+  }
+}
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function pass19ViewPayloadCoverage(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path13.join(pluginDir, VIEW_TOOL_SRC_REL5);
+  if (!fs13.existsSync(srcDir) || !fs13.statSync(srcDir).isDirectory()) return;
+  const skillsRoot = path13.join(pluginDir, "skills");
+  let syncPath = null;
+  if (fs13.existsSync(skillsRoot) && fs13.statSync(skillsRoot).isDirectory()) {
+    for (const child of fs13.readdirSync(skillsRoot).sort()) {
+      const candidate = path13.join(skillsRoot, child, "reference", "sync.md");
+      if (fs13.existsSync(candidate)) {
+        syncPath = candidate;
+        break;
+      }
+    }
+  }
+  if (!syncPath) return;
+  let syncBody;
+  try {
+    syncBody = fs13.readFileSync(syncPath, "utf8");
+  } catch {
+    return;
+  }
+  const files = [];
+  collectSources3(srcDir, srcDir, files);
+  files.sort();
+  const reads = /* @__PURE__ */ new Map();
+  for (const abs of files) {
+    let body;
+    try {
+      body = fs13.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const scrubbed = stripComments4(body);
+    const lines = scrubbed.split("\n");
+    const relFile = path13.join(VIEW_TOOL_SRC_REL5, path13.relative(srcDir, abs));
+    for (let li = 0; li < lines.length; li++) {
+      SECTION_READ.lastIndex = 0;
+      let m;
+      while ((m = SECTION_READ.exec(lines[li])) !== null) {
+        const name = m[1].trim();
+        if (!/payload$/i.test(name)) continue;
+        if (!reads.has(name)) reads.set(name, { file: relFile, line: li + 1 });
+      }
+    }
+  }
+  const relSync = path13.relative(pluginDir, syncPath);
+  for (const [name, where] of Array.from(reads.entries())) {
+    const headerRe = new RegExp("##\\s+" + escapeRegExp(name) + "\\b", "i");
+    if (!headerRe.test(syncBody)) {
+      findings.push({
+        code: "E34",
+        severity: "error",
+        plugin: pluginSlug,
+        file: where.file,
+        line: where.line,
+        message: `View handler reads the "## ${name}" section, but the ingest skill (${relSync}) never instructs writing it \u2014 so the action file lacks the section and the view renders an empty envelope (blank fields / fallback text). Add a Step 10 instruction in skills/${pluginSlug}/_overrides/step-10-append.md telling the skill to write "## ${name}" whenever the triggering suggested action ships, citing the ${name.replace(/ payload$/i, "").toLowerCase()}-payload reference shape, then re-render.`
+      });
+    }
+  }
+}
+
 // scripts/lint-marketplace-metadata.ts
 function fileExists2(p) {
   try {
-    fs12.accessSync(p, fs12.constants.F_OK);
+    fs14.accessSync(p, fs14.constants.F_OK);
     return true;
   } catch {
     return false;
@@ -9324,7 +9636,7 @@ function fileExists2(p) {
 }
 function isDirectory2(p) {
   try {
-    return fs12.statSync(p).isDirectory();
+    return fs14.statSync(p).isDirectory();
   } catch {
     return false;
   }
@@ -9334,13 +9646,13 @@ function emit2(findings, f) {
 }
 function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path12.relative(repoRoot, p);
+    return path14.relative(repoRoot, p);
   }
   const required = [
-    path12.join(pluginDir, "marketplace", "listing.yaml"),
-    path12.join(pluginDir, "marketplace", "icon.png"),
-    path12.join(pluginDir, "README.md"),
-    path12.join(pluginDir, "CHANGELOG.md")
+    path14.join(pluginDir, "marketplace", "listing.yaml"),
+    path14.join(pluginDir, "marketplace", "icon.png"),
+    path14.join(pluginDir, "README.md"),
+    path14.join(pluginDir, "CHANGELOG.md")
   ];
   for (const f of required) {
     if (!fileExists2(f)) {
@@ -9356,13 +9668,13 @@ function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
 }
 function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   function rel2(p) {
-    return path12.relative(repoRoot, p);
+    return path14.relative(repoRoot, p);
   }
-  const listingPath = path12.join(pluginDir, "marketplace", "listing.yaml");
+  const listingPath = path14.join(pluginDir, "marketplace", "listing.yaml");
   if (!fileExists2(listingPath)) return;
   let raw;
   try {
-    raw = fs12.readFileSync(listingPath, "utf-8");
+    raw = fs14.readFileSync(listingPath, "utf-8");
   } catch (e) {
     emit2(findings, {
       code: "E05",
@@ -9436,9 +9748,9 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   if (result.success) {
     const listing = result.data;
     if (listing.screenshot_order) {
-      const screenshotsDir = path12.join(pluginDir, "marketplace", "screenshots");
+      const screenshotsDir = path14.join(pluginDir, "marketplace", "screenshots");
       for (const fname of listing.screenshot_order) {
-        const fpath = path12.join(screenshotsDir, fname);
+        const fpath = path14.join(screenshotsDir, fname);
         if (!fileExists2(fpath)) {
           emit2(findings, {
             code: "E06",
@@ -9452,7 +9764,7 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
     }
     if (listing.requires_plugins && isDirectory2(pluginsDir)) {
       for (const slug of listing.requires_plugins) {
-        const depDir = path12.join(pluginsDir, slug);
+        const depDir = path14.join(pluginsDir, slug);
         if (!isDirectory2(depDir)) {
           emit2(findings, {
             code: "E06",
@@ -9478,15 +9790,15 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
 var SCREENSHOT_RE = /^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$/;
 function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path12.relative(repoRoot, p);
+    return path14.relative(repoRoot, p);
   }
-  const iconPath = path12.join(pluginDir, "marketplace", "icon.png");
+  const iconPath = path14.join(pluginDir, "marketplace", "icon.png");
   if (fileExists2(iconPath)) {
     validateIcon(pluginSlug, iconPath, rel2(iconPath), findings);
   }
-  const screenshotsDir = path12.join(pluginDir, "marketplace", "screenshots");
+  const screenshotsDir = path14.join(pluginDir, "marketplace", "screenshots");
   if (!isDirectory2(screenshotsDir)) return;
-  const files = fs12.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
+  const files = fs14.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
   if (files.length > 8) {
     emit2(findings, {
       code: "E02",
@@ -9497,14 +9809,14 @@ function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
     });
   }
   for (const fname of files) {
-    const fpath = path12.join(screenshotsDir, fname);
+    const fpath = path14.join(screenshotsDir, fname);
     validateScreenshot(pluginSlug, fpath, rel2(fpath), fname, findings);
   }
 }
 function validateIcon(pluginSlug, iconPath, relFile, findings) {
   let dims;
   try {
-    const buf = fs12.readFileSync(iconPath);
+    const buf = fs14.readFileSync(iconPath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9534,7 +9846,7 @@ function validateIcon(pluginSlug, iconPath, relFile, findings) {
       message: `icon is ${dims.width}\xD7${dims.height}, expected 512\xD7512`
     });
   }
-  const stat = fs12.statSync(iconPath);
+  const stat = fs14.statSync(iconPath);
   if (stat.size > 512 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9556,10 +9868,10 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
     });
     return;
   }
-  const ext = path12.extname(fname).toLowerCase().slice(1);
+  const ext = path14.extname(fname).toLowerCase().slice(1);
   let dims;
   try {
-    const buf = fs12.readFileSync(fpath);
+    const buf = fs14.readFileSync(fpath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9605,7 +9917,7 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
       });
     }
   }
-  const stat = fs12.statSync(fpath);
+  const stat = fs14.statSync(fpath);
   if (stat.size > 2 * 1024 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9619,13 +9931,13 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
 var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path12.relative(repoRoot, p);
+    return path14.relative(repoRoot, p);
   }
-  const readmePath = path12.join(pluginDir, "README.md");
-  const changelogPath = path12.join(pluginDir, "CHANGELOG.md");
-  const pluginJsonPath = path12.join(pluginDir, ".claude-plugin", "plugin.json");
+  const readmePath = path14.join(pluginDir, "README.md");
+  const changelogPath = path14.join(pluginDir, "CHANGELOG.md");
+  const pluginJsonPath = path14.join(pluginDir, ".claude-plugin", "plugin.json");
   if (fileExists2(readmePath)) {
-    const content = fs12.readFileSync(readmePath, "utf-8");
+    const content = fs14.readFileSync(readmePath, "utf-8");
     if (content.trim().length < 200) {
       emit2(findings, {
         code: "E05",
@@ -9647,7 +9959,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
     }
   }
   if (!fileExists2(changelogPath)) return;
-  const changelog = fs12.readFileSync(changelogPath, "utf-8");
+  const changelog = fs14.readFileSync(changelogPath, "utf-8");
   if (!changelog.trimStart().startsWith("# Changelog")) {
     emit2(findings, {
       code: "E03",
@@ -9687,7 +9999,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   let pluginJson;
   try {
     pluginJson = JSON.parse(
-      fs12.readFileSync(pluginJsonPath, "utf-8")
+      fs14.readFileSync(pluginJsonPath, "utf-8")
     );
   } catch {
     return;
@@ -9742,6 +10054,8 @@ function lintPlugin(pluginSlug, pluginDir, opts) {
   pass15GroundedTests(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass16ViewToolExternalLinks(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass17ViewToolConnectorCalls(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass18HostPromptSlash(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass19ViewPayloadCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 var __filename = fileURLToPath(import.meta.url);
@@ -9752,7 +10066,7 @@ if (isMain) {
     if (idx === -1) return void 0;
     return cliArgs[idx + 1];
   }, relPath = function(absPath) {
-    return path12.relative(repoRoot, absPath);
+    return path14.relative(repoRoot, absPath);
   }, formatHuman = function(f) {
     const loc = f.line != null ? `:${f.line}${f.col != null ? `:${f.col}` : ""}` : "";
     const sev = f.severity.toUpperCase();
@@ -9775,15 +10089,15 @@ if (isMain) {
   const appsClientCanonicalRootFlag = getFlag("--apps-client-canonical-root");
   const tmpRootFlag = getFlag("--tmp-root");
   const jsonMode = cliArgs.includes("--json");
-  const __dirname = path12.dirname(__filename);
-  const repoRoot = path12.resolve(__dirname, "..");
-  const pluginsDir = path12.join(repoRoot, "plugins");
+  const __dirname = path14.dirname(__filename);
+  const repoRoot = path14.resolve(__dirname, "..");
+  const pluginsDir = path14.join(repoRoot, "plugins");
   const lintRoots = {
-    canonicalRoot: canonicalRootFlag ? path12.resolve(canonicalRootFlag) : repoRoot,
-    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path12.resolve(appsClientCanonicalRootFlag) : repoRoot,
-    tmpRoot: tmpRootFlag ? path12.resolve(tmpRootFlag) : repoRoot
+    canonicalRoot: canonicalRootFlag ? path14.resolve(canonicalRootFlag) : repoRoot,
+    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path14.resolve(appsClientCanonicalRootFlag) : repoRoot,
+    tmpRoot: tmpRootFlag ? path14.resolve(tmpRootFlag) : repoRoot
   };
-  const explicitPluginDir = pluginDirFlag ? path12.resolve(pluginDirFlag) : null;
+  const explicitPluginDir = pluginDirFlag ? path14.resolve(pluginDirFlag) : null;
   let slugs;
   if (explicitPluginDir) {
     if (!isDirectory2(explicitPluginDir)) {
@@ -9793,9 +10107,9 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = [pluginFilter ?? path12.basename(explicitPluginDir)];
+    slugs = [pluginFilter ?? path14.basename(explicitPluginDir)];
   } else if (pluginFilter) {
-    const pluginDir = path12.join(pluginsDir, pluginFilter);
+    const pluginDir = path14.join(pluginsDir, pluginFilter);
     if (!isDirectory2(pluginDir)) {
       process.stderr.write(
         `Error: plugin "${pluginFilter}" not found in ${relPath(pluginsDir)}
@@ -9812,14 +10126,14 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = fs12.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path12.join(pluginsDir, n))).filter(
-      (n) => fileExists2(path12.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
+    slugs = fs14.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path14.join(pluginsDir, n))).filter(
+      (n) => fileExists2(path14.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
     ).sort();
   }
   const allFindings = [];
   const failedPlugins = /* @__PURE__ */ new Set();
   for (const slug of slugs) {
-    const pluginDir = explicitPluginDir ?? path12.join(pluginsDir, slug);
+    const pluginDir = explicitPluginDir ?? path14.join(pluginsDir, slug);
     const findings = lintPlugin(slug, pluginDir, {
       repoRoot,
       pluginsDir,

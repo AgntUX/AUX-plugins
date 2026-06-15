@@ -560,9 +560,9 @@ describe("sync skill 4.0.0 — suggested_actions carries the three standard butt
   });
 
   it("Draft / Schedule / Summarise prompts route directly to the view tools (no skill round-trip)", () => {
-    expect(src).toMatch(/\/agntux-slack open the reply composer for action \{id\}/);
-    expect(src).toMatch(/\/agntux-slack open the reply composer in schedule mode for action \{id\}/);
-    expect(src).toMatch(/\/agntux-slack open the canvas summariser for action \{id\}/);
+    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer for action \{id\}/);
+    expect(src).toMatch(/Use the agntux-slack plugin to open the reply composer in schedule mode for action \{id\}/);
+    expect(src).toMatch(/Use the agntux-slack plugin to open the canvas summariser for action \{id\}/);
   });
 
   it("suggested_actions rules document the 2–4 button range (4.0.0+ — was 2–5 before Mark done was retired)", () => {

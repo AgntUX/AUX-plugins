@@ -58,12 +58,12 @@ function makeAction(overrides: Record<string, unknown> = {}): Record<string, unk
       {
         label: 'Draft a reply',
         host_prompt:
-          '/agntux-slack draft a reply for action fixture-action-1',
+          'Use the agntux-slack plugin to draft a reply for action fixture-action-1',
       },
       {
         label: 'Open in source',
         host_prompt:
-          '/agntux print the source permalink for action fixture-action-1',
+          'Use the agntux-core plugin to print the source permalink for action fixture-action-1',
       },
     ],
     why_matters_excerpt: 'Why this matters body…',
@@ -268,7 +268,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('suggested-fixture-action-1-0'));
     expect(sendFollowUpMessageSpy).toHaveBeenCalledWith(
-      '/agntux-slack draft a reply for action fixture-action-1',
+      'Use the agntux-slack plugin to draft a reply for action fixture-action-1',
     );
   });
 
@@ -284,7 +284,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
               {
                 label: 'Draft a reply',
                 host_prompt:
-                  '/agntux-slack draft a reply for action fixture-action-1',
+                  'Use the agntux-slack plugin to draft a reply for action fixture-action-1',
               },
             ],
           }),
@@ -354,7 +354,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     await user.click(screen.getByTestId('stop-raising'));
     expect(sendFollowUpMessageSpy).toHaveBeenCalledTimes(1);
     const [prompt] = sendFollowUpMessageSpy.mock.calls[0] as [string];
-    expect(prompt).toMatch(/^\/agntux\s+engage the user-feedback subagent/);
+    expect(prompt).toMatch(/^Use the agntux-core plugin to engage the user-feedback subagent/);
     expect(prompt).toContain('engage the user-feedback subagent');
     expect(prompt).toContain('fixture-action-1');
     expect(prompt).toContain('reason_class: response-needed');
@@ -367,7 +367,7 @@ describe('MainComponent — sendFollowUpMessage routing', () => {
     });
     render(<MainComponent {...props} />);
     await user.click(screen.getByTestId('run-onboard'));
-    expect(sendFollowUpMessageSpy).toHaveBeenCalledWith('/agntux onboard');
+    expect(sendFollowUpMessageSpy).toHaveBeenCalledWith('Use the agntux-core plugin to start onboarding');
   });
 });
 
@@ -452,7 +452,7 @@ describe('MainComponent — optimistic hide on resolve', () => {
               {
                 label: 'Mark done — already handled in Slack',
                 host_prompt:
-                  '/agntux set action mark-done-a status to done with outcome "completed-externally" (already handled in Slack)',
+                  'Use the agntux-core plugin to set action mark-done-a status to done with outcome "completed-externally" (already handled in Slack)',
               },
             ],
           }),
@@ -477,7 +477,7 @@ describe('MainComponent — optimistic hide on resolve', () => {
               {
                 label: 'Draft a reply',
                 host_prompt:
-                  '/agntux-slack open the reply composer for action open-composer-a',
+                  'Use the agntux-slack plugin to open the reply composer for action open-composer-a',
               },
             ],
           }),

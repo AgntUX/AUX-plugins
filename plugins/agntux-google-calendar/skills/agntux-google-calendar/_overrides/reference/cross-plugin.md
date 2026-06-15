@@ -17,7 +17,7 @@ the user to the Google Calendar schedule view by emitting a
 ```yaml
 suggested_actions:
   - label: "Schedule a meeting"
-    host_prompt: "/agntux-google-calendar schedule a meeting about this"
+    host_prompt: "Use the agntux-google-calendar plugin to schedule a meeting about this"
 ```
 
 The host dispatches the prompt to the agntux-google-calendar skill, which

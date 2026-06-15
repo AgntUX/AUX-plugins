@@ -165,7 +165,7 @@ related_entities: [alice-doe]
 created_at: 2026-05-06T15:42:11Z
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "/agntux-slack open the reply composer for action 2026-05-06-respond-to-alice-on-launch"
+    host_prompt: "Use the agntux-slack plugin to open the reply composer for action 2026-05-06-respond-to-alice-on-launch"
   - label: "Open in Slack"
     url: "https://acme.slack.com/archives/C0123/p1714400000000200"
 ---

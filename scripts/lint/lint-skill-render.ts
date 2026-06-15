@@ -60,13 +60,17 @@ const SKILL_MAX_LINES = 500;
 // honesty.md, ask.md) all comfortably fit under the original 300, but
 // sync.md is naturally ~500 — same allowance the procedural body used to get.
 const RESOURCE_MAX_LINES = 500;
-// The canonical reference/sync.md body alone is ~469 lines — leaving only ~31
+// The canonical reference/sync.md body alone is ~471 lines — leaving only ~30
 // lines of headroom under a 500 cap for ANY plugin's source-specific
 // `<!-- append:* -->` splices, so a real plugin reliably overran it (Test #4:
-// 745 then 556 lines). Give sync.md (and only sync.md) a 600-line cap so the
+// 745 then 556 lines). Give sync.md (and only sync.md) a looser cap so the
 // canonical body plus a reasonable source-specific splice fits; every sibling
-// detail file keeps the tighter 500 cap.
-const SYNC_REFERENCE_MAX_LINES = 600;
+// detail file keeps the tighter 500 cap. Raised 600 → 610 in 2026-06 when the
+// required Step 10.1b "per-view payload sections" instruction was added to the
+// canonical body (it grew every plugin's sync.md by ~2 lines, and the most
+// feature-rich source — agntux-google-calendar, two views plus scheduling
+// intelligence — lands at ~603). The cap tracks the canonical body size.
+const SYNC_REFERENCE_MAX_LINES = 610;
 const SHARED_SIBLING_MAX_LINES = 200;
 
 function rel(repoRoot: string, p: string): string {
