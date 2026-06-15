@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-15
+
+### Fixed
+
+- **The respond view no longer shows "Untitled event" and the schedule view no
+  longer renders blank.** The ingest skill now writes the `## Respond payload`
+  and `## Schedule payload` body sections those views read (Step 10); they were
+  previously never written, so the views received an empty envelope.
+- **Suggested-action and cross-plugin prompts now use a natural-language
+  description** (`Use the agntux-google-calendar plugin to …`) instead of a
+  `/agntux-google-calendar …` slash command, which the host can't route when
+  sent programmatically.
+
 ## [0.5.1] — 2026-06-09
 
 ### Changed

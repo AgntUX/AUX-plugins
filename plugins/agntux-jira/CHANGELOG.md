@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-15
+
+### Fixed
+
+- **The comment, transition, assign, edit, and log-work views no longer render
+  "… data is unavailable".** The ingest skill now writes the matching
+  `## <Name> payload` body section each view reads (Step 10); previously only
+  `## Compose payload` was documented, so every action view came back empty.
+- **Suggested-action prompts now use a natural-language description** (`Use the
+  agntux-jira plugin to …`) instead of a `/agntux-jira …` slash command, which
+  the host can't route when sent programmatically.
+
 ## [0.1.2] — 2026-06-09
 
 ### Changed

@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.5.0] — 2026-06-15
+
+### Fixed
+
+- **Action-button and onboarding prompts no longer send slash commands.** The
+  triage UI forwards a suggested action's prompt to the host verbatim, and a
+  slash command sent programmatically is inert text the host can't route — so
+  the click did nothing. Onboarding and the "capture a Never-raise rule"
+  prompts now send a natural-language instruction (`Use the agntux-core plugin
+  to …`) that the host routes correctly. Status-mutating prompts keep the exact
+  phrasing the optimistic row-hide guard matches.
+
 ## [10.4.2] — 2026-06-09
 
 ### Changed
