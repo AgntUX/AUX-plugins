@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.4.0] — 2026-06-15
+
+### Fixed
+
+- **The canvas summariser view no longer renders empty.** The ingest skill now
+  writes the `## Canvas payload` body section the view reads (Step 10); it was
+  previously only documented for `## Compose payload`.
+- **Suggested-action prompts and view-tool trigger phrases now use a
+  natural-language description** (`Use the agntux-slack plugin to …`) instead of
+  a `/agntux-slack …` slash command, which the host can't route when sent
+  programmatically.
+
 ## [8.3.2] — 2026-06-09
 
 ### Changed

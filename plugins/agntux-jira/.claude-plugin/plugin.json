@@ -1,6 +1,6 @@
 {
   "name": "agntux-jira",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Brings your Jira issues into AgntUX — comment, transition, assign, edit, or log time without leaving your workflow.",
   "author": {
     "name": "AgntUX",

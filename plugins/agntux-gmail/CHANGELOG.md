@@ -6,6 +6,15 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.4.0] — 2026-06-15
+
+### Fixed
+
+- **The reply composer's suggested-action prompts and view-tool trigger phrases
+  now use a natural-language description** (`Use the agntux-gmail plugin to …`)
+  instead of a `/agntux-gmail …` slash command, which the host can't route when
+  sent programmatically (the button would silently do nothing).
+
 ## [4.3.3] — 2026-06-09
 
 ### Changed

@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-06-15
+
+### Added
+
+- **Two ERROR-level marketplace lint passes.** E33 (no slash-command host
+  prompts — `host_prompt` values, `sendFollowUpMessage` args, and view-tool
+  description trigger phrases must be natural-language descriptions) and E34
+  (every `## <Name> payload` section a view handler reads must be written by the
+  plugin's ingest skill). Both ship with unit tests.
+
+### Changed
+
+- **Authoring guidance now teaches the natural-language host-prompt rule.** The
+  `ingest-prompt-author` / `draft-flow-author` agents, the `agntux-core` hub
+  contract, and the canonical ingest `sync.md` describe why a programmatic slash
+  command is inert, and `sync.md` adds a required per-view payload-section step
+  (Step 10.1b). The `sync.md` line budget rises 600 → 610 for the new section.
+
 ## [0.33.1] — 2026-06-09
 
 ### Changed

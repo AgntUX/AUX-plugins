@@ -1,6 +1,6 @@
 {
   "name": "agntux-google-calendar",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Brings your Google Calendar into AgntUX with a daily look at the week ahead and everything you need to prepare.",
   "author": {
     "name": "AgntUX",
