@@ -249,7 +249,7 @@ Priority: `high` — within 24h or `response-needed` or `risk`;
    - `meeting-prep` accepted: `"Open in Google Calendar"` (url only)
    - `risk`: `"Resolve conflict"` (host_prompt) + `"Open in Google Calendar"` (url)
    - `deadline`: `"Open in Google Calendar"` (url only)
-   host_prompt form: `"/agntux-google-calendar open the respond view for action {id}"`
+   host_prompt form: `"Use the agntux-google-calendar plugin to open the respond view for action {id}"`
 6. **`## User notes`** — empty section, present but blank.
 
 The `schedule` view tool is NOT triggered by ingest. Its payload is

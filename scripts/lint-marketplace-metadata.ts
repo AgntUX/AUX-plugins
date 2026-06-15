@@ -35,6 +35,8 @@ import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-e
 import { pass15GroundedTests } from "./lint/lint-grounded-tests.js";
 import { pass16ViewToolExternalLinks } from "./lint/lint-view-tool-external-links.js";
 import { pass17ViewToolConnectorCalls } from "./lint/lint-view-tool-connector-calls.js";
+import { pass18HostPromptSlash } from "./lint/lint-host-prompt-slash.js";
+import { pass19ViewPayloadCoverage } from "./lint/lint-view-payload-coverage.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -722,6 +724,21 @@ export function lintPlugin(
   // writes dispatch via client.sendFollowUpMessage(envelope). Hard error (E32) —
   // the agntux-google-calendar 2026-06 "Tool not found: create_event" class.
   pass17ViewToolConnectorCalls(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 18 — no slash-command host prompts. Suggested-action `host_prompt`
+  // values, hardcoded `sendFollowUpMessage(...)` args, and view-tool
+  // description trigger phrases must be natural-language descriptions
+  // ("Use the <slug> plugin to …"), never slash commands. A slash command
+  // sent programmatically is inert text the host can't route, so the button
+  // does nothing (the 2026-06-15 "Jira action button does nothing" class).
+  // Hard error (E33). Routed to ingest-prompt-author / ui-handler-author.
+  pass18HostPromptSlash(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 19 — every `## <View> payload` body section a view handler READS
+  // must be WRITTEN by the plugin's ingest skill (Step 10). A read section
+  // absent from skills/<slug>/reference/sync.md means the action file lacks
+  // it and the view renders an empty envelope (the 2026-06-15 calendar
+  // "Untitled event" + Jira "… data is unavailable" class). Hard error
+  // (E34). Routed to ingest-prompt-author.
+  pass19ViewPayloadCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

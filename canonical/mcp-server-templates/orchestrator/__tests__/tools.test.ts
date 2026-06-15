@@ -234,11 +234,12 @@ describe("tool: pivot (path guard)", () => {
     expect(() => validate("")).toThrow("subtype is required");
   });
 
-  it("returns a host_prompt with correct /agntux bare slash prefix", () => {
+  it("returns a host_prompt as a natural-language description (not a slash command)", () => {
     const subtype = "companies";
     const slug = "acme-corp";
-    const hostPrompt = `/agntux open the entity browser for ${subtype}/${slug}`;
-    expect(hostPrompt.startsWith("/agntux ")).toBe(true);
+    const hostPrompt = `Use the agntux-core plugin to open the entity browser for ${subtype}/${slug}`;
+    expect(hostPrompt.startsWith("Use the agntux-core plugin to ")).toBe(true);
+    expect(hostPrompt.startsWith("/")).toBe(false);
     expect(hostPrompt).toContain(`${subtype}/${slug}`);
   });
 
@@ -273,7 +274,7 @@ describe("tool: pivot (path guard)", () => {
 
   it("real handler returns host_prompt for valid input (no FS write)", async () => {
     const result = await pivotTool.handler({ subtype: "companies", slug: "acme-corp" });
-    expect(result.content[0].text).toMatch(/^\/agntux /);
+    expect(result.content[0].text).toMatch(/^Use the agntux-core plugin to /);
     expect((result as { _meta?: { host_prompt?: string } })._meta?.host_prompt).toContain("companies/acme-corp");
   });
 });

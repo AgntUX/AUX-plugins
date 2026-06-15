@@ -350,15 +350,25 @@ Each `suggested_actions` entry MUST carry `label` plus exactly one of
 ```yaml
 suggested_actions:
   - label: "Draft a reply"
-    host_prompt: "/{plugin-slug} open the reply composer for action {id}"
+    host_prompt: "Use the {plugin-slug} plugin to open the reply composer for action {id}"
   - label: "Open in {Source}"
     url: "https://{workspace}.{source-tld}/{path}"
 ```
 
-The bare-slash prefix `/{plugin-slug} ` is the 4.0.0+ schema shape. The
-legacy `"ux: Use the {plugin-slug} plugin to …"` form is still accepted
-by the validator for backwards compatibility with action items already on
-disk, but new writes from any ingest skill MUST emit the bare-slash form.
+`host_prompt` is a **natural-language description** of the action —
+`Use the {plugin-slug} plugin to {imperative} for action {id}` — and **never a
+slash command**. The host fires slash commands (`/{plugin-slug} …`) only when
+the user manually types `/` and picks from the menu; a slash command sent
+programmatically by the hub via `sendFollowUpMessage` is inert text the host
+cannot route, so the button silently does nothing. Describe the action so the
+host's tool selector matches it to your view tool (whose `description` lists the
+same natural-language trigger phrases). For status-mutating actions, keep the
+exact phrase agntux-core's optimistic-hide guard matches — `set action {id}
+status to done`, `snooze action item {id}`, or `dismiss action item {id}`. The
+legacy `"ux: Use the {plugin-slug} plugin to …"` prefix and the older bare-slash
+form are still accepted by the validator for backwards compatibility with action
+items already on disk, but new writes from any ingest skill MUST emit the
+natural-language form.
 
 | Use `host_prompt` when… | Use `url` when… |
 |---|---|

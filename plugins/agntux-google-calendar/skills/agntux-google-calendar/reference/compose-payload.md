@@ -132,7 +132,7 @@ construct when routing to the schedule view, see `reference/cross-plugin.md`.
 ## What the compose payload must NOT include
 
 - The `suggested_actions[].host_prompt` string — that stays as
-  `"/agntux-google-calendar open the respond view for action {id}"`.
+  `"Use the agntux-google-calendar plugin to open the respond view for action {id}"`.
   The host substitutes `{id}` at click time; ingest does not know the
   final action ID until the file is written.
 - Any hardcoded calendar URL hostname — always read `event.htmlLink`

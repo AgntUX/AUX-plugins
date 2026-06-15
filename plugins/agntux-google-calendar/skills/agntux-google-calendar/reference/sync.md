@@ -443,7 +443,7 @@ completed_at: null
 dismissed_at: null
 suggested_actions:
   - label: "{≤40 char display label}"
-    host_prompt: "/agntux-google-calendar {imperative} for action {id}"
+    host_prompt: "Use the agntux-google-calendar plugin to {imperative} for action {id}"
   # next row only when deep_link_url is non-null:
   - label: "Open in Google Calendar"
     url: "{deep_link_url}"
@@ -451,7 +451,7 @@ suggested_actions:
 
 **Priority anchoring** (P3 §4.3): `high` = deadline within 48 hours, top-account / direct-manager / VIP, or reversible cost > ~$10K. `medium` = default for items the user wants but won't suffer harm from delay. `low` = borderline-actionable.
 
-**`suggested_actions` rules:** 1–4 buttons; each row carries **either** `host_prompt` (chat-message envelope routed via view-tool description matching) **or** `url` (host openLink), never both, never neither. `host_prompt` strings start with `/agntux-google-calendar ` (bare slash command, 4.0.0+ schema) and reference `{id}`; trigger phrases are owned by the view tool's `description` field, not by Step 10. The drafted reply body is pre-composed into `## Compose payload` at Step 10.1; `host_prompt` itself carries the routing intent only. The legacy `"ux: …"` prefix is still accepted by the marketplace schema for backwards compatibility with action items already on disk, but new writes MUST use the bare slash form.
+**`suggested_actions` rules:** 1–4 buttons; each row carries **either** `host_prompt` (chat-message envelope routed via view-tool description matching) **or** `url` (host openLink), never both, never neither. `host_prompt` strings are a **natural-language description** of the action — `Use the agntux-google-calendar plugin to {imperative} for action {id}` — and reference `{id}`; trigger phrases are owned by the view tool's `description` field, not by Step 10. **Never emit a slash command** (`/agntux-google-calendar …`): the host fires slash commands only when the user manually types `/` and picks from the menu, so a slash command sent programmatically via `sendFollowUpMessage` is inert text the host cannot route — describe the action instead. The drafted reply body is pre-composed into `## Compose payload` at Step 10.1; `host_prompt` itself carries the routing intent only. The legacy `"ux: …"` prefix and the older bare-slash form are still accepted by the marketplace schema for backwards compatibility with action items already on disk, but new writes MUST use the natural-language form. (For status-mutating actions the imperative MUST keep the exact phrase agntux-core's optimistic-hide guard matches — `set action {id} status to done`, `snooze action item {id}`, or `dismiss action item {id}`.)
 
 **Apply `# Rewrites` from `data/instructions/agntux-google-calendar.md`** when composing action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten `## Why this matters` to 1–2 sentences.
 
@@ -478,6 +478,13 @@ If `data/instructions/agntux-google-calendar.md` doesn't exist yet (cold-start),
 ```
 
 **Conditional body section: `## Compose payload`** — REQUIRED for every action item that ships a `Draft a reply` suggested action. Schema and YAML quoting rules are defined by the compose-payload reference shape.
+
+**Step 10.1b — Per-view payload sections (REQUIRED).** `## Compose payload` is only the draft-a-reply case. For **every** view tool your plugin ships whose handler reads a `## <View> payload` body section, you MUST write that section to the action file whenever the action ships the suggested action that opens that view — otherwise the view renders an empty envelope (blank fields, fallback text like "Untitled event" or "… data is unavailable"). Each section's schema lives in the matching `reference/<view>-payload.md`. The per-view sections this plugin writes — and the action class that triggers each — are enumerated below.
+
+### Step 10.1c — Respond + Schedule payload sections (google-calendar)
+
+- Write `## Respond payload` for `response-needed` (RSVP `needsAction`), `risk` (double-booking), or tentative `meeting-prep` actions — the respond view reads it (omit → "Untitled event"). Schema: the respond-payload reference shape.
+- Write `## Schedule payload` for "Schedule a meeting" / draft-event actions — the schedule view reads it. Schema: the schedule-payload reference shape.
 
 ---
 
@@ -587,7 +594,7 @@ Off-lane paths the skill MUST refuse to write (refused at compose time, logged w
 
 Per-plugin override files (e.g., `_overrides/reference/contract-lock.md`) MUST NOT authorise a write outside the lanes above; the toolkit lint pass `pass8SkillRender` rejects malformed overrides before render.
 
-You also do NOT decide when you run (the host's scheduler does), create/edit scheduled tasks (host-UI primitive), or draft proposed replies / schedule sends / summarise at click time — those fire from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes. Suggested-action `host_prompt` envelopes (bare slash form `/agntux-google-calendar …`; the legacy `ux: …` form is still accepted on disk) route to your view tool; this skill pre-composes the body inside `## Compose payload` for the view tool to lift, but does not handle the click-time path.
+You also do NOT decide when you run (the host's scheduler does), create/edit scheduled tasks (host-UI primitive), or draft proposed replies / schedule sends / summarise at click time — those fire from the iframe Save/Send button via spec-blessed `sendFollowUpMessage` envelopes. Suggested-action `host_prompt` envelopes (natural-language form `Use the agntux-google-calendar plugin to …`; the legacy `ux: …` and older bare-slash forms are still accepted on disk) route to your view tool; this skill pre-composes the body inside `## Compose payload` for the view tool to lift, but does not handle the click-time path.
 
 
 ## Tool surface

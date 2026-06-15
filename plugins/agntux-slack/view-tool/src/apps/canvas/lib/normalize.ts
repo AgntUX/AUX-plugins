@@ -2,13 +2,7 @@
 // normalize.ts — defensive per-entity normalizers for the canvas payload.
 // =============================================================================
 
-import {
-  safeArray,
-  safeString,
-  safeNumber,
-  safeObject,
-  safeEnum,
-} from "@agntux/ui-primitives";
+import { safeArray, safeString, safeNumber, safeObject, safeEnum } from "@agntux/ui-primitives";
 import type {
   CanvasPayload,
   CanvasError,

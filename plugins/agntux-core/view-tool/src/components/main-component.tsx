@@ -23,16 +23,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AgntuxLogo,
-  Spinner,
-  safeArray,
-  safeBoolean,
-  safeEnum,
-  safeNumber,
-  safeObject,
-  safeString,
-} from '@agntux/ui-primitives';
+import { AgntuxLogo, Spinner, safeArray, safeBoolean, safeEnum, safeNumber, safeObject, safeString } from "@agntux/ui-primitives";
 
 // =============================================================================
 // Types
@@ -2544,7 +2535,6 @@ export function MainComponent(props: MainComponentProps) {
     [callTool],
   );
 
-
   // Terminal-action handlers: on success, show feedback in the row's slot
   // and collapse any inline panel. We deliberately do NOT call
   // hideOptimistically here — that would remove the row from `filtered`
@@ -2851,7 +2841,7 @@ export function MainComponent(props: MainComponentProps) {
 
   const handleStopRaising = useCallback(
     (action: Action) => {
-      const prompt = `/agntux engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'})`;
+      const prompt = `Use the agntux-core plugin to engage the user-feedback subagent so the user can capture a \`# Never raise\` rule for items like ${action.id} (reason_class: ${action.reason_class || 'unknown'}, source: ${action.source ?? 'unknown'})`;
       void sendFollowUpMessage(prompt);
       setExpanded((cur) => (cur && cur.id === action.id ? null : cur));
       showFeedback(action.id, {
@@ -2864,7 +2854,7 @@ export function MainComponent(props: MainComponentProps) {
   );
 
   const handleOnboard = useCallback(() => {
-    void sendFollowUpMessage('/agntux onboard');
+    void sendFollowUpMessage('Use the agntux-core plugin to start onboarding');
   }, [sendFollowUpMessage]);
 
   // ---- Render branches ----
