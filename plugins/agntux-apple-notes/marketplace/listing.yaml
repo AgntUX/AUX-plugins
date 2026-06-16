@@ -1,0 +1,70 @@
+tagline: "Capture notes from Apple Notes with one-click create and edit."
+description: |
+  Apple Notes syncs into AgntUX so you can see action items and reminders
+  in one place. Create new notes, update existing ones, and check off
+  items from your phone's native note app — all from AgntUX.
+categories:
+  - notes-knowledge
+keywords:
+  - apple-notes
+  - notes
+  - knowledge
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - Note titles and content
+  - Folder organization
+  - Creation and modification dates
+  - Checklist item status
+supported_prompts:
+  - prompt: "/agntux-apple-notes"
+    purpose: "Type /agntux-apple-notes to check for new or updated notes. Or ask a question about your notes."
+ui_components:
+  - name: "create-note"
+    title: "Create Note"
+    purpose: "Compose and save a new note to Apple Notes."
+    view_tool: "agntux_apple_notes_create_note"
+    resource_uri: "ui://agntux-apple-notes/create-note"
+  - name: "update-note"
+    title: "Update Note"
+    purpose: "Edit an existing note, add content, or check off checklist items."
+    view_tool: "agntux_apple_notes_update_note"
+    resource_uri: "ui://agntux-apple-notes/update-note"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: apple-notes
+  display_name: "Apple Notes"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: note
+      description: "An Apple Note with title, content, folder, and timestamps."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: other
+      description: "Create a new note in Apple Notes."
+    - class: other
+      description: "Update an existing note or check off checklist items."
+  cursor_semantics: "Modification-time watermark; notes are de-duplicated by stable source ID and polled for updated content."
+  source_id_format: "`x-coredata://<store-uuid>/ICNote/p<N>` — stable identifier unique per note."
