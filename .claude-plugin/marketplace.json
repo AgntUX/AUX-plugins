@@ -10,6 +10,18 @@
   },
   "plugins": [
     {
+      "name": "agntux-apple-notes",
+      "source": "./plugins/agntux-apple-notes",
+      "homepage": "https://agntux.ai/plugins/agntux-apple-notes",
+      "keywords": [
+        "apple-notes",
+        "notes",
+        "knowledge"
+      ],
+      "category": "notes-knowledge",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-build",
       "source": "./plugins/agntux-build",
       "homepage": "https://agntux.ai/plugins/agntux-build",
