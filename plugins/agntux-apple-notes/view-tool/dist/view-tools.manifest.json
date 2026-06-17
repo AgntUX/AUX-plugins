@@ -1,0 +1,189 @@
+{
+  "plugin_slug": "agntux_apple_notes",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-apple-notes-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_apple_notes_create_note",
+      "description": "Use this to compose and save a new note to Apple Notes. Shown when the user wants to create a note from an AgntUX action item or from context. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the create-note composer for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file's '## Compose payload' body section and lifts draft_title, draft_body, target_folder, available_folders, and source_context from disk. Do NOT pass draft_title, draft_body, target_folder, available_folders, or source_context inline — those fields are not accepted as inline args and any attempt to supply them will be ignored; the on-disk payload is always the source of truth for this action-item-triggered view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "draft_title": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "target_folder": {
+            "type": "string"
+          },
+          "available_folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "draft_title",
+          "draft_body",
+          "target_folder",
+          "available_folders"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-apple-notes/create-note",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_apple_notes_update_note",
+      "description": "Use this to edit an existing Apple Notes note — update its body, add content, or check off checklist items. Shown when the user wants to update a note from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the update-note composer for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file's '## Compose payload' body section and lifts note_name, note_id, folder, current_content, draft_body, is_checklist, checklist_items, and source_context from disk. Do NOT pass note_name, note_id, folder, current_content, draft_body, is_checklist, checklist_items, or source_context inline — those fields are not accepted as inline args and any attempt to supply them will be ignored; the on-disk payload is always the source of truth for this action-item-triggered view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "note_name": {
+            "type": "string"
+          },
+          "note_id": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "current_content": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "is_checklist": {
+            "type": "boolean"
+          },
+          "checklist_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "checked": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "text",
+                "checked"
+              ]
+            }
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "note_name",
+          "note_id",
+          "folder",
+          "current_content",
+          "draft_body",
+          "is_checklist",
+          "checklist_items"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-apple-notes/update-note",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-apple-notes/create-note",
+      "html_path": "view-tool/dist/ui-resources/create-note.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-apple-notes/update-note",
+      "html_path": "view-tool/dist/ui-resources/update-note.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
