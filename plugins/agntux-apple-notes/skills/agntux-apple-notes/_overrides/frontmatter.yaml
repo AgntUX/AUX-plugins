@@ -1,0 +1,67 @@
+# _overrides/frontmatter.yaml — agntux-apple-notes
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-apple-notes
+plugin-version: 0.1.0                      # matches .claude-plugin/plugin.json
+source-display-name: Apple Notes
+source-slug: apple-notes
+recommended-cadence: "Every 4 hours"       # matches plugin.json recommended_ingest_cadence
+
+# Cursor semantics:
+# Single low-water-mark timestamp; stored as a normalised ISO-8601 UTC string
+# (e.g. "2026-06-15T11:53:22Z") derived from the connector's human-readable
+# modification_date strings. Advance to max(modification_date) across all
+# notes processed this run after every action write in the run has succeeded.
+# On bootstrap (cursor: null), filter for notes whose modification_date parses
+# to within the bootstrap window. Because list_notes returns modification_date
+# as a formatted string ("Monday, June 15, 2026 at 11:53:22 AM"), normalise
+# every date to an ISO-8601 sortable form before comparing to the cursor; the
+# raw string is NOT lexicographically sortable across all platform locales.
+source-cursor-semantics: "Single low-water-mark ISO-8601 UTC timestamp stored in sync.md as `cursor`; advances to max(normalised modification_date) across all notes processed this run. The connector returns modification_date as a human-readable locale string — normalise to ISO-8601 before any comparison. Filter for notes where normalised modification_date > cursor (incremental) or within bootstrap_window_days (bootstrap)."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# Two tools used for ingest (read-only):
+#   list_notes({ folder?, limit })           → note list with id, name, dates
+#   get_note_content({ note_name, folder? }) → full note body text
+source-mcp-tools: "mcp__Read_and_Write_Apple_Notes__list_notes, mcp__Read_and_Write_Apple_Notes__get_note_content"
+
+# Each Apple Note is the atomic unit — no parent/reply threading.
+thread-unit-name: note
+
+bootstrap-window-default-days: "30"
+
+# One representative folder name used in the SKILL description trigger phrases.
+example-channel: Personal
+
+# No user-initiated view lane for this plugin (no compose/send flow).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Apple Notes:
+  - apple-notes-cursor-evicted       # note deleted or no longer accessible; key dropped from cursor map
+  - apple-notes-merged-into          # cross-source dedup merged this note into an existing action
+  - apple-notes-title-collision      # get_note_content returned ambiguous results for a note title; resolved by folder filter or most-recent-modification heuristic
+  - apple-notes-date-parse-failed    # modification_date string could not be normalised to ISO-8601; note skipped
+  - apple-notes-tool-result-truncated # MCP layer truncated an oversized note body; note skipped for this run
