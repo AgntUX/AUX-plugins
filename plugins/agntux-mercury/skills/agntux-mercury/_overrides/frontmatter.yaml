@@ -1,0 +1,103 @@
+# _overrides/frontmatter.yaml — agntux-mercury
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-mercury
+plugin-version: 0.1.0                       # matches .claude-plugin/plugin.json
+
+source-display-name: Mercury
+source-slug: mercury
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 2 hours, 7am–7pm weekdays, local"
+
+# Cursor semantics:
+# Per-account transaction cursor. The cursor is a JSON object stored on
+# the sync.md → cursor line; each key is a Mercury accountId (UUID) and
+# each value is the ISO-8601 UTC createdAt timestamp of the newest
+# transaction successfully processed from that account this run.
+#
+# listTransactions supports server-side date filtering via `start`
+# (createdAt >= start) and cursor-based pagination via page.nextPage.
+# On incremental runs, pass `start: cursor[accountId]` for each account
+# so the connector filters server-side — only transactions created at or
+# after the cursor boundary are returned. Compare strictly > cursor to
+# exclude the boundary row (which was the last processed item of the
+# previous run and is included by the server's >= filter).
+#
+# On bootstrap (cursor null / empty map), filter for transactions whose
+# createdAt falls within (now − bootstrap_window_days, now]. Default is
+# 90 days — banking sources need 2–3 monthly billing cycles before
+# recurring/subscription/payroll patterns (used by the automation_label
+# heuristics) are reliably detectable. User-overridable via user.md.
+#
+# Non-transaction resources (accounts, cards, approvals, credit,
+# treasury, invoices, recipients, customers, team, org) are refreshed
+# fully every run — they are low-volume catalog resources with no
+# incremental feed. Their state is reconciled against existing entities
+# and action items in Steps 6–8.
+#
+# Cursor eviction: remove entries for accountIds that no longer appear
+# in getAccounts (account closed or removed). Log mercury-cursor-evicted
+# for each eviction.
+source-cursor-semantics: "Per-account JSON map: cursor is a JSON object keyed by Mercury accountId (UUID), value is the ISO-8601 UTC createdAt timestamp of the newest transaction processed from that account. Incremental filter: pass start=cursor[accountId] to listTransactions for server-side filtering; apply strict > client-side to exclude the boundary row. Advance each entry to max(createdAt) across transactions processed from that account this run; advance only on full-run success (transactional). Evict entries for accountIds absent from getAccounts (account closed). Non-transaction resources refresh fully each run."
+
+# Mercury MCP tool root names (host UUID-prefixes these at runtime).
+# Primary tools used by the ingest fetch step:
+#   getAccounts / getAccount                — account list + balances
+#   listTransactions / getTransaction / getTransactionById  — transaction stream
+#   getAccountCards                         — card status per account
+#   listCredit                              — Mercury IO credit accounts
+#   getTreasury / getTreasuryTransactions / getTreasuryStatements — treasury
+#   listSendMoneyApprovalRequests           — pending send-money approvals
+#   getSafeRequests                         — SAFE fundraising requests
+#   listInvoices / getInvoice / listInvoiceAttachments — AR/AP invoices
+#   getRecipients / getRecipient            — saved payees
+#   listCustomers / getCustomer             — AR customers
+#   getUsers                                — team members
+#   getOrganization                         — org-level metadata
+#   listCategories                          — custom expense categories
+#   getAccountStatements                    — monthly statements
+source-mcp-tools: "getAccounts, getAccount, listTransactions, getTransaction, getTransactionById, getAccountCards, listCredit, getTreasury, getTreasuryTransactions, getTreasuryStatements, listSendMoneyApprovalRequests, getSafeRequests, listInvoices, getInvoice, listInvoiceAttachments, getRecipients, getRecipient, listCustomers, getCustomer, getUsers, getOrganization, listCategories, getAccountStatements"
+
+# Each transaction is the high-volume atomic unit processed per run.
+thread-unit-name: transaction
+
+bootstrap-window-default-days: "90"
+
+# One representative Mercury account type used in the SKILL description.
+example-channel: checking
+
+# No user-initiated view lane (ingest-only; all actions resolve to
+# "Open in Mercury" deep links — no compose/send flow).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Mercury:
+  - mercury-cursor-evicted         # accountId absent from getAccounts (account closed); cursor entry dropped
+  - mercury-rate-limited           # connector returned 429 / throttle signal; fetch aborted for this account
+  - mercury-transaction-truncated  # listTransactions page.nextPage loop exceeded the per-run cap; remainder deferred
+  - mercury-pagination-overflow    # more transactions than the per-run cap across all accounts; next run continues
+  - mercury-pending-not-found      # getTransactionById returned not-found for a known pending id; id evicted from pending_ids
+  - mercury-pending-evicted        # pending id aged past 30 days without reaching terminal status; evicted from pending_ids
