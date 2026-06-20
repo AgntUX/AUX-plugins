@@ -94,6 +94,21 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-mercury",
+      "source": "./plugins/agntux-mercury",
+      "homepage": "https://agntux.ai/plugins/agntux-mercury",
+      "keywords": [
+        "mercury",
+        "banking",
+        "transactions",
+        "approvals",
+        "cash-flow",
+        "business-banking",
+        "accounts"
+      ],
+      "category": "productivity"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "homepage": "https://agntux.ai/plugins/agntux-slack",
