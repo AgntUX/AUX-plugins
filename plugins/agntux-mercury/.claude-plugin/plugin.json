@@ -1,0 +1,11 @@
+{
+  "name": "agntux-mercury",
+  "version": "0.1.0",
+  "description": "Track Mercury balances, transactions, cards, and approvals in AgntUX.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 2 hours, 7am–7pm weekdays, local"
+}
