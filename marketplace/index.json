@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-17T16:15:02.095Z",
+  "generated_at": "2026-06-20T20:16:25.813Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -632,6 +632,254 @@
         ],
         "cursor_semantics": "Per-project cursor map keyed by projectKey; value is the most-recent issue updated timestamp in ISO8601 format.",
         "source_id_format": "`jira:{cloudId}:issue:{issueKey}` for issues; `jira:{cloudId}:issue:{issueKey}:comment:{commentId}` for comments."
+      }
+    },
+    "agntux-mercury": {
+      "tagline": "Track spending, balances, and approvals from Mercury in AgntUX.",
+      "description": "Brings your Mercury account balances, transactions, cards, and pending approvals into AgntUX so they surface alongside your other work. See cash flow, credit usage, spending by category, and what's waiting for you to sign off on — all in one place.\n",
+      "categories": [
+        "productivity"
+      ],
+      "keywords": [
+        "mercury",
+        "banking",
+        "transactions",
+        "approvals",
+        "cash-flow",
+        "business-banking",
+        "accounts"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-mercury",
+          "purpose": "Check Mercury for new transactions and approvals, or ask about balances and cards."
+        }
+      ],
+      "data_ingested": [
+        "Account balances (checking, savings, treasury)",
+        "Transactions with counterparty, amount, and category",
+        "Virtual and physical card status and spend",
+        "Mercury credit (IO) balance and available limit",
+        "Send-money approvals awaiting your sign-off",
+        "Incoming and outgoing invoices",
+        "Saved recipients and customers",
+        "Team members and organization info",
+        "Transaction categories"
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "mercury",
+        "display_name": "Mercury"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "account",
+            "description": "A Mercury checking, savings, or treasury account with current balance and account type.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "transaction",
+            "description": "A money movement in or out of a Mercury account with counterparty, amount, posted/pending status, and category.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "card",
+            "description": "A virtual or physical Mercury debit card with status, cardholder, spend limit, and last four digits.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "credit-account",
+            "description": "Mercury IO credit line with current balance and available credit limit.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "send-money-approval",
+            "description": "A pending send money request waiting for authorization from a team member.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "invoice",
+            "description": "An incoming or outgoing invoice tied to a customer or recipient with amount and status.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "recipient",
+            "description": "A saved payment recipient for future send money transactions.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "customer",
+            "description": "A customer or client connected to incoming or outgoing invoices.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "team-member",
+            "description": "A user in the Mercury organization who can approve send money requests and sign documents.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "organization",
+            "description": "The Mercury workspace/organization with basic settings and member count.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "deadline",
+            "description": "Invoice due dates approaching or past due."
+          },
+          {
+            "class": "response-needed",
+            "description": "Send money request awaiting your approval or signature."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "New account, card, balance, or recipient information from Mercury."
+          },
+          {
+            "class": "risk",
+            "description": "Unusual transaction pattern, low balance alert, or card status change."
+          },
+          {
+            "class": "opportunity",
+            "description": "Available credit limit on Mercury IO."
+          },
+          {
+            "class": "other",
+            "description": "Emerging Mercury signal not yet categorized."
+          }
+        ],
+        "cursor_semantics": "Incremental cursor over transaction timestamps. Each account's cursor advances to the most recent createdAt. Accounts, cards, and approvals refresh each run; statements and invoices pull periodically.",
+        "source_id_format": "`{resource_type}#{uuid}` — each resource has a UUID unique within its type."
       }
     },
     "agntux-slack": {
