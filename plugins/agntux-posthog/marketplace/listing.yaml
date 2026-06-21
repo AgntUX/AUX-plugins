@@ -1,0 +1,141 @@
+tagline: "Bring PostHog analytics signals into AgntUX for faster decision-making."
+description: |
+  Watch your PostHog errors, alerts, experiments, and flagged reports right in AgntUX.
+  Triage error issues, acknowledge alerts, decide on experiments, and resolve reports—
+  all with one-click actions that sync back to PostHog. See the product signals that
+  need a human decision in one central place.
+categories:
+  - developer-tools
+  - analytics
+keywords:
+  - posthog
+  - analytics
+  - error-tracking
+  - alerts
+  - experiments
+  - product-analytics
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Error tracking issues (status, error type, affected users)"
+  - "Alert firings (alert rule, severity, trigger time)"
+  - "Experiment state and results (test name, variant performance)"
+  - "Comment mentions and threads (comment author, content)"
+  - "Inbox flagged reports (flag reason, report type)"
+  - "Feature insights and dashboard references"
+supported_prompts:
+  - prompt: "/agntux-posthog"
+    purpose: "Check for new PostHog signals now. Or ask about your analytics data—it just looks things up."
+ui_components:
+  - name: "resolve"
+    title: "Resolve Error Issue"
+    purpose: "Resolve or reassign a PostHog error issue."
+    view_tool: "agntux_posthog_resolve"
+    resource_uri: "ui://agntux-posthog/resolve"
+  - name: "reply"
+    title: "Reply to Comment"
+    purpose: "Reply to a PostHog comment thread."
+    view_tool: "agntux_posthog_reply"
+    resource_uri: "ui://agntux-posthog/reply"
+  - name: "experiment"
+    title: "Ship Experiment Variant"
+    purpose: "Ship the winning variant of a PostHog experiment."
+    view_tool: "agntux_posthog_experiment"
+    resource_uri: "ui://agntux-posthog/experiment"
+  - name: "report"
+    title: "Mark Report Handled"
+    purpose: "Mark a flagged PostHog inbox report as handled."
+    view_tool: "agntux_posthog_report"
+    resource_uri: "ui://agntux-posthog/report"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: posthog
+  display_name: "PostHog"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: error-issue
+      description: "A tracked error in your product with stack trace, affected users, and resolution status."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: alert
+      description: "A fired alert rule monitoring your product metrics or events."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+    - subtype: experiment
+      description: "An A/B test or multivariate experiment measuring feature impact."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+    - subtype: comment-thread
+      description: "A discussion thread on an error issue or insight with mentions and replies."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+    - subtype: inbox-report
+      description: "A flagged or anomaly-detected item in your PostHog inbox awaiting triage."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+  action_classes:
+    - class: response-needed
+      description: "Acknowledge or triage an alert, error issue, or flagged report that requires human attention."
+    - class: deadline
+      description: "Resolve or close an error issue by a deadline or once mitigated."
+    - class: knowledge-update
+      description: "Document experiment results, insights, or dashboard findings."
+    - class: opportunity
+      description: "Decide on an experiment variant or take action based on flagged data."
+    - class: risk
+      description: "Escalate or flag a critical error, anomaly, or experiment regression."
+  cursor_semantics: "Per-resource timestamp map: errors by last_seen, alerts by fired_at, experiments by updated_at, comments by created_at, inbox reports by created_at. Cursor advances independently per resource."
+  source_id_format: "`posthog:{project_id}:{resource_type}:{resource_id}` — e.g. `posthog:12345:error:789`, stable across updates."

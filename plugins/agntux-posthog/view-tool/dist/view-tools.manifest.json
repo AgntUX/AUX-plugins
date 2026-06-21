@@ -1,0 +1,335 @@
+{
+  "plugin_slug": "agntux_posthog",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-posthog-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_posthog_resolve",
+      "description": "Use this to resolve or reassign a PostHog error tracking issue. Shown when the user wants to update the status or assignee of an error issue. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "occurrence_summary": {
+            "type": "string"
+          },
+          "current_status": {
+            "type": "string"
+          },
+          "current_assignee": {
+            "type": "string"
+          },
+          "candidate_assignees": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "issue_url",
+          "issue_id",
+          "issue_title",
+          "occurrence_summary",
+          "current_status",
+          "current_assignee",
+          "candidate_assignees",
+          "target_status"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-posthog/resolve",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_posthog_reply",
+      "description": "Use this to reply to a PostHog comment thread. Shown when the user wants to send a reply to a comment thread on an error issue or insight. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "thread_url": {
+            "type": "string"
+          },
+          "source_item_title": {
+            "type": "string"
+          },
+          "thread_excerpt": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "thread_url",
+          "source_item_title",
+          "thread_excerpt",
+          "author_name",
+          "draft_body",
+          "personalization_signals"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-posthog/reply",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_posthog_experiment",
+      "description": "Use this to ship the winning variant of a PostHog experiment. Shown when the user wants to roll out or ship an experiment variant based on results. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "experiment_url": {
+            "type": "string"
+          },
+          "experiment_id": {
+            "type": "string"
+          },
+          "experiment_name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommended_variant": {
+            "type": "string"
+          },
+          "result_summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "experiment_url",
+          "experiment_id",
+          "experiment_name",
+          "variants",
+          "recommended_variant",
+          "result_summary"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-posthog/experiment",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_posthog_report",
+      "description": "Use this to mark a flagged PostHog inbox report as handled. Shown when the user wants to resolve or archive a flagged inbox report. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "report_url": {
+            "type": "string"
+          },
+          "report_id": {
+            "type": "string"
+          },
+          "report_title": {
+            "type": "string"
+          },
+          "report_summary": {
+            "type": "string"
+          },
+          "target_state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "report_url",
+          "report_id",
+          "report_title",
+          "report_summary",
+          "target_state"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-posthog/report",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-posthog/resolve",
+      "html_path": "view-tool/dist/ui-resources/resolve.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-posthog/reply",
+      "html_path": "view-tool/dist/ui-resources/reply.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-posthog/experiment",
+      "html_path": "view-tool/dist/ui-resources/experiment.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-posthog/report",
+      "html_path": "view-tool/dist/ui-resources/report.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
