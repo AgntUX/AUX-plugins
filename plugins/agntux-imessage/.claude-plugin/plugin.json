@@ -1,0 +1,8 @@
+{
+  "name": "agntux-imessage",
+  "version": "0.1.0",
+  "description": "See the iMessages that need a reply, and draft responses safely.",
+  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 15 min, 7am–7pm weekdays local"
+}
