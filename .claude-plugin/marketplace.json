@@ -164,6 +164,21 @@
       ],
       "category": "communication",
       "kind": "remote-view-only"
+    },
+    {
+      "name": "agntux-stripe",
+      "source": "./plugins/agntux-stripe",
+      "homepage": "https://agntux.ai/plugins/agntux-stripe",
+      "keywords": [
+        "stripe",
+        "payments",
+        "billing",
+        "invoices",
+        "refunds",
+        "disputes"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
     }
   ]
 }

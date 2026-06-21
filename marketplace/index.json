@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-21T14:26:38.960Z",
+  "generated_at": "2026-06-21T22:13:25.005Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -1422,6 +1422,166 @@
         ],
         "cursor_semantics": "Single JSON map (one line) under `cursor`. Two key shapes: `<channel_id>` for channel cursors (newest parent ts), `<channel_id>#<thread_ts>` for thread cursors (newest reply ts).",
         "source_id_format": "`<channel_id>#<thread_ts>` for thread-rooted artefacts; `<channel_id>#<ts>` for non-threaded messages."
+      }
+    },
+    "agntux-stripe": {
+      "tagline": "See Stripe updates in AgntUX with actions to refund, respond, and manage.",
+      "description": "Tracks changes in your Stripe account so you know when payments need refunds,\ninvoices need action, subscriptions change, or disputes arrive. One click to\nrefund a payment, respond to a dispute, finalize or void an invoice, or pause\nand manage a subscription — no Stripe dashboard required.\n",
+      "categories": [
+        "productivity"
+      ],
+      "keywords": [
+        "stripe",
+        "payments",
+        "billing",
+        "invoices",
+        "refunds",
+        "disputes"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-stripe",
+          "purpose": "Type /agntux-stripe to check for new Stripe activity. Or ask about your payments, invoices, and customers — it searches your Stripe account."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "refund",
+          "title": "Refund payment",
+          "purpose": "Issue a full or partial refund on a Stripe charge. Select the amount and reason, then confirm.",
+          "view_tool": "agntux_stripe_refund_view",
+          "resource_uri": "ui://agntux-stripe/refund"
+        },
+        {
+          "name": "dispute",
+          "title": "Respond to dispute",
+          "purpose": "Submit evidence to respond to a Stripe chargeback dispute before the deadline.",
+          "view_tool": "agntux_stripe_dispute_view",
+          "resource_uri": "ui://agntux-stripe/dispute"
+        },
+        {
+          "name": "invoice-finalize",
+          "title": "Finalize invoice",
+          "purpose": "Lock and send a Stripe draft invoice to the customer.",
+          "view_tool": "agntux_stripe_invoice_finalize_view",
+          "resource_uri": "ui://agntux-stripe/invoice-finalize"
+        },
+        {
+          "name": "invoice-void",
+          "title": "Void invoice",
+          "purpose": "Mark a Stripe invoice as void. This action is irreversible.",
+          "view_tool": "agntux_stripe_invoice_void_view",
+          "resource_uri": "ui://agntux-stripe/invoice-void"
+        },
+        {
+          "name": "subscription-edit",
+          "title": "Edit subscription",
+          "purpose": "Pause collection or update the quantity on a Stripe subscription.",
+          "view_tool": "agntux_stripe_subscription_edit_view",
+          "resource_uri": "ui://agntux-stripe/subscription-edit"
+        },
+        {
+          "name": "subscription-cancel",
+          "title": "Cancel subscription",
+          "purpose": "Cancel a Stripe subscription at the end of the billing period or immediately.",
+          "view_tool": "agntux_stripe_subscription_cancel_view",
+          "resource_uri": "ui://agntux-stripe/subscription-cancel"
+        }
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "stripe",
+        "display_name": "Stripe"
+      },
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "stripe-payment",
+            "description": "A charge or payment processed in your Stripe account."
+          },
+          {
+            "subtype": "stripe-invoice",
+            "description": "An invoice created in your Stripe account."
+          },
+          {
+            "subtype": "stripe-subscription",
+            "description": "A subscription in your Stripe account."
+          },
+          {
+            "subtype": "stripe-customer",
+            "description": "A customer in your Stripe account."
+          },
+          {
+            "subtype": "stripe-dispute",
+            "description": "A disputed charge in your Stripe account."
+          },
+          {
+            "subtype": "stripe-refund",
+            "description": "A refund processed in your Stripe account."
+          },
+          {
+            "subtype": "stripe-coupon",
+            "description": "A coupon or discount code in your Stripe account."
+          },
+          {
+            "subtype": "stripe-product",
+            "description": "A product or item sold in your Stripe account."
+          },
+          {
+            "subtype": "stripe-price",
+            "description": "A pricing tier for a product in your Stripe account."
+          },
+          {
+            "subtype": "stripe-payout",
+            "description": "Money transferred to your bank account from Stripe."
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "deadline",
+            "description": "Invoice or payment deadline that needs attention."
+          },
+          {
+            "class": "response-needed",
+            "description": "Dispute evidence needed or customer action required."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A change in payment status, customer info, or subscription."
+          },
+          {
+            "class": "risk",
+            "description": "A failed payment, high-risk dispute, or billing issue."
+          },
+          {
+            "class": "opportunity",
+            "description": "A new subscription or customer to track or follow up on."
+          },
+          {
+            "class": "other",
+            "description": "A Stripe event that doesn't fit another category."
+          }
+        ],
+        "cursor_semantics": "Stripe objects have `created` timestamps; a cursor advances to track new objects each sync.",
+        "source_id_format": "`{resource_type}#{object_id}` — Stripe object IDs are prefixed by type (e.g. `pi_`, `ch_`, `in_`, `sub_`, `cus_`)."
       }
     }
   }
