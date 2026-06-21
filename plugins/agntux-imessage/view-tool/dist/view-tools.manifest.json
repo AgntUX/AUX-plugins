@@ -1,0 +1,106 @@
+{
+  "plugin_slug": "agntux_imessage",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-imessage-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_imessage_reply_view",
+      "description": "Use this to compose and send a reply to an iMessage. Shown when the user wants to reply to an incoming iMessage from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the imessage reply composer for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file's '## Compose payload' body section and lifts contact_name, contact_handle, quoted_messages, draft_body, and personalization_signals from disk. Do NOT pass those fields inline — they are not accepted as inline args; the on-disk payload is always the source of truth for this action-item-triggered view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "contact_name": {
+            "type": "string"
+          },
+          "contact_handle": {
+            "type": "string"
+          },
+          "quoted_messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "is_from_me": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "content",
+                "date",
+                "is_from_me"
+              ]
+            }
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "action_id",
+          "contact_name",
+          "contact_handle",
+          "quoted_messages",
+          "draft_body",
+          "personalization_signals"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-imessage/reply",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-imessage/reply",
+      "html_path": "view-tool/dist/ui-resources/reply.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
