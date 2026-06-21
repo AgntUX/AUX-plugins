@@ -1,0 +1,81 @@
+# _overrides/frontmatter.yaml — agntux-posthog
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-posthog
+plugin-version: 0.1.0                      # matches .claude-plugin/plugin.json
+source-display-name: PostHog
+source-slug: posthog
+recommended-cadence: "Every 60 min, 7am–7pm weekdays local"   # matches plugin.json recommended_ingest_cadence
+
+# Cursor semantics:
+# Per-resource timestamp map stored in sync.md frontmatter as a JSON object under
+# `cursor`. Each resource type advances independently on its own key:
+#   errors     → ISO-8601 UTC of the last_seen timestamp of the newest error issue processed
+#   alerts     → ISO-8601 UTC of the fired_at timestamp of the newest fired alert processed
+#   experiments → ISO-8601 UTC of the updated_at of the newest experiment processed
+#   comments   → ISO-8601 UTC of the created_at of the newest comment processed
+#   inbox      → ISO-8601 UTC of the created_at of the newest inbox report processed
+# Bootstrap state: all keys null. Each key advances independently; a failure
+# in one resource type does not prevent other keys from advancing.
+# source_id format: posthog:{project_id}:{resource_type}:{resource_id}
+source-cursor-semantics: "Per-resource ISO-8601 UTC timestamp map stored as a JSON object in sync.md → cursor; one key per resource type (errors, alerts, experiments, comments, inbox). Each key advances to the newest timestamp seen for that resource type in a successful run. On bootstrap (key null), fetch items within bootstrap_window_days. source_id format: posthog:{project_id}:{resource_type}:{resource_id}."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# Read-only tools used for ingest (write tools reserved for view-tool action handlers):
+#   query-error-tracking-issues-list   → page active error issues
+#   query-error-tracking-issue         → fetch a single error issue detail
+#   alerts-list                        → page fired alerts
+#   alert-get                          → fetch a single alert detail
+#   experiment-list                    → page experiments awaiting decision
+#   experiment-results-get             → fetch experiment results + significance
+#   comments-list                      → page comments and mentions
+#   comment-thread                     → fetch a full comment thread
+#   annotations-list                   → page recent annotations
+#   inbox-reports-list                 → page flagged inbox reports
+#   insights-list                      → resolve referenced insight titles (non-primary)
+#   dashboards-get-all                 → resolve referenced dashboard titles (non-primary)
+source-mcp-tools: "mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__query-error-tracking-issues-list, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__query-error-tracking-issue, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__alerts-list, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__alert-get, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__experiment-list, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__experiment-results-get, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__comments-list, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__comment-thread, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__annotations-list, mcp__d9955327-e9a7-4c3e-9a38-3c591b361c23__inbox-reports-list"
+
+# Each error issue is the primary actionable unit for error tracking.
+# Alerts, experiments, and inbox reports are also top-level units.
+thread-unit-name: issue
+
+bootstrap-window-default-days: "7"
+
+# One representative PostHog project / scope name for SKILL description triggers.
+example-channel: my-project
+
+# No user-initiated compose/send lane for this plugin (read + triage only).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for PostHog — derived from the connector's
+  # error paths and cursor strategy; do NOT invent kinds with no error path:
+  - posthog-cursor-evicted           # resource deleted or resolved upstream; key dropped from cursor map
+  - posthog-merged-into              # cross-source dedup merged this item into an existing action
+  - posthog-rate-limited             # connector returned 429; this resource type skipped for this run
+  - posthog-project-not-found        # project_id from user.md does not match any accessible project
+  - posthog-experiment-no-results    # experiment-results-get returned no data yet; item deferred
+  - posthog-context-too-long         # context parameter rejected by connector; fetch skipped for this item
