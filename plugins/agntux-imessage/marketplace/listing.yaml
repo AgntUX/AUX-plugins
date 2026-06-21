@@ -1,0 +1,77 @@
+# Marketplace lint hard-fails any string field over its cap (E05) and any
+# category outside the closed enum (E04). Caps: tagline ≤80, description
+# ≤500, ui_components[].title ≤60, ui_components[].purpose ≤200,
+# proposed_schema.{entity_subtypes,action_classes}[].description ≤200,
+# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):
+# productivity, communication, crm, project-management, developer-tools,
+# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).
+# Write for non-technical users: lead with the benefit, keep it short, and
+# avoid jargon (ingest, cursor, MCP, schema, entities, knowledge store,
+# $ARGUMENTS). The caps are ceilings, not targets — shorter is better.
+tagline: "See the iMessages that need a reply, sorted by priority."
+description: |
+  Watches your iMessages for conversations that need you—from known contacts with urgent questions to marketing messages. Brings them into AgntUX sorted by priority (replies needed, personal messages, promotional) so you focus on what matters most. Lets you draft and review replies before sending.
+categories:
+  - communication
+keywords:
+  - imessage
+  - messaging
+  - sms
+  - priority
+  - replies
+  - contacts
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Unread conversations from known contacts"
+  - "Messages awaiting replies"
+  - "Contact details (name, phone number)"
+  - "Message timestamps and thread history"
+  - "SMS and iMessage sender classification"
+supported_prompts:
+  - prompt: "/agntux-imessage"
+    purpose: "Check for new messages, or ask a question about your iMessages—it looks them up."
+ui_components:
+  - name: reply
+    title: "Reply to message"
+    purpose: "Send a reply to the sender. The AI drafts a response you review and confirm before sending."
+    view_tool: agntux_imessage_reply_view
+    resource_uri: "ui://agntux-imessage/reply"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: imessage
+  display_name: "iMessage"
+proposed_schema:
+  entity_subtypes:
+    - subtype: person
+      description: "Individuals you message with. Identified by phone number or email."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+  action_classes:
+    - class: response-needed
+      description: "An iMessage conversation awaiting a reply from you."
+    - class: knowledge-update
+      description: "A message with information to note or remember."
+    - class: other
+      description: "Messages that don't fit standard categories."
+  cursor_semantics: "Per-contact last-seen timestamp; advances to the newest message in each conversation seen this run."
+  source_id_format: "`{phone_or_email}#{message_id}` — message_id is the rowid in the iMessage database."

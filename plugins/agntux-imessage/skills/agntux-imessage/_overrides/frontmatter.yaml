@@ -1,0 +1,69 @@
+# _overrides/frontmatter.yaml — agntux-imessage
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-imessage
+plugin-version: 0.1.0                            # matches .claude-plugin/plugin.json
+source-display-name: iMessage
+source-slug: imessage
+recommended-cadence: "Every 15 min, 7am–7pm weekdays local"   # matches plugin.json
+
+# Cursor semantics:
+# Per-contact JSON map stored in sync.md as `cursor`. Each key is the
+# contact handle (phone number or email address exactly as returned by
+# get_unread_imessages `sender` field); each value is the ISO-8601 UTC
+# timestamp of the newest message seen from that contact this run.
+# On bootstrap (cursor: null / empty map), pull messages within
+# bootstrap_window_days. On incremental runs, for each sender, only
+# process messages whose date > cursor[sender] (or all messages if
+# sender is not yet in the map). Advance each sender's entry to
+# max(date) across all messages processed from that sender this run,
+# but only after every action write in the run has succeeded (Step 11
+# transactional rule). Evict a contact key after 90 days of no new
+# messages to keep the map bounded.
+source-cursor-semantics: "Per-contact JSON map: cursor is a JSON object keyed by sender handle (phone/email), value is ISO-8601 UTC timestamp of the newest message seen from that sender. Incremental filter: date > cursor[sender] (or all messages if sender not yet in map). Advance each entry to max(date) across messages processed from that sender this run; advance only on full-run success (transactional). Evict keys idle for 90+ days."
+
+# Tool root names (host UUID-prefixes these at runtime):
+#   get_unread_imessages({ limit })    → array of {content, date, sender, is_from_me}
+#   read_imessages({ phone_number, limit }) → recent thread with one contact, same shape
+#   search_contacts({ query })         → resolve sender phone/email to contact name
+source-mcp-tools: "mcp__Read_and_Send_iMessages__get_unread_imessages, mcp__Read_and_Send_iMessages__read_imessages, mcp__Read_and_Send_iMessages__search_contacts"
+
+# Each distinct conversation with one sender is the atomic unit.
+thread-unit-name: thread
+
+bootstrap-window-default-days: "7"
+
+# One representative scope name for the SKILL description trigger phrases.
+example-channel: Mom
+
+# No user-initiated view lane beyond the reply UI handler (which is triggered
+# by the suggested_actions host_prompt, not a slash sub-command).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for iMessage:
+  - imessage-cursor-evicted       # sender key dropped from cursor map after 90-day idle
+  - imessage-contact-unresolved   # search_contacts returned no match for sender handle; processed with raw handle as display name
+  - imessage-rate-limited         # connector throttled read_imessages; thread context fetch skipped for this sender
