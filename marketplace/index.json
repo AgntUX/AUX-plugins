@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-20T20:16:25.813Z",
+  "generated_at": "2026-06-21T00:16:45.187Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -515,6 +515,100 @@
         ],
         "cursor_semantics": "JSON map with `look_ahead_window_end` (RFC3339) and per-event `<calendar_id>#<event_id>` → `updated` timestamp pairs. Past events evict on each sync pass.",
         "source_id_format": "`<calendar_id>#<event_id>` for events; add `#<occurrence_start>` for recurring event instances."
+      }
+    },
+    "agntux-imessage": {
+      "tagline": "See the iMessages that need a reply, sorted by priority.",
+      "description": "Watches your iMessages for conversations that need you—from known contacts with urgent questions to marketing messages. Brings them into AgntUX sorted by priority (replies needed, personal messages, promotional) so you focus on what matters most. Lets you draft and review replies before sending.\n",
+      "categories": [
+        "communication"
+      ],
+      "keywords": [
+        "imessage",
+        "messaging",
+        "sms",
+        "priority",
+        "replies",
+        "contacts"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "data_ingested": [
+        "Unread conversations from known contacts",
+        "Messages awaiting replies",
+        "Contact details (name, phone number)",
+        "Message timestamps and thread history",
+        "SMS and iMessage sender classification"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-imessage",
+          "purpose": "Check for new messages, or ask a question about your iMessages—it looks them up."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "reply",
+          "title": "Reply to message",
+          "purpose": "Send a reply to the sender. The AI drafts a response you review and confirm before sending.",
+          "view_tool": "agntux_imessage_reply_view",
+          "resource_uri": "ui://agntux-imessage/reply"
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "imessage",
+        "display_name": "iMessage"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "person",
+            "description": "Individuals you message with. Identified by phone number or email.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "An iMessage conversation awaiting a reply from you."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A message with information to note or remember."
+          },
+          {
+            "class": "other",
+            "description": "Messages that don't fit standard categories."
+          }
+        ],
+        "cursor_semantics": "Per-contact last-seen timestamp; advances to the newest message in each conversation seen this run.",
+        "source_id_format": "`{phone_or_email}#{message_id}` — message_id is the rowid in the iMessage database."
       }
     },
     "agntux-jira": {
