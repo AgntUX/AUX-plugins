@@ -124,6 +124,21 @@
       "category": "productivity"
     },
     {
+      "name": "agntux-posthog",
+      "source": "./plugins/agntux-posthog",
+      "homepage": "https://agntux.ai/plugins/agntux-posthog",
+      "keywords": [
+        "posthog",
+        "analytics",
+        "error-tracking",
+        "alerts",
+        "experiments",
+        "product-analytics"
+      ],
+      "category": "developer-tools",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "homepage": "https://agntux.ai/plugins/agntux-slack",
