@@ -1,0 +1,503 @@
+{
+  "plugin_slug": "agntux_stripe",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-stripe-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_stripe_refund_view",
+      "description": "Use this to issue a refund for a Stripe payment. Shown when the user wants to refund a charge or payment intent from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the refund composer for action {id}' → call with { action_id: id }; 'refund payment for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts payment_intent_id, charge_amount, currency, customer_label, max_refundable, suggested_reason, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "payment_intent_id": {
+            "type": "string"
+          },
+          "charge_amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "max_refundable": {
+            "type": "number"
+          },
+          "suggested_reason": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "payment_intent_id",
+          "charge_amount",
+          "currency",
+          "customer_label",
+          "max_refundable",
+          "suggested_reason",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/refund",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_stripe_dispute_view",
+      "description": "Use this to respond to a Stripe dispute by submitting evidence. Shown when the user needs to reply to a chargeback from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the dispute evidence composer for action {id}' → call with { action_id: id }; 'submit dispute evidence for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts dispute_id, charge_amount, currency, dispute_reason, evidence_due_by, draft_evidence, customer_label, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "dispute_id": {
+            "type": "string"
+          },
+          "charge_amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "dispute_reason": {
+            "type": "string"
+          },
+          "evidence_due_by": {
+            "type": "string"
+          },
+          "draft_evidence": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "dispute_id",
+          "charge_amount",
+          "currency",
+          "dispute_reason",
+          "evidence_due_by",
+          "draft_evidence",
+          "customer_label",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/dispute",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_stripe_invoice_finalize_view",
+      "description": "Use this to finalize a Stripe draft invoice, locking it and sending it to the customer. Shown when the user wants to finalize an invoice from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the invoice finalize composer for action {id}' → call with { action_id: id }; 'finalize invoice for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts invoice_id, invoice_number, amount_due, currency, customer_label, due_date, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "invoice_number": {
+            "type": "string"
+          },
+          "amount_due": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "invoice_id",
+          "invoice_number",
+          "amount_due",
+          "currency",
+          "customer_label",
+          "due_date",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/invoice-finalize",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_stripe_invoice_void_view",
+      "description": "Use this to void a Stripe invoice, marking it uncollectable. This action is irreversible. Shown when the user wants to void an invoice from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the invoice void composer for action {id}' → call with { action_id: id }; 'void invoice for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts invoice_id, invoice_number, amount_due, currency, customer_label, status, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "invoice_number": {
+            "type": "string"
+          },
+          "amount_due": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "invoice_id",
+          "invoice_number",
+          "amount_due",
+          "currency",
+          "customer_label",
+          "status",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/invoice-void",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_stripe_subscription_edit_view",
+      "description": "Use this to pause or update a Stripe subscription — change quantity or pause collection. Shown when the user wants to manage a subscription from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the subscription edit composer for action {id}' → call with { action_id: id }; 'edit subscription for action {id}' → call with { action_id: id }; 'pause subscription for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts subscription_id, customer_label, current_status, current_plan, current_quantity, current_period_end, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "subscription_id": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "current_status": {
+            "type": "string"
+          },
+          "current_plan": {
+            "type": "string"
+          },
+          "current_quantity": {
+            "type": "number"
+          },
+          "current_period_end": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "subscription_id",
+          "customer_label",
+          "current_status",
+          "current_plan",
+          "current_quantity",
+          "current_period_end",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/subscription-edit",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_stripe_subscription_cancel_view",
+      "description": "Use this to cancel a Stripe subscription, either at the end of the current billing period (the default) or immediately. Shown when the user wants to cancel a subscription from an AgntUX action item. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the subscription cancel composer for action {id}' → call with { action_id: id }; 'cancel subscription for action {id}' → call with { action_id: id }. For these click-time prompts, pass ONLY action_id. The tool reads the action file's `## Compose payload` body section and lifts subscription_id, customer_label, current_status, current_period_end, and open_url from disk. Do NOT pass those fields inline — any inline value overrides the on-disk payload destructively, producing an empty UI. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "subscription_id": {
+            "type": "string"
+          },
+          "customer_label": {
+            "type": "string"
+          },
+          "current_status": {
+            "type": "string"
+          },
+          "current_period_end": {
+            "type": "string"
+          },
+          "open_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "subscription_id",
+          "customer_label",
+          "current_status",
+          "current_period_end",
+          "open_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-stripe/subscription-cancel",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-stripe/refund",
+      "html_path": "view-tool/dist/ui-resources/refund.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-stripe/dispute",
+      "html_path": "view-tool/dist/ui-resources/dispute.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-stripe/invoice-finalize",
+      "html_path": "view-tool/dist/ui-resources/invoice-finalize.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-stripe/invoice-void",
+      "html_path": "view-tool/dist/ui-resources/invoice-void.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-stripe/subscription-edit",
+      "html_path": "view-tool/dist/ui-resources/subscription-edit.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-stripe/subscription-cancel",
+      "html_path": "view-tool/dist/ui-resources/subscription-cancel.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
