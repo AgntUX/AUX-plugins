@@ -1,0 +1,11 @@
+{
+  "name": "agntux-google-drive",
+  "version": "0.1.0",
+  "description": "Bring your Google Drive files into your AgntUX knowledge store.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 4 hours, 7am–7pm weekdays local"
+}
