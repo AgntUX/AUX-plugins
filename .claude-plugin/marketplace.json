@@ -80,6 +80,21 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-imessage",
+      "source": "./plugins/agntux-imessage",
+      "homepage": "https://agntux.ai/plugins/agntux-imessage",
+      "keywords": [
+        "imessage",
+        "messaging",
+        "sms",
+        "priority",
+        "replies",
+        "contacts"
+      ],
+      "category": "communication",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-jira",
       "source": "./plugins/agntux-jira",
       "homepage": "https://agntux.ai/plugins/agntux-jira",
