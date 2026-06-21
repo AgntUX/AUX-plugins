@@ -1,0 +1,11 @@
+{
+  "name": "agntux-stripe",
+  "version": "0.1.0",
+  "description": "Tracks Stripe charges, invoices, subscriptions, and disputes with one-click actions to refund, respond, and manage.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
+}
