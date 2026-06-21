@@ -1,0 +1,104 @@
+# _overrides/frontmatter.yaml — agntux-google-drive
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-google-drive
+plugin-version: 0.1.0                      # matches .claude-plugin/plugin.json
+source-display-name: Google Drive
+source-slug: google-drive
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 4 hours, 7am–7pm weekdays local"
+
+# Cursor semantics:
+# Hybrid cursor: a single ISO-8601 UTC modifiedTime watermark scalar PLUS a
+# per-file JSON map of last-seen modifiedTime values keyed by Drive fileId.
+#
+# The watermark feeds the search_files server-side filter:
+#   search_files("modifiedTime > '{watermark}'" )
+# so only files touched after the previous run boundary are returned.
+# The per-file map (files: {fileId: ISO-8601}) then distinguishes genuinely
+# CHANGED files (fileId already present in the map and the new modifiedTime
+# strictly exceeds the stored value) from NEW files (fileId absent from the
+# map). This dual structure prevents re-raising action items for files whose
+# modifiedTime has not advanced between runs (e.g., a file that appears in
+# search results due to a server-side index delay but whose modifiedTime has
+# not changed since the last run).
+#
+# Cursor shape in sync.md frontmatter:
+#   cursor: '{"watermark":"2026-06-19T10:00:00Z","files":{"<fileId>":"<modifiedTime>"}}'
+#
+# On bootstrap (cursor: null), run list_recent_files instead of a watermark
+# query, bounded by bootstrap_window_days. The per-file map is built from
+# scratch across the bootstrap window.
+#
+# Watermark advance: at Step 11, advance watermark to max(modifiedTime) across
+# all files successfully processed this run. Update each processed file's entry
+# in the files map to that file's current modifiedTime. Advance only when every
+# action write this run succeeded (transactional rule). If a file is accessed
+# but raises no action (informational new file), still update its files-map
+# entry so it is not reconsidered on the next run.
+#
+# Eviction: when get_file_metadata or read_file_content returns a not-found
+# (file deleted or access revoked), remove the fileId entry from the files map
+# and log google-drive-cursor-evicted.
+source-cursor-semantics: "Hybrid cursor: a JSON object with a 'watermark' key (ISO-8601 UTC — newest modifiedTime seen this run, feeds search_files server-side filter on the next run) and a 'files' key (JSON object keyed by Drive fileId, each value the ISO-8601 UTC modifiedTime last seen for that file). The watermark drives incremental queries; the per-file map distinguishes genuinely changed files from new ones. Bootstrap: use list_recent_files within bootstrap_window_days (default 30). Advance watermark to max(modifiedTime) across all files processed; update per-file map entries; advance only on full success (transactional). Evict map entries for deleted/revoked fileIds (log google-drive-cursor-evicted)."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# Read-only tools used for ingest; no write tools — this plugin is read-only.
+#   list_recent_files(orderBy, pageSize, pageToken, excludeContentSnippets)
+#       → discovery of new/changed files; used on bootstrap and as fallback
+#   search_files(query, pageSize, pageToken)
+#       → incremental pull via modifiedTime > watermark; also handles ASK queries
+#   read_file_content(fileId, includeComments)
+#       → natural-language body + inlined comments (always pass includeComments=true)
+#   get_file_metadata(fileId)
+#       → last-modifying user; call selectively for changed files only
+#   get_file_permissions(fileId)
+#       → sharing summary; call once per new file or when sharing changes
+source-mcp-tools: "list_recent_files, search_files, read_file_content, get_file_metadata, get_file_permissions"
+
+# Each Drive file is the atomic unit; files may have parent folders but
+# there is no reply-thread concept. Drive has no sub-comment threading
+# that resurfaces parent items via modifiedTime — comments are inlined
+# by read_file_content and surfaced as mention signals, not parent updates.
+thread-unit-name: file
+
+bootstrap-window-default-days: "30"
+
+# One representative Google Drive scope name for SKILL description triggers.
+example-channel: My Drive
+
+# No user-initiated compose/send lane for this plugin (read + triage only).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Google Drive — derived from the connector's
+  # read-tool error paths and the hybrid cursor strategy above:
+  - google-drive-cursor-evicted       # fileId deleted or access revoked; entry dropped from per-file map
+  - google-drive-merged-into          # cross-source dedup merged this file into an existing action
+  - google-drive-rate-limited         # connector returned 429 or quota-exceeded; fetch aborted for this run
+  - google-drive-content-unavailable  # read_file_content returned empty or access-denied for a specific fileId; file skipped
+  - google-drive-metadata-missing     # get_file_metadata returned no last-modifying-user field; author omitted gracefully
+  - google-drive-cursor-malformed     # cursor JSON is present but not parseable; fall back to bootstrap window
