@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-21T03:58:27.875Z",
+  "generated_at": "2026-06-21T14:26:38.960Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -515,6 +515,99 @@
         ],
         "cursor_semantics": "JSON map with `look_ahead_window_end` (RFC3339) and per-event `<calendar_id>#<event_id>` → `updated` timestamp pairs. Past events evict on each sync pass.",
         "source_id_format": "`<calendar_id>#<event_id>` for events; add `#<occurrence_start>` for recurring event instances."
+      }
+    },
+    "agntux-google-drive": {
+      "tagline": "Bring your Google Drive files into your AgntUX knowledge store.",
+      "description": "Keep your most important Google Drive documents and spreadsheets in sync with AgntUX. Search files by title, content, or date; read document content; and get a heads-up when a doc changes or when someone mentions you in a comment — each with a link straight to the file. Perfect for staying on top of shared projects and recent updates.\n",
+      "categories": [
+        "productivity",
+        "notes-knowledge"
+      ],
+      "keywords": [
+        "google-drive",
+        "documents",
+        "spreadsheets",
+        "collaboration",
+        "file-search"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-google-drive",
+          "purpose": "Check for new files and updates. Ask questions about your Drive — it searches and reads for you."
+        }
+      ],
+      "data_ingested": [
+        "Google Drive documents and spreadsheets",
+        "PDF files",
+        "Presentation files",
+        "File metadata (name, owner, permissions, size)",
+        "Document comments and @-mentions of you",
+        "Recently viewed and modified timestamps",
+        "Change alerts when a tracked doc is updated"
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "google-drive",
+        "display_name": "Google Drive"
+      },
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "document",
+            "description": "A Google Doc text document."
+          },
+          {
+            "subtype": "spreadsheet",
+            "description": "A Google Sheet spreadsheet."
+          },
+          {
+            "subtype": "presentation",
+            "description": "A Google Slides presentation."
+          },
+          {
+            "subtype": "pdf",
+            "description": "A PDF file stored in Google Drive."
+          },
+          {
+            "subtype": "folder",
+            "description": "A folder in Google Drive."
+          },
+          {
+            "subtype": "other",
+            "description": "Other file types (images, videos, archives, etc.)."
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "knowledge-update",
+            "description": "A tracked document was updated with new content."
+          },
+          {
+            "class": "response-needed",
+            "description": "You were mentioned in a document comment or assignment."
+          }
+        ],
+        "cursor_semantics": "Time-based cursor tracking the most recent modifiedTime of files seen.",
+        "source_id_format": "Google Drive file ID (stable identifier, e.g. 1cguDW1J6QA…)"
       }
     },
     "agntux-imessage": {

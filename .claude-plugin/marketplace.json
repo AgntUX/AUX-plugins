@@ -80,6 +80,19 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-google-drive",
+      "source": "./plugins/agntux-google-drive",
+      "homepage": "https://agntux.ai/plugins/agntux-google-drive",
+      "keywords": [
+        "google-drive",
+        "documents",
+        "spreadsheets",
+        "collaboration",
+        "file-search"
+      ],
+      "category": "productivity"
+    },
+    {
       "name": "agntux-imessage",
       "source": "./plugins/agntux-imessage",
       "homepage": "https://agntux.ai/plugins/agntux-imessage",
