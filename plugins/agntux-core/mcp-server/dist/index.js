@@ -3547,7 +3547,7 @@ var require_schemes = __commonJS({
         serialize: httpSerialize
       }
     );
-    var https = (
+    var https2 = (
       /** @type {SchemeHandler} */
       {
         scheme: "https",
@@ -3596,7 +3596,7 @@ var require_schemes = __commonJS({
       /** @type {Record<SchemeName, SchemeHandler>} */
       {
         http,
-        https,
+        https: https2,
         ws,
         wss,
         urn,
@@ -6887,7 +6887,7 @@ var require_dist = __commonJS({
 
 // src/index.ts
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 
 // ../node_modules/zod/v4/core/core.js
 var _a;
@@ -16991,9 +16991,121 @@ var createProjectDirectoryTool = {
   }
 };
 
+// src/sentry-lite.ts
+import https from "node:https";
+import { randomUUID } from "node:crypto";
+var DEFAULT_DSN = "https://f1e209fbd00492b9601def0921c789c1@o4511633648975872.ingest.us.sentry.io/4511633995792384";
+var DENY = ["authorization", "cookie", "token", "secret", "password", "passwd", "jwt", "apikey", "privatekey", "refresh", "idtoken", "session", "credential", "bearer", "signingkey"];
+var isSensitiveKey = (k) => {
+  const n = String(k).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return DENY.some((d) => n.includes(d));
+};
+var JWT_RE = /\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g;
+var BEARER_RE = /\b(bearer|basic)\s+[a-z0-9._~+/-]+=*/gi;
+var URL_RE = /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s:@]+@/gi;
+var SNTRY_RE = /\bsntr[a-z]{1,4}_[a-zA-Z0-9+/_=-]{8,}/g;
+var scrubString = (s) => String(s).replace(URL_RE, "$1[redacted]@").replace(BEARER_RE, "$1 [redacted]").replace(JWT_RE, "[redacted-jwt]").replace(SNTRY_RE, "[redacted-token]");
+var scrub = (v, seen = /* @__PURE__ */ new WeakSet(), depth = 0) => {
+  if (v == null || depth > 6) return v;
+  if (typeof v === "string") return scrubString(v);
+  if (typeof v !== "object") return v;
+  if (seen.has(v)) return void 0;
+  seen.add(v);
+  if (Array.isArray(v)) return v.map((x) => scrub(x, seen, depth + 1));
+  const o = {};
+  for (const [k, val] of Object.entries(v)) {
+    o[k] = isSensitiveKey(k) ? "[redacted]" : scrub(val, seen, depth + 1);
+  }
+  return o;
+};
+var parseDsn = (dsn) => {
+  const m = /^https:\/\/([^@]+)@([^/]+)\/(\d+)$/.exec(dsn || "");
+  return m ? { key: m[1], host: m[2], projectId: m[3] } : null;
+};
+function createSentry({ release, environment, tags } = {}) {
+  const disabled = !!process.env.AGNTUX_DISABLE_TELEMETRY;
+  const parsed = disabled ? null : parseDsn(process.env.SENTRY_DSN_PLUGINS || DEFAULT_DSN);
+  const env = environment || process.env.NODE_ENV || "production";
+  const send = (event) => new Promise((resolve) => {
+    if (!parsed) return resolve(null);
+    try {
+      const body = JSON.stringify(event);
+      const req = https.request(
+        {
+          method: "POST",
+          host: parsed.host,
+          path: `/api/${parsed.projectId}/store/`,
+          timeout: 4e3,
+          headers: {
+            "content-type": "application/json",
+            "content-length": Buffer.byteLength(body),
+            "x-sentry-auth": `Sentry sentry_version=7, sentry_client=agntux-plugin/1.0, sentry_key=${parsed.key}`
+          }
+        },
+        (res) => {
+          res.resume();
+          res.on("end", () => resolve(event.event_id));
+        }
+      );
+      req.on("error", () => resolve(null));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(null);
+      });
+      req.write(body);
+      req.end();
+    } catch {
+      resolve(null);
+    }
+  });
+  const baseEvent = (level) => ({
+    event_id: randomUUID().replace(/-/g, ""),
+    timestamp: Date.now() / 1e3,
+    platform: "node",
+    level,
+    environment: env,
+    release,
+    // NOTE: no server_name — these run on CUSTOMER machines; hostname is PII.
+    tags: scrub(tags || {})
+  });
+  return {
+    enabled: !!parsed,
+    captureException(err, extra) {
+      if (!parsed) return Promise.resolve(null);
+      const e = err instanceof Error ? err : new Error(String(err));
+      const ev = baseEvent("error");
+      ev.exception = {
+        values: [{ type: e.name || "Error", value: scrubString(e.message || "") }]
+      };
+      ev.extra = scrub({ ...extra || {}, stack: e.stack ? scrubString(e.stack) : void 0 });
+      return send(ev);
+    },
+    captureMessage(message, extra, level = "info") {
+      if (!parsed) return Promise.resolve(null);
+      const ev = baseEvent(level);
+      ev.message = { formatted: scrubString(message) };
+      if (extra) ev.extra = scrub(extra);
+      return send(ev);
+    }
+  };
+}
+
 // src/index.ts
 var PLUGIN_NAME = "agntux-core";
 var PLUGIN_VERSION = "10.1.0";
+var sentry = createSentry({
+  tags: { surface: "plugin-mcp", plugin: "agntux-core" }
+});
+process.on("uncaughtException", (e) => {
+  void sentry.captureException(e, { phase: "uncaughtException" });
+  process.stderr.write(`[agntux-core mcp] uncaughtException: ${String(e)}
+`);
+});
+process.on("unhandledRejection", (e) => {
+  void sentry.captureException(e, { phase: "unhandledRejection" });
+  process.stderr.write(`[agntux-core mcp] unhandledRejection: ${String(e)}
+`);
+});
 var server = new Server(
   { name: PLUGIN_NAME, version: PLUGIN_VERSION },
   {
@@ -17035,9 +17147,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   }))
 }));
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const tool = TOOLS[request.params.name];
-  if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
-  return tool.handler(request.params.arguments ?? {});
+  try {
+    const tool = TOOLS[request.params.name];
+    if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
+    return await tool.handler(request.params.arguments ?? {});
+  } catch (e) {
+    void sentry.captureException(e, { tool: request.params.name });
+    throw e;
+  }
 });
 if (process.env.HTTP_MODE === "1") {
   const port = Number.parseInt(process.env.PORT ?? "5170", 10);
@@ -17045,7 +17162,7 @@ if (process.env.HTTP_MODE === "1") {
     throw new Error(`HTTP_MODE: invalid PORT '${process.env.PORT}'`);
   }
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID()
+    sessionIdGenerator: () => randomUUID2()
   });
   await server.connect(transport);
   const httpServer = createServer((req, res) => {
