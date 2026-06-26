@@ -1,0 +1,107 @@
+# _overrides/frontmatter.yaml — agntux-calendly
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-calendly
+plugin-version: 0.1.1                      # matches .claude-plugin/plugin.json
+source-display-name: Calendly
+source-slug: calendly
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 30 min, 7am–7pm weekdays local"
+
+# Cursor semantics:
+# Dual scalar low-water-mark cursor: two ISO-8601 UTC timestamp keys stored as
+# a JSON object on the sync.md → cursor line.
+#
+#   events_updated_at — the newest `updated_at` value (ISO-8601 UTC) seen across
+#     all scheduled events fetched this run. Used as the server-side
+#     `min_start_time` / filter boundary for the next incremental pull.
+#     Calendly's list_scheduled_events tool exposes `min_start_time` and
+#     `max_start_time` for the event start window, but NOT an updated_at filter.
+#     To detect reschedules and cancellations, fetch events whose `start_time`
+#     or `end_time` falls in a rolling window anchored at cursor time, then
+#     client-side filter to events where updated_at > cursor.events_updated_at.
+#
+#   routing_submissions_since — the newest `created_at` value (ISO-8601 UTC)
+#     seen across all routing form submissions fetched this run. Passed as the
+#     `min_start_time` boundary on the next run's routing-form-submissions fetch.
+#
+# Both keys advance to their respective max() values across all items
+# successfully processed each run. Advance both only when every action write
+# this run has succeeded (transactional rule). Never regress either key.
+#
+# Cursor shape in sync.md frontmatter:
+#   cursor: '{"events_updated_at":"2026-06-21T10:00:00Z","routing_submissions_since":"2026-06-21T09:45:00Z"}'
+#
+# Bootstrap (cursor null): fetch events whose start_time is within
+# bootstrap_window_days of now; fetch routing submissions within the same window.
+# Treat both keys as null for the bootstrap run.
+#
+# Eviction: if a scheduled_event UUID in the cursor no longer appears in
+# list_scheduled_events (event fully purged from Calendly), log
+# calendly-cursor-evicted and continue; the missing event does not block
+# the cursor advance for the rest of the run.
+source-cursor-semantics: "Dual-key JSON cursor stored on the sync.md cursor line: (1) events_updated_at — ISO-8601 UTC timestamp of the newest scheduled-event updated_at seen this run; drives the rolling start-time window for the next incremental pull (Calendly does not expose an updated_at server-side filter, so fetch a rolling window and client-filter by updated_at > cursor.events_updated_at); (2) routing_submissions_since — ISO-8601 UTC timestamp of the newest routing-form submission created_at seen this run; drives the min boundary for the next routing-form fetch. Both keys advance to max() of their respective timestamps across all items successfully processed; advance only on full-run success (transactional rule). Bootstrap (cursor null): fetch events with start_time in bootstrap_window_days window; treat both keys as null."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# Read-only tools used for ingest:
+#   list_scheduled_events — page scheduled events by organisation/user, with
+#     min_start_time, max_start_time, status (active|canceled), sort, and count
+#   get_scheduled_event — detail for a single scheduled event by UUID
+#   list_event_invitees — invitees for a scheduled event (name, email, timezone,
+#     status active|canceled, booking question answers, no_show flag)
+#   get_invitee — detail for a single invitee by UUID
+#   list_event_types — bookable meeting types (name, duration, scheduling_url,
+#     active|inactive), used for reference-entity seeding
+#   list_user_busy_times — busy-time blocks (informational, used for context only)
+#   list_routing_form_submissions — inbound leads with submitter answers and
+#     routing outcome; drives the routing-submissions fetch sub-step
+#   list_organization_memberships — team roster (used for person-entity seeding)
+source-mcp-tools: "list_scheduled_events, get_scheduled_event, list_event_invitees, get_invitee, list_event_types, list_user_busy_times, list_routing_form_submissions, list_organization_memberships"
+
+# Each scheduled meeting (or routing-form submission) is the atomic unit.
+# Invitees expand per event and map to person entities; events are the thread
+# unit for action-item grouping.
+thread-unit-name: meeting
+
+bootstrap-window-default-days: "30"
+
+# One representative Calendly scope name for SKILL description trigger phrases.
+example-channel: scheduled meeting
+
+# No user-initiated compose/send lane for the initial release (ingest + triage
+# only; actions resolve to "Open in Calendly" deep links or prep-note prompts).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Calendly — derived from the connector's
+  # read-tool error paths and the dual-key cursor strategy above:
+  - calendly-cursor-evicted          # scheduled event UUID purged from Calendly; evicted from cursor tracking
+  - calendly-cursor-malformed        # cursor JSON present but not parseable; fall back to bootstrap window
+  - calendly-rate-limited            # Calendly API returned 429; fetch aborted for this run
+  - calendly-event-not-found         # get_scheduled_event returned 404 for a known UUID; event skipped
+  - calendly-invitees-unavailable    # list_event_invitees returned error for a specific event; invitees skipped, event continues
+  - calendly-routing-form-not-found  # list_routing_form_submissions returned 404 for a form UUID; submissions skipped
+  - calendly-pagination-overflow     # per-run item cap reached; remainder deferred to next run

@@ -1,0 +1,320 @@
+{
+  "plugin_slug": "agntux_calendly",
+  "plugin_version": "0.1.1",
+  "handler_module": "view-tool/dist/agntux-calendly-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_calendly_cancel",
+      "description": "Cancel a scheduled Calendly meeting on behalf of the user. Use this whenever the user wants to cancel a booked event or reschedule by first cancelling the existing meeting. Accepts the event URI and an optional cancellation reason. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "event_uri": {
+            "type": "string"
+          },
+          "meeting_name": {
+            "type": "string"
+          },
+          "invitee_name": {
+            "type": "string"
+          },
+          "start_time_utc": {
+            "type": "string"
+          },
+          "draft_reason": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "meeting_url": {
+            "type": "string"
+          },
+          "event_uri": {
+            "type": "string"
+          },
+          "meeting_name": {
+            "type": "string"
+          },
+          "invitee_name": {
+            "type": "string"
+          },
+          "start_time_utc": {
+            "type": "string"
+          },
+          "draft_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_url",
+          "event_uri",
+          "meeting_name",
+          "invitee_name",
+          "start_time_utc",
+          "draft_reason"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-calendly/cancel",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_calendly_no_show",
+      "description": "Mark one or more invitees as a no-show for a past Calendly meeting. Use this whenever the user wants to flag attendees who did not join a scheduled event. Accepts the meeting details and an array of invitees to mark. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "meeting_name": {
+            "type": "string"
+          },
+          "start_time_utc": {
+            "type": "string"
+          },
+          "invitees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "invitee_uri": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "is_guest": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "meeting_url": {
+            "type": "string"
+          },
+          "meeting_name": {
+            "type": "string"
+          },
+          "start_time_utc": {
+            "type": "string"
+          },
+          "invitees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "invitee_uri": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "is_guest": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "invitee_uri",
+                "name",
+                "email",
+                "is_guest"
+              ]
+            }
+          }
+        },
+        "required": [
+          "meeting_url",
+          "meeting_name",
+          "start_time_utc",
+          "invitees"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-calendly/no-show",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_calendly_scheduling_link",
+      "description": "Generate a single-use Calendly booking link for a specific event type. Use this whenever the user wants to share a one-time booking link that expires after one use. Accepts the available event types and the host's scheduling URL. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "event_types": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_type_uri": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "number"
+                },
+                "scheduling_url": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "host_scheduling_url": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "event_types": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event_type_uri": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "duration_minutes": {
+                  "type": "number"
+                },
+                "scheduling_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "event_type_uri",
+                "name",
+                "duration_minutes",
+                "scheduling_url"
+              ]
+            }
+          },
+          "host_scheduling_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_types",
+          "host_scheduling_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-calendly/scheduling-link",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-calendly/cancel",
+      "html_path": "view-tool/dist/ui-resources/cancel.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-calendly/no-show",
+      "html_path": "view-tool/dist/ui-resources/no-show.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-calendly/scheduling-link",
+      "html_path": "view-tool/dist/ui-resources/scheduling-link.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}

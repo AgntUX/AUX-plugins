@@ -1,0 +1,110 @@
+# Marketplace lint hard-fails any string field over its cap (E05) and any
+# category outside the closed enum (E04). Caps: tagline ≤80, description
+# ≤500, ui_components[].title ≤60, ui_components[].purpose ≤200,
+# proposed_schema.{entity_subtypes,action_classes}[].description ≤200,
+# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):
+# productivity, communication, crm, project-management, developer-tools,
+# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).
+# Write for non-technical users: lead with the benefit, keep it short, and
+# avoid jargon (ingest, cursor, MCP, schema, entities, knowledge store,
+# $ARGUMENTS). The caps are ceilings, not targets — shorter is better.
+tagline: "Track Calendly bookings and send one-click cancellations and confirmations."
+description: |
+  Watches your Calendly bookings and surfaces what needs your attention—new inbound leads, upcoming meetings that might need rescheduling, and attendees marked as no-shows. Cancel meetings or send follow-ups right from AgntUX.
+categories:
+  - scheduling
+  - calendar
+keywords:
+  - calendly
+  - scheduling
+  - bookings
+  - meetings
+  - calendar
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Scheduled meetings with attendee info and status"
+  - "Inbound booking requests and lead submissions"
+  - "Event types (bookable meeting templates)"
+  - "Attendee no-show status and availability"
+supported_prompts:
+  - prompt: "/agntux-calendly"
+    purpose: "Check for new Calendly bookings and leads, or ask questions about your scheduled meetings and attendees."
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: calendly
+  display_name: "Calendly"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+ui_components:
+  - name: agntux-calendly-cancel
+    view_tool: agntux_calendly_cancel
+    resource_uri: "ui://agntux-calendly/cancel"
+    title: "Cancel Calendly meeting"
+    purpose: "Review and confirm cancellation of a scheduled Calendly meeting, with an editable reason sent to the Calendly Connector."
+  - name: agntux-calendly-no-show
+    view_tool: agntux_calendly_no_show
+    resource_uri: "ui://agntux-calendly/no-show"
+    title: "Mark Calendly invitees as no-show"
+    purpose: "Select one or more attendees from a past meeting and mark them as no-shows via the Calendly Connector."
+  - name: agntux-calendly-scheduling-link
+    view_tool: agntux_calendly_scheduling_link
+    resource_uri: "ui://agntux-calendly/scheduling-link"
+    title: "Create single-use Calendly booking link"
+    purpose: "Choose an event type and generate a single-use Calendly booking link that expires after one booking."
+
+proposed_schema:
+  entity_subtypes:
+    - subtype: scheduled-event
+      description: "A booked meeting on your calendar with attendee details and confirmation status."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - deleted_upstream
+    - subtype: event-type
+      description: "A bookable meeting template defining duration, availability, and meeting details."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+    - subtype: person
+      description: "Meeting attendees and invitees, with contact info and attendance status."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+  action_classes:
+    - class: response-needed
+      description: "New booking requests or inbound leads requiring your confirmation or follow-up."
+    - class: deadline
+      description: "Upcoming meetings approaching their scheduled time, or attendees unable to confirm."
+    - class: other
+      description: "Meeting cancellations, no-show follow-ups, and rescheduling requests."
+  cursor_semantics: "Time window over scheduled events, advancing by updated_at timestamp to capture new bookings, attendee changes, and lead submissions."
+  source_id_format: "`{scheduled_event_uuid}` for meetings, `{invitee_uuid}` for attendees, `{event_type_uuid}` for templates."

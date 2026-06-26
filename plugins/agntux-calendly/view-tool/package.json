@@ -1,0 +1,40 @@
+{
+  "name": "@agntux-build/agntux-calendly-view-tool",
+  "version": "0.1.1",
+  "description": "View-tool library module for agntux-calendly. Loaded server-side by the remote MCP registry; not invoked locally.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && for f in *.html; do [ -e \"$f\" ] || { echo \"agntux-build: no view *.html found — author at least one <name>.html before building\"; exit 1; }; VITE_ENTRY=\"${f%.html}\" vite build --emptyOutDir=false; done && tsc --noEmit -p tsconfig.json && esbuild src/agntux-calendly-view.ts --bundle --platform=node --format=esm --outfile=dist/agntux-calendly-view.js --external:@agntux/plugin-runtime && node scripts/emit-manifest.mjs",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agntux/plugin-runtime": "file:../../packages/plugin-runtime",
+    "@agntux/ui-primitives": "file:../../packages/agntux-ui-primitives",
+    "jose": "^5.10.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/js-yaml": "^4.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "esbuild": "^0.23.0",
+    "js-yaml": "^4.1.0",
+    "jsdom": "^26.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.0",
+    "vitest": "^1.6.0"
+  }
+}
