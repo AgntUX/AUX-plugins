@@ -79,11 +79,12 @@ function rpcRawStdout(
   requests: object[],
   wantIds: number[],
   timeoutMs = 20_000,
+  env: Record<string, string> = {},
 ): Promise<{ lines: string[]; byId: Map<number, any> }> {
   return new Promise((resolve, reject) => {
     const child = spawn("node", [SERVER], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, AGNTUX_BUILD_SKIP_RENDER: "1" },
+      env: { ...process.env, AGNTUX_BUILD_SKIP_RENDER: "1", ...env },
     });
     const lines: string[] = [];
     const byId = new Map<number, any>();
@@ -110,6 +111,56 @@ function rpcRawStdout(
           clearTimeout(timer);
           try { child.kill("SIGTERM"); } catch { /* already dead */ }
           resolve({ lines, byId });
+        }
+      }
+    });
+    child.on("error", (e) => { clearTimeout(timer); reject(e); });
+    for (const r of requests) child.stdin.write(JSON.stringify(r) + "\n");
+  });
+}
+
+/**
+ * Like rpc(), but injects extra env and returns the ARRIVAL ORDER of response
+ * ids (not just a by-id map) so a caller can assert that a `ping` sent during an
+ * in-flight slow tools/call is answered FIRST — the keepalive-responsiveness
+ * property that prevents Cowork's `-32000` connection close.
+ */
+function rpcOrdered(
+  requests: object[],
+  wantIds: number[],
+  env: Record<string, string>,
+  timeoutMs = 20_000,
+): Promise<{ order: number[]; byId: Map<number, any> }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("node", [SERVER], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, AGNTUX_BUILD_SKIP_RENDER: "1", ...env },
+    });
+    const order: number[] = [];
+    const byId = new Map<number, any>();
+    let buf = "";
+    const timer = setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch { /* already dead */ }
+      reject(new Error(`timeout; got ids ${[...byId.keys()].join(",")}`));
+    }, timeoutMs);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      buf += chunk;
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let msg;
+        try { msg = JSON.parse(line); } catch { continue; }
+        if (msg && typeof msg.id === "number" && !byId.has(msg.id)) {
+          byId.set(msg.id, msg);
+          order.push(msg.id);
+        }
+        if (wantIds.every((id) => byId.has(id))) {
+          clearTimeout(timer);
+          try { child.kill("SIGTERM"); } catch { /* already dead */ }
+          resolve({ order, byId });
         }
       }
     });
@@ -221,6 +272,97 @@ describe("agntux-build MCP server", () => {
       rmSync(parent, { recursive: true, force: true });
     }
   });
+
+  it("answers ping while a slow validate is in flight (event loop stays responsive)", async () => {
+    // Regression guard for the `-32000 Connection closed` bug: a long validate
+    // must NOT starve the keepalive. Make the validate worker deterministically
+    // slow (~3s) without a real build, then fire a ping mid-flight — it MUST come
+    // back before the validate result. This exercises BOTH halves of the fix:
+    // (1) validation runs in a child process so the loop isn't spawnSync-blocked,
+    // and (2) `ping` is dispatched off the request serialization chain so it
+    // isn't queued behind the in-flight tools/call.
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-slow-"));
+    const absent = join(parent, "agntux-nope"); // runValidation returns fast AFTER the worker delay
+    try {
+      const { order, byId } = await rpcOrdered(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: absent } },
+          },
+          { jsonrpc: "2.0", id: 3, method: "ping" },
+        ],
+        [2, 3],
+        { AGNTUX_VALIDATE_WORKER_TEST_DELAY_MS: "3000" },
+      );
+      // The ping (3) is answered before the slow validate (2) completes.
+      expect(byId.get(3)?.result).toEqual({});
+      expect(order.indexOf(3)).toBeGreaterThanOrEqual(0);
+      expect(order.indexOf(3)).toBeLessThan(order.indexOf(2));
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 15_000);
+
+  it("emits notifications/progress DURING a validate and never after the result (progressToken opt-in)", async () => {
+    // Delay the worker > one 5s ticker interval so at least one progress fires,
+    // then assert: (a) progress is emitted, and (b) every progress line precedes
+    // the tools/call result — the ticker is cleared before the verdict is sent.
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-progress-"));
+    const absent = join(parent, "agntux-nope");
+    try {
+      const { lines } = await rpcRawStdout(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: {
+              name: "agntux_validate",
+              arguments: { slug: "agntux-nope", plugin_dir: absent },
+              _meta: { progressToken: "tok-1" },
+            },
+          },
+        ],
+        [2],
+        20_000,
+        { AGNTUX_VALIDATE_WORKER_TEST_DELAY_MS: "6000" },
+      );
+      const parsed = lines.map((l) => { try { return JSON.parse(l); } catch { return null; } });
+      const resultIdx = parsed.findIndex((m) => m && m.id === 2);
+      const progressIdxs = parsed
+        .map((m, i) => (m && m.method === "notifications/progress" && m.params?.progressToken === "tok-1" ? i : -1))
+        .filter((i) => i >= 0);
+      expect(resultIdx).toBeGreaterThanOrEqual(0);
+      expect(progressIdxs.length).toBeGreaterThanOrEqual(1); // emitted during the run
+      expect(Math.max(...progressIdxs)).toBeLessThan(resultIdx); // never after the result
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("does NOT emit progress when the client supplies no progressToken", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-noprog-"));
+    const absent = join(parent, "agntux-nope");
+    try {
+      const { lines } = await rpcRawStdout(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: absent } },
+          },
+        ],
+        [2],
+        20_000,
+        { AGNTUX_VALIDATE_WORKER_TEST_DELAY_MS: "6000" },
+      );
+      const sawProgress = lines.some((l) => { try { return JSON.parse(l).method === "notifications/progress"; } catch { return false; } });
+      expect(sawProgress).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 20_000);
 
   it("agntux_write_submission refuses (no throw) when the plugin tree is absent", async () => {
     const got = await rpc(
