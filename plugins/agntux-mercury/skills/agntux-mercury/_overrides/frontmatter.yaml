@@ -95,6 +95,7 @@ permitted-error-kinds:
   - usermd-malformed
   - subtype-out-of-contract
   # Source-prefixed extensions for Mercury:
+  - mercury-current-date-unavailable  # getCurrentDate failed after one retry; host session date used as fallback; non-fatal
   - mercury-cursor-evicted         # accountId absent from getAccounts (account closed); cursor entry dropped
   - mercury-rate-limited           # connector returned 429 / throttle signal; fetch aborted for this account
   - mercury-transaction-truncated  # listTransactions page.nextPage loop exceeded the per-run cap; remainder deferred
