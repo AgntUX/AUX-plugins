@@ -35,6 +35,20 @@
       "category": "meta"
     },
     {
+      "name": "agntux-calendly",
+      "source": "./plugins/agntux-calendly",
+      "homepage": "https://agntux.ai/plugins/agntux-calendly",
+      "keywords": [
+        "calendly",
+        "scheduling",
+        "bookings",
+        "meetings",
+        "calendar"
+      ],
+      "category": "scheduling",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "homepage": "https://agntux.ai/plugins/agntux-core",
