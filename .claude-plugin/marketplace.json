@@ -193,6 +193,23 @@
       ],
       "category": "productivity",
       "kind": "remote-view-only"
+    },
+    {
+      "name": "agntux-zoom",
+      "source": "./plugins/agntux-zoom",
+      "homepage": "https://agntux.ai/plugins/agntux-zoom",
+      "keywords": [
+        "zoom",
+        "meetings",
+        "recordings",
+        "transcripts",
+        "summaries",
+        "action-items",
+        "team-sync",
+        "collaboration"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
     }
   ]
 }
