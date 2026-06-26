@@ -99,6 +99,7 @@ permitted-error-kinds:
   - google-drive-cursor-evicted       # fileId deleted or access revoked; entry dropped from per-file map
   - google-drive-merged-into          # cross-source dedup merged this file into an existing action
   - google-drive-rate-limited         # connector returned 429 or quota-exceeded; fetch aborted for this run
+  - google-drive-comments-unavailable  # read_file_content(includeComments:true) errored; retry without comments succeeded; mention scan deferred
   - google-drive-content-unavailable  # read_file_content returned empty or access-denied for a specific fileId; file skipped
   - google-drive-metadata-missing     # get_file_metadata returned no last-modifying-user field; author omitted gracefully
   - google-drive-cursor-malformed     # cursor JSON is present but not parseable; fall back to bootstrap window
