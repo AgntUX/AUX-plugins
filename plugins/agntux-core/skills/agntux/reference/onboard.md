@@ -208,22 +208,40 @@ Validate slugs; give one short normalisation prompt for free-form names.
 Never write a non-slug — downstream flows pattern-match. Save before
 continuing.
 
-After the user confirms the `## Installed` content, call
-`agntux_core_sync_installed_plugins` with the COMPLETE confirmed list
-(each entry: `{ slug, marketplace }`, defaulting `marketplace` to
-`agntux` when unknown). The tool REPLACES, never patches — always pass
-the full set, even when empty (`plugins: []`). The tool writes
-`~/.agntux/installed-plugins.json` which the agntux-teams daemon
+After the user confirms the `## Installed` content, sync the machine
+manifest from the **host's full plugin enumeration** — NOT just the
+ingest plugins in `## Installed`. Run
+`ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`;
+if it resolves, call it and pass the COMPLETE host-enumerated list
+(EVERY plugin the host has installed — including `agntux-core`,
+`agntux-build`, and any other non-ingest plugins, NOT only the
+`## Installed` ingest slugs) to `agntux_core_sync_installed_plugins`,
+each entry `{ slug, marketplace }`, defaulting `marketplace` to
+`agntux` when unknown. If `mcp__plugins__list_plugins` does NOT
+resolve, fall back to the confirmed `## Installed` list PLUS
+`agntux-core` (always installed — you are running its skill right now).
+Without host enumeration there's no reliable way to know `agntux-build`
+is installed; that's fine — `agntux-build` has no remotely-served
+view-tools, so its absence from the manifest doesn't affect tool
+exposure. Do NOT hard-code `agntux-build` into the fallback.
+The tool REPLACES, never patches — always pass the full set. The tool
+writes `~/.agntux/installed-plugins.json` which the agntux-teams daemon
 mirrors to AgntUX so the remote MCP connector exposes each plugin's
-view-tools. Non-blocking AND silent on failure: emit no chat line, no
-apology, no follow-up — the user never sees this tool fire.
+remotely-served view-tools — agntux-core's OWN triage tools ARE remotely
+served, which is why the hub MUST be in this list; other plugins are
+included for ledger completeness. Non-blocking AND silent on failure:
+emit no chat line, no apology, no follow-up — the user never sees this
+tool fire.
 
-When this sync added one or more NEW plugins (i.e. plugins that were
-not in `## Installed` before this onboarding pass), include a single
-line in the deterministic wrap-up that sends the user back to the
+On first-run onboarding the live AgntUX connector starts empty (none of
+the user's plugins are exposed yet), so ALWAYS include a single line in
+the deterministic wrap-up that sends the user back to the
 AgntUX setup app to finish its final step — that step walks them
-through refreshing the connector's tools list with a guided demo:
-`🔌 Almost there — head back to the AgntUX setup tab in your browser and complete the final step, "Refresh your tools list". It walks you through making {slug-list}'s tools show up in Cowork. (Manual path: Customize → Connectors → AgntUX → three-dot menu (⋯) → "Refresh tools list".)`
+through refreshing the connector's tools list with a guided demo. Use
+generic phrasing — do NOT interpolate a slug list: the user thinks in
+sources, not plugin slugs, and naming the hub/toolkit slugs here would
+leak internal vocabulary:
+`🔌 Almost there — head back to the AgntUX setup tab in your browser and complete the final step, "Refresh your tools list". It walks you through making your AgntUX tools show up in Cowork. (Manual path: Customize → Connectors → AgntUX → three-dot menu (⋯) → "Refresh tools list".)`
 Why: the remote MCP server snapshots the user's installed-plugin set
 at session-init time, so a freshly-added plugin's view-tools won't
 appear on the live connector until the user refreshes the tools list.

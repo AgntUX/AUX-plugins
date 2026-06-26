@@ -1,6 +1,6 @@
 {
   "name": "agntux-core",
-  "version": "10.5.0",
+  "version": "10.5.1",
   "description": "Your AgntUX home base. Set up with /agntux onboard, then use /agntux triage every day to see your action items.",
   "author": { "name": "AgntUX", "email": "support@agntux.ai" },
   "license": "Apache-2.0"

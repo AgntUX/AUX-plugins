@@ -18,6 +18,11 @@
  *   - parent dir is created when missing
  *   - atomic write — no `.tmp` leftover on success
  *   - very large input is clamped to MAX_PLUGINS
+ *   - agntux-core floor: the hub is written into any NON-EMPTY set even
+ *     when the caller omits it, never duplicated when present, survives
+ *     the MAX_PLUGINS clamp without evicting a caller plugin that already
+ *     includes it, and is NOT injected into an empty set (so the server's
+ *     no-op snapshot guard is preserved) — first-run onboarding regression
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -157,14 +162,18 @@ describe("agntux_core_sync_installed_plugins — sanitization", () => {
   });
 
   it("rejects entries with empty marketplace", async () => {
+    // Use a non-core slug as the bad entry so the agntux-core floor
+    // (which always re-adds the hub) doesn't mask the rejection.
     await syncInstalledPluginsTool.handler({
       plugins: [
-        { slug: "agntux-core", marketplace: "" },
+        { slug: "agntux-slack", marketplace: "" },
         { slug: "agntux-build", marketplace: "agntux" },
       ],
     });
     const parsed = readFile() as { plugins: Array<{ slug: string }> };
-    expect(parsed.plugins.map((p) => p.slug)).toEqual(["agntux-build"]);
+    const slugs = parsed.plugins.map((p) => p.slug);
+    expect(slugs).not.toContain("agntux-slack");
+    expect(slugs).toContain("agntux-build");
   });
 
   it("dedupes duplicate slug entries — first occurrence wins", async () => {
@@ -214,15 +223,95 @@ describe("agntux_core_sync_installed_plugins — sanitization", () => {
     expect(parsed.plugins).toHaveLength(256);
   });
 
-  it("empty input writes a valid envelope with an empty plugins array", async () => {
+  it("empty input writes a valid envelope with an empty plugins array (no-op snapshot)", async () => {
+    // The floor deliberately does NOT fire on an empty set — an empty
+    // snapshot is the server's safe no-op (no ledger reconciliation).
+    // See ensureCorePresent / the agntux-core floor describe block below.
     await syncInstalledPluginsTool.handler({ plugins: [] });
     const parsed = readFile() as Record<string, unknown>;
     expect(parsed.schema_version).toBe(1);
     expect(parsed.plugins).toEqual([]);
   });
 
-  it("non-array plugins arg is treated as empty", async () => {
+  it("non-array plugins arg is treated as empty (no-op snapshot)", async () => {
     await syncInstalledPluginsTool.handler({ plugins: "not-an-array" });
+    const parsed = readFile() as { plugins: unknown[] };
+    expect(parsed.plugins).toEqual([]);
+  });
+});
+
+describe("agntux_core_sync_installed_plugins — agntux-core floor", () => {
+  it("injects agntux-core when the caller omits it (ingest-only list)", async () => {
+    // This is the first-run onboarding regression: the skill historically
+    // synced only the user-confirmed ingest plugins, dropping the hub and
+    // with it every agntux-core view-tool the remote connector exposes.
+    await syncInstalledPluginsTool.handler({
+      plugins: [
+        { slug: "agntux-slack", marketplace: "agntux" },
+        { slug: "agntux-gmail", marketplace: "agntux" },
+      ],
+    });
+    const parsed = readFile() as { plugins: Array<{ slug: string }> };
+    const slugs = parsed.plugins.map((p) => p.slug);
+    expect(slugs).toContain("agntux-core");
+    expect(slugs).toContain("agntux-slack");
+    expect(slugs).toContain("agntux-gmail");
+    // Floor is prepended, so the hub leads the set.
+    expect(slugs[0]).toBe("agntux-core");
+  });
+
+  it("does not duplicate agntux-core when the caller already includes it", async () => {
+    await syncInstalledPluginsTool.handler({
+      plugins: [
+        { slug: "agntux-core", marketplace: "agntux", version: "10.5.1" },
+        { slug: "agntux-slack", marketplace: "agntux" },
+      ],
+    });
+    const parsed = readFile() as {
+      plugins: Array<{ slug: string; version?: string }>;
+    };
+    const cores = parsed.plugins.filter((p) => p.slug === "agntux-core");
+    expect(cores).toHaveLength(1);
+    // The caller's richer entry (with version) is preserved — the floor
+    // does not clobber an already-present hub entry.
+    expect(cores[0].version).toBe("10.5.1");
+  });
+
+  it("keeps agntux-core present even when the list is clamped to MAX_PLUGINS", async () => {
+    // 256 non-core entries saturate the cap; the floor must still land.
+    const saturated = Array.from({ length: 256 }, (_, i) => ({
+      slug: `plugin-${i}`,
+      marketplace: "agntux",
+    }));
+    await syncInstalledPluginsTool.handler({ plugins: saturated });
+    const parsed = readFile() as { plugins: Array<{ slug: string }> };
+    expect(parsed.plugins).toHaveLength(256);
+    expect(parsed.plugins.map((p) => p.slug)).toContain("agntux-core");
+  });
+
+  it("does not evict a caller plugin when 256 entries already include agntux-core", async () => {
+    // Present-path: the floor must NOT prepend (no over-cap), so every
+    // caller slug — including the last — survives.
+    const saturated = Array.from({ length: 256 }, (_, i) =>
+      i === 255
+        ? { slug: "agntux-core", marketplace: "agntux" }
+        : { slug: `plugin-${i}`, marketplace: "agntux" },
+    );
+    await syncInstalledPluginsTool.handler({ plugins: saturated });
+    const parsed = readFile() as { plugins: Array<{ slug: string }> };
+    const slugs = parsed.plugins.map((p) => p.slug);
+    expect(slugs).toHaveLength(256);
+    expect(slugs).toContain("agntux-core");
+    expect(slugs).toContain("plugin-254"); // nothing was evicted
+    expect(slugs).toContain("plugin-0");
+  });
+
+  it("does NOT inject agntux-core into an empty set (preserves the no-op snapshot)", async () => {
+    // Critical safety property: an empty sync must stay empty so the
+    // server's zero-length-snapshot guard treats it as a no-op rather
+    // than reconciling a 1-entry [agntux-core] snapshot and soft-deleting
+    // every other plugin's view-tools from the ledger.
+    await syncInstalledPluginsTool.handler({ plugins: [] });
     const parsed = readFile() as { plugins: unknown[] };
     expect(parsed.plugins).toEqual([]);
   });

@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.5.1] — 2026-06-26
+
+### Fixed
+
+- **First-run onboarding now registers the full installed-plugin set, so the
+  remote MCP connector exposes the hub's own tools.** Stage 4.6 of `/agntux
+  onboard` previously synced `~/.agntux/installed-plugins.json` from only the
+  user-confirmed *ingest* plugins (e.g. `agntux-slack`, `agntux-gmail`),
+  silently dropping `agntux-core` and `agntux-build`. Because the sync replaces
+  the manifest wholesale and the plugin-reconciliation precondition self-skips
+  on first run (no `user.md` yet), the hub never reached the per-user install
+  ledger — so the remote MCP server exposed none of agntux-core's view-tools
+  until the user happened to run a second `/agntux-*` command. Onboarding now
+  syncs the complete host enumeration (`mcp__plugins__list_plugins`), matching
+  the re-entry and reconciliation paths.
+- **Defense-in-depth:** `agntux_core_sync_installed_plugins` now writes
+  `agntux-core` into any non-empty manifest even when the caller omits it — the
+  tool is only reachable when the hub's MCP server is running, so the hub is
+  self-evidently installed and can never be accidentally dropped. An empty sync
+  is left empty so the server's zero-length-snapshot guard still treats it as a
+  no-op (never reconciling a lone-hub snapshot that would soft-delete other
+  plugins' view-tools).
+
 ## [10.5.0] — 2026-06-15
 
 ### Fixed
