@@ -22,6 +22,20 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-asana",
+      "source": "./plugins/agntux-asana",
+      "homepage": "https://agntux.ai/plugins/agntux-asana",
+      "keywords": [
+        "asana",
+        "tasks",
+        "projects",
+        "work-tracking",
+        "team-collaboration"
+      ],
+      "category": "project-management",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-build",
       "source": "./plugins/agntux-build",
       "homepage": "https://agntux.ai/plugins/agntux-build",
