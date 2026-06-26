@@ -6,14 +6,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Added
-
-- **Error telemetry to the `agntux-plugins` Sentry project.** The stdio MCP
-  server now reports tool-handler exceptions + uncaught errors via a
-  zero-dependency client (`src/sentry-lite.ts`, `node:https` only), with
-  secret/PII scrubbing and no hostname. Opt out with `AGNTUX_DISABLE_TELEMETRY`;
-  override the DSN with `SENTRY_DSN_PLUGINS`.
-
 ## [10.5.2] — 2026-06-26
 
 ### Fixed

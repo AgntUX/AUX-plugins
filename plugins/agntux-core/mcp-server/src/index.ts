@@ -12,26 +12,9 @@ import {
 import { handleUIResource, UI_RESOURCE_LIST } from "./ui-resources.js";
 import { syncInstalledPluginsTool } from "./tools/sync-installed-plugins.js";
 import { createProjectDirectoryTool } from "./tools/create-project-directory.js";
-import { createSentry } from "./sentry-lite.js";
 
 const PLUGIN_NAME = "agntux-core";
 const PLUGIN_VERSION = "10.1.0";
-
-// Scrubbed error reporting to the `agntux-plugins` Sentry project. Creating the
-// client is side-effect-free (parses the DSN, no network); the process-level
-// backstops below capture anything that escapes the request handlers.
-const sentry = createSentry({
-  tags: { surface: "plugin-mcp", plugin: "agntux-core" },
-});
-
-process.on("uncaughtException", (e) => {
-  void sentry.captureException(e, { phase: "uncaughtException" });
-  process.stderr.write(`[agntux-core mcp] uncaughtException: ${String(e)}\n`);
-});
-process.on("unhandledRejection", (e) => {
-  void sentry.captureException(e, { phase: "unhandledRejection" });
-  process.stderr.write(`[agntux-core mcp] unhandledRejection: ${String(e)}\n`);
-});
 
 // MCP Apps (SEP-1865) is an opt-in extension. Per the spec's "Negotiation"
 // section, both client and server MUST advertise the `io.modelcontextprotocol/ui`
@@ -117,16 +100,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  try {
-    const tool = TOOLS[request.params.name as keyof typeof TOOLS];
-    if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
-    return await tool.handler(request.params.arguments ?? {});
-  } catch (e) {
-    // Capture (scrubbed) then re-throw so the SDK still returns a structured
-    // JSON-RPC error to the host. captureException never throws/rejects.
-    void sentry.captureException(e, { tool: request.params.name });
-    throw e;
-  }
+  const tool = TOOLS[request.params.name as keyof typeof TOOLS];
+  if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
+  return tool.handler(request.params.arguments ?? {});
 });
 
 // Default transport is stdio (host-spawned). HTTP_MODE=1 + PORT=<n> swaps

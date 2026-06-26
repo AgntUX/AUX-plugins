@@ -7,9 +7,7 @@
         "${CLAUDE_PLUGIN_ROOT}/mcp-server/dist/index.js"
       ],
       "env": {
-        "AGNTUX_APP_ID": "${AGNTUX_APP_ID}",
-        "AGNTUX_DISABLE_TELEMETRY": "${AGNTUX_DISABLE_TELEMETRY}",
-        "SENTRY_DSN_PLUGINS": "${SENTRY_DSN_PLUGINS}"
+        "AGNTUX_APP_ID": "${AGNTUX_APP_ID}"
       }
     }
   }
