@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.5.2] — 2026-06-26
+
+### Fixed
+
+- **The installed-plugin manifest is now complete at onboarding-end, not just
+  as of Stage 4.6.** Onboarding synced `~/.agntux/installed-plugins.json` once,
+  before the "Plugin suggestions" and source-connection steps where the user
+  installs more plugins — so anything installed mid-pass wasn't in the per-user
+  ledger (and its view-tools weren't exposed by the remote MCP connector) until
+  the next `/agntux-*` command re-synced via plugin reconciliation. The
+  deterministic wrap-up now re-runs the host-enumeration sync as its first step,
+  the single end-of-onboarding point both first-run and re-entry route through.
+
 ## [10.5.1] — 2026-06-26
 
 ### Fixed
