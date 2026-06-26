@@ -1,0 +1,113 @@
+{
+  "plugin_slug": "agntux_zoom",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-zoom-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_zoom_save_doc_view",
+      "description": "Use this to save the meeting summary and action items to a Zoom Doc. Shown when the user wants to capture Zoom meeting outcomes into a new Zoom Doc from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the zoom save-doc composer for action {id}' -> call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file's '## Compose payload' body section and lifts meeting_uuid, meeting_topic, meeting_date, participants, meeting_summary, action_items, draft_doc_title, draft_doc_body, open_in_zoom_url, and personalization_signals from disk. Do NOT pass those fields inline — they are not accepted as inline args; the on-disk payload is always the source of truth for this action-item-triggered view.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "meeting_uuid": {
+            "type": "string"
+          },
+          "meeting_topic": {
+            "type": "string"
+          },
+          "meeting_date": {
+            "type": "string"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "meeting_summary": {
+            "type": "string"
+          },
+          "action_items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "draft_doc_title": {
+            "type": "string"
+          },
+          "draft_doc_body": {
+            "type": "string"
+          },
+          "open_in_zoom_url": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "action_id",
+          "meeting_uuid",
+          "meeting_topic",
+          "meeting_date",
+          "participants",
+          "meeting_summary",
+          "action_items",
+          "draft_doc_title",
+          "draft_doc_body",
+          "open_in_zoom_url",
+          "personalization_signals"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-zoom/save-doc",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-zoom/save-doc",
+      "html_path": "view-tool/dist/ui-resources/save-doc.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
