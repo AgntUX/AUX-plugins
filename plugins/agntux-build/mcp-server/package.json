@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "node build.js",
-    "syntax-check": "node --check src/index.js && node --check src/bootstrap-worker.js && node --check build.js",
+    "syntax-check": "node --check src/index.js && node --check src/bootstrap-worker.js && node --check src/validate-worker.js && node --check build.js",
     "test": "vitest run"
   },
   "devDependencies": {

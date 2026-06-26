@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.34.1] — 2026-06-26
+
+### Fixed
+
+- **`agntux_validate` / `agntux_write_submission` no longer drop the MCP
+  connection (`-32000`) on long build-and-render runs.** The validation
+  pipeline ran via synchronous `spawnSync` on the server's main thread,
+  blocking the event loop for minutes so the server couldn't answer the host's
+  `ping` keepalive — Claude Cowork then declared the server dead and closed the
+  stdio transport (only the long-running validate-and-render tripped it;
+  lightweight tools were unaffected). Two coordinated fixes: validation now runs
+  in a child process (`mcp-server/src/validate-worker.js`) so the loop stays
+  free, and `ping`/handshake/list methods are dispatched off the request
+  serialization chain so they are answered immediately while a validate is in
+  flight. The validate handlers also emit `notifications/progress` when the
+  client supplies a `progressToken`. The verdict contract is unchanged.
+
 ## [0.34.0] — 2026-06-15
 
 ### Added

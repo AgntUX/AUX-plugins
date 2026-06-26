@@ -70,6 +70,16 @@ const SCAFFOLD_MJS = fileURLToPath(new URL("../../scripts/scaffold-marketplace-a
 const HOST_RENDERER_DIR = fileURLToPath(new URL("../../host-renderer", import.meta.url));
 const TEST_HARNESS_CLI = fileURLToPath(new URL("../../test-harness/bin/cli.mjs", import.meta.url));
 const BOOTSTRAP_WORKER = fileURLToPath(new URL("./bootstrap-worker.js", import.meta.url));
+// Sibling worker that runs the (blocking) validation pipeline in a CHILD process
+// so this server's event loop stays free to answer ping keepalives + emit
+// progress. Resolves the same from src/ and dist/. See validate-worker.js.
+const VALIDATE_WORKER = fileURLToPath(new URL("./validate-worker.js", import.meta.url));
+// Backstop: if a grandchild (npm/tsc/vitest/playwright) wedges, SIGKILL the
+// worker so the tool call returns an honest timeout verdict instead of hanging
+// forever (which would also pin the progress ticker and block the stdin-end
+// drain). Matches the stdin-end drain deadline; a real validate+render finishes
+// in minutes.
+const VALIDATE_WORKER_DEADLINE_MS = 10 * 60_000;
 
 // Lazy-loaded shared pipeline (build→lint→typecheck→tests→validate→render) +
 // tree-hash helpers, imported from the bundled bin/ entrypoint so its
@@ -374,6 +384,142 @@ async function handleScaffold(args) {
   };
 }
 
+/**
+ * Internal-error verdict, shape-compatible with runValidation's own
+ * (so the consuming agent sees a uniform structure on any failure path).
+ */
+function workerErrorVerdict({ slug, pluginDir, sessionDir }, detail) {
+  return {
+    ok: false,
+    slug: slug ?? null,
+    plugin_dir: pluginDir ?? null,
+    session_dir: sessionDir ?? null,
+    stages: {},
+    stage_results: [],
+    failed_stage: "internal",
+    blocking: false,
+    routing: null,
+    error_kind: "internal",
+    detail,
+    summary:
+      "Validation hit an internal error and could not complete; this is a toolchain issue, not a plugin defect.",
+    next_action:
+      "Stop honestly and call agntux_report_defect; do not re-dispatch a specialist.",
+    validated_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Run the validation pipeline in a CHILD process so this server's event loop
+ * stays free to answer ping keepalives (and emit progress) during the multi-
+ * minute build→…→render run. The in-process path blocked on synchronous
+ * spawnSync (bin/validate-plugin.mjs `run()`), starving the keepalive, which is
+ * why Cowork closed the connection with `-32000` on long validate-and-render
+ * calls. Returns the SAME fully-decorated verdict the in-process path produced
+ * (full runValidation shape + `renderer` + `agntux_build_version`). NEVER throws
+ * — spawn/exit/read failures fold into an internal-error verdict.
+ *
+ * @param {{slug:string, pluginDir:string, sessionDir?:string, progressToken?:unknown}} a
+ */
+async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } = {}) {
+  // ensureBrowser FIRST: it sets process.env.PLAYWRIGHT_BROWSERS_PATH and kicks
+  // the detached Chromium install. The child inherits env:process.env, so it
+  // sees the managed browser dir; `installBrowser:false` is correct in the child.
+  const eb = ensureBrowser();
+
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), "agntux-validate-"));
+  const outPath = path.join(tmpDir, "verdict.json");
+  const childArgs = [VALIDATE_WORKER, slug, "--plugin-dir", pluginDir, "--out", outPath];
+  if (sessionDir) childArgs.push("--session-dir", sessionDir);
+
+  let verdict = null;
+  let ticker = null;
+  let watchdog = null;
+  try {
+    await new Promise((resolve) => {
+      const child = spawn(process.execPath, childArgs, {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: process.env,
+      });
+      // Drain BOTH child pipes (an undrained >64KB OS buffer of build output
+      // would wedge the child). Route to OUR stderr only — never our stdout,
+      // which is the JSON-RPC channel.
+      child.stdout.on("data", (d) => process.stderr.write(d));
+      child.stderr.on("data", (d) => process.stderr.write(d));
+      // Watchdog: a wedged grandchild (npm/tsc/vitest/playwright) would never
+      // let the worker close → the call would hang forever and the ticker would
+      // emit "validating…" indefinitely. Kill it and return an honest timeout.
+      watchdog = setTimeout(() => {
+        try { child.kill("SIGKILL"); } catch { /* already gone */ }
+        verdict = workerErrorVerdict(
+          { slug, pluginDir, sessionDir },
+          `validation worker exceeded the ${Math.round(VALIDATE_WORKER_DEADLINE_MS / 60_000)}-minute deadline and was killed`,
+        );
+        resolve();
+      }, VALIDATE_WORKER_DEADLINE_MS);
+      watchdog.unref?.();
+      // Defense-in-depth + UX: emit progress while the child runs, but ONLY
+      // when the client opted in by sending a progressToken (per MCP spec).
+      // Keeps activity-based host timeouts alive in addition to ping-response.
+      if (progressToken !== undefined && progressToken !== null) {
+        let n = 0;
+        ticker = setInterval(() => {
+          send({
+            jsonrpc: "2.0",
+            method: "notifications/progress",
+            params: { progressToken, progress: ++n, message: "validating…" },
+          });
+        }, 5000);
+        ticker.unref?.();
+      }
+      child.on("error", (e) => {
+        verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `spawn failed: ${errStr(e)}`);
+        resolve();
+      });
+      child.on("close", () => resolve());
+    });
+  } catch (e) {
+    verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `worker error: ${errStr(e)}`);
+  } finally {
+    // Stop the ticker BEFORE the verdict response is sent so no progress
+    // notification can arrive after the result; stop the watchdog so it can't
+    // fire after a normal completion.
+    if (ticker) clearInterval(ticker);
+    if (watchdog) clearTimeout(watchdog);
+  }
+
+  if (!verdict) {
+    try {
+      verdict = JSON.parse(readFileSync(outPath, "utf8"));
+    } catch (e) {
+      verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `could not read worker verdict: ${errStr(e)}`);
+    }
+  }
+  try {
+    rmSync(tmpDir, { recursive: true, force: true });
+  } catch {
+    /* OS reaps tmp */
+  }
+
+  // Airtight: a verdict that somehow isn't an object (e.g. a worker that wrote
+  // literal `null`) would throw on the decoration below — fold it into a
+  // structured verdict so this helper truly never throws.
+  if (!verdict || typeof verdict !== "object") {
+    verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, "worker produced a non-object verdict");
+  }
+
+  // EXACT same decoration the old in-process handlers applied: reconcile the
+  // renderer status and stamp the running harness version into every verdict.
+  // Best-effort — a decoration throw must never discard an otherwise-valid verdict.
+  try {
+    verdict.renderer = describeRenderer(eb, verdict);
+    verdict.agntux_build_version = readOwnVersion();
+  } catch {
+    /* keep the undecorated verdict rather than throwing */
+  }
+  return verdict;
+}
+
 async function handleValidate(args) {
   const slug = str(args.slug);
   const pluginDir = str(args.plugin_dir);
@@ -381,19 +527,7 @@ async function handleValidate(args) {
   if (!slug || !pluginDir) {
     return { ok: false, error_kind: "usage", blocking: false, detail: "slug and plugin_dir are required" };
   }
-  const { runValidation } = await toolchain();
-  const eb = ensureBrowser();
-  // installBrowser:false — the renderer is bootstrapped detached above, so the
-  // validate call never blocks on a ~1-min install. If the browser is ready the
-  // probe finds it (PLAYWRIGHT_BROWSERS_PATH is set) and render runs.
-  const verdict = await runValidation({ slug, pluginDir, sessionDir, installBrowser: false });
-  verdict.renderer = describeRenderer(eb, verdict);
-  // Surface the running harness version in every verdict (Part G) so the agent
-  // and user can see, mid-build, WHICH agntux-build bundle is actually running —
-  // answering "is the served bundle current?" BEFORE submission, instead of
-  // after a fixed bug confusingly reappears from a stale installed zip.
-  verdict.agntux_build_version = readOwnVersion();
-  return verdict;
+  return await validateInWorker({ slug, pluginDir, sessionDir, progressToken: args.__progressToken });
 }
 
 async function handleWriteSubmission(args) {
@@ -422,10 +556,13 @@ async function handleWriteSubmission(args) {
   }
 
   // ── THE GATE — re-validate the EXACT tree; no caller verdict trusted ────────
-  const { runValidation, walkTree } = await toolchain();
-  const eb = ensureBrowser();
-  const verdict = await runValidation({ slug, pluginDir, sessionDir, installBrowser: false });
-  verdict.renderer = describeRenderer(eb, verdict);
+  // Runs in a child process (validateInWorker) so the server's event loop stays
+  // free to answer ping keepalives during this multi-minute re-validate — the
+  // same disconnect fix as agntux_validate. `walkTree` is still needed below for
+  // the post-validation tree hash; `renderer`/version decoration happen inside
+  // the helper.
+  const { walkTree } = await toolchain();
+  const verdict = await validateInWorker({ slug, pluginDir, sessionDir, progressToken: args.__progressToken });
   if (!verdict.ok) {
     return {
       ok: false,
@@ -994,6 +1131,12 @@ async function handle(req) {
     if (method === "tools/call") {
       const name = params && params.name;
       const args = (params && params.arguments) || {};
+      // Thread the client's progressToken (MCP `_meta.progressToken`) onto args
+      // so the long-running validate handlers can emit `notifications/progress`
+      // ONLY when the client opted in. `__progressToken` is an internal carrier
+      // key, never part of any tool's public input schema.
+      const progressToken = params && params._meta && params._meta.progressToken;
+      if (progressToken !== undefined && progressToken !== null) args.__progressToken = progressToken;
       // Each handler returns a structured result; we wrap internal errors into
       // a structured payload too — NEVER a JSON-RPC error (that reads as "tool
       // broken, I'll do it myself").
@@ -1402,6 +1545,11 @@ function initRuntimeShim() {
 // ── stdin loop ────────────────────────────────────────────────────────────────
 
 export function startServer() {
+  // If the host tears down the read end of our stdout mid-run, the next
+  // process.stdout.write (a response, a ping reply, or the recurring progress
+  // ticker) would throw EPIPE → uncaught → crash, orphaning an in-flight worker.
+  // Swallow it: the host has gone away, so there's nothing left to deliver.
+  process.stdout.on("error", () => {});
   let buf = "";
   // Serialize handlers through a single chain so two concurrent
   // agntux_write_submission calls to the same session can't race on the build /
@@ -1426,6 +1574,24 @@ export function startServer() {
       }
       const reqs = Array.isArray(req) ? req : [req];
       for (const r of reqs) {
+        // Keepalive + handshake/list methods must be answered IMMEDIATELY, never
+        // queued behind an in-flight multi-minute tools/call. Only tools/call
+        // goes through the serialization `chain` (it must serialize the
+        // SUBMISSION.json build/write). WITHOUT this bypass, a `ping` arriving
+        // during a validate sits behind it on the chain and is answered minutes
+        // late → Cowork declares the server dead and closes the connection
+        // (-32000). These instant methods don't touch shared state, so running
+        // them off-chain is safe; they're not counted in `pending` because the
+        // stdin-end drain only needs to wait on in-flight tools/call work.
+        if (!r || r.method !== "tools/call") {
+          Promise.resolve()
+            .then(() => handle(r))
+            .then((res) => {
+              if (res) send(res);
+            })
+            .catch((e) => log("handler err", errStr(e)));
+          continue;
+        }
         pending++;
         chain = chain
           .then(() => handle(r))
