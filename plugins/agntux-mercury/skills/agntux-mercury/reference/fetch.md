@@ -22,6 +22,34 @@ bootstrap (cursor null) and then only when a specific signal warrants
 a refresh (e.g., a new team member appears in an approval request, or a
 new recipient surfaces in a transaction). This keeps run time bounded.
 
+### Step 5 — Anchor "now" (required before Step 5b or 5d use dates)
+
+Before fetching any data, anchor a single `now` timestamp for this run.
+Mercury's MCP server instructs callers to call `getCurrentDate` before
+using dates; do so once here and reuse the result throughout.
+
+```
+getCurrentDate()   # returns a date string, e.g. "Tue Jun 23 2026"
+```
+
+- If the call succeeds: parse the returned string into a UTC ISO-8601
+  date (e.g., `"2026-06-23T00:00:00Z"`) and treat that as `now` for
+  the remainder of this run.
+- If the call fails: **retry once**. If the retry also fails, fall back
+  to the host/session current date as `now`. Record this as a
+  **non-fatal info note** in `data/learnings/agntux-mercury/sync.md →
+  errors` with kind `mercury-current-date-unavailable` and message
+  `"getCurrentDate unavailable; used host session date as fallback"`.
+  Do NOT abort the run and do NOT raise a triage action — account and
+  balance data from `getAccounts` does not depend on this call, and
+  the date is only used to bound the transaction window.
+
+Use this single anchored `now` value for:
+- Step 5b bootstrap window start: `now − bootstrap_window_days`
+- Step 5d deadline evaluation: invoice `dueDate` comparisons against `now`
+
+Do not re-derive `now` separately in each sub-step.
+
 ### Step 5a — Refresh catalog resources
 
 Call these tools once per run in the order listed. They are all
@@ -141,11 +169,12 @@ item of the previous run, which the server's >= filter includes).
 ```
 listTransactions({
   accountId: <id>,
-  start: <ISO-8601 timestamp of (now − bootstrap_window_days)>,
+  start: <anchored now (from Step 5 date-anchor above) − bootstrap_window_days>,
   limit: 50
 })
 ```
 Default `bootstrap_window_days` is 90 (declared in `frontmatter.yaml`; user-overridable via `user.md`).
+Use the `now` value anchored at the top of Step 5 — do not re-call `getCurrentDate` here.
 
 **Pagination.** If the response carries `page.nextPage`, continue
 paging:
@@ -369,8 +398,8 @@ account history and balances.
 - Account `status` transitions to `frozen` or `closed`.
 
 **`deadline` signals:**
-- Invoice `dueDate` is within 7 days of `now` (approaching due).
-- Invoice `dueDate` has passed and `status` is not `paid` (overdue).
+- Invoice `dueDate` is within 7 days of the anchored `now` (approaching due).
+- Invoice `dueDate` has passed the anchored `now` and `status` is not `paid` (overdue).
 
 **`opportunity` signals:**
 - Mercury IO credit account (`listCredit`) has `status: active` and
@@ -387,6 +416,7 @@ genuinely new information):**
 
 | Symptom | kind | Action |
 |---|---|---|
+| `getCurrentDate` fails (both attempts) | `mercury-current-date-unavailable` | non-fatal info note; use host date; continue normally |
 | `getAccounts` auth error | `auth` | exit, retry next run |
 | `getAccounts` network failure | `network` | exit, retry next run |
 | `listTransactions` returns 429 / rate-limit | `source` + `mercury-rate-limited` | stop, exit, retry next run |
