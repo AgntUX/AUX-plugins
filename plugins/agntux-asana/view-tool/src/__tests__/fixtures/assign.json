@@ -1,0 +1,15 @@
+{
+  "tool": "agntux_asana_assign",
+  "structuredContent": {
+    "task_gid": "1208765432100003",
+    "task_url": "https://app.asana.com/0/1208765432100000/1208765432100003",
+    "task_title": "Prepare demo for client presentation",
+    "current_assignee": "Alex Rivera",
+    "candidate_assignees": [
+      { "gid": "1208765432200001", "name": "Jordan Lee" },
+      { "gid": "1208765432200002", "name": "Sam Patel" },
+      { "gid": "1208765432200003", "name": "Casey Morgan" }
+    ],
+    "note_body": "Alex is out this week — reassigning to Jordan who handled the last client demo."
+  }
+}

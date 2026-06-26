@@ -1,0 +1,56 @@
+# plugins/agntux-asana/skills/agntux-asana/_overrides/frontmatter.yaml
+# Substitution map for the agntux-asana ingest skill render pipeline.
+# Every {{key}} in the canonical sync template is resolved here.
+# The renderer's surviving-placeholder guard fails the build on any
+# missing or still-double-curly value.
+
+plugin-slug: agntux-asana
+plugin-version: 0.1.0
+source-display-name: Asana
+source-slug: asana
+recommended-cadence: "Every 60 min, 7am–7pm weekdays local"
+source-cursor-semantics: "Single low-water-mark ISO 8601 timestamp cursor keyed on task modified_at; advances to the newest task modified_at seen this run. Bootstrap uses the same field filtered to (now − bootstrap_window_days days, now]. Asana's modified_since parameter is exclusive at the boundary, so the cursor value itself is safe to re-use as the filter without re-fetching the boundary task."
+source-mcp-tools: "get_my_tasks, get_task, get_tasks, get_projects, get_project, get_status_overview, get_users, get_user, search_tasks"
+thread-unit-name: task
+bootstrap-window-default-days: "30"
+example-channel: my-tasks
+# extra-skill-triggers: no user-initiated view lane in this version.
+extra-skill-triggers: ""
+
+# source-identity-fields declared here so Step 2 / Step 11 know what
+# to capture and persist from the first successful run:
+#   user_gid   — the authenticated user's Asana GID (from get_user / get_users)
+#   workspace_gid — the primary workspace GID (from the first task or user response)
+# These are cursor-lifetime fields: captured once on first observation,
+# reused forever, never re-derived.
+source-identity-fields:
+  - user_gid
+  - workspace_gid
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from tool inventory and cursor analysis):
+  - asana-cursor-evicted
+  - asana-merged-into
+  - asana-task-deleted
+  - asana-deferred-orphan
+  - asana-tool-result-truncated
+  - asana-reconcile-failed

@@ -1,0 +1,80 @@
+tagline: "See your Asana tasks that need action, right in AgntUX."
+description: |
+  Brings your Asana tasks and projects into AgntUX so you can see what needs your attention in one place. Check for new tasks anytime, or ask AgntUX about your work in Asana — it'll look it up and help you stay on top of deadlines, assigned work, and project updates.
+categories:
+  - project-management
+  - productivity
+keywords:
+  - asana
+  - tasks
+  - projects
+  - work-tracking
+  - team-collaboration
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - Assigned tasks and due dates
+  - Project and portfolio status
+  - Task comments and activity
+  - Team members and project owners
+ui_components:
+  - name: comment
+    title: "Comment on task"
+    purpose: "Add a comment to an Asana task directly from AgntUX."
+    view_tool: agntux_asana_comment
+    resource_uri: "ui://agntux-asana/comment"
+  - name: complete
+    title: "Mark complete or update due date"
+    purpose: "Mark a task complete or change its due date without leaving AgntUX."
+    view_tool: agntux_asana_complete
+    resource_uri: "ui://agntux-asana/complete"
+  - name: assign
+    title: "Reassign task"
+    purpose: "Reassign a task to a team member directly in AgntUX."
+    view_tool: agntux_asana_assign
+    resource_uri: "ui://agntux-asana/assign"
+  - name: create
+    title: "Create follow-up task"
+    purpose: "Create a new task in Asana from AgntUX without switching apps."
+    view_tool: agntux_asana_create
+    resource_uri: "ui://agntux-asana/create"
+supported_prompts:
+  - prompt: "/agntux-asana"
+    purpose: "Check for new Asana tasks and updates. Ask questions about your work — AgntUX searches and summarizes."
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: asana
+  display_name: "Asana"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: task
+      description: "An Asana task with title, assignee, due date, and status."
+    - subtype: project
+      description: "An Asana project with name, owner, and member list."
+    - subtype: portfolio
+      description: "An Asana portfolio grouping related projects."
+    - subtype: person
+      description: "Team members and task assignees in your Asana workspace."
+  action_classes:
+    - class: deadline
+      description: "Task with an approaching or past due date."
+    - class: response-needed
+      description: "Task assigned to you or mentions you in a comment."
+    - class: knowledge-update
+      description: "Task status change, project update, or comment activity."
+    - class: opportunity
+      description: "Completed task or project milestone reached."
+  cursor_semantics: "Timestamp of newest modified task seen this run; advances for each sync."
+  source_id_format: "`{gid}` — Asana's globally unique task identifier."

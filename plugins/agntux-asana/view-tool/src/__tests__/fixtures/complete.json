@@ -1,0 +1,11 @@
+{
+  "tool": "agntux_asana_complete",
+  "structuredContent": {
+    "task_gid": "1208765432100002",
+    "task_url": "https://app.asana.com/0/1208765432100000/1208765432100002",
+    "task_title": "Send onboarding docs to new hire",
+    "project_name": "HR Onboarding",
+    "completed": false,
+    "due_on": "2026-06-27"
+  }
+}
