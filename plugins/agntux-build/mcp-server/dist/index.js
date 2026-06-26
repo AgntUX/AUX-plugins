@@ -57,18 +57,8 @@ import {
   statSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { createSentry } from "./sentry-lite.js";
 
 const SERVER_INFO = { name: "agntux-build", version: readOwnVersion() };
-
-// Scrubbed error reporting to the `agntux-plugins` Sentry project. Creating the
-// client is side-effect-free (parses the DSN, no network, no global handlers),
-// so importing this module for unit tests stays side-effect-free. The actual
-// process-level backstops register inside startServer() (host-launched only).
-const sentry = createSentry({
-  release: SERVER_INFO.version,
-  tags: { surface: "plugin-mcp", plugin: "agntux-build" },
-});
 
 // ── shared toolchain resolution (fileURLToPath, NEVER URL.pathname) ───────────
 // The Cowork plugin lives under ~/Library/Application Support/... where a space
@@ -191,7 +181,6 @@ const TOOLS = [
       properties: {
         session_dir: { type: "string", description: "Absolute path to the failed session dir (…/.agntux-build/builds/{session})." },
         note: { type: "string", description: "Optional. A short human note about what was being attempted / what failed." },
-        submit: { type: "boolean", description: "Optional (default true). When true and telemetry is enabled, also send a scrubbed defect event to the agntux-build maintainer's Sentry project. Set false to write DEFECT.json locally only." },
       },
       required: ["session_dir"],
       additionalProperties: false,
@@ -713,7 +702,6 @@ async function handleConfirmSubmission(args) {
 export async function handleReportDefect(args) {
   const sessionDir = str(args.session_dir);
   const note = args.note ? str(args.note) : null;
-  const submit = args.submit !== false;
   if (!sessionDir) {
     return { ok: false, error_kind: "usage", blocking: false, detail: "session_dir is required" };
   }
@@ -793,22 +781,6 @@ export async function handleReportDefect(args) {
       tree,
     };
 
-    // ── scrubbed telemetry to the maintainer's Sentry project (best-effort) ──
-    // DEFECT.json on disk is the source of truth; the Sentry event id is a
-    // cross-reference. captureMessage NEVER throws/rejects (resolves null when
-    // telemetry is disabled or the network is unavailable), so this stays within
-    // the NEVER-throws contract. We stamp the id onto the defect BEFORE the
-    // atomic write so the file and the return value agree.
-    let sentryEventId = null;
-    if (sentry.enabled && submit) {
-      sentryEventId = await sentry.captureMessage(
-        "agntux-build defect: " + ((verdict && verdict.failed_stage) || "unknown"),
-        { defect },
-        "error",
-      );
-      if (sentryEventId) defect.sentry_event_id = sentryEventId;
-    }
-
     const defectPath = path.join(sessionDir, "DEFECT.json");
     const tmp = `${defectPath}.tmp`;
     writeFileSync(tmp, JSON.stringify(defect, null, 2));
@@ -818,7 +790,6 @@ export async function handleReportDefect(args) {
       ok: true,
       defect_path: defectPath,
       files: tree ? tree.files_count : 0,
-      sentry_event_id: sentryEventId,
       summary: "Saved a defect bundle for the maintainer at DEFECT.json.",
     };
   } catch (e) {
@@ -1579,18 +1550,6 @@ export function startServer() {
   // ticker) would throw EPIPE → uncaught → crash, orphaning an in-flight worker.
   // Swallow it: the host has gone away, so there's nothing left to deliver.
   process.stdout.on("error", () => {});
-  // Backstops: capture+log anything that escapes a handler. These servers had
-  // none before. Per the scrubbed-telemetry contract we do NOT change exit
-  // behavior (no added process.exit / no swallow that alters the stdin-end
-  // drain-then-exit path) — captureException is fire-and-forget and never throws.
-  process.on("uncaughtException", (e) => {
-    sentry.captureException(e, { phase: "uncaughtException" });
-    log("uncaughtException", errStr(e));
-  });
-  process.on("unhandledRejection", (e) => {
-    sentry.captureException(e, { phase: "unhandledRejection" });
-    log("unhandledRejection", errStr(e));
-  });
   let buf = "";
   // Serialize handlers through a single chain so two concurrent
   // agntux_write_submission calls to the same session can't race on the build /
@@ -1630,10 +1589,7 @@ export function startServer() {
             .then((res) => {
               if (res) send(res);
             })
-            .catch((e) => {
-              sentry.captureException(e, { phase: "handler" });
-              log("handler err", errStr(e));
-            });
+            .catch((e) => log("handler err", errStr(e)));
           continue;
         }
         pending++;
@@ -1642,10 +1598,7 @@ export function startServer() {
           .then((res) => {
             if (res) send(res);
           })
-          .catch((e) => {
-            sentry.captureException(e, { phase: "handler" });
-            log("handler err", errStr(e));
-          })
+          .catch((e) => log("handler err", errStr(e)))
           .finally(() => {
             pending--;
           });
