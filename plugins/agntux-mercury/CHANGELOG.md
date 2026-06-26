@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-23
+
+### Fixed
+
+- Improved resilience of date anchoring in sync: now uses Mercury's `getCurrentDate` with one retry before falling back to host date. This prevents transient `getCurrentDate` failures from surfacing as noisy notes and ensures balance and account fetching remain unaffected.
+
 ## [0.1.0] — 2026-06-19
 
 ### Added

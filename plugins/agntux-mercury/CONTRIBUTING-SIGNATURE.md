@@ -8,9 +8,10 @@ dco:
   agreed_via: agntux-build/0.1.0
 submission:
   plugin_slug: agntux-mercury
-  plugin_version: 0.1.0
-  submitted_at: 2026-06-20T01:29:00Z
-  mode: create
+  plugin_version: 0.1.1
+  submitted_at: 2026-06-23T00:00:00Z
+  mode: update
+  previous_version: 0.1.0
 signed_off_by: "Janice Jordan <trish@agntux.ai>"
 ---
 
