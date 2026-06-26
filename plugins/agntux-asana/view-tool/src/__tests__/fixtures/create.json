@@ -1,0 +1,16 @@
+{
+  "tool": "agntux_asana_create",
+  "structuredContent": {
+    "parent_task_title": "Review Q3 budget proposal and send feedback",
+    "draft_name": "Schedule budget review meeting with Finance team",
+    "candidate_assignees": [
+      { "gid": "1208765432200001", "name": "Jordan Lee" },
+      { "gid": "1208765432200002", "name": "Sam Patel" }
+    ],
+    "due_on": "2026-07-05",
+    "candidate_projects": [
+      { "gid": "1208765432100000", "name": "Finance Planning 2026" },
+      { "gid": "1208765432300000", "name": "Q3 Planning" }
+    ]
+  }
+}
