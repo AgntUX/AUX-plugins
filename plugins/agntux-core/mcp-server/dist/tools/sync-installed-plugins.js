@@ -94,6 +94,41 @@ function sanitizePlugins(raw) {
     }
     return out;
 }
+// agntux-core is self-evidently installed whenever this tool is callable
+// — the tool only exists because agntux-core's MCP server is running. The
+// skill's first-run onboarding pass historically synced only the
+// user-confirmed *ingest* plugins (agntux-slack / agntux-gmail), which
+// silently dropped the hub from the manifest, and with it every
+// agntux-core view-tool the remote MCP connector would otherwise expose.
+// Whenever a NON-EMPTY plugin set is written, guarantee the hub is in it
+// regardless of what the caller passes. Scope is the hub ONLY:
+// agntux-build runs a separate local MCP server and is not always
+// installed, so it is never force-injected here — it is registered via
+// the skill's host enumeration when actually present.
+//
+// Why we do NOT floor an EMPTY set: an empty sanitized list means the
+// caller is syncing "nothing" (empty input, a malformed non-array arg,
+// or a transient host enumeration that returned zero). The server's
+// reconciliation endpoint treats a zero-length snapshot as a safe no-op
+// (it does NOT soft-delete the existing per-user ledger). Flooring an
+// empty set to `[agntux-core]` would turn that no-op into a 1-entry
+// snapshot that reconciles and removes every OTHER plugin's view-tools.
+// The floor's job is to stop the hub being dropped while a real plugin
+// set is written — not to manufacture a snapshot out of nothing.
+const CORE_SLUG = "agntux-core";
+const CORE_MARKETPLACE = "agntux";
+function ensureCorePresent(plugins) {
+    if (plugins.length === 0)
+        return plugins;
+    if (plugins.some((p) => p.slug === CORE_SLUG))
+        return plugins;
+    // Prepend the hub, then re-apply the MAX_PLUGINS clamp so a saturated
+    // 256-entry list can never push the floor back out.
+    return [
+        { slug: CORE_SLUG, marketplace: CORE_MARKETPLACE },
+        ...plugins,
+    ].slice(0, MAX_PLUGINS);
+}
 function writeInstalledPluginsFile(file) {
     const dir = installedPluginsDir();
     const path = installedPluginsPath();
@@ -105,7 +140,7 @@ function writeInstalledPluginsFile(file) {
     return path;
 }
 export const syncInstalledPluginsTool = {
-    description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically — pass the COMPLETE enumerated list, not a patch.",
+    description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically — pass the COMPLETE enumerated list, not a patch. Whenever a non-empty set is written, `agntux-core` is included even if omitted from the call (it is self-evidently installed whenever this tool runs), so the hub's own view-tools are never accidentally dropped. An empty list is left empty — a deliberate no-op snapshot.",
     inputSchema: {
         type: "object",
         properties: {
@@ -127,7 +162,7 @@ export const syncInstalledPluginsTool = {
         required: ["plugins"],
     },
     async handler(args) {
-        const plugins = sanitizePlugins(args.plugins);
+        const plugins = ensureCorePresent(sanitizePlugins(args.plugins));
         const file = {
             schema_version: 1,
             generated_at: new Date().toISOString(),

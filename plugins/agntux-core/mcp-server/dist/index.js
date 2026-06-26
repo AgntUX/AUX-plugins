@@ -16852,6 +16852,16 @@ function sanitizePlugins(raw) {
   }
   return out;
 }
+var CORE_SLUG = "agntux-core";
+var CORE_MARKETPLACE = "agntux";
+function ensureCorePresent(plugins) {
+  if (plugins.length === 0) return plugins;
+  if (plugins.some((p) => p.slug === CORE_SLUG)) return plugins;
+  return [
+    { slug: CORE_SLUG, marketplace: CORE_MARKETPLACE },
+    ...plugins
+  ].slice(0, MAX_PLUGINS);
+}
 function writeInstalledPluginsFile(file) {
   const dir = installedPluginsDir();
   const path = installedPluginsPath();
@@ -16863,7 +16873,7 @@ function writeInstalledPluginsFile(file) {
   return path;
 }
 var syncInstalledPluginsTool = {
-  description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically \u2014 pass the COMPLETE enumerated list, not a patch.",
+  description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically \u2014 pass the COMPLETE enumerated list, not a patch. Whenever a non-empty set is written, `agntux-core` is included even if omitted from the call (it is self-evidently installed whenever this tool runs), so the hub's own view-tools are never accidentally dropped. An empty list is left empty \u2014 a deliberate no-op snapshot.",
   inputSchema: {
     type: "object",
     properties: {
@@ -16885,7 +16895,7 @@ var syncInstalledPluginsTool = {
     required: ["plugins"]
   },
   async handler(args) {
-    const plugins = sanitizePlugins(args.plugins);
+    const plugins = ensureCorePresent(sanitizePlugins(args.plugins));
     const file = {
       schema_version: 1,
       generated_at: (/* @__PURE__ */ new Date()).toISOString(),
