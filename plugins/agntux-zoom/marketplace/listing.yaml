@@ -1,0 +1,119 @@
+tagline: "Your Zoom meetings, summaries, and next steps in one place."
+description: |
+  Brings your Zoom into AgntUX so you never miss a meeting action item. See when you have recordings waiting, check AI-generated summaries, and save meeting outcomes directly to Zoom Docs. Opens in Zoom for quick access.
+categories:
+  - productivity
+  - communication
+keywords:
+  - zoom
+  - meetings
+  - recordings
+  - transcripts
+  - summaries
+  - action-items
+  - team-sync
+  - collaboration
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Upcoming and past meetings"
+  - "Meeting recordings and transcripts"
+  - "AI-generated meeting summaries"
+  - "Meeting participants and roles"
+  - "Meeting action items and next steps"
+  - "Team Chat messages and reactions"
+  - "Zoom Docs and collaborative notes"
+supported_prompts:
+  - prompt: "/agntux-zoom"
+    purpose: "Check for new Zoom meetings and messages. Or ask about your recent meetings and action items."
+ui_components:
+  - name: save-doc
+    title: "Save to Zoom Doc"
+    purpose: "Saves a meeting summary and action items to a new Zoom Doc for easy reference and sharing."
+    view_tool: agntux_zoom_save_doc_view
+    resource_uri: "ui://agntux-zoom/save-doc"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: zoom
+  display_name: "Zoom"
+proposed_schema:
+  entity_subtypes:
+    - subtype: meeting
+      description: "A scheduled or completed Zoom meeting carrying topic, time, host, participants, the AI summary, next steps, and a recording link when available."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: chat-thread
+      description: "A Zoom Team Chat channel or DM thread, carrying channel/sender context and recent message text."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: document
+      description: "A Zoom Doc or Notes file used for collaborative notes and meeting outcomes."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: person
+      description: "A meeting participant or chat sender, identified by email where available."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: deadline
+      description: "A meeting or followup with a specific date or time."
+    - class: response-needed
+      description: "An action item, follow-up question, or decision awaiting the user's input."
+    - class: knowledge-update
+      description: "A meeting summary, transcript, or recorded content to review."
+    - class: risk
+      description: "A missed meeting, unreviewed recording, or unread message alert."
+    - class: opportunity
+      description: "A notable meeting outcome or collaborative opportunity to explore."
+    - class: other
+      description: "Other Zoom signals not fitting the above categories."
+  cursor_semantics: "Dual-key timestamp window cursor — meetings_since (meetings + recordings) and chat_since (Team Chat + Docs); each stream advances independently as ISO-8601 UTC."
+  source_id_format: "zoom:meeting:{uuid}, zoom:recording:{id}, zoom:chat:{channel}:{user}, zoom:doc:{file_id}"
