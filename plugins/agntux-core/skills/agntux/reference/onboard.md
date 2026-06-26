@@ -401,6 +401,25 @@ ToolSearch / idempotency / create / copy-paste-fallback pattern):
 
 ### Deterministic wrap-up
 
+**Final manifest re-sync (run first).** Plugins the user installed
+*during* this onboarding pass — after Stage 4.6 synced, e.g. agreed
+installs from **Plugin suggestions** or sources they connected in the
+host — were not in the host's plugin list at Stage 4.6, so re-sync now:
+`~/.agntux/installed-plugins.json` must reflect the COMPLETE installed
+set at onboarding-end, not just the set as of Stage 4.6. Re-run the
+**exact** Stage 4.6 host-enumeration sync — `ToolSearch({query:
+"select:mcp__plugins__list_plugins", max_results: 1})` → call it → pass
+the COMPLETE host-enumerated list to
+`agntux_core_sync_installed_plugins`, using the SAME `{ slug, marketplace }`
+entry shape (default `marketplace: agntux`) and the SAME
+no-host-enumeration fallback (confirmed `## Installed` + `agntux-core`) —
+never pass bare slugs, the tool drops entries missing `marketplace`. The
+tool REPLACES, and the server reconciles idempotently, so a re-sync of an
+unchanged set is a harmless redundant write; it force-injects
+`agntux-core` into the (non-empty) set. Non-blocking AND silent on
+failure: emit no chat line — the user never sees this tool fire. (This
+also covers the re-entry flow, which routes here.)
+
 Final state scan: which installed plugins are missing
 `contracts/{slug}.md`, `instructions/{slug}.md`, or a scheduled-task
 acknowledgement in `data/onboarding.md`?
