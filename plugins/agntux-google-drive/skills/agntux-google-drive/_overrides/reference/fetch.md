@@ -107,25 +107,29 @@ no content body or change summary, and no mention scan.
 
 #### Text-extractable files — full fetch
 
-**Body fetch (required):**
+**Body fetch (two-tier, required):**
 
 ```
-read_file_content({
-  fileId: <file.id>,
-  includeComments: true
-})
+read_file_content({ fileId: <file.id>, includeComments: true })   # first attempt
 ```
 
-Always pass `includeComments: true`. The connector inlines comments into
-the body response; this is the surface through which mention detection
-(Step 5c) operates. A separate comments API call is not available and not
-needed.
+If this **errors** (e.g. "Internal error encountered" / 5xx) — not an
+empty/access-denied body — retry once with `includeComments: false`:
 
-If `read_file_content` returns an empty body or an access-denied result,
-log `google-drive-content-unavailable` (kind: `source`) with the fileId and
-title, skip this file for the run, and continue. Do NOT update the
-`cursor.files` entry for a skipped file (leave it at its prior value so
-the next run retries).
+```
+read_file_content({ fileId: <file.id>, includeComments: false })  # retry
+```
+
+- **First attempt succeeds:** body + inlined comments; full mention scan
+  (Signal 3) applies.
+- **First errors, retry succeeds (degraded):** proceed with body for
+  Signals 1/2. Do NOT scan for mentions. Log
+  `google-drive-comments-unavailable` (kind: `source`) with fileId and
+  title — mentions deferred to next run. **Advance `cursor.files` entry
+  normally** — body succeeded; do not stall the file indefinitely.
+- **Both fail** (or the first attempt returns an empty/access-denied body —
+  no retry in that case): log `google-drive-content-unavailable`
+  (kind: `source`), skip the file, do NOT advance `cursor.files`.
 
 **Metadata fetch (for author attribution — selective):**
 
@@ -283,8 +287,9 @@ each for the same file on the same run.
 
 #### Signal 3 — mention (comment or assignment references the user)
 
-Condition: `read_file_content(includeComments=true)` returns a comment or
-suggestion text that mentions the current user.
+Condition: `read_file_content({includeComments:true})` succeeded (non-degraded
+path) AND a comment or suggestion text mentions the current user. Skip Signal 3
+for any file fetched on the degraded path (comments-unavailable — deferred).
 
 **Resolve the user's identity from `user.md`** (read at Step 1 preflight).
 Extract the user's primary email address and any display names or aliases
@@ -345,9 +350,12 @@ On any failure from any Google Drive tool call:
 - On `auth` failure: release the lock and exit. Do NOT proceed to Step 5b.
 - On `network` failure during discovery (Step 5a): release the lock and exit.
   Step 11's transactional rule keeps the cursor at its pre-run value.
-- On `read_file_content` failure for a specific file: log
-  `google-drive-content-unavailable`, skip that file, and continue with
-  remaining files. Do NOT advance that file's cursor.files entry.
+- On `read_file_content({includeComments:true})` error: retry with
+  `includeComments:false`. On retry success: log
+  `google-drive-comments-unavailable`, process body (Signals 1/2),
+  skip mention scan this run, advance cursor.files normally. On double
+  failure: log `google-drive-content-unavailable`, skip file, do NOT
+  advance cursor.files.
 - On `get_file_metadata` failure for a text-extractable file: log
   `google-drive-metadata-missing`, omit author attribution for that file,
   and continue.
@@ -478,7 +486,8 @@ read the mention context before navigating.
 | `list_recent_files` auth failure | `auth` | exit, release lock, retry next run |
 | `search_files` network failure | `network` | exit, release lock, retry next run |
 | Connector quota / 429 / rate-limit | `source` + `google-drive-rate-limited` | stop, exit, release lock; do NOT advance watermark |
-| `read_file_content` returns empty or access-denied for one file | `source` + `google-drive-content-unavailable` | skip file, log, continue with remaining files |
+| `read_file_content({includeComments:true})` errors (internal/5xx), retry with `includeComments:false` succeeds | `source` + `google-drive-comments-unavailable` | proceed with body, skip mention scan, log degraded, advance cursor normally |
+| `read_file_content` errors on both attempts, OR returns empty/access-denied on first attempt | `source` + `google-drive-content-unavailable` | skip file, log, continue; do NOT advance cursor.files entry |
 | `get_file_metadata` returns no `lastModifyingUser` (text-extractable file) | `source` + `google-drive-metadata-missing` | omit author attribution, continue |
 | `get_file_metadata` fails for a binary/metadata-only file | `source` + `google-drive-metadata-missing` | skip entity creation for this file, log, continue |
 | `get_file_permissions` fails | `network` or `source` | log, omit permissionsSummary for this file, continue |

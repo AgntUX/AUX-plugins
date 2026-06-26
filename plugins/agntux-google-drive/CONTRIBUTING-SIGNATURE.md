@@ -5,12 +5,13 @@ contributor:
 dco:
   version: "1.1"
   agreed_at: 2026-06-15T00:00:00Z
-  agreed_via: agntux-build/0.1.0
+  agreed_via: agntux-build/0.1.1
 submission:
   plugin_slug: agntux-google-drive
-  plugin_version: 0.1.0
-  submitted_at: 2026-06-21T03:58:00Z
-  mode: create
+  plugin_version: 0.1.1
+  submitted_at: 2026-06-21T14:30:00Z
+  mode: update
+  previous_version: 0.1.0
 signed_off_by: "Janice Jordan <trish@agntux.ai>"
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "agntux-google-drive",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bring your Google Drive files into your AgntUX knowledge store.",
   "author": {
     "name": "AgntUX",
