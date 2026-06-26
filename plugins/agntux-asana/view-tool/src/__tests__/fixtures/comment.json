@@ -1,0 +1,12 @@
+{
+  "tool": "agntux_asana_comment",
+  "structuredContent": {
+    "task_gid": "1208765432100001",
+    "task_url": "https://app.asana.com/0/1208765432100000/1208765432100001",
+    "task_title": "Review Q3 budget proposal and send feedback",
+    "project_name": "Finance Planning 2026",
+    "due_on": "2026-07-02",
+    "draft_body": "Hi team, I've reviewed the Q3 budget proposal. A few things to flag: the contractor line seems high — let's discuss before we finalize. Otherwise looks solid.",
+    "personalization_signals": "Task is overdue by 1 day. Last comment was from Jordan 3 days ago."
+  }
+}
