@@ -160,10 +160,14 @@ describe("npmUnderBundle", () => {
   });
 
   it("rejects an in-bundle path that does not exist on disk", () => {
-    const el = "/Applications/AgntUX.app/Contents/MacOS/AgntUX";
-    expect(
-      npmUnderBundle(el, "/Applications/AgntUX.app/Contents/Resources/npm/bin/npm-cli.js"),
-    ).toBe("");
+    // Use a temp bundle whose npm-cli.js is never created, so the "in-bundle but
+    // absent on disk → reject" branch is exercised deterministically regardless
+    // of whether a real /Applications/AgntUX.app is installed on this machine
+    // (hardcoding the real path made this fail once the app shipped a bundled npm).
+    const root = mkdtempSync(join(tmpdir(), "npm-bundle-missing-"));
+    const el = join(root, "AgntUX.app", "Contents", "MacOS", "AgntUX");
+    const npmCli = join(root, "AgntUX.app", "Contents", "Resources", "npm", "bin", "npm-cli.js");
+    expect(npmUnderBundle(el, npmCli)).toBe("");
   });
 
   it("accepts an existing npm-cli.js inside the bundle", () => {

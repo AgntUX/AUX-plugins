@@ -123,7 +123,18 @@ describe("agntux-node.sh launcher", () => {
       const r = runLauncher(home, [probe]);
       expect(r.stdout).toContain(`REAL el=${REAL_EXE}`);
       expect(r.stdout).toContain("run=1");
-      expect(r.stdout).toContain("npm=[]"); // foreign npm path rejected
+      // The FOREIGN npm path must be dropped. resolve_npm_cli then DERIVES the
+      // genuine bundled npm-cli.js (sealed inside the codesign-verified app) when
+      // it exists on disk — so with the real app installed AGNTUX_NPM_CLI is that
+      // in-bundle path, and without a bundled npm it's empty. Either is safe; the
+      // failure this guards against is the foreign /etc path being used.
+      expect(r.stdout).not.toContain("/etc/evil-npm-cli.js");
+      const npmVal = (r.stdout.match(/npm=\[([^\]]*)\]/) || [, ""])[1];
+      const bundleNpm = join(
+        dirname(dirname(dirname(REAL_EXE))),
+        "Contents", "Resources", "npm", "bin", "npm-cli.js",
+      );
+      expect(npmVal === "" || npmVal === bundleNpm).toBe(true);
     },
     30_000,
   );
