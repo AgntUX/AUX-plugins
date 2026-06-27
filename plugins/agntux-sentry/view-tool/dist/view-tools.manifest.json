@@ -1,0 +1,361 @@
+{
+  "plugin_slug": "agntux_sentry",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-sentry-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_sentry_resolve_view",
+      "description": "Use this to resolve a Sentry issue — mark it as resolved immediately or resolved in the next release. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "events_count": {
+            "type": "number"
+          },
+          "users_affected": {
+            "type": "number"
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "resolve_in_next_release": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "events_count": {
+            "type": "number"
+          },
+          "users_affected": {
+            "type": "number"
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "resolve_in_next_release": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "issue_url",
+          "issue_short_id",
+          "issue_title",
+          "level",
+          "project",
+          "events_count",
+          "users_affected",
+          "last_seen",
+          "resolve_in_next_release"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-sentry/resolve",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_sentry_ignore_view",
+      "description": "Use this to ignore or archive a Sentry issue — choose until it escalates again, forever, for a set duration, or until it happens N more times. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "events_count": {
+            "type": "number"
+          },
+          "users_affected": {
+            "type": "number"
+          },
+          "ignore_mode": {
+            "type": "string"
+          },
+          "ignore_duration_minutes": {
+            "type": "number"
+          },
+          "ignore_count": {
+            "type": "number"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "events_count": {
+            "type": "number"
+          },
+          "users_affected": {
+            "type": "number"
+          },
+          "ignore_mode": {
+            "type": "string"
+          },
+          "ignore_duration_minutes": {
+            "type": "number"
+          },
+          "ignore_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "issue_url",
+          "issue_short_id",
+          "issue_title",
+          "level",
+          "project",
+          "events_count",
+          "users_affected",
+          "ignore_mode",
+          "ignore_duration_minutes",
+          "ignore_count"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-sentry/ignore",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_sentry_assign_view",
+      "description": "Use this to assign a Sentry issue to a team member or team — shows the available candidates and lets the user pick one. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "current_assignee": {
+            "type": "string"
+          },
+          "candidate_assignees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "team"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "kind"
+              ]
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "issue_url": {
+            "type": "string"
+          },
+          "issue_short_id": {
+            "type": "string"
+          },
+          "issue_title": {
+            "type": "string"
+          },
+          "current_assignee": {
+            "type": "string"
+          },
+          "candidate_assignees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "team"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "kind"
+              ]
+            }
+          }
+        },
+        "required": [
+          "issue_url",
+          "issue_short_id",
+          "issue_title",
+          "current_assignee",
+          "candidate_assignees"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-sentry/assign",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-sentry/resolve",
+      "html_path": "view-tool/dist/ui-resources/resolve.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-sentry/ignore",
+      "html_path": "view-tool/dist/ui-resources/ignore.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-sentry/assign",
+      "html_path": "view-tool/dist/ui-resources/assign.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
