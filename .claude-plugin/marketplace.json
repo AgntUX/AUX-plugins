@@ -75,6 +75,19 @@
       "category": "meta"
     },
     {
+      "name": "agntux-docusign",
+      "source": "./plugins/agntux-docusign",
+      "homepage": "https://agntux.ai/plugins/agntux-docusign",
+      "keywords": [
+        "docusign",
+        "e-signature",
+        "workflow",
+        "agreements"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-dropbox",
       "source": "./plugins/agntux-dropbox",
       "homepage": "https://agntux.ai/plugins/agntux-dropbox",
