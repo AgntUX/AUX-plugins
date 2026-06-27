@@ -62,6 +62,27 @@ Carve-outs:
   diverting. The schema-review / new-plugin nudges and plugin
   reconciliation still run on every other `/agntux` command.
 
+  **After the iframe renders**, run ONE lightweight, non-blocking
+  onboarding-gap check (this is the *only* thing triage borrows from the
+  ladder — it does NOT run the rest). The view tool call MUST go first so
+  the UI opens with zero ramp; the check runs afterward and only appends
+  text. Resolve
+  `ToolSearch({query: "select:mcp__plugins__list_plugins", max_results: 1})`;
+  if it resolves, call it and compare the host's installed plugins against
+  `<agntux project root>/data/instructions/{slug}.md`
+  existence / `status: final`, **excluding `agntux-core` and
+  `agntux-build`** — exactly the "Detect newly-onboarded plugins"
+  comparison in [`_preconditions.md`](../_preconditions.md) Check 0.5. If
+  one or more installed ingest plugins are not yet onboarded, append
+  **exactly one line after the rendered UI**:
+  `📦 N AgntUX plugin(s) installed but not set up yet — run /agntux onboard to activate them: {slug-list}.`
+  Say nothing when `mcp__plugins__list_plugins` doesn't resolve or the gap
+  set is empty — never block or delay the UI on this check. You MAY also
+  fire `agntux_core_sync_installed_plugins` with the full host list
+  (silent, non-blocking, failure-tolerant) so `~/.agntux/installed-plugins.json`
+  — and the desktop app's "needs onboarding" banner that reads it — stays
+  fresh.
+
 The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
 `ask`) run the full check ladder.
 
@@ -71,7 +92,7 @@ The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
 |---|---|---|
 | (empty / natural language) | infer from chat; default to [`reference/ask.md`](reference/ask.md) | Catch-all behaviour preserved. |
 | `onboard` | [`reference/onboard.md`](reference/onboard.md) | Re-entry mode handled inside the resource. |
-| `triage` | invoke `mcp__agntux-core__agntux_core_triage_view` directly — no reference file | Opens your action-items list (the interactive triage UI). Call the tool immediately with `{}` — no preflight, no preconditions. The tool resolves the project root and gathers its own data, and shows an onboarding pointer in-UI if the store isn't set up. |
+| `triage` | invoke `mcp__agntux-core__agntux_core_triage_view` directly — no reference file | Opens your action-items list (the interactive triage UI). Call the tool immediately with `{}` — no preflight, no preconditions. The tool resolves the project root and gathers its own data, and shows an onboarding pointer in-UI if the store isn't set up. **After** the UI renders, run the after-render onboarding-gap nudge (see the `triage` carve-out under Preconditions). |
 | `profile` | [`reference/profile.md`](reference/profile.md) | Edit `user.md`. |
 | `schema` (+ optional `review {slug}` / `edit`) | [`reference/schema.md`](reference/schema.md) | Sub-modes preserved from old skill. |
 | `teach` (+ optional `{plugin-slug}`) | [`reference/teach.md`](reference/teach.md) | Per-plugin instructions. |
@@ -90,7 +111,9 @@ The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
    **`triage` is the one exception — it has no `reference/triage.md`,
    and it skips the preflight + preconditions.** Invoke
    `mcp__agntux-core__agntux_core_triage_view` immediately with `{}`
-   to open the interactive action-items UI with zero ramp.
+   to open the interactive action-items UI with zero ramp, then run the
+   after-render onboarding-gap nudge (see the `triage` carve-out under
+   Preconditions).
 3. **No match** → infer intent from the natural-language prompt and
    pick the matching resource. Heuristics:
    - "onboard / set me up / get started / I added a new plugin" →
@@ -102,8 +125,10 @@ The remaining sub-commands (`profile`, `schema`, `teach`, `sync`,
    - "what's hot / what should I look at / show triage" → invoke
      `mcp__agntux-core__agntux_core_triage_view` immediately with `{}`
      (the interactive UI), skipping the preflight + preconditions just
-     like the explicit `triage` command. Do NOT load `triage-digest.md`
-     for this case — that resource is background-only.
+     like the explicit `triage` command, then run the after-render
+     onboarding-gap nudge (see the `triage` carve-out under
+     Preconditions). Do NOT load `triage-digest.md` for this case — that
+     resource is background-only.
    - Anything else (entity lookups, time queries, prep, status edits)
      → `ask.md`.
 4. When the prompt could plausibly match `profile` (global) or

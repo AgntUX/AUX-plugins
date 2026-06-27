@@ -294,6 +294,40 @@ describe("agntux-core skills directory structure", () => {
     });
   });
 
+  describe("/agntux triage after-render onboarding-gap nudge (10.6.0)", () => {
+    // 10.6.0: triage now surfaces a non-blocking "you installed a plugin but
+    // haven't onboarded it" nudge AFTER the UI renders. Guards: the carve-out
+    // must keep the view-tool-first ordering, describe the gap check, emit the
+    // 📦 run-/agntux-onboard line, reuse the _preconditions Check 0.5
+    // comparison, and exclude the infra plugins so the hub/builder are never
+    // flagged. Without these, a revert would silently drop the nudge and
+    // re-open the "installed a plugin, nothing happened" confusion.
+    const skillSrc = readFileSync(join(AGNTUX_SKILL_DIR, "SKILL.md"), "utf-8");
+
+    it("documents an after-render, non-blocking onboarding-gap check", () => {
+      expect(skillSrc).toMatch(/after the iframe renders/i);
+      expect(skillSrc).toMatch(/non-blocking/i);
+    });
+
+    it("keeps the view-tool-first ordering so first paint is never delayed", () => {
+      // The check must run AFTER the view tool call. Assert the intent
+      // (UI/view tool first), not exact prose.
+      expect(skillSrc).toMatch(
+        /view tool call MUST go first|MUST go first|UI opens with zero ramp/i,
+      );
+    });
+
+    it("emits the 📦 run-/agntux-onboard nudge line", () => {
+      expect(skillSrc).toMatch(/📦[^\n]*\/agntux onboard/);
+    });
+
+    it("reuses the _preconditions Check 0.5 comparison and excludes infra plugins", () => {
+      expect(skillSrc).toMatch(/Check 0\.5/);
+      expect(skillSrc).toMatch(/excluding[\s\S]{0,40}agntux-build/i);
+      expect(skillSrc).toContain("agntux-core");
+    });
+  });
+
   describe("background-only resources document the refuse-and-redirect guard", () => {
     // The 7.x `disable-model-invocation: true` frontmatter is gone — the
     // equivalent guard now lives inside each resource as a refuse-and-
