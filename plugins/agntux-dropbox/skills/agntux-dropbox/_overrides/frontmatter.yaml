@@ -1,0 +1,143 @@
+# _overrides/frontmatter.yaml — agntux-dropbox
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-dropbox
+plugin-version: 0.1.0                      # matches .claude-plugin/plugin.json
+source-display-name: Dropbox
+source-slug: dropbox
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 4 hours, 7am–7pm weekdays local"
+
+# Cursor semantics:
+# Hybrid cursor: an opaque Dropbox server-side folder cursor PLUS a per-file
+# rev map.
+#
+# FINDING (live run): list_folder entries return {file_id, modified_time,
+# name, size} — content_hash is NOT exposed by this connector. get_file_metadata
+# returns `rev` but not content_hash. Change-detection keys on `rev`.
+#
+# folder_cursor — the opaque string returned by list_folder (or
+#   list_folder/continue) on the previous successful run. On the next run,
+#   pass it to list_folder/continue to receive only the changed entries since
+#   that checkpoint. Dropbox guarantees this cursor is stable and tracks
+#   additions, modifications, and deletions since it was issued.
+#   IMPORTANT: folder_cursor coverage spans the root namespace PLUS each
+#   mounted namespace (team/shared folders). Root walk surfaces mounts as
+#   object_type:"mount" without descending; each mount must be listed against
+#   its own ns_path. Mounts can be added/removed between runs so the mount
+#   list is re-derived from the live listing each run.
+#
+# files — a JSON object keyed by Dropbox file id (.id field), each value the
+#   `rev` token of the file as last seen (from get_file_metadata). Used to
+#   skip files whose rev has not changed since last ingest. A changed rev means
+#   Dropbox registered a server-side mutation — always re-ingest. Note: rev
+#   advances on metadata-only changes too (slight over-detection vs
+#   content_hash), but content_hash is unavailable at the connector level.
+#
+# shared_links_cursor — ISO-8601 UTC timestamp of the newest shared-link
+#   `server_modified` seen. list_shared_links has no server-side since filter;
+#   apply client-side: only process links whose server_modified is strictly
+#   greater than this timestamp. Advance to max(server_modified) this run.
+#
+# file_requests_seen — JSON array of file-request IDs already surfaced as
+#   actions. On each run, list_file_requests and raise only IDs not present in
+#   this set. Append newly raised IDs after a successful run.
+#
+# Cursor shape in sync.md frontmatter:
+#   cursor: '{"folder_cursor":"AAH...","files":{"id:...":"a1b2c3d4e5f6"},
+#              "shared_links_cursor":"2026-06-26T10:00:00Z",
+#              "file_requests_seen":["id:..."]}'
+#
+# Bootstrap (cursor null): call list_folder with recursive=true from root (""),
+# collect files whose server_modified falls within bootstrap_window_days;
+# also re-enqueue each mount namespace found. The initial list_folder response
+# includes the folder_cursor for the root; each mount produces its own cursor.
+#
+# Advance (Step 11, transactional): advance folder_cursor (encoding root +
+# all mount cursors) to the cursors from the final list_folder/continue
+# responses this run. Update files-map entries (file_id → rev) for all files
+# successfully processed. Advance shared_links_cursor to max(server_modified)
+# across shared links processed. Append new file-request IDs to
+# file_requests_seen. Advance only when every action write this run succeeded.
+#
+# Eviction: when get_file_metadata or fetch returns a permanent not-found /
+# access-revoked error for a file id, remove that id from the files map and
+# log dropbox-cursor-evicted.
+source-cursor-semantics: "Hybrid cursor: a JSON object with four sub-keys. 'folder_cursor': the opaque Dropbox list_folder continuation cursor (returned by list_folder or list_folder/continue); passed to list_folder/continue on the next run to receive only delta entries since the last checkpoint. Covers root namespace PLUS each mounted namespace (team/shared folders); mounts surface as object_type:'mount' in the root walk and must be listed separately against their ns_path each run — mounts can be added/removed so the mount list is re-derived from the live listing on every run. 'files': a JSON object keyed by Dropbox file id, each value the rev token last seen for that file (from get_file_metadata); content_hash is NOT exposed by the MCP connector so rev is the only available server-issued change token; a changed rev means re-ingest (slight over-detection vs content_hash: rev advances on metadata-only changes too). 'shared_links_cursor': ISO-8601 UTC timestamp of the newest shared-link server_modified seen; list_shared_links has no server-side since filter so this is applied client-side. 'file_requests_seen': JSON array of file-request IDs already raised as actions. Bootstrap (cursor null): list_folder({path:'',recursive:true}) within bootstrap_window_days; re-enqueue each mount ns_path; store the returned per-namespace cursors as folder_cursor. Advance folder_cursor at Step 11 to the cursors from the final continuation responses (root + all mounts); update files-map entries (file_id -> rev); advance shared_links_cursor to max(server_modified) across shared links processed; append new file-request IDs. Advance only on full-run success (transactional). Evict files-map entries for permanently deleted/revoked file IDs (log dropbox-cursor-evicted)."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# All are read-only; no write tools are called during ingest.
+#   list_folder({ path, recursive, cursor })
+#       → enumerate folder contents; returns entries + folder_cursor
+#   list_folder/continue({ cursor })
+#       → incremental delta from a prior list_folder cursor
+#   search({ query, path?, max_results? })
+#       → find files by name or content query
+#   get_file_metadata({ path })
+#       → id, name, path, size, type, client_modified, server_modified,
+#         rev, sharing_info  (content_hash is NOT returned by this connector)
+#   fetch({ path })
+#       → read text content of a supported file (≤5 MiB); may fail for
+#         some file types but still yields a Dropbox link on failure
+#   file_preview({ path })
+#       → thumbnail / preview URL and "open in Dropbox" experience
+#   list_shared_links({ path?, cursor? })
+#       → shared links for a path or the whole account
+#   get_shared_link_metadata({ url })
+#       → metadata for one shared link
+#   list_file_requests({ })
+#       → all active file requests on the account
+#   get_file_request({ id })
+#       → detail for one file request
+#   download_link({ path })
+#       → temporary direct-download URL (use only when content fetch needed
+#         for binary files with no text extraction available)
+source-mcp-tools: "list_folder, list_folder/continue, search, get_file_metadata, fetch, file_preview, list_shared_links, get_shared_link_metadata, list_file_requests, get_file_request, download_link"
+
+# Each Dropbox file is the atomic knowledge unit. Folders are lightweight
+# container entities. Shared links and file requests are first-class entities
+# with their own action signals.
+thread-unit-name: file
+
+bootstrap-window-default-days: "30"
+
+# One representative Dropbox folder name for SKILL description trigger phrases.
+example-channel: Work Projects
+
+# No user-initiated compose/send lane for this plugin (read + triage only).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Dropbox — derived from the connector's
+  # read-tool error paths and the hybrid cursor strategy above:
+  - dropbox-cursor-evicted         # file id deleted or access revoked; entry dropped from files map
+  - dropbox-merged-into            # cross-source dedup merged this file into an existing action
+  - dropbox-rate-limited           # connector returned 429 or quota-exceeded; fetch aborted for this run
+  - dropbox-content-unavailable    # fetch returned error for a specific file path; file skipped for body ingestion
+  - dropbox-cursor-malformed       # cursor JSON is present but not parseable; fall back to bootstrap discovery
+  - dropbox-folder-cursor-expired  # list_folder/continue returned expired-cursor error; re-issue list_folder from root
+  - dropbox-metadata-missing       # get_file_metadata returned incomplete or missing fields; fields omitted gracefully
+  - dropbox-shared-link-revoked    # get_shared_link_metadata returned not-found for a known shared link; entity closed

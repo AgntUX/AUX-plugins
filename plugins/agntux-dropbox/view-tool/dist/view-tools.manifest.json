@@ -1,0 +1,317 @@
+{
+  "plugin_slug": "agntux_dropbox",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-dropbox-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_dropbox_share",
+      "description": "Use this to create a shareable link for a Dropbox file. Shown when the user wants to share a file from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host renders into an interactive iframe shown above the next assistant turn. TRIGGER PHRASES: 'open the share composer for action {id}' → call with {action_id: id}. The tool reads the action file's '## Compose payload' body section and lifts file_path, file_name, file_type, existing_link, suggested_access, and suggested_expiry from disk. Do NOT pass those fields inline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "existing_link": {
+            "type": "string"
+          },
+          "suggested_access": {
+            "type": "string"
+          },
+          "suggested_expiry": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "file_path",
+          "file_name",
+          "file_type",
+          "existing_link",
+          "suggested_access",
+          "suggested_expiry"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-dropbox/share-file",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_dropbox_organize",
+      "description": "Use this to move or copy a Dropbox file or folder. Shown when the user wants to organize a file from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host renders into an interactive iframe shown above the next assistant turn. TRIGGER PHRASES: 'open the organize composer for action {id}' → call with {action_id: id}. The tool reads the action file's '## Compose payload' body section and lifts item_path, item_name, item_type, suggested_destination, and mode from disk. Do NOT pass those fields inline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "item_path": {
+            "type": "string"
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "item_type": {
+            "type": "string"
+          },
+          "suggested_destination": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "item_path",
+          "item_name",
+          "item_type",
+          "suggested_destination",
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-dropbox/organize-file",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_dropbox_new_folder",
+      "description": "Use this to create a new folder in Dropbox. Shown when the user wants to create a folder from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host renders into an interactive iframe shown above the next assistant turn. TRIGGER PHRASES: 'open the new-folder composer for action {id}' → call with {action_id: id}. The tool reads the action file's '## Compose payload' body section and lifts parent_path, parent_name, and suggested_folder_name from disk. Do NOT pass those fields inline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "parent_path": {
+            "type": "string"
+          },
+          "parent_name": {
+            "type": "string"
+          },
+          "suggested_folder_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "parent_path",
+          "parent_name",
+          "suggested_folder_name"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-dropbox/new-folder",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_dropbox_file_request",
+      "description": "Use this to create a Dropbox file request — a link people can use to upload files even without a Dropbox account. Shown when the user wants to request a file upload from an AgntUX action item. This tool is an MCP App view tool: it returns a structured data payload that the host renders into an interactive iframe shown above the next assistant turn. TRIGGER PHRASES: 'open the file-request composer for action {id}' → call with {action_id: id}. The tool reads the action file's '## Compose payload' body section and lifts destination_path, destination_name, suggested_title, and suggested_deadline from disk. Do NOT pass those fields inline.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "source_context": {
+            "type": "string"
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "destination_name": {
+            "type": "string"
+          },
+          "suggested_title": {
+            "type": "string"
+          },
+          "suggested_deadline": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "source_context",
+          "destination_path",
+          "destination_name",
+          "suggested_title",
+          "suggested_deadline"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-dropbox/file-request",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-dropbox/share-file",
+      "html_path": "view-tool/dist/ui-resources/share-file.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-dropbox/organize-file",
+      "html_path": "view-tool/dist/ui-resources/organize-file.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-dropbox/new-folder",
+      "html_path": "view-tool/dist/ui-resources/new-folder.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-dropbox/file-request",
+      "html_path": "view-tool/dist/ui-resources/file-request.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
