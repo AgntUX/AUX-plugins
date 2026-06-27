@@ -1,0 +1,77 @@
+# Per-plugin substitution map for agntux-hubspot.
+# Every {{placeholder}} in the canonical ingest skill template must appear here.
+# Run: node scripts/render-skill.mjs agntux-hubspot
+
+plugin-slug: agntux-hubspot
+plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+source-display-name: HubSpot
+source-slug: hubspot
+recommended-cadence: "Every 2 hours, 7am–7pm weekdays local"  # matches plugin.json
+
+# Cursor semantics — per-object-type ISO 8601 UTC high-water-mark map.
+# Each CRM object type (deal, task, ticket, contact, company, engagement) is
+# searched and cursored independently. The cursor is a JSON object whose keys
+# are object-type strings (lowercase, singular) and whose values are ISO 8601
+# UTC timestamps representing the newest hs_lastmodifieddate (or lastmodifieddate
+# for contacts) seen in the last successful run for that type. Absent key =
+# bootstrap mode for that object type. Cursor advances only when every action
+# write in the run succeeds (transactional). 30-second safety margin applied at
+# query time (subtract from the per-type cursor before passing to search filter).
+# Full shape and advance rules in reference/cursor.md.
+source-cursor-semantics: "Per-object-type hs_lastmodifieddate high-water-mark map. Cursor is a JSON object with one key per CRM object type (deal, task, ticket, contact, company, engagement) mapped to an ISO 8601 UTC timestamp (e.g. {\"deal\":\"2026-06-25T18:00:00.000Z\",\"task\":\"2026-06-25T17:45:00.000Z\"}). Absent key = bootstrap for that type. Incremental filter: pass cursor[type] − 30s as hs_lastmodifieddate filter to search_crm_objects per type. Advance each type's key independently to max(hs_lastmodifieddate) across all records of that type successfully processed this run. Advance only on full-run success (transactional); never regress."
+
+# HubSpot CRM MCP tool root names (host UUID-prefixes these at runtime).
+# Primary tools used by the ingest fetch step:
+#   search_crm_objects   — filtered search per object type (deals, tasks, tickets,
+#                          contacts, companies, engagements); returns paged ids + props.
+#   get_crm_objects      — batch fetch by ids for a given object type; use for
+#                          deep-fetching properties not returned by search.
+#   query_crm_data       — SQL-ish read; requires tool_guidance first; use selectively
+#                          for cross-object aggregations not served by search.
+#   search_properties    — discover property internal names for an object type.
+#   search_owners        — resolve hubspot owner records by email or name.
+#   get_user_details     — returns current authenticated owner id + object-type
+#                          availability; called once per run before any search.
+#   get_organization_details — returns portal id and account details; called once
+#                              on bootstrap to capture portal_id for deep links.
+source-mcp-tools: "search_crm_objects, get_crm_objects, query_crm_data, search_properties, search_owners"
+
+# Each HubSpot CRM record is the atomic unit of work (no thread concept).
+thread-unit-name: record
+
+bootstrap-window-default-days: "30"
+
+# One representative CRM scope name used in the SKILL description trigger phrase.
+example-channel: deals
+
+# No user-initiated view lane for the initial release (ingest-only;
+# actions resolve to "Open in HubSpot" deep links or log-activity flows).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from connector read-tool error paths):
+  - hubspot-cursor-evicted          # cursor JSON malformed or per-type entry irrecoverably stale; type reset to bootstrap
+  - hubspot-owner-unresolved        # get_user_details returned no owner id; cannot scope searches; run aborted
+  - hubspot-property-missing        # a required property internal name not present in search result; record skipped
+  - hubspot-rate-limited            # HubSpot API returned 429; fetch stopped for this run, retry next run
+  - hubspot-pagination-overflow     # per-type 200-record cap reached; remainder deferred to next run
+  - hubspot-stage-unresolved        # pipeline stage id not found in the run's stage-label map; fallback humanization applied

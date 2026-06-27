@@ -1,0 +1,94 @@
+# Marketplace lint hard-fails any string field over its cap (E05) and any
+# category outside the closed enum (E04). Caps: tagline ≤80, description
+# ≤500, ui_components[].title ≤60, ui_components[].purpose ≤200,
+# proposed_schema.{entity_subtypes,action_classes}[].description ≤200,
+# cursor_semantics ≤200, source_id_format ≤120. Categories (pick 1–3):
+# productivity, communication, crm, project-management, developer-tools,
+# analytics, notes-knowledge, scheduling, calendar (meta is agntux-core only).
+# Write for non-technical users: lead with the benefit, keep it short, and
+# avoid jargon (ingest, cursor, MCP, schema, entities, knowledge store,
+# $ARGUMENTS). The caps are ceilings, not targets — shorter is better.
+tagline: "Manage HubSpot deals, tasks, and tickets without leaving AgntUX."
+description: |
+  Watches your HubSpot account for deals approaching close dates, tasks coming due, and tickets needing replies. See recent customer activity and who's assigned to what, then move deals between stages, complete or reschedule tasks, log notes on records, and reassign work — all without switching to HubSpot.
+categories:
+  - crm
+  - productivity
+keywords:
+  - hubspot
+  - crm
+  - deals
+  - tasks
+  - tickets
+  - sales
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "/agntux-hubspot"
+    purpose: "Check for new deals, tasks, and tickets. Or ask about your HubSpot records to search and find information."
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: hubspot
+  display_name: "HubSpot"
+ui_components:
+  - name: move-deal-stage
+    title: "Move deal to a new stage"
+    purpose: "Transition a deal between sales pipeline stages."
+    view_tool: agntux_hubspot_move_deal_view
+    resource_uri: "ui://agntux-hubspot/move-deal"
+  - name: update-task
+    title: "Complete or reschedule task"
+    purpose: "Mark a task complete or set a new due date."
+    view_tool: agntux_hubspot_task_view
+    resource_uri: "ui://agntux-hubspot/task"
+  - name: log-activity
+    title: "Log note or activity"
+    purpose: "Add a note, call, email, or meeting to a customer record."
+    view_tool: agntux_hubspot_activity_view
+    resource_uri: "ui://agntux-hubspot/activity"
+  - name: reassign-record
+    title: "Reassign to another owner"
+    purpose: "Transfer a deal, ticket, or contact to a team member."
+    view_tool: agntux_hubspot_reassign_view
+    resource_uri: "ui://agntux-hubspot/reassign"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: deal
+      description: "A sales opportunity or deal in your HubSpot pipeline."
+    - subtype: contact
+      description: "A person in your HubSpot database."
+    - subtype: company
+      description: "An organization in your HubSpot database."
+    - subtype: task
+      description: "A task or reminder assigned in HubSpot."
+    - subtype: ticket
+      description: "A customer support ticket in HubSpot."
+    - subtype: engagement
+      description: "A note, call, email, or meeting logged on a record."
+  action_classes:
+    - class: deadline
+      description: "A deal close date or task due date approaching soon."
+    - class: response-needed
+      description: "A ticket or assignment waiting for your action."
+    - class: knowledge-update
+      description: "A status change or update on a deal, contact, or ticket."
+    - class: risk
+      description: "A stale or stuck deal, or an overdue task."
+    - class: opportunity
+      description: "A newly assigned deal, contact, or task to follow up on."
+    - class: other
+      description: "A HubSpot event or notification that doesn't fit another class."
+  cursor_semantics: "Per-entity-type cursor map tracking the most recent hs_lastmodifieddate; advances to mark processed objects."
+  source_id_format: "`{object_type}#{hs_object_id}` — HubSpot object IDs are unique per object type."
