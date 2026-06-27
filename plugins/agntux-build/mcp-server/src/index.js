@@ -484,6 +484,20 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
       // route to OUR stderr only — never our stdout, which is the JSON-RPC channel.
       child.stdout.on("data", (d) => { outTail = keepTail(outTail, d); process.stderr.write(d); });
       child.stderr.on("data", (d) => { errTail = keepTail(errTail, d); process.stderr.write(d); });
+      // The crash verdict must not be computed until the child has exited AND
+      // both stdio pipes have fully drained. When the worker dies by signal
+      // immediately after writing (a native abort, or the TEST_ABORT hook), the
+      // child 'close' event can fire before the LAST stderr 'data' chunk is
+      // delivered — dropping the END of the stream, which is exactly the crash
+      // stack we need to surface (and made this path's verdict test flaky). Gate
+      // resolution on all three. 'close' (not 'end') also covers an errored or
+      // destroyed stream, so a pipe fault can't strand us waiting forever.
+      let exited = false;
+      let stdoutDone = false;
+      let stderrDone = false;
+      const settleIfReady = () => { if (exited && stdoutDone && stderrDone) resolve(); };
+      child.stdout.on("close", () => { stdoutDone = true; settleIfReady(); });
+      child.stderr.on("close", () => { stderrDone = true; settleIfReady(); });
       // Watchdog: a wedged grandchild (npm/tsc/vitest/playwright) would never
       // let the worker close → the call would hang forever and the ticker would
       // emit "validating…" indefinitely. Kill it and return an honest timeout.
@@ -514,7 +528,7 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
         verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `spawn failed: ${errStr(e)}`);
         resolve();
       });
-      child.on("close", (code, signal) => { childCode = code; childSignal = signal; resolve(); });
+      child.on("close", (code, signal) => { childCode = code; childSignal = signal; exited = true; settleIfReady(); });
     });
   } catch (e) {
     verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `worker error: ${errStr(e)}`);

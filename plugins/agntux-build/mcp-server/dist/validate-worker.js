@@ -135,18 +135,31 @@ process.on("unhandledRejection", (e) => {
   // parent's report. We emit a head sentinel + filler exceeding the parent's tail
   // cap + the marker LAST, then kill: this also exercises the parent KEEPING the
   // END of the stream (where a real crash stack prints) while truncating the
-  // head. writeSync(2) is synchronous even on a pipe, so it all lands in the pipe
-  // buffer before the kill. SIGKILL (not SIGABRT) is deliberate — equally
-  // uncatchable and equally yields close(signal=…), but emits NO OS crash report
-  // / core dump on every test run.
+  // head. A child's piped stderr is NON-BLOCKING on Linux, so a bare writeSync of
+  // the >8 KB filler partial-writes / throws EAGAIN and silently drops the bytes
+  // written LAST (the marker) — the exact CI flake this hook produced (green on
+  // macOS's blocking pipes, red on Linux). writeAllSync loops on the returned
+  // byte count and retries EAGAIN so every byte lands in the pipe buffer before
+  // the kill. SIGKILL (not SIGABRT) is deliberate — equally uncatchable and
+  // equally yields close(signal=…), but emits NO OS crash report / core dump on
+  // every test run.
   if (process.env.AGNTUX_VALIDATE_WORKER_TEST_ABORT) {
-    try {
-      writeSync(2, "AGNTUX_VALIDATE_WORKER_TEST_HEAD_SENTINEL\n");
-      writeSync(2, `${"x".repeat(12000)}\n`);
-      writeSync(2, "AGNTUX_VALIDATE_WORKER_TEST_ABORT_MARKER\n");
-    } catch {
-      /* best-effort */
-    }
+    const writeAllSync = (fd, str) => {
+      let buf = Buffer.from(str);
+      while (buf.length) {
+        let n = 0;
+        try {
+          n = writeSync(fd, buf);
+        } catch (e) {
+          if (e && e.code === "EAGAIN") continue; // pipe full; the parent is draining — retry
+          break; // any other error: best-effort, give up
+        }
+        buf = buf.subarray(n);
+      }
+    };
+    writeAllSync(2, "AGNTUX_VALIDATE_WORKER_TEST_HEAD_SENTINEL\n");
+    writeAllSync(2, `${"x".repeat(12000)}\n`);
+    writeAllSync(2, "AGNTUX_VALIDATE_WORKER_TEST_ABORT_MARKER\n");
     process.kill(process.pid, "SIGKILL");
     await new Promise(() => {}); // never resolves; the signal terminates us
   }
