@@ -40,14 +40,48 @@ export declare const syncInstalledPluginsTool: {
         required: string[];
     };
     handler(args: Record<string, unknown>): Promise<{
+        isError: boolean;
         content: {
             type: "text";
             text: string;
         }[];
         structuredContent: {
             ok: boolean;
+            written: boolean;
+            valid: number;
+            received?: undefined;
+            dropped_count?: undefined;
+            dropped?: undefined;
+        };
+    } | {
+        isError: boolean;
+        content: {
+            type: "text";
+            text: string;
+        }[];
+        structuredContent: {
+            ok: boolean;
+            written: boolean;
+            received: number;
+            valid: number;
+            dropped_count: number;
+            dropped: string[];
+        };
+    } | {
+        content: {
+            type: "text";
+            text: string;
+        }[];
+        structuredContent: {
+            dropped_count?: number | undefined;
+            dropped?: string[] | undefined;
+            ok: boolean;
+            written: boolean;
             path: string;
             plugin_count: number;
+            valid?: undefined;
+            received?: undefined;
         };
+        isError?: undefined;
     }>;
 };

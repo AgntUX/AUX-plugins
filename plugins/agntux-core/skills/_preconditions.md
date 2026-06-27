@@ -57,8 +57,12 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
 - **Sync to `~/.agntux/installed-plugins.json`** — call
   `agntux_core_sync_installed_plugins` with the COMPLETE host-enumerated
   list (every plugin returned by `mcp__plugins__list_plugins`, NOT the
-  diff added to `## Installed`). Pass an empty `plugins: []` when the
-  host returns zero — the tool REPLACES, never patches. The agntux-teams
+  diff added to `## Installed`), each entry `{ slug, marketplace }`
+  (default `marketplace: agntux`). Pass an empty `plugins: []` when the
+  host returns zero — the tool REPLACES, never patches, and an explicit
+  empty array is a deliberate no-op. The tool also accepts bare slug
+  strings, but a non-empty call with NO valid entries returns an error
+  and writes nothing — fix the shape and retry ONCE. The agntux-teams
   daemon watches this file and POSTs the snapshot to AgntUX so the
   remote MCP connector surfaces each installed plugin's view-tools.
   Non-blocking AND silent on failure: if the tool fails (e.g.

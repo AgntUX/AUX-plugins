@@ -16809,6 +16809,8 @@ var MARKETPLACE_RE = SLUG_RE;
 var MAX_PLUGINS = 256;
 var MAX_VERSION_LEN = 64;
 var MAX_SHA_LEN = 128;
+var DEFAULT_MARKETPLACE = "agntux";
+var MAX_REPORTED_DROPS = 25;
 function resolveHomeRoot() {
   return process.env.AGNTUX_HOME_OVERRIDE ?? homedir();
 }
@@ -16818,15 +16820,46 @@ function installedPluginsPath() {
 function installedPluginsDir() {
   return join(resolveHomeRoot(), ".agntux");
 }
+function describeValue(value) {
+  let s;
+  try {
+    const json = JSON.stringify(value);
+    s = json === void 0 ? String(value) : json;
+  } catch {
+    s = String(value);
+  }
+  return s.length > 120 ? s.slice(0, 117) + "..." : s;
+}
 function sanitizeEntry(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (typeof raw === "string") {
+    const slug2 = raw.trim();
+    if (!SLUG_RE.test(slug2)) {
+      return { reason: `bare slug ${describeValue(raw)} is not a valid plugin slug` };
+    }
+    return { entry: { slug: slug2, marketplace: DEFAULT_MARKETPLACE } };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {
+      reason: `entry ${describeValue(raw)} is neither an object nor a slug string`
+    };
+  }
   const obj = raw;
-  if (typeof obj.slug !== "string") return null;
-  if (typeof obj.marketplace !== "string") return null;
+  if (typeof obj.slug !== "string") {
+    return { reason: `entry ${describeValue(raw)} is missing a string \`slug\`` };
+  }
   const slug = obj.slug.trim();
-  const marketplace = obj.marketplace.trim();
-  if (!SLUG_RE.test(slug)) return null;
-  if (!MARKETPLACE_RE.test(marketplace)) return null;
+  if (!SLUG_RE.test(slug)) {
+    return { reason: `slug ${describeValue(obj.slug)} is not a valid plugin slug` };
+  }
+  let marketplace = DEFAULT_MARKETPLACE;
+  if (typeof obj.marketplace === "string" && obj.marketplace.trim().length > 0) {
+    marketplace = obj.marketplace.trim();
+    if (!MARKETPLACE_RE.test(marketplace)) {
+      return {
+        reason: `marketplace ${describeValue(obj.marketplace)} (for slug \`${slug}\`) is not a valid marketplace name`
+      };
+    }
+  }
   const out = { slug, marketplace };
   if (typeof obj.version === "string") {
     const v = obj.version.trim();
@@ -16836,21 +16869,36 @@ function sanitizeEntry(raw) {
     const s = obj.source_sha.trim();
     if (s.length > 0 && s.length <= MAX_SHA_LEN) out.source_sha = s;
   }
-  return out;
+  return { entry: out };
 }
 function sanitizePlugins(raw) {
-  if (!Array.isArray(raw)) return [];
   const seen = /* @__PURE__ */ new Set();
   const out = [];
+  const dropped = [];
+  let droppedCount = 0;
   for (const item of raw) {
-    const entry = sanitizeEntry(item);
-    if (!entry) continue;
+    const result = sanitizeEntry(item);
+    if ("reason" in result) {
+      droppedCount++;
+      if (dropped.length < MAX_REPORTED_DROPS) {
+        dropped.push({ value: item, reason: result.reason });
+      }
+      continue;
+    }
+    const entry = result.entry;
     if (seen.has(entry.slug)) continue;
     seen.add(entry.slug);
     out.push(entry);
     if (out.length >= MAX_PLUGINS) break;
   }
-  return out;
+  return { plugins: out, dropped, droppedCount };
+}
+function formatDropped(dropped, droppedCount) {
+  const lines = dropped.map((d) => `  - ${describeValue(d.value)}: ${d.reason}`);
+  if (droppedCount > dropped.length) {
+    lines.push(`  \u2026and ${droppedCount - dropped.length} more`);
+  }
+  return lines.join("\n");
 }
 var CORE_SLUG = "agntux-core";
 var CORE_MARKETPLACE = "agntux";
@@ -16873,7 +16921,7 @@ function writeInstalledPluginsFile(file) {
   return path;
 }
 var syncInstalledPluginsTool = {
-  description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically \u2014 pass the COMPLETE enumerated list, not a patch. Whenever a non-empty set is written, `agntux-core` is included even if omitted from the call (it is self-evidently installed whenever this tool runs), so the hub's own view-tools are never accidentally dropped. An empty list is left empty \u2014 a deliberate no-op snapshot.",
+  description: "Persist the user's currently-installed Claude plugin set to `~/.agntux/installed-plugins.json`. Called by the agntux-core skill after it enumerates plugins via the host's `mcp__plugins__list_plugins` tool. The agntux-teams daemon watches this file with chokidar and POSTs the snapshot to the AgntUX server; the server uses the per-user install ledger to know which plugins' view-tools to expose on the remote MCP connector. REPLACES the file's `plugins[]` array atomically \u2014 pass the COMPLETE enumerated list, not a patch. Whenever a non-empty set is written, `agntux-core` is included even if omitted from the call (it is self-evidently installed whenever this tool runs), so the hub's own view-tools are never accidentally dropped. An empty list is left empty \u2014 a deliberate no-op snapshot. Each entry may be `{ slug, marketplace }` or a bare slug string; a missing `marketplace` defaults to `agntux`. If a non-empty call contains NO valid entries (all malformed) the tool returns an error and writes NOTHING rather than clobbering the manifest to empty \u2014 fix the entry shape and retry.",
   inputSchema: {
     type: "object",
     properties: {
@@ -16895,24 +16943,86 @@ var syncInstalledPluginsTool = {
     required: ["plugins"]
   },
   async handler(args) {
-    const plugins = ensureCorePresent(sanitizePlugins(args.plugins));
+    let rawArg = args.plugins;
+    if (typeof rawArg === "string") {
+      try {
+        rawArg = JSON.parse(rawArg);
+      } catch {
+      }
+    }
+    const isEmptyNoop = rawArg === void 0 || rawArg === null || Array.isArray(rawArg) && rawArg.length === 0;
+    if (isEmptyNoop) {
+      const file2 = {
+        schema_version: 1,
+        generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+        plugins: []
+      };
+      const path2 = writeInstalledPluginsFile(file2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `installed-plugins.json saved (0 plugin(s)) at ${path2}`
+          }
+        ],
+        structuredContent: { ok: true, written: true, path: path2, plugin_count: 0 }
+      };
+    }
+    if (!Array.isArray(rawArg)) {
+      const text2 = `agntux_core_sync_installed_plugins: the \`plugins\` argument must be an array (got ${describeValue(rawArg)}), so the manifest was NOT written \u2014 your existing ~/.agntux/installed-plugins.json is unchanged.
+
+Pass an array of { slug, marketplace } objects (marketplace defaults to "agntux" if omitted), or bare slug strings. Example:
+  { "plugins": [ { "slug": "agntux-core", "marketplace": "agntux" }, { "slug": "agntux-slack" } ] }`;
+      return {
+        isError: true,
+        content: [{ type: "text", text: text2 }],
+        structuredContent: { ok: false, written: false, valid: 0 }
+      };
+    }
+    const { plugins: sanitized, dropped, droppedCount } = sanitizePlugins(rawArg);
+    if (sanitized.length === 0) {
+      const text2 = `agntux_core_sync_installed_plugins: received ${rawArg.length} plugin item(s) but NONE were valid, so the manifest was NOT written \u2014 your existing ~/.agntux/installed-plugins.json is unchanged.
+
+Each entry must be { slug, marketplace } (marketplace defaults to "agntux" if omitted) or a bare slug string. Dropped entries:
+${formatDropped(dropped, droppedCount)}
+
+Retry with the corrected shape, e.g.:
+  { "plugins": [ { "slug": "agntux-core", "marketplace": "agntux" }, { "slug": "agntux-slack" } ] }`;
+      return {
+        isError: true,
+        content: [{ type: "text", text: text2 }],
+        structuredContent: {
+          ok: false,
+          written: false,
+          received: rawArg.length,
+          valid: 0,
+          dropped_count: droppedCount,
+          dropped: dropped.map((d) => d.reason)
+        }
+      };
+    }
+    const plugins = ensureCorePresent(sanitized);
     const file = {
       schema_version: 1,
       generated_at: (/* @__PURE__ */ new Date()).toISOString(),
       plugins
     };
     const path = writeInstalledPluginsFile(file);
+    let text = `installed-plugins.json saved (${plugins.length} plugin(s)) at ${path}`;
+    if (droppedCount > 0) {
+      text += `
+
+WARNING: ${droppedCount} entr${droppedCount === 1 ? "y was" : "ies were"} dropped and NOT included:
+${formatDropped(dropped, droppedCount)}`;
+    }
     return {
-      content: [
-        {
-          type: "text",
-          text: `installed-plugins.json saved (${plugins.length} plugin(s)) at ${path}`
-        }
-      ],
+      content: [{ type: "text", text }],
       structuredContent: {
         ok: true,
+        written: true,
         path,
-        plugin_count: plugins.length
+        plugin_count: plugins.length,
+        ...droppedCount > 0 ? { dropped_count: droppedCount, dropped: dropped.map((d) => d.reason) } : {}
       }
     };
   }

@@ -161,19 +161,25 @@ describe("agntux_core_sync_installed_plugins — sanitization", () => {
     expect(parsed.plugins.map((p) => p.slug)).toEqual(["agntux-core"]);
   });
 
-  it("rejects entries with empty marketplace", async () => {
-    // Use a non-core slug as the bad entry so the agntux-core floor
-    // (which always re-adds the hub) doesn't mask the rejection.
+  it("defaults a missing or empty marketplace to agntux (kept, not dropped)", async () => {
+    // The tool implements the documented "default marketplace to agntux
+    // when unknown" contract: an empty or omitted marketplace is filled
+    // in, not dropped. (Non-core slugs so the agntux-core floor doesn't
+    // mask the result.)
     await syncInstalledPluginsTool.handler({
       plugins: [
-        { slug: "agntux-slack", marketplace: "" },
-        { slug: "agntux-build", marketplace: "agntux" },
+        { slug: "agntux-slack", marketplace: "" }, // empty string
+        { slug: "agntux-build" }, // marketplace omitted entirely
       ],
     });
-    const parsed = readFile() as { plugins: Array<{ slug: string }> };
-    const slugs = parsed.plugins.map((p) => p.slug);
-    expect(slugs).not.toContain("agntux-slack");
-    expect(slugs).toContain("agntux-build");
+    const parsed = readFile() as {
+      plugins: Array<{ slug: string; marketplace: string }>;
+    };
+    const bySlug = Object.fromEntries(
+      parsed.plugins.map((p) => [p.slug, p.marketplace]),
+    );
+    expect(bySlug["agntux-slack"]).toBe("agntux");
+    expect(bySlug["agntux-build"]).toBe("agntux");
   });
 
   it("dedupes duplicate slug entries — first occurrence wins", async () => {
@@ -233,10 +239,17 @@ describe("agntux_core_sync_installed_plugins — sanitization", () => {
     expect(parsed.plugins).toEqual([]);
   });
 
-  it("non-array plugins arg is treated as empty (no-op snapshot)", async () => {
-    await syncInstalledPluginsTool.handler({ plugins: "not-an-array" });
-    const parsed = readFile() as { plugins: unknown[] };
-    expect(parsed.plugins).toEqual([]);
+  it("non-array, non-empty plugins arg fails loud and writes nothing", async () => {
+    // Old behavior silently wrote `plugins: []` and reported success. A
+    // non-array truthy value is now a caller error: nothing is written so
+    // a previously-good manifest is never clobbered.
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: "not-an-array",
+    });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    expect(
+      existsSync(join(tempHome, ".agntux", "installed-plugins.json")),
+    ).toBe(false);
   });
 });
 
@@ -314,6 +327,146 @@ describe("agntux_core_sync_installed_plugins — agntux-core floor", () => {
     await syncInstalledPluginsTool.handler({ plugins: [] });
     const parsed = readFile() as { plugins: unknown[] };
     expect(parsed.plugins).toEqual([]);
+  });
+});
+
+describe("agntux_core_sync_installed_plugins — tolerant parsing + fail-loud", () => {
+  function manifestExists(): boolean {
+    return existsSync(join(tempHome, ".agntux", "installed-plugins.json"));
+  }
+
+  it("accepts bare slug strings, defaulting marketplace to agntux", async () => {
+    await syncInstalledPluginsTool.handler({
+      plugins: ["agntux-slack", "agntux-build"],
+    });
+    const parsed = readFile() as {
+      plugins: Array<{ slug: string; marketplace: string }>;
+    };
+    const bySlug = Object.fromEntries(
+      parsed.plugins.map((p) => [p.slug, p.marketplace]),
+    );
+    expect(bySlug["agntux-slack"]).toBe("agntux");
+    expect(bySlug["agntux-build"]).toBe("agntux");
+    expect(bySlug["agntux-core"]).toBe("agntux"); // floor still fires
+  });
+
+  it("parses a JSON-stringified plugins array", async () => {
+    await syncInstalledPluginsTool.handler({
+      plugins: JSON.stringify([{ slug: "agntux-slack", marketplace: "agntux" }]),
+    });
+    const parsed = readFile() as { plugins: Array<{ slug: string }> };
+    const slugs = parsed.plugins.map((p) => p.slug);
+    expect(slugs).toContain("agntux-slack");
+    expect(slugs).toContain("agntux-core");
+  });
+
+  it("preserves an explicitly-provided valid marketplace (no coercion)", async () => {
+    await syncInstalledPluginsTool.handler({
+      plugins: [{ slug: "agntux-core", marketplace: "thirdparty" }],
+    });
+    const parsed = readFile() as {
+      plugins: Array<{ slug: string; marketplace: string }>;
+    };
+    const core = parsed.plugins.find((p) => p.slug === "agntux-core");
+    expect(core?.marketplace).toBe("thirdparty");
+  });
+
+  it("treats an absent plugins arg as a deliberate empty no-op (not an error)", async () => {
+    const res = await syncInstalledPluginsTool.handler({});
+    expect((res as { isError?: boolean }).isError).toBeFalsy();
+    const parsed = readFile() as { plugins: unknown[] };
+    expect(parsed.plugins).toEqual([]);
+  });
+
+  it("fails loud (writes nothing) when a non-empty list has zero valid entries", async () => {
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: [{ name: "agntux-slack" }, 42, "Bad Slug!"],
+    });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    const sc = (res as { structuredContent?: Record<string, unknown> })
+      .structuredContent!;
+    expect(sc.written).toBe(false);
+    expect(sc.received).toBe(3);
+    expect(Array.isArray(sc.dropped)).toBe(true);
+    expect((sc.dropped as unknown[]).length).toBe(3);
+    expect(manifestExists()).toBe(false);
+  });
+
+  it("fails loud on a non-array, non-empty plugins arg (object)", async () => {
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: { slug: "agntux-core", marketplace: "agntux" },
+    });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    expect(manifestExists()).toBe(false);
+  });
+
+  it("does not clobber an existing manifest when a later call is all-invalid", async () => {
+    await syncInstalledPluginsTool.handler({
+      plugins: [{ slug: "agntux-slack", marketplace: "agntux" }],
+    });
+    const before = readFile();
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: ["Bad Slug!"],
+    });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    expect(readFile()).toEqual(before); // unchanged
+  });
+
+  it("writes valid entries and reports dropped ones on a partial-drop call", async () => {
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: [
+        { slug: "agntux-slack", marketplace: "agntux" },
+        { slug: "INVALID SLUG", marketplace: "agntux" },
+      ],
+    });
+    expect((res as { isError?: boolean }).isError).toBeFalsy();
+    const parsed = readFile() as { plugins: Array<{ slug: string }> };
+    expect(parsed.plugins.map((p) => p.slug)).toContain("agntux-slack");
+    const sc = (res as { structuredContent?: Record<string, unknown> })
+      .structuredContent!;
+    expect(Array.isArray(sc.dropped)).toBe(true);
+    expect((sc.dropped as unknown[]).length).toBe(1);
+  });
+
+  it("treats a provided-but-malformed marketplace as an error, never coercing it to agntux", async () => {
+    // The default only fills an ABSENT/empty marketplace. A non-empty value
+    // that fails the format is a real caller error — it must be dropped (and
+    // here, being the sole entry, fail the whole call) rather than silently
+    // rewritten to "agntux".
+    const res = await syncInstalledPluginsTool.handler({
+      plugins: [{ slug: "agntux-slack", marketplace: "Bad Mkt!" }],
+    });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    const sc = (res as { structuredContent?: Record<string, unknown> })
+      .structuredContent!;
+    expect(sc.written).toBe(false);
+    expect((sc.dropped as string[]).join(" ")).toContain("marketplace");
+    expect(
+      existsSync(join(tempHome, ".agntux", "installed-plugins.json")),
+    ).toBe(false);
+  });
+
+  it("parses a JSON-stringified EMPTY array as a deliberate empty no-op", async () => {
+    const res = await syncInstalledPluginsTool.handler({ plugins: "[]" });
+    expect((res as { isError?: boolean }).isError).toBeFalsy();
+    const parsed = readFile() as { plugins: unknown[] };
+    expect(parsed.plugins).toEqual([]);
+  });
+
+  it("caps the reported drop sample but reports the true total on a huge all-invalid input", async () => {
+    // Guards the unbounded-error-envelope hardening: the rendered/sampled
+    // `dropped` list is clamped, while `dropped_count` carries the real total.
+    const huge = Array.from({ length: 1000 }, () => ({ not: "a-plugin" }));
+    const res = await syncInstalledPluginsTool.handler({ plugins: huge });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    const sc = (res as { structuredContent?: Record<string, unknown> })
+      .structuredContent!;
+    expect(sc.received).toBe(1000);
+    expect(sc.dropped_count).toBe(1000);
+    expect((sc.dropped as unknown[]).length).toBeLessThanOrEqual(25);
+    expect(
+      existsSync(join(tempHome, ".agntux", "installed-plugins.json")),
+    ).toBe(false);
   });
 });
 
