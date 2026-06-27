@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-27T02:06:57.666Z",
+  "generated_at": "2026-06-27T03:47:20.750Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -2097,6 +2097,104 @@
         ],
         "cursor_semantics": "Per-resource timestamp map: errors by last_seen, alerts by fired_at, experiments by updated_at, comments by created_at, inbox reports by created_at. Cursor advances independently per resource.",
         "source_id_format": "`posthog:{project_id}:{resource_type}:{resource_id}` — e.g. `posthog:12345:error:789`, stable across updates."
+      }
+    },
+    "agntux-sentry": {
+      "tagline": "See the Sentry issues that need you, right in AgntUX.",
+      "description": "Brings your Sentry issues into AgntUX so the errors and problems that need you show up in one place. See new, unresolved, and escalating issues — then resolve, ignore/archive, or assign them without leaving AgntUX.\n",
+      "categories": [
+        "developer-tools"
+      ],
+      "keywords": [
+        "sentry",
+        "errors",
+        "monitoring",
+        "observability",
+        "incidents"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "sentry",
+        "display_name": "Sentry"
+      },
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-sentry",
+          "purpose": "Type /agntux-sentry to check for new issues now. Or ask a question about your Sentry — it just looks things up."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "resolve-issue",
+          "title": "Resolve issue",
+          "purpose": "Mark a Sentry issue as resolved.",
+          "view_tool": "agntux_sentry_resolve_view",
+          "resource_uri": "ui://agntux-sentry/resolve"
+        },
+        {
+          "name": "ignore-issue",
+          "title": "Ignore issue",
+          "purpose": "Archive or ignore a Sentry issue.",
+          "view_tool": "agntux_sentry_ignore_view",
+          "resource_uri": "ui://agntux-sentry/ignore"
+        },
+        {
+          "name": "assign-issue",
+          "title": "Assign issue",
+          "purpose": "Assign a Sentry issue to a team member or team.",
+          "view_tool": "agntux_sentry_assign_view",
+          "resource_uri": "ui://agntux-sentry/assign"
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "sentry-issue",
+            "description": "A Sentry issue — a grouped error or problem affecting your apps.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "A new or escalating Sentry issue that needs triage or action."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "An informational signal from a Sentry issue (status change, comment added)."
+          }
+        ],
+        "cursor_semantics": "Per-project incremental cursor; advances to the newest issue last-seen timestamp. Issues re-surface if they escalate after being archived.",
+        "source_id_format": "`{short_id}` — Sentry's short issue id, project-prefixed and globally unique (e.g. `agntux-app-1`)."
       }
     },
     "agntux-slack": {
