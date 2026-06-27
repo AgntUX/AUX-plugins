@@ -1,0 +1,971 @@
+/**
+ * MCP Apps adapter
+ *
+ * Inlined from @mcp-apps-kit/ui v0.5.0
+ * Source: https://github.com/agntux/mcp-apps-kit
+ * Date: 2026-01-24
+ *
+ * Implements the ProtocolAdapter interface for MCP Apps hosts.
+ * Uses SimpleMcpApp — a minimal, zero-dependency, CSP-compliant
+ * implementation of the MCP Apps JSON-RPC/postMessage protocol that
+ * replaces @modelcontextprotocol/ext-apps to avoid bundling the full
+ * SDK dependency tree (which pulls in Zod and triggers CSP violations
+ * in restrictive host environments).
+ *
+ * @internal
+ */
+
+import { SimpleMcpApp as App } from '../simple-mcp-app.js';
+import { UIError, UIErrorCode } from '../errors.js';
+import type { ContentBlock } from '../types.js';
+
+type ResourceReadResult = {
+  contents: Array<{
+    uri: string;
+    mimeType?: string;
+    text?: string;
+    blob?: string; // base64
+  }>;
+};
+
+type ExtAppsLogLevel =
+  | 'debug'
+  | 'info'
+  | 'notice'
+  | 'warning'
+  | 'error'
+  | 'critical'
+  | 'alert'
+  | 'emergency';
+
+import type { ProtocolAdapter } from './types.js';
+import type {
+  HostContext,
+  ResourceContent,
+  HostCapabilities,
+  HostVersion,
+  SizeChangedParams,
+  CallToolHandler,
+  ListToolsHandler,
+  UpdateModelContextParams,
+  ContainerDimensions,
+} from '../types.js';
+
+/**
+ * Options for configuring the MCP adapter
+ */
+export type McpAdapterOptions = {
+  /**
+   * Enable automatic size change notifications
+   *
+   * When enabled, the UI automatically reports its size changes to the host
+   * using a ResizeObserver on document.body and document.documentElement.
+   * The host can then resize the UI container accordingly.
+   *
+   * @default true
+   */
+  autoResize?: boolean;
+};
+
+/**
+ * Adapter for MCP Apps hosts
+ *
+ * @internal
+ *
+ * Communicates with the host via postMessage through iframe boundary.
+ * State management is a graceful no-op (not supported in MCP Apps).
+ */
+export class McpAdapter implements ProtocolAdapter {
+  private connected = false;
+  private context: HostContext;
+  private toolResultHandlers: Set<(result: unknown) => void> = new Set();
+  private toolInputHandlers: Set<(input: unknown) => void> = new Set();
+  private toolInputPartialHandlers: Set<(input: unknown) => void> = new Set();
+  private toolCancelledHandlers: Set<(reason?: string) => void> = new Set();
+  private hostContextHandlers: Set<(context: HostContext) => void> = new Set();
+  private teardownHandlers: Set<(reason?: string) => void> = new Set();
+  private currentToolInput?: Record<string, unknown>;
+  private currentToolOutput?: Record<string, unknown>;
+  private currentToolMeta?: Record<string, unknown>;
+  private currentResourceMeta?: Record<string, unknown>;
+  private resourceMetaHandlers: Set<
+    (meta: Record<string, unknown> | undefined) => void
+  > = new Set();
+  private app?: App;
+  private callToolHandler?: CallToolHandler;
+  private listToolsHandler?: ListToolsHandler;
+  private readonly autoResize: boolean;
+
+  constructor(options?: McpAdapterOptions) {
+    this.context = this.createDefaultContext();
+    this.autoResize = options?.autoResize ?? true;
+  }
+
+  private createDefaultContext(): HostContext {
+    const isBrowser = typeof window !== 'undefined';
+
+    return {
+      theme: 'light',
+      displayMode: 'inline',
+      availableDisplayModes: ['inline', 'fullscreen'],
+      viewport: {
+        width: isBrowser ? window.innerWidth : 800,
+        height: isBrowser ? window.innerHeight : 600,
+      },
+      locale: isBrowser ? navigator.language : 'en-US',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      platform: 'desktop',
+    };
+  }
+
+  // === Lifecycle ===
+
+  async connect(): Promise<void> {
+    if (this.connected) return;
+
+    // SSR / tests (no window): behave as connected but inert.
+    if (typeof window === 'undefined') {
+      this.connected = true;
+      return;
+    }
+
+    // Instantiate App and register handlers BEFORE connecting.
+    // Declare tools capability to enable calling server tools and registering bidirectional tool handlers.
+    this.app = new App(
+      { name: 'apps-client', version: '0.0.0' },
+      { tools: {} },
+      { autoResize: this.autoResize },
+    );
+
+    this.app.onerror = (err) => {
+      this.log('error', err);
+    };
+
+    this.app.onhostcontextchanged = (params) => {
+      // ext-apps sends { hostContext }, but keep this tolerant.
+      const hostContext =
+        (params as { hostContext?: unknown }).hostContext ??
+        (params as unknown);
+      this.context = this.mapHostContext(hostContext);
+      this.currentToolMeta = this.extractToolMeta(hostContext);
+
+      // Hosts may piggyback the resource `_meta` envelope on the
+      // host-context payload (P2a §3.1: `_meta.license` channel). Pull
+      // it through whenever we see it.
+      if (
+        hostContext &&
+        typeof hostContext === 'object' &&
+        '_meta' in (hostContext as Record<string, unknown>)
+      ) {
+        const meta = (hostContext as Record<string, unknown>)._meta;
+        if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+          this.setResourceMetaInternal(meta as Record<string, unknown>);
+        }
+      }
+
+      for (const handler of this.hostContextHandlers) {
+        handler(this.context);
+      }
+    };
+
+    this.app.ontoolinput = (params) => {
+      const args = (params as { arguments?: Record<string, unknown> })
+        .arguments;
+      if (args) {
+        this.currentToolInput = args;
+        for (const handler of this.toolInputHandlers) {
+          handler(args);
+        }
+      }
+    };
+
+    // Handle partial/streaming tool input
+    this.app.ontoolinputpartial = (params) => {
+      const args = (params as { arguments?: Record<string, unknown> })
+        .arguments;
+      if (args) {
+        for (const handler of this.toolInputPartialHandlers) {
+          handler(args);
+        }
+      }
+    };
+
+    // Handle tool calls from host (bidirectional support)
+    this.app.oncalltool = async (params) => {
+      const { name, arguments: args } = params as {
+        name: string;
+        arguments?: Record<string, unknown>;
+      };
+      try {
+        if (this.callToolHandler) {
+          const result = await this.callToolHandler(name, args ?? {});
+          return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        }
+        return {
+          content: [
+            { type: 'text', text: `No handler registered for tool: ${name}` },
+          ],
+          isError: true,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: 'text', text: message }],
+          isError: true,
+        };
+      }
+    };
+
+    // Handle list tools requests from host (bidirectional support)
+    // The ext-apps SDK expects tools as an array of tool names (strings)
+    // Full tool definitions are provided through the MCP server, not the app
+    this.app.onlisttools = async () => {
+      if (this.listToolsHandler) {
+        const tools = await this.listToolsHandler();
+        return {
+          tools: tools.map((t) => t.name),
+        };
+      }
+      return { tools: [] };
+    };
+
+    this.app.ontoolresult = (result) => {
+      const output = this.extractToolOutput(result);
+      this.currentToolOutput = output;
+
+      // Surface tool-result `_meta` as resource meta — same channel the
+      // license gate consumes for `_meta.license` and the host consumes
+      // for `_meta.ui.csp`. Once we've seen any meta, keep it sticky
+      // (subsequent tool-results without `_meta` should not clobber it).
+      const meta = output?._meta as Record<string, unknown> | undefined;
+      if (meta && typeof meta === 'object') {
+        this.setResourceMetaInternal(meta);
+      }
+
+      // Wrap output with tool name so hooks like useToolResult get { toolName: output }
+      const toolName = this.getToolNameFromContext();
+      const wrappedResult = toolName ? { [toolName]: output } : output;
+
+      for (const handler of this.toolResultHandlers) {
+        handler(wrappedResult);
+      }
+    };
+
+    this.app.ontoolcancelled = (params) => {
+      const reason = (params as { reason?: string }).reason;
+      for (const handler of this.toolCancelledHandlers) {
+        handler(reason);
+      }
+    };
+
+    this.app.onteardown = async (params) => {
+      const reason = (params as { reason?: string }).reason;
+      for (const handler of this.teardownHandlers) {
+        handler(reason);
+      }
+      return {};
+    };
+
+    await this.app.connect();
+    // Seed initial context if available
+    const initialContext = this.app.getHostContext();
+    if (initialContext) {
+      this.context = this.mapHostContext(initialContext);
+      this.currentToolMeta = this.extractToolMeta(initialContext);
+    }
+
+    this.connected = true;
+  }
+
+  isConnected(): boolean {
+    return this.connected;
+  }
+
+  private mapHostContext(raw: unknown): HostContext {
+    const ctx = (raw ?? {}) as Partial<HostContext> & {
+      theme?: unknown;
+      displayMode?: unknown;
+      availableDisplayModes?: unknown;
+      viewport?: unknown;
+      containerDimensions?: unknown;
+      locale?: unknown;
+      timeZone?: unknown;
+      platform?: unknown;
+      userAgent?: unknown;
+      deviceCapabilities?: unknown;
+      safeAreaInsets?: unknown;
+      styles?: unknown;
+      view?: unknown;
+    };
+
+    // Keep defaults, overlay with host values when present.
+    const base = this.createDefaultContext();
+
+    let theme: 'light' | 'dark' = base.theme;
+    if (ctx.theme === 'dark' || ctx.theme === 'light') {
+      theme = ctx.theme;
+    }
+    const displayMode =
+      ctx.displayMode === 'fullscreen' ||
+      ctx.displayMode === 'pip' ||
+      ctx.displayMode === 'inline'
+        ? (ctx.displayMode as HostContext['displayMode'])
+        : base.displayMode;
+
+    const availableDisplayModes = Array.isArray(ctx.availableDisplayModes)
+      ? ctx.availableDisplayModes.filter(
+          (m): m is string => typeof m === 'string',
+        )
+      : base.availableDisplayModes;
+
+    const isObjectLike = (v: unknown): v is Record<string, unknown> =>
+      v !== null && typeof v === 'object' && !Array.isArray(v);
+
+    // Parse containerDimensions (ext-apps v0.4.0+)
+    const containerDimensions = isObjectLike(ctx.containerDimensions)
+      ? (ctx.containerDimensions as ContainerDimensions)
+      : undefined;
+
+    // Derive viewport from containerDimensions for backward compatibility,
+    // or fall back to explicit viewport or defaults
+    let viewport = base.viewport;
+    if (containerDimensions) {
+      viewport = this.deriveViewportFromContainerDimensions(
+        containerDimensions,
+        base.viewport,
+      );
+    } else if (isObjectLike(ctx.viewport)) {
+      viewport = { ...base.viewport, ...ctx.viewport };
+    }
+
+    const locale = typeof ctx.locale === 'string' ? ctx.locale : base.locale;
+    const timeZone =
+      typeof ctx.timeZone === 'string' ? ctx.timeZone : base.timeZone;
+
+    // Our HostContext platform is narrower than ext-apps; keep existing default.
+    const platform = base.platform;
+
+    return {
+      ...base,
+      theme,
+      displayMode,
+      availableDisplayModes,
+      viewport,
+      containerDimensions,
+      locale,
+      timeZone,
+      platform,
+      userAgent:
+        typeof ctx.userAgent === 'string' ? ctx.userAgent : base.userAgent,
+      deviceCapabilities:
+        ctx.deviceCapabilities as HostContext['deviceCapabilities'],
+      safeAreaInsets: ctx.safeAreaInsets as HostContext['safeAreaInsets'],
+      styles: ctx.styles as HostContext['styles'],
+      view: typeof ctx.view === 'string' ? ctx.view : base.view,
+    };
+  }
+
+  /**
+   * Derive viewport dimensions from containerDimensions for backward compatibility.
+   * containerDimensions uses fixed (height/width) vs flexible (maxHeight/maxWidth) semantics.
+   */
+  private deriveViewportFromContainerDimensions(
+    dims: ContainerDimensions,
+    defaults: HostContext['viewport'],
+  ): HostContext['viewport'] {
+    const d = dims as Record<string, unknown>;
+    return {
+      width: typeof d.width === 'number' ? d.width : defaults.width,
+      height: typeof d.height === 'number' ? d.height : defaults.height,
+      maxWidth: typeof d.maxWidth === 'number' ? d.maxWidth : undefined,
+      maxHeight: typeof d.maxHeight === 'number' ? d.maxHeight : undefined,
+    };
+  }
+
+  private extractToolMeta(
+    rawHostContext: unknown,
+  ): Record<string, unknown> | undefined {
+    if (rawHostContext === null || typeof rawHostContext !== 'object')
+      return undefined;
+    const hc = rawHostContext as { toolInfo?: unknown };
+    if (!hc.toolInfo || typeof hc.toolInfo !== 'object') return undefined;
+    return { toolInfo: hc.toolInfo as Record<string, unknown> };
+  }
+
+  /**
+   * Extract tool name from current host context's toolInfo.
+   * Returns undefined if toolInfo is not available.
+   */
+  private getToolNameFromContext(): string | undefined {
+    if (!this.app) return undefined;
+    const hostContext = this.app.getHostContext();
+    if (!hostContext) return undefined;
+
+    const toolInfo = (
+      hostContext as { toolInfo?: { tool?: { name?: string } } }
+    ).toolInfo;
+    return toolInfo?.tool?.name;
+  }
+
+  private extractToolOutput(result: unknown): Record<string, unknown> {
+    const structured = (result as { structuredContent?: unknown })
+      .structuredContent;
+    const meta = (result as { _meta?: unknown })._meta;
+    const isError = (result as { isError?: unknown }).isError === true;
+
+    let base: Record<string, unknown> =
+      structured && typeof structured === 'object' && !Array.isArray(structured)
+        ? (structured as Record<string, unknown>)
+        : {};
+
+    // Fallback: try to parse text content as JSON when no structuredContent
+    if (Object.keys(base).length === 0) {
+      const content = (result as { content?: unknown }).content;
+      if (Array.isArray(content) && content.length > 0) {
+        const first = content[0] as
+          | { type?: unknown; text?: unknown }
+          | undefined;
+        if (first?.type === 'text' && typeof first.text === 'string') {
+          try {
+            const parsed: unknown = JSON.parse(first.text);
+            if (
+              parsed !== null &&
+              typeof parsed === 'object' &&
+              !Array.isArray(parsed)
+            ) {
+              base = parsed as Record<string, unknown>;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
+    // Preserve raw content blocks under _content for tools whose payload lives
+    // in content[] rather than structuredContent (e.g., built-in {slug}_read_file
+    // returns file text in content[0].text and only metadata in structuredContent
+    // — without this the file text is unreachable from widget code). Purely
+    // additive: existing widgets that read structured-only fields see no change.
+    const rawContent = (result as { content?: unknown }).content;
+    if (
+      Array.isArray(rawContent) &&
+      rawContent.length > 0 &&
+      !('_content' in base)
+    ) {
+      base = { ...base, _content: rawContent };
+    }
+
+    // Preserve isError under `_isError` so widgets (via detectErrorEnvelope +
+    // ServerErrorScreen) can distinguish a real error envelope from a normal
+    // payload that happens to carry only metadata keys.
+    if (isError) {
+      base = { ...base, _isError: true };
+    }
+
+    // Add _meta if present (independent of base extraction)
+    if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+      return { ...base, _meta: meta as Record<string, unknown> };
+    }
+
+    return base;
+  }
+
+  // === Tool Operations ===
+
+  async callTool(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    if (!this.app) {
+      throw new Error('MCP Apps adapter not connected');
+    }
+
+    const result = await this.app.callServerTool({
+      name,
+      arguments: args,
+    });
+
+    // AppsClient expects structured output shape.
+    return this.extractToolOutput(result);
+  }
+
+  // === Messaging ===
+
+  async sendMessage(content: { type: string; text: string }): Promise<void> {
+    if (!this.app) {
+      throw new Error('MCP Apps adapter not connected');
+    }
+    if (content.type !== 'text') {
+      throw new Error(`Unsupported message content type: ${content.type}`);
+    }
+    await this.app.sendMessage({
+      role: 'user',
+      content: [{ type: 'text', text: content.text }],
+    });
+  }
+
+  // === Model Context ===
+
+  async updateModelContext(params: UpdateModelContextParams): Promise<void> {
+    if (!this.app) {
+      throw new UIError(
+        UIErrorCode.NOT_CONNECTED,
+        'MCP Apps adapter not connected',
+      );
+    }
+
+    // Map our content blocks to ext-apps format with validation
+    const content = params.content?.map((block) => {
+      switch (block.type) {
+        case 'text':
+          if (!block.text) {
+            throw new UIError(
+              UIErrorCode.INVALID_PARAMS,
+              "Text content block requires 'text' field",
+            );
+          }
+          return { type: 'text' as const, text: block.text };
+        case 'image':
+          if (!block.data) {
+            throw new UIError(
+              UIErrorCode.INVALID_PARAMS,
+              "Image content block requires 'data' field",
+            );
+          }
+          return {
+            type: 'image' as const,
+            data: block.data,
+            mimeType: block.mimeType ?? 'image/png',
+          };
+        case 'audio':
+          if (!block.data) {
+            throw new UIError(
+              UIErrorCode.INVALID_PARAMS,
+              "Audio content block requires 'data' field",
+            );
+          }
+          return {
+            type: 'audio' as const,
+            data: block.data,
+            mimeType: block.mimeType ?? 'audio/wav',
+          };
+        case 'resource':
+          if (!block.uri) {
+            throw new UIError(
+              UIErrorCode.INVALID_PARAMS,
+              "Resource content block requires 'uri' field",
+            );
+          }
+          // Map to ext-apps v0.4.0 resource format (nested structure)
+          return {
+            type: 'resource' as const,
+            resource: {
+              uri: block.uri,
+              text: block.description ?? block.uri,
+            },
+          };
+        case 'resource_link': {
+          if (!block.uri) {
+            throw new UIError(
+              UIErrorCode.INVALID_PARAMS,
+              "Resource link content block requires 'uri' field",
+            );
+          }
+          // Map to ext-apps v0.4.0 resource_link format (flat structure)
+          // ext-apps requires 'name' to be present (not optional)
+          return {
+            type: 'resource_link' as const,
+            uri: block.uri,
+            name: block.name ?? block.uri,
+            ...(block.description && { description: block.description }),
+          };
+        }
+        default: {
+          // Exhaustiveness check - TypeScript will error if we add a new content type
+          const exhaustiveCheck: never = block;
+          throw new UIError(
+            UIErrorCode.PROTOCOL_ERROR,
+            `Unsupported content block type: ${(exhaustiveCheck as ContentBlock).type}`,
+          );
+        }
+      }
+    });
+
+    await this.app.updateModelContext({
+      content,
+      structuredContent: params.structuredContent,
+    });
+  }
+
+  // === Navigation ===
+
+  async openLink(url: string): Promise<void> {
+    if (!this.app) {
+      throw new Error('MCP Apps adapter not connected');
+    }
+    await this.app.openLink({ url });
+  }
+
+  async requestDisplayMode(mode: string): Promise<{ mode: string }> {
+    if (!this.app) {
+      throw new Error('MCP Apps adapter not connected');
+    }
+    const result = await this.app.requestDisplayMode({
+      mode: mode as 'inline' | 'fullscreen' | 'pip',
+    });
+    return result as { mode: string };
+  }
+
+  requestClose(): void {
+    // MCP Apps host does not define a standard "close" request from UI.
+    // Keep as graceful no-op.
+  }
+
+  // === State (Graceful No-Op for MCP Apps) ===
+
+  getState<S>(): S | null {
+    // MCP Apps doesn't support persistent state
+    return null;
+  }
+
+  setState<S>(_state: S): void {
+    // MCP Apps doesn't support persistent state - silent no-op
+  }
+
+  // === Resources ===
+
+  async readResource(uri: string): Promise<{ contents: ResourceContent[] }> {
+    if (!this.app) {
+      throw new Error('MCP Apps adapter not connected');
+    }
+
+    const result = (await this.app.request({
+      method: 'resources/read',
+      params: { uri },
+    })) as ResourceReadResult;
+
+    // Normalize to our ResourceContent shape.
+    return {
+      contents: (Array.isArray(result.contents) ? result.contents : []).map(
+        (c) => {
+          const base = {
+            uri: c.uri,
+            mimeType: c.mimeType ?? 'application/octet-stream',
+          };
+          if ('text' in c && typeof c.text === 'string') {
+            return { ...base, text: c.text };
+          }
+          if ('blob' in c && typeof c.blob === 'string') {
+            // sdk encodes blob as base64 string
+            const bytes = Uint8Array.from(atob(c.blob), (ch) =>
+              ch.charCodeAt(0),
+            );
+            return { ...base, blob: bytes };
+          }
+          return base;
+        },
+      ),
+    };
+  }
+
+  // === Logging ===
+
+  log(level: string, data: unknown): void {
+    if (this.app) {
+      const normalizedLevel: ExtAppsLogLevel = (
+        [
+          'debug',
+          'info',
+          'notice',
+          'warning',
+          'error',
+          'critical',
+          'alert',
+          'emergency',
+        ] as const
+      ).includes(level as ExtAppsLogLevel)
+        ? (level as ExtAppsLogLevel)
+        : 'info';
+
+      const params = {
+        level: normalizedLevel,
+        data,
+        logger: 'apps-client',
+      };
+      try {
+        void this.app.sendLog(params);
+        return;
+      } catch {
+        // fall back to console below
+      }
+    }
+
+    // Fallback logging when MCP logging unavailable
+    const logFn =
+      {
+        debug: console.debug,
+        info: console.info,
+        warning: console.warn,
+        error: console.error,
+      }[level] ?? console.log;
+    logFn('[MCP Apps]', data);
+  }
+
+  // === Events ===
+
+  onToolResult(handler: (result: unknown) => void): () => void {
+    this.toolResultHandlers.add(handler);
+    return () => this.toolResultHandlers.delete(handler);
+  }
+
+  onToolInput(handler: (input: unknown) => void): () => void {
+    this.toolInputHandlers.add(handler);
+    return () => this.toolInputHandlers.delete(handler);
+  }
+
+  onToolCancelled(handler: (reason?: string) => void): () => void {
+    this.toolCancelledHandlers.add(handler);
+    return () => this.toolCancelledHandlers.delete(handler);
+  }
+
+  onHostContextChange(handler: (context: HostContext) => void): () => void {
+    this.hostContextHandlers.add(handler);
+    return () => this.hostContextHandlers.delete(handler);
+  }
+
+  onTeardown(handler: (reason?: string) => void): () => void {
+    this.teardownHandlers.add(handler);
+    return () => this.teardownHandlers.delete(handler);
+  }
+
+  // === Accessors ===
+
+  getHostContext(): HostContext {
+    return this.context;
+  }
+
+  getToolInput(): Record<string, unknown> | undefined {
+    return this.currentToolInput;
+  }
+
+  getToolOutput(): Record<string, unknown> | undefined {
+    return this.currentToolOutput;
+  }
+
+  getToolMeta(): Record<string, unknown> | undefined {
+    return this.currentToolMeta;
+  }
+
+  // === Host Information ===
+
+  getHostCapabilities(): HostCapabilities | undefined {
+    if (!this.app) return undefined;
+    const mcpCaps = this.app.getHostCapabilities();
+    if (!mcpCaps) return undefined;
+
+    // Map MCP Apps SDK capabilities to our unified interface.
+    // MCP SDK already provides: logging, openLinks, serverResources, serverTools
+    // We augment with common abstraction fields for protocol-agnostic usage.
+    const sdkCaps = mcpCaps as Record<string, unknown>;
+
+    // Extract available display modes from host context if provided
+    const hostContext = this.app.getHostContext();
+    const availableModes = hostContext?.availableDisplayModes as
+      | string[]
+      | undefined;
+
+    return {
+      // MCP SDK native capabilities (priority)
+      logging: sdkCaps.logging as HostCapabilities['logging'],
+      openLinks: sdkCaps.openLinks as HostCapabilities['openLinks'],
+      serverResources:
+        sdkCaps.serverResources as HostCapabilities['serverResources'],
+      serverTools: sdkCaps.serverTools as HostCapabilities['serverTools'],
+      experimental: sdkCaps.experimental as HostCapabilities['experimental'],
+
+      // Common capabilities derived from host context when available
+      theming: {
+        // MCP Apps supports light and dark themes (os resolves to one of these)
+        themes: ['light', 'dark'],
+      },
+      displayModes: availableModes
+        ? {
+            modes: availableModes as (
+              | 'inline'
+              | 'fullscreen'
+              | 'pip'
+              | 'panel'
+            )[],
+          }
+        : undefined,
+      statePersistence: {
+        persistent: false, // MCP Apps doesn't have persistent state
+      },
+
+      // MCP Apps-specific capabilities (always available when connected)
+      sizeNotifications: {},
+      partialToolInput: {},
+      appTools: { listChanged: false },
+
+      // ext-apps v0.4.0+ capabilities
+      updateModelContext:
+        sdkCaps.updateModelContext as HostCapabilities['updateModelContext'],
+      message: sdkCaps.message as HostCapabilities['message'],
+      sandbox: sdkCaps.sandbox as HostCapabilities['sandbox'],
+    };
+  }
+
+  getHostVersion(): HostVersion | undefined {
+    if (!this.app) return undefined;
+    const version = this.app.getHostVersion();
+    if (!version) return undefined;
+    return {
+      name: version.name,
+      version: version.version,
+    };
+  }
+
+  // === Protocol-Level Logging ===
+
+  async sendLog(
+    level:
+      | 'debug'
+      | 'info'
+      | 'notice'
+      | 'warning'
+      | 'error'
+      | 'critical'
+      | 'alert'
+      | 'emergency',
+    data: unknown,
+  ): Promise<void> {
+    if (!this.app) {
+      throw new UIError(
+        UIErrorCode.NOT_CONNECTED,
+        'MCP Apps adapter not connected',
+      );
+    }
+    await this.app.sendLog({
+      level,
+      data,
+      logger: 'apps-client',
+    });
+  }
+
+  /**
+   * Send batched log entries via protocol-level logging
+   *
+   * MCP adapter uses the builtin sendLog for each entry since
+   * the MCP protocol supports individual log messages.
+   */
+  async sendLogs(
+    entries: Array<{
+      level: 'debug' | 'info' | 'warn' | 'error';
+      message: string;
+      data?: unknown;
+      timestamp: string;
+      source?: string;
+    }>,
+  ): Promise<{ processed: number }> {
+    if (!this.app) {
+      throw new UIError(
+        UIErrorCode.NOT_CONNECTED,
+        'MCP Apps adapter not connected',
+      );
+    }
+
+    // Map our log levels to MCP protocol levels
+    const levelMapping: Record<string, 'debug' | 'info' | 'warning' | 'error'> =
+      {
+        debug: 'debug',
+        info: 'info',
+        warn: 'warning',
+        error: 'error',
+      };
+
+    let processed = 0;
+    for (const entry of entries) {
+      try {
+        await this.app.sendLog({
+          level: levelMapping[entry.level] ?? 'info',
+          data: entry.data ?? entry.message,
+          logger: entry.source ?? 'apps-client',
+        });
+        processed++;
+      } catch {
+        // Continue processing remaining entries even if one fails
+      }
+    }
+
+    return { processed };
+  }
+
+  // === Size Notifications ===
+
+  async sendSizeChanged(params: SizeChangedParams): Promise<void> {
+    if (!this.app) {
+      throw new UIError(
+        UIErrorCode.NOT_CONNECTED,
+        'MCP Apps adapter not connected',
+      );
+    }
+    await this.app.sendSizeChanged({
+      width: params.width,
+      height: params.height,
+    });
+  }
+
+  // === Partial Tool Input ===
+
+  onToolInputPartial(handler: (input: unknown) => void): () => void {
+    this.toolInputPartialHandlers.add(handler);
+    return () => this.toolInputPartialHandlers.delete(handler);
+  }
+
+  // === Bidirectional Tool Support ===
+
+  setCallToolHandler(handler: CallToolHandler): void {
+    this.callToolHandler = handler;
+  }
+
+  setListToolsHandler(handler: ListToolsHandler): void {
+    this.listToolsHandler = handler;
+  }
+
+  // === Resource Meta (host → app) ===
+
+  private setResourceMetaInternal(meta: Record<string, unknown>): void {
+    this.currentResourceMeta = meta;
+    for (const handler of this.resourceMetaHandlers) {
+      handler(meta);
+    }
+  }
+
+  getResourceMeta(): Record<string, unknown> | undefined {
+    return this.currentResourceMeta;
+  }
+
+  onResourceMetaChange(
+    handler: (meta: Record<string, unknown> | undefined) => void,
+  ): () => void {
+    this.resourceMetaHandlers.add(handler);
+    return () => {
+      this.resourceMetaHandlers.delete(handler);
+    };
+  }
+
+  // === Generic Notifications ===
+
+  async sendNotification(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.app) {
+      // Connection not established — graceful no-op rather than throw,
+      // since the gate fires this from a render path.
+      return;
+    }
+    this.app.notify(method, params);
+  }
+}
