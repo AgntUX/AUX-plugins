@@ -1,0 +1,3 @@
+- **Resolved when** — the thread was archived or trashed in Gmail, or the user has replied in the thread with no qualifying follow-up question after their reply. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — new messages arrived in the thread that shift the context or require a fresh draft; regenerate the Compose payload so the pre-drafted reply isn't stale.
+- **Re-check via** — `get_thread` by the action's `source_ref` (Gmail thread id); a not-found / 404 / 410 means deleted.

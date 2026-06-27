@@ -1,6 +1,6 @@
 {
   "name": "agntux-posthog",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Brings PostHog analytics signals that need a decision into your AgntUX knowledge store.",
   "author": {
     "name": "AgntUX",

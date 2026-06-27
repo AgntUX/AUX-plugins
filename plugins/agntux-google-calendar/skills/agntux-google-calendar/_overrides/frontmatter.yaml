@@ -6,7 +6,7 @@
 # Keep in lockstep with canonical/prompts/ingest/STUBS.md.
 
 plugin-slug: agntux-google-calendar
-plugin-version: 0.2.0
+plugin-version: 0.7.0
 source-display-name: Google Calendar
 source-slug: google-calendar
 recommended-cadence: "Daily at 04:00 local"

@@ -14,7 +14,7 @@
 - Step 6 — Identify entities
 - Step 7 — Update each affected entity
 - Step 8 — Decide if action-worthy
-- Step 8.5 — Reconcile already-open response-needed items
+- Step 8.5 — Reconcile open action items against fresh data
 - Step 8.6 — Drain deferred bootstrap actions
 - Step 9 — Dedupe against existing action items
 - Step 10 — Write the action item
@@ -157,7 +157,7 @@ The soft lock prevents concurrent runs from corrupting indexes and entity files.
    - Held: `- lock: held by <holder> since <RFC 3339>( (pid <int>))?`
 3. **If free OR if held but `since` is more than 1 hour ago (stale):** acquire the lock by rewriting that line to:
    ```
-   - lock: held by agntux-apple-notes@0.1.0                      # matches .claude-plugin/plugin.json since {now RFC 3339} (pid {pid})
+   - lock: held by agntux-apple-notes@0.2.0                      # matches .claude-plugin/plugin.json since {now RFC 3339} (pid {pid})
    ```
    Update frontmatter `updated_at` to now. Write atomically (temp + fsync + rename). Re-read immediately and verify the lock line is yours. If it is not (race lost), log kind `lock-acquire-race` and exit cleanly.
 4. **If the write itself fails:** log a one-line error with kind `lock-acquire-failed`, and exit. Do NOT proceed without the lock.
@@ -268,29 +268,49 @@ If you decide to raise, proceed to Step 9.
 
 ---
 
-## Step 8.5 — Reconcile already-open response-needed items
+## Step 8.5 — Reconcile open action items against fresh data
 
-After triage and before dedup, reconcile **already-open** action items against the freshly-fetched data so items the user has since handled don't stay open and noisy.
+After triage and before dedup, reconcile **already-open** action items against the freshly-fetched data — and, where needed, a bounded re-check of the source — so items anyone has since handled don't stay open and noisy, and items whose underlying artefact changed don't keep showing stale content (including a stale pre-drafted body). The per-source "what counts as resolved / changed" signals are declared at the end of this step; the generic detection skeleton is the reconcile reference shape (`./reconcile.md`).
 
-1. Scan `actions/_index.md` for entries with `status: open`, `reason_class: response-needed`, regardless of `source`.
-2. For each candidate:
-   - **Path A — same-source action (`source: apple-notes`)**: if its `source_ref` corresponds to an item touched in this run's fetch, run Step 8a's reply-state scan against the latest data using the action's original trigger ts.
-   - **Path B — cross-source action with `## Cross-source links`**: if the action body lists a `apple-notes note: {id}` line for an artefact touched in this run's fetch, run the Step 8a scan against it. (Replying in your source resolves an action originally raised by another plugin and merged via Step 9.)
-3. If the user has now replied AND no qualifying follow-up appeared after their reply: rewrite the action file with `status: done`, `completed_at: <now RFC 3339>`, and append the following body section (do not overwrite existing content; append after `## Personalization fit`):
+1. **Collect candidates.** Scan `actions/_index.md` for entries with `status: open` AND `source: apple-notes` — **all `reason_class` values, not just `response-needed`.** Also include cross-source-merged actions whose body lists a `apple-notes note: {id}` line under `## Cross-source links` (a user reply in your source can resolve a merged action originally raised by another plugin — but only the reply signal, per the cross-source rule in step 3).
 
-   ```markdown
-   ## Auto-resolved
-   {YYYY-MM-DD HH:MM} — Detected user reply via apple-notes in this note
-   after the triggering message, with no further follow-up question or
-   escalation. Closed automatically. If this was wrong, re-open from
-   `actions/_index.md`.
-   ```
+2. **Resolve the latest state per candidate** by `source_ref` (or the `## Cross-source links` id):
+   - If the artefact was touched in this run's fetch, use that merged view.
+   - Otherwise do a **bounded targeted re-check** — re-read just that artefact via `mcp__Read_and_Write_Apple_Notes__list_notes, mcp__Read_and_Write_Apple_Notes__get_note_content` (read-only). Cap at **25 re-checks per run**, highest-priority / oldest-open first; if the cap is hit, leave the rest for the next run (no error). If the re-check returns a **positive** "deleted / not found" response, treat as resolved-by-deletion; if it instead **errors** (auth / permission / network / rate-limit / ambiguous), do NOT resolve — log `apple-notes-reconcile-failed` and leave the item unchanged this run.
 
-   Write atomically (temp + rename). The agntux-core PostToolUse hook updates `actions/_index.md` — do NOT touch `_index.md` directly.
+3. **Classify and act** (the per-source signal list at the end of this step defines each branch):
+   - **Resolved** — the source artefact is closed / done / cancelled / declined / deleted / archived per your signal list, OR (for `response-needed`) the user has now replied with no qualifying follow-up after their reply (Step 8a's scan). **For a cross-source-merged candidate (`source != apple-notes`), only the user-reply signal resolves — a terminal/deletion state in your source must NOT close a need owned by the sibling source.** → Rewrite the file with `status: done`, `completed_at: <now RFC 3339>`, and append (after `## Personalization fit`, never overwriting existing content):
 
-4. If still valid, leave it untouched. Step 9's dedup prevents a duplicate this run.
+     ```markdown
+     ## Auto-resolved
+     {YYYY-MM-DD HH:MM} — {one line naming the detected signal, e.g. "Issue transitioned to Done in Apple Notes" or "User replied via apple-notes with no follow-up"}. Closed automatically. If this was wrong, re-open from `actions/_index.md`.
+     ```
 
-This is a real automated state transition (`open` → `done` without user click), bounded to `reason_class: response-needed` and only artefacts just fetched. The honesty rules and "Out of scope" sections document this authority. On write failure, log a `apple-notes-reconcile-failed` entry and continue.
+   - **Changed-but-valid** — the artefact still needs the user but its substance moved (new deadline, edited body, new participants, changed amount / owner / status-short-of-resolved). → Rewrite `## Why this matters` to current reality, refresh affected frontmatter (`due_by`, `priority`), and re-run **only Step 10.1's payload-composition (its sub-steps 1–5)** to regenerate the view payload section(s) so the pre-drafted content isn't stale — this branch already handled `## Why this matters`, so don't re-derive it. (A view that hydrates from inline click-time args rather than an on-disk payload section has nothing to regenerate; just refresh `## Why this matters` and frontmatter.) Keep `status: open`; update `updated_at`.
+   - **Unchanged** — leave untouched. Step 9's dedup prevents a duplicate this run.
+
+4. Write atomically (temp + rename). The agntux-core PostToolUse hook updates `actions/_index.md` — do NOT touch `_index.md` directly. A re-check **read** failure is non-fatal lifecycle bookkeeping over an already-raised item: skip that candidate, log a `apple-notes-reconcile-failed` entry, and do **not** let it affect cursor advancement (a flaky re-check must never stall fresh ingest). Only a failed reconcile **write** participates in Step 11's transactional gate, exactly as a fresh Step 10 write does.
+
+This is a real automated state transition (`open` → `done`, or an in-place content refresh, without a user click). The honesty rules and "Out of scope" sections document this authority. Keep it conservative: when a signal is ambiguous, prefer leaving the item open over a wrong auto-close.
+
+
+**Apple Notes — per-source reconcile signals**
+
+- **Resolved when** — the note referenced by `source_ref` is no longer returned
+  by `get_note_content` (not-found or permission-denied = deleted upstream); or
+  the note is a checklist and every item in `checklist_items` is `checked: true`
+  (task fully completed). For create-note actions (no upstream note yet), close
+  only when a note matching `draft_title` already exists in `target_folder` (the
+  user created it manually or a prior run succeeded).
+- **Changed-but-valid when** — the body returned by `get_note_content` differs
+  materially from `current_content` in the action's `## Compose payload`; or the
+  note was moved to a different folder. Rewrite `## Why this matters`, update
+  `folder` / `current_content` / `is_checklist` / `checklist_items`, and
+  regenerate `draft_body` in the Compose payload.
+- **Re-check via** — `get_note_content({ note_name: <note_name>, folder: <folder> })`
+  using `note_name` and `folder` from the action's `## Compose payload`; an
+  empty or error response means deleted. For create-note actions there is no
+  upstream note to re-check — skip the re-check sub-step for those actions.
 
 ---
 
@@ -375,15 +395,15 @@ suggested_actions:
 
 **Apply `# Rewrites` from `data/instructions/agntux-apple-notes.md`** when composing action body or labels. If the user has a `# Notes` rule like "keep action descriptions terse," tighten `## Why this matters` to 1–2 sentences.
 
-### Step 10.1 — Gather file-store context
+### Step 10.1 — Gather file-store context and pre-compose the view payload
 
-Run for every action that ships a `Draft a reply` (or equivalent) suggested action. The draft should sound like the user, not the agent.
+Run for **every** action that ships a suggested action which opens one of your plugin's views — draft a reply, create/update a note, propose a status transition, suggest a share-link config, propose meeting time-slots, and so on, **not only literal replies**. Pre-composing the view's payload at ingest is **mandatory, not optional**: the view tool lifts it from disk at click time (the user never sees this prompt), so an action whose payload is missing or empty renders a blank iframe and forces Cowork to re-derive the work the ingest pass should already have done. (The one exception: a Step 8 cap-overflow placeholder written with `status: deferred` carries no payload until Step 8.6 drains it.) Any drafted text should sound like the user, not the agent.
 
 1. **Re-consult `user.md`** (in working memory from Step 2): `# Identity`, `# Preferences` (tone, length, sign-off), `# Glossary`, `# Goals`.
 2. **Re-consult `data/instructions/agntux-apple-notes.md`** (parsed in Step 0): `# Notes`, `# Rewrites`, signal-weighting from `# Always raise` / `# Never raise`. Do NOT inject signatures or "as discussed" padding.
 3. **For each entity in `related_entities`**, re-read its file for relationship context beyond what Step 7 just wrote.
 4. **Grep `actions/`** for files whose `related_entities` overlaps. Read up to 3 most-recent within 14 days — detect active workstreams and items the user already responded to.
-5. Feed all of the above into `drafted_body` and `personalization_signals` in `## Compose payload`.
+5. Feed all of the above into the drafted/suggested fields and `personalization_signals` of the per-view payload section(s) this action ships — `## Compose payload` and/or the per-view `## <View> payload` sections enumerated at Step 10.1b — **using the exact field names that view's handler reads.**
 
 If `data/instructions/agntux-apple-notes.md` doesn't exist yet (cold-start), proceed with `user.md` alone.
 
@@ -397,9 +417,30 @@ If `data/instructions/agntux-apple-notes.md` doesn't exist yet (cold-start), pro
 - {additional bullets citing specific user.md or instructions patterns}
 ```
 
-**Conditional body section: `## Compose payload`** — REQUIRED for every action item that ships a `Draft a reply` suggested action. Schema and YAML quoting rules are defined by the compose-payload reference shape.
+**Conditional body section: `## Compose payload`** — REQUIRED for every action item that ships a suggested action that opens a compose/editor view (a drafted reply, a note body, or any other view pre-fill — not only literal replies). Schema and YAML quoting rules are defined by the compose-payload reference shape.
 
-**Step 10.1b — Per-view payload sections (REQUIRED).** `## Compose payload` is only the draft-a-reply case. For **every** view tool your plugin ships whose handler reads a `## <View> payload` body section, you MUST write that section to the action file whenever the action ships the suggested action that opens that view — otherwise the view renders an empty envelope (blank fields, fallback text like "Untitled event" or "… data is unavailable"). Each section's schema lives in the matching `reference/<view>-payload.md`. The per-view sections this plugin writes — and the action class that triggers each — are enumerated below.
+**Step 10.1b — Per-view payload sections (REQUIRED).** `## Compose payload` is only the draft-a-reply case. For **every** view tool your plugin ships whose handler reads a `## <View> payload` body section, you MUST write that section to the action file whenever the action ships the suggested action that opens that view — otherwise the view renders an empty envelope (blank fields, fallback text like "Untitled event" or "… data is unavailable"). Each section's schema lives in the matching `reference/<view>-payload.md`. **The keys you write MUST exactly match the field names that view's handler reads** — the field-coverage guard (lint E35) fails the build on any field a view reads that the ingest skill never writes — and every key MUST be pre-populated with real composed content: a present-but-empty section is the same defect as a missing one. The per-view sections this plugin writes — and the action class that triggers each — are enumerated below.
+
+### Step 10.1c — Apple Notes compose payload
+
+This plugin ships two view tools that each read `## Compose payload`. Write
+the section for every action whose suggested action opens a note view, using
+exactly the field names the handler reads — full schema in the compose-payload
+reference shape.
+
+**Create-note view** (action opens `agntux_apple_notes_create_note`):
+Write `## Compose payload` with: `source_context`, `draft_title`, `draft_body`
+(agent-composed, in the user's voice, ≤4000 chars), `target_folder` (best-
+matching folder name; default `Notes`), `available_folders` (string list of all
+distinct folder names seen across notes fetched this run).
+
+**Update-note view** (action opens `agntux_apple_notes_update_note`):
+Write `## Compose payload` with: `source_context`, `note_name`, `note_id`
+(the `x-coredata://` URI or note name as fallback), `folder`, `current_content`
+(verbatim note body from `get_note_content`, ≤4000 chars), `draft_body`
+(agent-composed revision, ≤4000 chars), `is_checklist` (boolean),
+`checklist_items` (array of `{text, checked}` objects when `is_checklist: true`;
+otherwise `[]`).
 
 ---
 

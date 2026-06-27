@@ -1,0 +1,3 @@
+- **Resolved when** — the envelope status is `completed`, `voided`, or `declined`, or the envelope no longer appears in `getEnvelopes`. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — a recipient's `status` changed (e.g. signed, declined) or the envelope expiry date moved; regenerate the reminder, void, and sign view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `getEnvelope` by the action's `source_ref` (envelopeId); a not-found / 404 / 410 means deleted.

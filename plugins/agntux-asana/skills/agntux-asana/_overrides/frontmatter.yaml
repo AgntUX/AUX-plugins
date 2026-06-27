@@ -5,7 +5,7 @@
 # missing or still-double-curly value.
 
 plugin-slug: agntux-asana
-plugin-version: 0.1.0
+plugin-version: 0.2.0
 source-display-name: Asana
 source-slug: asana
 recommended-cadence: "Every 60 min, 7am–7pm weekdays local"

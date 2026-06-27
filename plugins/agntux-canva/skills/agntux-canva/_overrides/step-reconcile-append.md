@@ -1,0 +1,3 @@
+- **Resolved when** — the comment was resolved or deleted, or the design itself was deleted in Canva. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — new comment replies arrived on the design since the action was raised; refresh `## Why this matters` and the action's frontmatter (the view hydrates from inline args at click time, so there's no on-disk payload section to regenerate).
+- **Re-check via** — `get-design` (host-resolved name) by design id, then `list-comments` for comment state, using the action's `source_ref`; a not-found / 404 / 410 means deleted.

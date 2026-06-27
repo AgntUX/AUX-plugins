@@ -283,7 +283,7 @@ The procedural body lives in `canonical/prompts/ingest/skills/sync/reference/syn
 | 6 | Identify entities. Optional `step-6-append.md` for source-specific lookup sub-steps (Slack's user-profile email resolution). |
 | 7 | Update each affected entity. Canonical. |
 | 8 | Decide if action-worthy. Optional `step-8-signals-append.md` for source-specific raise/suppress signals; optional `step-8a-append.md` for source-specific reconcile-existing-action sub-steps. |
-| 8.5 | Reconcile already-open response-needed items. Canonical. |
+| 8.5 | Reconcile **all** open action items for this source against fresh data (auto-close resolved, refresh changed). Canonical skeleton + **REQUIRED** `_overrides/step-reconcile-append.md` declaring the source's resolved/changed signals — see §"Step 8.5" below (lint E36). |
 | 9 | Dedupe against actions/_index.md. Canonical. |
 | 10 | Write the action item (with `## Compose payload` body section for UI-handler plugins — see §"Step 10.1" below). |
 | 11 | Advance cursor + release lock. Optional `step-11-append.md` for source-specific post-write sub-steps (Gmail's denylist auto-learn — see `source-semantics-advisor.md` §6 "Denylist auto-learn"). |
@@ -302,13 +302,30 @@ JQL timestamp), threads/parent-child handling, volume cap tuning,
 denylist patterns, and transactional cursor mechanics, delegate to
 `source-semantics-advisor`.
 
-## Step 10.1 — pre-composing a `## Compose payload` body section
+## Step 10.1 — pre-composing the view payload (MANDATORY for every view)
 
 If the plugin ships a UI handler with a Send-style commit button (see
-`draft-flow-author.md` §1), the action file body should include a
-pre-composed `## Compose payload` (or `## Canvas payload`) section so
-the view tool can lift drafted content from disk at click time without
-re-fetching source-side context. The full shape, freshness tradeoffs,
+`draft-flow-author.md` §1), the action file body **MUST** include a
+pre-composed payload section — `## Compose payload`, `## Canvas payload`,
+or a per-view `## <View> payload` — so the view tool can lift drafted
+content from disk at click time without re-fetching source-side context.
+This is **mandatory, not best-effort**: the canonical Step 10.1 now runs
+for *every* action that ships a view-opening suggested action (not only
+literal "Draft a reply"), and an action whose payload is missing or empty
+renders a blank iframe.
+
+**Match the view's read keys exactly (lint E35).** The field names you
+instruct the skill to write MUST be the exact keys the view handler reads
+off the parsed section (`cp.draft_body`, `cp.target_folder`, …). The
+field-coverage guard (pass 20, **E35**, warning) collects every field a
+`view-tool/src` handler reads off its payload object and flags any that the
+rendered skill tree never documents writing — the apple-notes class where
+the view read `draft_title`/`draft_body` but the inherited generic schema
+wrote only `drafted_body`. When your source's payload keys diverge from the
+generic `compose-payload.md`, ship a wholesale
+`_overrides/reference/compose-payload.md` (or per-view `*-payload.md`)
+documenting your exact keys, AND a `_overrides/step-10-append.md` telling
+the skill to pre-compose them. The full shape, freshness tradeoffs,
 and dual-mode view-tool resolution are owned by `draft-flow-author.md`
 §2a–§2b — substitute `compose-payload.md` per-plugin (wholesale
 override) when your source has a non-trivial body schema. For every
@@ -325,6 +342,35 @@ as `/{plugin-slug} open the reply composer for action {id}` (bare-slash,
 `## Compose payload` section is a **separate** concern: it's a
 pre-composed body the view tool reads from disk, not a host-prompt the
 user sees.
+
+## Step 8.5 — declaring reconciliation signals (REQUIRED, lint E36)
+
+Canonical Step 8.5 ("Reconcile open action items against fresh data")
+auto-closes resolved items and refreshes changed ones across **all**
+`reason_class` values for the source. The generic skeleton lives in the
+canonical `reference/reconcile.md`; the **source-specific** "what counts as
+resolved / changed for THIS source" list is a per-plugin deliverable spliced
+at the `<!-- append:step-reconcile -->` marker. Every action-producing plugin
+(ships a `view-tool/`) MUST ship `_overrides/step-reconcile-append.md`, or
+pass 21 (**E36**, warning) fires.
+
+Keep it tight — three short labelled blocks (it splices into `sync.md`, which
+has a 640-line cap):
+
+```markdown
+- **Resolved when** — {source-native terminal signals: status in {Done, Closed,
+  …}; event cancelled/declined; thread answered with no follow-up; file deleted;
+  charge refunded; …}. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — {fields whose movement should refresh the action:
+  due date, assignee, amount, body edit, new participants}; regenerate the
+  {{view}} payload(s) so the pre-drafted content isn't stale.
+- **Re-check via** — `{{source-mcp-tool}}` by the action's `source_ref`; a
+  not-found / 404 / 410 means deleted.
+```
+
+Derive the signals from what the connector's read tools actually expose (ask
+`source-semantics-advisor` for the per-source terminal-state vocabulary and the
+single-artefact re-read tool). Do NOT invent states the source can't report.
 
 ## Workspace identifier capture (Step 2 append)
 

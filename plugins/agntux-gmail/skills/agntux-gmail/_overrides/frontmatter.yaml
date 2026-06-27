@@ -2,7 +2,7 @@
 # Renderer reads this at build time; surviving {{...}} placeholders fail.
 
 plugin-slug: agntux-gmail
-plugin-version: 3.0.0
+plugin-version: 4.5.0
 source-display-name: Gmail
 source-slug: gmail
 recommended-cadence: Every 60 min, 7am–7pm weekdays local — email is bursty during the workday but doesn't need higher resolution than every 60 min

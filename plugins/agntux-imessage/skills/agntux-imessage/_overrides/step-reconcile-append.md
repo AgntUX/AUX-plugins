@@ -1,0 +1,3 @@
+- **Resolved when** — the user sent a reply into the conversation after the triggering message, or the message was deleted from the local iMessage database. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — new inbound messages arrived from the same sender shifting the reply context; regenerate the Compose payload so the pre-drafted reply isn't stale.
+- **Re-check via** — `mcp__Read_and_Send_iMessages__read_imessages` by the action's `source_ref` (chat handle); an empty or error response means deleted.

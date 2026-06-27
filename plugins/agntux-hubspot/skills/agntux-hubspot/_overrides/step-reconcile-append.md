@@ -1,0 +1,3 @@
+- **Resolved when** — the deal moved to closed-won or closed-lost, the task was completed (`hs_task_status: COMPLETED`), or the CRM object was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — deal stage, amount, owner, or due date changed; regenerate the Move-deal, Task, Activity, and Reassign view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `get_crm_objects` by the action's `source_ref` (object type + id); a not-found / 404 / 410 means deleted.

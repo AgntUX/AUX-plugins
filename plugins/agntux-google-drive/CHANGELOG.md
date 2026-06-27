@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-27
+
+### Added
+
+- Ingestion now reconciles open action items against freshly-fetched data (Step 8.5): resolved source artefacts auto-close with an `## Auto-resolved` note, and changed-but-valid items refresh their content — across all reason classes.
+- Refreshed the canonical ingest procedural body (reconcile step + pre-draft step generalisation) shared by every AgntUX ingest plugin.
+
 ## [0.1.1] — 2026-06-21
 
 ### Fixed

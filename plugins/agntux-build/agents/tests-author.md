@@ -146,6 +146,8 @@ they are not judgement calls:
 | `connector-envelope.test.ts` | recommended | Source has a UI handler that emits connector-targeted send envelopes (the modern default per `draft-flow-author.md` §1). Asserts the view-tool's envelope builder emits a connector-targeted envelope. Coordinate with `draft-flow-author`. |
 | `error-envelope.test.ts` | recommended | Plugin ships a UI handler. Asserts the iframe surfaces runtime error envelopes (rate limit, auth failure, upstream 5xx) cleanly. |
 | `draft-flow.test.ts` | LEGACY — only when the source is chat-only with no UI handler | Source has write tools AND the plugin ships `skills/draft/SKILL.md` (the legacy chat-confirm-then-write skill). Most modern plugins ship a UI handler instead and use `connector-envelope.test.ts` above. Coordinate with `draft-flow-author`. |
+| `reconcile-flow.test.ts` | no | Plugin ships a view-tool (any action-taking view). Asserts the plugin ships a non-empty `_overrides/step-reconcile-append.md` (E36) and that the rendered skill tree includes `reference/reconcile.md`. Coordinate with `source-semantics-advisor` and `ingest-prompt-author`. |
+| `payload-field-coverage.test.ts` | no | Plugin's view-tool reads non-`compose` payload sections via `parseBodySection` / `extractFencedYaml`. Asserts each such section has a matching `_overrides/reference/` file (E35). Coordinate with `draft-flow-author`. |
 | `idempotent.test.ts` | recommended | Asserts dedup mechanisms in the prompt + structural cleanliness of fixtures. |
 
 ## `cold-start.test.ts` (always)
@@ -503,6 +505,134 @@ payload reference files, it MUST follow the derive-don't-hardcode rule from §
 a fixed list like `["compose-payload.md"]`. A plugin that adds a
 `## Schedule payload` header (hence a `schedule-payload.md`) must not break a
 test whose expectation was hardcoded to `compose-payload.md`.
+
+## `reconcile-flow.test.ts` (when the plugin ships a view-tool)
+
+Asserts the plugin satisfies the Step 8.5 reconcile-flow contract (E36):
+the plugin ships a source-specific `_overrides/step-reconcile-append.md`
+AND the rendered skill tree includes `reference/reconcile.md`. Both
+assertions are structural (file existence + non-empty byte check) — no
+prose grep against the override file's content (E30 rule applies here
+too). Do NOT assert branch labels or reason_class names from the override
+prose: those are per-plugin content authored by `source-semantics-advisor`
+and will drift independently. The canonical `reconcile.md` template
+guarantees the three-branch shape for every rendered skill tree that
+includes it — the structural check is sufficient.
+
+```ts
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const PLUGIN_ROOT = join(__dirname, "..");
+const SLUG = "{your-slug}";
+const OVERRIDES = join(PLUGIN_ROOT, `skills/${SLUG}/_overrides`);
+const RENDERED = join(PLUGIN_ROOT, `skills/${SLUG}`);
+
+describe("reconcile-flow (E36)", () => {
+  it("ships a non-empty _overrides/step-reconcile-append.md", () => {
+    const appendPath = join(OVERRIDES, "step-reconcile-append.md");
+    expect(existsSync(appendPath), "missing _overrides/step-reconcile-append.md").toBe(true);
+    const content = readFileSync(appendPath, "utf-8");
+    // Non-empty byte check only — never assert on prose content (E30).
+    expect(content.trim().length, "step-reconcile-append.md is empty").toBeGreaterThan(0);
+  });
+
+  it("rendered skill tree ships reference/reconcile.md", () => {
+    const reconcilePath = join(RENDERED, "reference", "reconcile.md");
+    expect(
+      existsSync(reconcilePath),
+      `rendered reference/reconcile.md missing — run node scripts/render-skill.mjs ${SLUG}`,
+    ).toBe(true);
+  });
+});
+```
+
+## `payload-field-coverage.test.ts` (when the view reads non-`compose` payload sections)
+
+Asserts that every payload section the view tool reads via
+`parseBodySection` / `extractFencedYaml` / `parseSectionYaml` has a
+matching `_overrides/reference/` file documenting its field schema (E35).
+The assertion is grounded in the handler's own TypeScript source (ground
+truth #1) — it scans for the string argument the view passes to its parse
+call and checks file existence of the corresponding schema override. No
+prose content is asserted (E30 rule). The derivation matches the
+`headerToRefFile` rule in `draft-flow-author.md` §2a.1 so the test and
+the authoring contract stay in lock-step.
+
+```ts
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+const PLUGIN_ROOT = join(__dirname, "..");
+const SLUG = "{your-slug}";
+const OVERRIDES_REF = join(PLUGIN_ROOT, `skills/${SLUG}/_overrides/reference`);
+
+/**
+ * Scan view-tool TypeScript source for parseBodySection / extractFencedYaml
+ * / parseSectionYaml calls and return the "## …" section-header arguments.
+ * Grounded in ground truth #1 (the handler's own source), never prose.
+ */
+function viewPayloadSections(root: string): string[] {
+  const viewSrc = join(root, "view-tool", "src");
+  if (!existsSync(viewSrc)) return [];
+  const sections: string[] = [];
+  function walk(dir: string): void {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name === "node_modules" || ent.name === "__tests__") continue;
+        walk(full);
+      } else if (/\.(ts|tsx)$/.test(ent.name)) {
+        const src = readFileSync(full, "utf-8");
+        for (const m of src.matchAll(
+          /(?:parseBodySection|extractFencedYaml|parseSectionYaml)\s*\([^,)]+,\s*["'](##[^"']+)["']/g,
+        )) {
+          sections.push(m[1].trim());
+        }
+      }
+    }
+  }
+  walk(viewSrc);
+  return [...new Set(sections)];
+}
+
+/** `## RSVP payload` → `rsvp-payload.md` (mirrors draft-flow-author §2a.1 derivation). */
+function headerToRefFile(header: string): string {
+  return (
+    header
+      .replace(/^##\s+/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") + ".md"
+  );
+}
+
+describe("payload field coverage (E35)", () => {
+  it("each non-compose payload section the view reads has a matching _overrides/reference/*.md", () => {
+    const sections = viewPayloadSections(PLUGIN_ROOT);
+    const nonCompose = sections.filter((s) => !/compose/i.test(s));
+    if (nonCompose.length === 0) {
+      // Plugin reads only the canonical ## Compose payload — no per-verb override required.
+      return;
+    }
+    const present = existsSync(OVERRIDES_REF)
+      ? new Set(readdirSync(OVERRIDES_REF).filter((n) => n.endsWith(".md")))
+      : new Set<string>();
+    for (const section of nonCompose) {
+      const f = headerToRefFile(section);
+      expect(present.has(f), `view reads "${section}" but _overrides/reference/${f} is missing`).toBe(true);
+    }
+  });
+});
+```
+
+The `viewPayloadSections` scan is derived from the plugin's own view-tool
+source, so the assertion set grows or shrinks automatically as sections are
+added or removed — no hardcoded list, no phantom contract. Leave
+`render-reproducibility.test.ts` alone; it is already filename-agnostic.
 
 ## `idempotent.test.ts` (recommended)
 

@@ -3,7 +3,7 @@
 # Run: node scripts/render-skill.mjs agntux-hubspot
 
 plugin-slug: agntux-hubspot
-plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+plugin-version: 0.2.0                          # matches .claude-plugin/plugin.json
 source-display-name: HubSpot
 source-slug: hubspot
 recommended-cadence: "Every 2 hours, 7am–7pm weekdays local"  # matches plugin.json

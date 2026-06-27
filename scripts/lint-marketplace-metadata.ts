@@ -37,6 +37,8 @@ import { pass16ViewToolExternalLinks } from "./lint/lint-view-tool-external-link
 import { pass17ViewToolConnectorCalls } from "./lint/lint-view-tool-connector-calls.js";
 import { pass18HostPromptSlash } from "./lint/lint-host-prompt-slash.js";
 import { pass19ViewPayloadCoverage } from "./lint/lint-view-payload-coverage.js";
+import { pass20ViewPayloadFieldCoverage } from "./lint/lint-view-payload-field-coverage.js";
+import { pass21ReconcileDeclared } from "./lint/lint-reconcile-declared.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -739,6 +741,17 @@ export function lintPlugin(
   // "Untitled event" + Jira "… data is unavailable" class). Hard error
   // (E34). Routed to ingest-prompt-author.
   pass19ViewPayloadCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 20 — every FIELD a view handler reads off an on-disk payload object
+  // must be documented as written by the ingest skill (tightens pass 19 from
+  // heading-coverage to field-coverage). Catches the apple-notes class where the
+  // view read `draft_body`/`draft_title` but the inherited generic schema wrote
+  // only `drafted_body`, so the iframe rendered blank. Warning (E35).
+  pass20ViewPayloadFieldCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 21 — every action-producing plugin must declare its source-side
+  // reconciliation signals (step-reconcile-append.md) so Step 8.5 can auto-close
+  // resolved items and refresh changed ones. Without it, handled items stay open
+  // and noisy. Warning (E36).
+  pass21ReconcileDeclared(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

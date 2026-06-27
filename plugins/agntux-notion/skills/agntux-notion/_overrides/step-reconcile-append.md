@@ -1,0 +1,3 @@
+- **Resolved when** — the page or comment was archived or deleted in Notion, or the comment thread was marked resolved. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — the page body or comment thread changed since the action was raised; refresh the `draft_body` / `comment_thread` fields in the action's frontmatter metadata so the pre-drafted response isn't stale.
+- **Re-check via** — `notion-fetch` by the action's `source_ref` (page or block id); a not-found / 404 / 410 means deleted.

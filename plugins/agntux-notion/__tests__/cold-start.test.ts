@@ -37,11 +37,11 @@ describe("manifest", () => {
     expect(m.name).toBe("agntux-notion");
   });
 
-  it("plugin.json version is 0.1.0", () => {
+  it("plugin.json version is 0.2.0", () => {
     const m = JSON.parse(
       readFileSync(join(PLUGIN_ROOT, ".claude-plugin/plugin.json"), "utf-8"),
     );
-    expect(m.version).toBe("0.1.0");
+    expect(m.version).toBe("0.2.0");
   });
 
   it("plugin.json recommended_ingest_cadence is 'Every 4 hours'", () => {
@@ -161,10 +161,10 @@ describe("_overrides/frontmatter.yaml render-pipeline opt-in", () => {
     expect(yaml).toContain("plugin-slug: agntux-notion");
   });
 
-  it("frontmatter.yaml contains plugin-version: 0.1.0", () => {
+  it("frontmatter.yaml contains plugin-version: 0.2.0", () => {
     const yaml = readFileSync(frontmatterPath, "utf-8");
     // Verbatim from _overrides/frontmatter.yaml line 6
-    expect(yaml).toContain("plugin-version: 0.1.0");
+    expect(yaml).toContain("plugin-version: 0.2.0");
   });
 
   it("frontmatter.yaml contains recommended-cadence: \"Every 4 hours\"", () => {

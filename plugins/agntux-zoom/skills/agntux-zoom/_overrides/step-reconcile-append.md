@@ -1,0 +1,3 @@
+- **Resolved when** — the meeting record was deleted, or (best-effort) a recap was already captured. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — a new or updated transcript or recording became available for the meeting; regenerate the Compose payload so the pre-drafted summary isn't stale.
+- **Re-check via** — `get_meeting_assets` by the action's `source_ref` (meeting uuid); a not-found / 404 / 410 means deleted.

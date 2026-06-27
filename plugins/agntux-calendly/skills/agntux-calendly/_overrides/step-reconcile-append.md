@@ -1,0 +1,3 @@
+- **Resolved when** — the invitee cancelled the event, the event start time has already passed, or the event record was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — the event was rescheduled to a new time or location; refresh `## Why this matters` and the action's frontmatter (the view hydrates from inline args at click time, so there's no on-disk payload section to regenerate).
+- **Re-check via** — `get_scheduled_event` by the action's `source_ref` (event uri); a not-found / 404 / 410 means deleted.

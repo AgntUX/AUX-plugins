@@ -1,0 +1,3 @@
+- **Resolved when** — the issue is resolved or ignored/archived in Sentry, or the issue record was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — new event occurrences raised the severity or changed the assignee; refresh `## Why this matters` and the action's frontmatter (the view hydrates from inline args at click time, so there's no on-disk payload section to regenerate).
+- **Re-check via** — `get_sentry_resource` by the action's `source_ref` (issue id or short id); a not-found / 404 / 410 means deleted.

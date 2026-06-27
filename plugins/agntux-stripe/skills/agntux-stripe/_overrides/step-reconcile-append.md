@@ -1,0 +1,3 @@
+- **Resolved when** — the charge was fully refunded, the dispute closed (`status: won` or `lost`), the invoice paid or voided, or the subscription canceled. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — amount, status, or due date moved; regenerate the refund, dispute, invoice-finalize, invoice-void, subscription-edit, and subscription-cancel view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `stripe_api_read` with the object-type-specific get operation (discover via `stripe_api_search`) by the action's `source_ref` (resource id); a not-found / 404 / 410 means deleted.

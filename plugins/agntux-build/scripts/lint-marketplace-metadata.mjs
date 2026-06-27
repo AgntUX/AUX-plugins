@@ -3,8 +3,8 @@
 // Source: scripts/lint-marketplace-metadata.ts (+ scripts/lint/, lib/marketplace-schema.ts).
 
 // scripts/lint-marketplace-metadata.ts
-import * as fs14 from "node:fs";
-import * as path14 from "node:path";
+import * as fs16 from "node:fs";
+import * as path16 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
@@ -3881,8 +3881,8 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 var makeIssue = (params) => {
-  const { data, path: path15, errorMaps, issueData } = params;
-  const fullPath = [...path15, ...issueData.path || []];
+  const { data, path: path17, errorMaps, issueData } = params;
+  const fullPath = [...path17, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -4007,11 +4007,11 @@ var errorUtil;
 var _ZodEnum_cache;
 var _ZodNativeEnum_cache;
 var ParseInputLazyPath = class {
-  constructor(parent, value, path15, key) {
+  constructor(parent, value, path17, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path15;
+    this._path = path17;
     this._key = key;
   }
   get path() {
@@ -7925,7 +7925,7 @@ import * as path2 from "node:path";
 import { renderSkill, RenderSkillError } from "./render-skill.mjs";
 var SKILL_MAX_LINES = 500;
 var RESOURCE_MAX_LINES = 500;
-var SYNC_REFERENCE_MAX_LINES = 610;
+var SYNC_REFERENCE_MAX_LINES = 640;
 var SHARED_SIBLING_MAX_LINES = 200;
 function rel(repoRoot, p) {
   return path2.relative(repoRoot, p);
@@ -8423,23 +8423,23 @@ var RESERVED_PREFIXES = ["claude-", "anthropic-"];
 var MAX_ZIP_FOLDER_DEPTH = 10;
 function pass9ZipUploadSafe(pluginSlug, pluginDir, repoRoot, findings) {
   const rel2 = (p) => path3.relative(repoRoot, p);
-  walk(pluginDir, (entryPath, basename4, isDirectory3) => {
-    if (FORBIDDEN_CHARS.test(basename4)) {
+  walk(pluginDir, (entryPath, basename6, isDirectory3) => {
+    if (FORBIDDEN_CHARS.test(basename6)) {
       findings.push({
         code: "E20",
         severity: "error",
         plugin: pluginSlug,
         file: rel2(entryPath),
-        message: `path segment "${basename4}" contains characters that fail Claude Desktop's plugin-zip upload validator (${FORBIDDEN_CHARS_DESCRIPTION}). Scaffold templates that need a placeholder in the filename should use the __placeholder__ convention (see plugins/agntux-build/canonical/ui-handlers/_template/README.md).`
+        message: `path segment "${basename6}" contains characters that fail Claude Desktop's plugin-zip upload validator (${FORBIDDEN_CHARS_DESCRIPTION}). Scaffold templates that need a placeholder in the filename should use the __placeholder__ convention (see plugins/agntux-build/canonical/ui-handlers/_template/README.md).`
       });
     }
-    if (NON_ASCII.test(basename4)) {
+    if (NON_ASCII.test(basename6)) {
       findings.push({
         code: "E22",
         severity: "warning",
         plugin: pluginSlug,
         file: rel2(entryPath),
-        message: `path segment "${basename4}" contains non-ASCII characters. Cross-platform zip readers handle UTF-8 inconsistently; prefer ASCII-only filenames in the shipped tree.`
+        message: `path segment "${basename6}" contains non-ASCII characters. Cross-platform zip readers handle UTF-8 inconsistently; prefer ASCII-only filenames in the shipped tree.`
       });
     }
     if (!isDirectory3) {
@@ -9625,10 +9625,259 @@ function pass19ViewPayloadCoverage(pluginSlug, pluginDir, _repoRoot, findings) {
   }
 }
 
+// scripts/lint/lint-view-payload-field-coverage.ts
+import * as fs14 from "node:fs";
+import * as path14 from "node:path";
+var VIEW_TOOL_SRC_REL6 = "view-tool/src";
+var PAYLOAD_PARSE_CALL = /(?:parseYamlSection|parseSectionYaml|parseComposeSectionYaml|parseComposePayload|parseSlackComposePayload|parseSlackCanvasPayload|parse[A-Z]\w*Payload|extractFrontmatterMetadata|parseYaml)\s*\(/;
+var PAYLOAD_VAR_ASSIGN = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(\w+)\s*(?::\s*[^=\n;]+)?=\s*(?:await\s+)?` + PAYLOAD_PARSE_CALL.source,
+  "g"
+);
+var COMPOSE_PROP_ASSIGN = /\b(?:const|let|var)\s+(\w+)\s*=\s*\w+\.compose_payload\b/g;
+var FRONTMATTER_KEYS = /* @__PURE__ */ new Set([
+  "id",
+  "type",
+  "status",
+  "priority",
+  "reason_class",
+  "reason_detail",
+  "created_at",
+  "updated_at",
+  "source",
+  "source_ref",
+  "related_entities",
+  "entity_refs",
+  "due_by",
+  "snoozed_until",
+  "completed_at",
+  "dismissed_at",
+  "deferred_at",
+  "superseded_at",
+  "superseded_by",
+  "dismissed_reason",
+  "suggested_actions",
+  "schema_version"
+]);
+function stripComments5(src) {
+  let out = "";
+  let i = 0;
+  const len = src.length;
+  let inStr = null;
+  while (i < len) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (inStr) {
+      if (c === "\\") {
+        out += c + (next ?? "");
+        i += 2;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < len && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < len && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      out += c;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function isExcluded4(relFromSrc) {
+  const parts = relFromSrc.split(path14.sep);
+  if (parts.includes("lib")) return true;
+  if (parts.includes("__tests__")) return true;
+  if (parts.some((p) => p === "test-utils")) return true;
+  const base = parts[parts.length - 1];
+  if (base.endsWith(".d.ts")) return true;
+  if (base === "setup.ts") return true;
+  return false;
+}
+function collectSources4(dir, srcRoot, acc) {
+  let entries;
+  try {
+    entries = fs14.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const abs = path14.join(dir, e.name);
+    if (e.isDirectory()) {
+      collectSources4(abs, srcRoot, acc);
+      continue;
+    }
+    if (!e.isFile()) continue;
+    if (!/\.(ts|tsx)$/.test(e.name)) continue;
+    const relFromSrc = path14.relative(srcRoot, abs);
+    if (isExcluded4(relFromSrc)) continue;
+    acc.push(abs);
+  }
+}
+function findSyncDir(pluginDir) {
+  const skillsRoot = path14.join(pluginDir, "skills");
+  if (!fs14.existsSync(skillsRoot) || !fs14.statSync(skillsRoot).isDirectory()) return null;
+  for (const child of fs14.readdirSync(skillsRoot).sort()) {
+    const dir = path14.join(skillsRoot, child);
+    if (fs14.existsSync(path14.join(dir, "reference", "sync.md")) && fs14.existsSync(path14.join(dir, "_overrides", "frontmatter.yaml"))) {
+      return dir;
+    }
+  }
+  return null;
+}
+function readSkillTreeText(skillDir) {
+  let text = "";
+  const refDir = path14.join(skillDir, "reference");
+  let names = [];
+  try {
+    names = fs14.readdirSync(refDir).filter((n) => n.endsWith(".md"));
+  } catch {
+  }
+  for (const n of names) {
+    try {
+      text += "\n" + fs14.readFileSync(path14.join(refDir, n), "utf8");
+    } catch {
+    }
+  }
+  try {
+    text += "\n" + fs14.readFileSync(path14.join(skillDir, "SKILL.md"), "utf8");
+  } catch {
+  }
+  return text;
+}
+function pass20ViewPayloadFieldCoverage(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path14.join(pluginDir, VIEW_TOOL_SRC_REL6);
+  if (!fs14.existsSync(srcDir) || !fs14.statSync(srcDir).isDirectory()) return;
+  const skillDir = findSyncDir(pluginDir);
+  if (!skillDir) return;
+  const skillText = readSkillTreeText(skillDir);
+  const files = [];
+  collectSources4(srcDir, srcDir, files);
+  files.sort();
+  const reads = /* @__PURE__ */ new Map();
+  for (const abs of files) {
+    let raw;
+    try {
+      raw = fs14.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const src = stripComments5(raw);
+    const relFile = path14.join(VIEW_TOOL_SRC_REL6, path14.relative(srcDir, abs));
+    const payloadVars = /* @__PURE__ */ new Set();
+    for (const re of [PAYLOAD_VAR_ASSIGN, COMPOSE_PROP_ASSIGN]) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(src)) !== null) payloadVars.add(m[1]);
+    }
+    if (payloadVars.size === 0) continue;
+    const lines = src.split("\n");
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li];
+      for (const v of payloadVars) {
+        const memberRe = new RegExp(String.raw`\b${v}\.(\w+)\b`, "g");
+        let mm;
+        while ((mm = memberRe.exec(line)) !== null) {
+          recordKey(mm[1], relFile, li + 1, reads);
+        }
+        const destrRe = new RegExp(
+          String.raw`\{([^}]*)\}\s*=\s*${v}\b`,
+          "g"
+        );
+        let dm;
+        while ((dm = destrRe.exec(line)) !== null) {
+          for (const part of dm[1].split(",")) {
+            const key = part.split(":")[0].trim().replace(/\.\.\./, "");
+            if (/^\w+$/.test(key)) recordKey(key, relFile, li + 1, reads);
+          }
+        }
+      }
+    }
+  }
+  for (const [key, where] of Array.from(reads.entries())) {
+    const wordRe = new RegExp("\\b" + key + "\\b");
+    if (!wordRe.test(skillText)) {
+      findings.push({
+        code: "E35",
+        severity: "warning",
+        plugin: pluginSlug,
+        file: where.file,
+        line: where.line,
+        message: `View handler reads payload field \`${key}\`, but no rendered ingest skill file (skills/${path14.basename(skillDir)}/reference/*.md or SKILL.md) documents writing it \u2014 so the action file lacks it and the view shows a blank field (the apple-notes class). Add \`${key}\` to the plugin's _overrides/reference/compose-payload.md (or per-view *-payload.md) and a _overrides/step-10-append.md instruction to pre-compose it, then re-render.`
+      });
+    }
+  }
+}
+function recordKey(key, file, line, reads) {
+  if (FRONTMATTER_KEYS.has(key)) return;
+  if (key.length < 2) return;
+  if (!reads.has(key)) reads.set(key, { file, line });
+}
+
+// scripts/lint/lint-reconcile-declared.ts
+import * as fs15 from "node:fs";
+import * as path15 from "node:path";
+function findSkillDir(pluginDir) {
+  const skillsRoot = path15.join(pluginDir, "skills");
+  if (!fs15.existsSync(skillsRoot) || !fs15.statSync(skillsRoot).isDirectory()) return null;
+  for (const child of fs15.readdirSync(skillsRoot).sort()) {
+    const dir = path15.join(skillsRoot, child);
+    if (fs15.existsSync(path15.join(dir, "reference", "sync.md")) && fs15.existsSync(path15.join(dir, "_overrides", "frontmatter.yaml"))) {
+      return dir;
+    }
+  }
+  return null;
+}
+function pass21ReconcileDeclared(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path15.join(pluginDir, "view-tool/src");
+  const hasView = fs15.existsSync(srcDir) && fs15.statSync(srcDir).isDirectory();
+  if (!hasView) return;
+  const skillDir = findSkillDir(pluginDir);
+  if (!skillDir) return;
+  const appendPath = path15.join(skillDir, "_overrides", "step-reconcile-append.md");
+  let ok = false;
+  try {
+    ok = fs15.existsSync(appendPath) && fs15.readFileSync(appendPath, "utf8").trim().length > 0;
+  } catch {
+    ok = false;
+  }
+  if (ok) return;
+  findings.push({
+    code: "E36",
+    severity: "warning",
+    plugin: pluginSlug,
+    file: path15.join("skills", path15.basename(skillDir), "_overrides", "step-reconcile-append.md"),
+    message: `Plugin raises action items but ships no non-empty step-reconcile-append.md, so Step 8.5 can't recognise this source's resolved/changed signals and handled items stay open. Author it (declaring "Resolved when / Changed-but-valid when / Re-check via" per the reconcile reference shape), then re-render.`
+  });
+}
+
 // scripts/lint-marketplace-metadata.ts
 function fileExists2(p) {
   try {
-    fs14.accessSync(p, fs14.constants.F_OK);
+    fs16.accessSync(p, fs16.constants.F_OK);
     return true;
   } catch {
     return false;
@@ -9636,7 +9885,7 @@ function fileExists2(p) {
 }
 function isDirectory2(p) {
   try {
-    return fs14.statSync(p).isDirectory();
+    return fs16.statSync(p).isDirectory();
   } catch {
     return false;
   }
@@ -9646,13 +9895,13 @@ function emit2(findings, f) {
 }
 function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path14.relative(repoRoot, p);
+    return path16.relative(repoRoot, p);
   }
   const required = [
-    path14.join(pluginDir, "marketplace", "listing.yaml"),
-    path14.join(pluginDir, "marketplace", "icon.png"),
-    path14.join(pluginDir, "README.md"),
-    path14.join(pluginDir, "CHANGELOG.md")
+    path16.join(pluginDir, "marketplace", "listing.yaml"),
+    path16.join(pluginDir, "marketplace", "icon.png"),
+    path16.join(pluginDir, "README.md"),
+    path16.join(pluginDir, "CHANGELOG.md")
   ];
   for (const f of required) {
     if (!fileExists2(f)) {
@@ -9668,13 +9917,13 @@ function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
 }
 function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   function rel2(p) {
-    return path14.relative(repoRoot, p);
+    return path16.relative(repoRoot, p);
   }
-  const listingPath = path14.join(pluginDir, "marketplace", "listing.yaml");
+  const listingPath = path16.join(pluginDir, "marketplace", "listing.yaml");
   if (!fileExists2(listingPath)) return;
   let raw;
   try {
-    raw = fs14.readFileSync(listingPath, "utf-8");
+    raw = fs16.readFileSync(listingPath, "utf-8");
   } catch (e) {
     emit2(findings, {
       code: "E05",
@@ -9748,9 +9997,9 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   if (result.success) {
     const listing = result.data;
     if (listing.screenshot_order) {
-      const screenshotsDir = path14.join(pluginDir, "marketplace", "screenshots");
+      const screenshotsDir = path16.join(pluginDir, "marketplace", "screenshots");
       for (const fname of listing.screenshot_order) {
-        const fpath = path14.join(screenshotsDir, fname);
+        const fpath = path16.join(screenshotsDir, fname);
         if (!fileExists2(fpath)) {
           emit2(findings, {
             code: "E06",
@@ -9764,7 +10013,7 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
     }
     if (listing.requires_plugins && isDirectory2(pluginsDir)) {
       for (const slug of listing.requires_plugins) {
-        const depDir = path14.join(pluginsDir, slug);
+        const depDir = path16.join(pluginsDir, slug);
         if (!isDirectory2(depDir)) {
           emit2(findings, {
             code: "E06",
@@ -9790,15 +10039,15 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
 var SCREENSHOT_RE = /^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$/;
 function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path14.relative(repoRoot, p);
+    return path16.relative(repoRoot, p);
   }
-  const iconPath = path14.join(pluginDir, "marketplace", "icon.png");
+  const iconPath = path16.join(pluginDir, "marketplace", "icon.png");
   if (fileExists2(iconPath)) {
     validateIcon(pluginSlug, iconPath, rel2(iconPath), findings);
   }
-  const screenshotsDir = path14.join(pluginDir, "marketplace", "screenshots");
+  const screenshotsDir = path16.join(pluginDir, "marketplace", "screenshots");
   if (!isDirectory2(screenshotsDir)) return;
-  const files = fs14.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
+  const files = fs16.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
   if (files.length > 8) {
     emit2(findings, {
       code: "E02",
@@ -9809,14 +10058,14 @@ function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
     });
   }
   for (const fname of files) {
-    const fpath = path14.join(screenshotsDir, fname);
+    const fpath = path16.join(screenshotsDir, fname);
     validateScreenshot(pluginSlug, fpath, rel2(fpath), fname, findings);
   }
 }
 function validateIcon(pluginSlug, iconPath, relFile, findings) {
   let dims;
   try {
-    const buf = fs14.readFileSync(iconPath);
+    const buf = fs16.readFileSync(iconPath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9846,7 +10095,7 @@ function validateIcon(pluginSlug, iconPath, relFile, findings) {
       message: `icon is ${dims.width}\xD7${dims.height}, expected 512\xD7512`
     });
   }
-  const stat = fs14.statSync(iconPath);
+  const stat = fs16.statSync(iconPath);
   if (stat.size > 512 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9868,10 +10117,10 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
     });
     return;
   }
-  const ext = path14.extname(fname).toLowerCase().slice(1);
+  const ext = path16.extname(fname).toLowerCase().slice(1);
   let dims;
   try {
-    const buf = fs14.readFileSync(fpath);
+    const buf = fs16.readFileSync(fpath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -9917,7 +10166,7 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
       });
     }
   }
-  const stat = fs14.statSync(fpath);
+  const stat = fs16.statSync(fpath);
   if (stat.size > 2 * 1024 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -9931,13 +10180,13 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
 var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path14.relative(repoRoot, p);
+    return path16.relative(repoRoot, p);
   }
-  const readmePath = path14.join(pluginDir, "README.md");
-  const changelogPath = path14.join(pluginDir, "CHANGELOG.md");
-  const pluginJsonPath = path14.join(pluginDir, ".claude-plugin", "plugin.json");
+  const readmePath = path16.join(pluginDir, "README.md");
+  const changelogPath = path16.join(pluginDir, "CHANGELOG.md");
+  const pluginJsonPath = path16.join(pluginDir, ".claude-plugin", "plugin.json");
   if (fileExists2(readmePath)) {
-    const content = fs14.readFileSync(readmePath, "utf-8");
+    const content = fs16.readFileSync(readmePath, "utf-8");
     if (content.trim().length < 200) {
       emit2(findings, {
         code: "E05",
@@ -9959,7 +10208,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
     }
   }
   if (!fileExists2(changelogPath)) return;
-  const changelog = fs14.readFileSync(changelogPath, "utf-8");
+  const changelog = fs16.readFileSync(changelogPath, "utf-8");
   if (!changelog.trimStart().startsWith("# Changelog")) {
     emit2(findings, {
       code: "E03",
@@ -9999,7 +10248,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   let pluginJson;
   try {
     pluginJson = JSON.parse(
-      fs14.readFileSync(pluginJsonPath, "utf-8")
+      fs16.readFileSync(pluginJsonPath, "utf-8")
     );
   } catch {
     return;
@@ -10056,6 +10305,8 @@ function lintPlugin(pluginSlug, pluginDir, opts) {
   pass17ViewToolConnectorCalls(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass18HostPromptSlash(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass19ViewPayloadCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass20ViewPayloadFieldCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass21ReconcileDeclared(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 var __filename = fileURLToPath(import.meta.url);
@@ -10066,7 +10317,7 @@ if (isMain) {
     if (idx === -1) return void 0;
     return cliArgs[idx + 1];
   }, relPath = function(absPath) {
-    return path14.relative(repoRoot, absPath);
+    return path16.relative(repoRoot, absPath);
   }, formatHuman = function(f) {
     const loc = f.line != null ? `:${f.line}${f.col != null ? `:${f.col}` : ""}` : "";
     const sev = f.severity.toUpperCase();
@@ -10089,15 +10340,15 @@ if (isMain) {
   const appsClientCanonicalRootFlag = getFlag("--apps-client-canonical-root");
   const tmpRootFlag = getFlag("--tmp-root");
   const jsonMode = cliArgs.includes("--json");
-  const __dirname = path14.dirname(__filename);
-  const repoRoot = path14.resolve(__dirname, "..");
-  const pluginsDir = path14.join(repoRoot, "plugins");
+  const __dirname = path16.dirname(__filename);
+  const repoRoot = path16.resolve(__dirname, "..");
+  const pluginsDir = path16.join(repoRoot, "plugins");
   const lintRoots = {
-    canonicalRoot: canonicalRootFlag ? path14.resolve(canonicalRootFlag) : repoRoot,
-    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path14.resolve(appsClientCanonicalRootFlag) : repoRoot,
-    tmpRoot: tmpRootFlag ? path14.resolve(tmpRootFlag) : repoRoot
+    canonicalRoot: canonicalRootFlag ? path16.resolve(canonicalRootFlag) : repoRoot,
+    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path16.resolve(appsClientCanonicalRootFlag) : repoRoot,
+    tmpRoot: tmpRootFlag ? path16.resolve(tmpRootFlag) : repoRoot
   };
-  const explicitPluginDir = pluginDirFlag ? path14.resolve(pluginDirFlag) : null;
+  const explicitPluginDir = pluginDirFlag ? path16.resolve(pluginDirFlag) : null;
   let slugs;
   if (explicitPluginDir) {
     if (!isDirectory2(explicitPluginDir)) {
@@ -10107,9 +10358,9 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = [pluginFilter ?? path14.basename(explicitPluginDir)];
+    slugs = [pluginFilter ?? path16.basename(explicitPluginDir)];
   } else if (pluginFilter) {
-    const pluginDir = path14.join(pluginsDir, pluginFilter);
+    const pluginDir = path16.join(pluginsDir, pluginFilter);
     if (!isDirectory2(pluginDir)) {
       process.stderr.write(
         `Error: plugin "${pluginFilter}" not found in ${relPath(pluginsDir)}
@@ -10126,14 +10377,14 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = fs14.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path14.join(pluginsDir, n))).filter(
-      (n) => fileExists2(path14.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
+    slugs = fs16.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path16.join(pluginsDir, n))).filter(
+      (n) => fileExists2(path16.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
     ).sort();
   }
   const allFindings = [];
   const failedPlugins = /* @__PURE__ */ new Set();
   for (const slug of slugs) {
-    const pluginDir = explicitPluginDir ?? path14.join(pluginsDir, slug);
+    const pluginDir = explicitPluginDir ?? path16.join(pluginsDir, slug);
     const findings = lintPlugin(slug, pluginDir, {
       repoRoot,
       pluginsDir,

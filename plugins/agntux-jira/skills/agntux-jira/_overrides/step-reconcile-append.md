@@ -1,0 +1,3 @@
+- **Resolved when** — the issue's status category is Done (e.g. status Done, Closed, Resolved, or Won't Do) in Jira, or the issue was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — assignee, priority, due date, or description changed; regenerate the Comment, Transition, Assign, Edit, and Log-work view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `getJiraIssue` by the action's `source_ref` (issue_key + cloud_id); a not-found / 404 / 410 means deleted.

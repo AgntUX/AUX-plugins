@@ -3,7 +3,7 @@
 # Run: node scripts/render-skill.mjs agntux-notion
 
 plugin-slug: agntux-notion
-plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+plugin-version: 0.2.0                          # matches .claude-plugin/plugin.json
 source-display-name: Notion
 source-slug: notion
 recommended-cadence: "Every 4 hours"           # matches plugin.json recommended_ingest_cadence

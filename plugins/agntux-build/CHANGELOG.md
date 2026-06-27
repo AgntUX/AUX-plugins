@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.36.0] — 2026-06-27
+
+### Added
+
+- Two new marketplace lint passes: E35 (view-payload field-coverage — every field a view reads must be documented as written by the ingest skill) and E36 (reconcile-declared — every action-producing plugin must declare its Step 8.5 reconcile signals).
+- Canonical ingest changes vendored into the build toolchain: a mandatory, action-agnostic Step 10.1 pre-draft; a broadened Step 8.5 that reconciles open actions against fresh source data; and a new `reconcile.md` reference. Specialist-agent guidance (ingest-prompt-author, draft-flow-author, source-semantics-advisor, tests-author) updated to match.
+
 ## [0.35.0] — 2026-06-26
 
 ### Changed

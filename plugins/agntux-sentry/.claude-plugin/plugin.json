@@ -1,6 +1,6 @@
 {
   "name": "agntux-sentry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sentry issues and observability in your AgntUX knowledge store.",
   "author": {
     "name": "AgntUX",
