@@ -1,0 +1,11 @@
+{
+  "name": "agntux-canva",
+  "version": "0.1.0",
+  "description": "Brings your Canva designs and comments into AgntUX so you see what needs your attention.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
+}
