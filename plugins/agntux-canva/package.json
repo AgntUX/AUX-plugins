@@ -1,0 +1,23 @@
+{
+  "name": "@agntux/agntux-canva-plugin",
+  "version": "0.0.0",
+  "description": "Build + test harness for the agntux-canva plugin",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-plugin.mjs agntux-canva",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "workspaces": [
+    "view-tool"
+  ]
+}
