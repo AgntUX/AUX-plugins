@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-27T02:06:07.522Z",
+  "generated_at": "2026-06-27T02:06:57.666Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -1153,6 +1153,137 @@
         "source_id_format": "Google Drive file ID (stable identifier, e.g. 1cguDW1J6QA…)"
       }
     },
+    "agntux-hubspot": {
+      "tagline": "Manage HubSpot deals, tasks, and tickets without leaving AgntUX.",
+      "description": "Watches your HubSpot account for deals approaching close dates, tasks coming due, and tickets needing replies. See recent customer activity and who's assigned to what, then move deals between stages, complete or reschedule tasks, log notes on records, and reassign work — all without switching to HubSpot.\n",
+      "categories": [
+        "crm",
+        "productivity"
+      ],
+      "keywords": [
+        "hubspot",
+        "crm",
+        "deals",
+        "tasks",
+        "tickets",
+        "sales"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-hubspot",
+          "purpose": "Check for new deals, tasks, and tickets. Or ask about your HubSpot records to search and find information."
+        }
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "hubspot",
+        "display_name": "HubSpot"
+      },
+      "ui_components": [
+        {
+          "name": "move-deal-stage",
+          "title": "Move deal to a new stage",
+          "purpose": "Transition a deal between sales pipeline stages.",
+          "view_tool": "agntux_hubspot_move_deal_view",
+          "resource_uri": "ui://agntux-hubspot/move-deal"
+        },
+        {
+          "name": "update-task",
+          "title": "Complete or reschedule task",
+          "purpose": "Mark a task complete or set a new due date.",
+          "view_tool": "agntux_hubspot_task_view",
+          "resource_uri": "ui://agntux-hubspot/task"
+        },
+        {
+          "name": "log-activity",
+          "title": "Log note or activity",
+          "purpose": "Add a note, call, email, or meeting to a customer record.",
+          "view_tool": "agntux_hubspot_activity_view",
+          "resource_uri": "ui://agntux-hubspot/activity"
+        },
+        {
+          "name": "reassign-record",
+          "title": "Reassign to another owner",
+          "purpose": "Transfer a deal, ticket, or contact to a team member.",
+          "view_tool": "agntux_hubspot_reassign_view",
+          "resource_uri": "ui://agntux-hubspot/reassign"
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "deal",
+            "description": "A sales opportunity or deal in your HubSpot pipeline."
+          },
+          {
+            "subtype": "contact",
+            "description": "A person in your HubSpot database."
+          },
+          {
+            "subtype": "company",
+            "description": "An organization in your HubSpot database."
+          },
+          {
+            "subtype": "task",
+            "description": "A task or reminder assigned in HubSpot."
+          },
+          {
+            "subtype": "ticket",
+            "description": "A customer support ticket in HubSpot."
+          },
+          {
+            "subtype": "engagement",
+            "description": "A note, call, email, or meeting logged on a record."
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "deadline",
+            "description": "A deal close date or task due date approaching soon."
+          },
+          {
+            "class": "response-needed",
+            "description": "A ticket or assignment waiting for your action."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A status change or update on a deal, contact, or ticket."
+          },
+          {
+            "class": "risk",
+            "description": "A stale or stuck deal, or an overdue task."
+          },
+          {
+            "class": "opportunity",
+            "description": "A newly assigned deal, contact, or task to follow up on."
+          },
+          {
+            "class": "other",
+            "description": "A HubSpot event or notification that doesn't fit another class."
+          }
+        ],
+        "cursor_semantics": "Per-entity-type cursor map tracking the most recent hs_lastmodifieddate; advances to mark processed objects.",
+        "source_id_format": "`{object_type}#{hs_object_id}` — HubSpot object IDs are unique per object type."
+      }
+    },
     "agntux-imessage": {
       "tagline": "See the iMessages that need a reply, sorted by priority.",
       "description": "Watches your iMessages for conversations that need you—from known contacts with urgent questions to marketing messages. Brings them into AgntUX sorted by priority (replies needed, personal messages, promotional) so you focus on what matters most. Lets you draft and review replies before sending.\n",
@@ -1610,6 +1741,175 @@
         ],
         "cursor_semantics": "Incremental cursor over transaction timestamps. Each account's cursor advances to the most recent createdAt. Accounts, cards, and approvals refresh each run; statements and invoices pull periodically.",
         "source_id_format": "`{resource_type}#{uuid}` — each resource has a UUID unique within its type."
+      }
+    },
+    "agntux-notion": {
+      "tagline": "Notion tasks and updates in AgntUX, with direct replies and edits.",
+      "description": "Brings your Notion workspace into AgntUX so tasks, projects, and\npages that need you show up in one place. Reply to comments, update\npage properties, and create new pages without leaving AgntUX. Check\nfor new activity every 4 hours or ask a question about your Notion\nanytime.\n",
+      "categories": [
+        "notes-knowledge",
+        "project-management"
+      ],
+      "keywords": [
+        "notion",
+        "tasks",
+        "pages",
+        "database",
+        "projects",
+        "documents",
+        "workspace",
+        "collaboration"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "data_ingested": [
+        "Pages from your Notion workspace",
+        "Tasks and items in databases",
+        "Comments and mentions on pages",
+        "Page updates and property changes",
+        "User assignments and ownership"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-notion",
+          "purpose": "Check for new activity in Notion, or ask a question about your workspace."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "reply-to-comment",
+          "title": "Reply to comment",
+          "purpose": "Write a reply to a comment on a Notion page.",
+          "view_tool": "agntux_notion_comment_view",
+          "resource_uri": "ui://agntux-notion/reply-comment"
+        },
+        {
+          "name": "update-page",
+          "title": "Update page",
+          "purpose": "Edit properties and fields on a Notion page.",
+          "view_tool": "agntux_notion_update_view",
+          "resource_uri": "ui://agntux-notion/update-page"
+        },
+        {
+          "name": "create-page",
+          "title": "Create page",
+          "purpose": "Create a new page in your Notion workspace.",
+          "view_tool": "agntux_notion_create_view",
+          "resource_uri": "ui://agntux-notion/create-page"
+        }
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "notion",
+        "display_name": "Notion"
+      },
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "notion-page",
+            "description": "A page in your Notion workspace — docs, wiki pages, or standalone notes.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "notion-database-item",
+            "description": "A row in a Notion database — tasks, projects, or custom items you track.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "notion-comment",
+            "description": "A comment or mention thread on a page or database item.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "person",
+            "description": "A Notion user or person mentioned in comments and assignments.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "A comment on a page or item that mentions you or waits for your reply."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A page or database item that was created or updated with new information."
+          },
+          {
+            "class": "deadline",
+            "description": "A task or project with a due date in Notion."
+          },
+          {
+            "class": "opportunity",
+            "description": "A page or item marked as important or worth reviewing."
+          },
+          {
+            "class": "other",
+            "description": "Any other actionable item from Notion that doesn't fit a standard class."
+          }
+        ],
+        "cursor_semantics": "Tracks the last-edited timestamp of pages and database items. Comments are polled per page each run; the plugin checks for new comment activity alongside page updates.",
+        "source_id_format": "`{block-id}` — Notion's 32-character hex UUID (dashed format) uniquely identifies each page, database item, and comment."
       }
     },
     "agntux-posthog": {
