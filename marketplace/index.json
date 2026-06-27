@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-26T16:45:41.569Z",
+  "generated_at": "2026-06-27T01:58:02.714Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -443,6 +443,170 @@
         "name": "AgntUX",
         "url": "https://agntux.ai",
         "github_handle": "agntux"
+      }
+    },
+    "agntux-dropbox": {
+      "tagline": "Bring your Dropbox files into AgntUX, and act on them instantly.",
+      "description": "Watches your Dropbox for files and folders that need your attention. Share\nlinks, organize files, create folders, and request uploads—all from triage,\nwithout leaving AgntUX. Syncs every 4 hours during work hours.\n",
+      "categories": [
+        "productivity",
+        "notes-knowledge"
+      ],
+      "keywords": [
+        "dropbox",
+        "file-storage",
+        "sharing",
+        "file-sync",
+        "organize"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "data_ingested": [
+        "Files and their metadata (names, sizes, timestamps, sharing status)",
+        "Folder structure and hierarchy",
+        "Shared links and sharing permissions",
+        "File requests and their status"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-dropbox",
+          "purpose": "Check Dropbox for updates, or ask a question about your files. The plugin searches and looks them up for you."
+        }
+      ],
+      "ui_components": [
+        {
+          "name": "share-file",
+          "title": "Share a file",
+          "purpose": "Create a shareable link to a file and copy it to send. Control who can access and whether they can download.",
+          "view_tool": "agntux_dropbox_share",
+          "resource_uri": "ui://agntux-dropbox/share-file"
+        },
+        {
+          "name": "organize-file",
+          "title": "Move or copy a file",
+          "purpose": "Move a file to a different folder or create a copy. Choose the destination folder and confirm.",
+          "view_tool": "agntux_dropbox_organize",
+          "resource_uri": "ui://agntux-dropbox/organize-file"
+        },
+        {
+          "name": "new-folder",
+          "title": "Create a folder",
+          "purpose": "Create a new folder in your Dropbox. Give it a name and choose where to put it.",
+          "view_tool": "agntux_dropbox_new_folder",
+          "resource_uri": "ui://agntux-dropbox/new-folder"
+        },
+        {
+          "name": "file-request",
+          "title": "Request a file",
+          "purpose": "Set up a file request link to ask people to upload files. They don't need a Dropbox account to send.",
+          "view_tool": "agntux_dropbox_file_request",
+          "resource_uri": "ui://agntux-dropbox/file-request"
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "dropbox",
+        "display_name": "Dropbox"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "file",
+            "description": "A document or file stored in Dropbox with content and metadata.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "folder",
+            "description": "A directory or container in Dropbox holding files and subfolders.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "shared-link",
+            "description": "A publicly shareable link to a file or folder with permissions.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "file-request",
+            "description": "A request link where people can upload files to a folder.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "A file or folder that needs your attention to share, organize, or action."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "New or updated files and folders added to your Dropbox."
+          },
+          {
+            "class": "opportunity",
+            "description": "Files or folders that present a chance to share or collaborate."
+          }
+        ],
+        "cursor_semantics": "Four-part cursor: folder_cursor (server delta), files (file_id to rev map), shared_links_cursor, file_requests_seen; all advance transactionally. Bootstrap backfill when cursor is null.",
+        "source_id_format": "`{file_id}` — Dropbox's stable unique ID per file/folder; rev indicates changes."
       }
     },
     "agntux-gmail": {

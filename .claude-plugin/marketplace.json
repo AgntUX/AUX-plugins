@@ -75,6 +75,20 @@
       "category": "meta"
     },
     {
+      "name": "agntux-dropbox",
+      "source": "./plugins/agntux-dropbox",
+      "homepage": "https://agntux.ai/plugins/agntux-dropbox",
+      "keywords": [
+        "dropbox",
+        "file-storage",
+        "sharing",
+        "file-sync",
+        "organize"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-gmail",
       "source": "./plugins/agntux-gmail",
       "homepage": "https://agntux.ai/plugins/agntux-gmail",
