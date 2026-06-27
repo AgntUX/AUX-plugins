@@ -32,7 +32,6 @@ const SLUG = "agntux-testcal";
 const SESSION = "2026-01-01-000000";
 const CONTRIB = {
   name: "Test User",
-  email: "test@example.com",
   dco_text_version: "1.1",
   dco_agreed_at: "2026-01-01T00:00:00Z",
 };
@@ -118,7 +117,9 @@ describe("assembleMarker", () => {
     expect(marker.previous_version).toBeUndefined();
     expect(marker.submission_id).toBe(`agntux-testcal@0.1.0+${treeSha.slice(0, 8)}`);
     expect(marker.agntux_build_version).toBe("0.16.0");
-    expect(marker.dco.signed_off_by).toBe("Test User <test@example.com>");
+    expect(marker.contributor.name).toBe("Test User");
+    expect(marker.contributor.email).toBeUndefined();
+    expect(marker.dco.signed_off_by).toBe("Test User");
     expect(marker.tree_sha256).toBe(treeSha);
     expect(marker.validation).toEqual({
       build: "pass",
@@ -150,13 +151,29 @@ describe("assembleMarker", () => {
     });
     expect(withSocials.contributor.socials).toEqual({ x: "jane" });
   });
+
+  it("omits name + email + sign-off when the contributor is anonymous", () => {
+    const { files, treeSha } = treeFilesAndSha(pluginDir, SLUG, walkTree);
+    const anon = assembleMarker({
+      slug: SLUG, pluginVersion: "0.1.0", mode: "create", sessionId: SESSION,
+      agntuxBuildVersion: "0.16.0",
+      contrib: { dco_text_version: "1.1", dco_agreed_at: "2026-01-01T00:00:00Z" },
+      treeSha, files, validation: {},
+    });
+    expect(anon.contributor.name).toBeUndefined();
+    expect(anon.contributor.email).toBeUndefined();
+    expect(anon.dco.signed_off_by).toBeUndefined();
+  });
 });
 
 describe("isValidContributor", () => {
-  it("requires name/email/dco fields", () => {
+  it("requires only the DCO fields; name is optional and email is never required", () => {
     expect(isValidContributor(CONTRIB)).toBe(true);
+    // name omitted entirely → still valid (anonymous submission)
+    expect(isValidContributor({ dco_text_version: "1.1", dco_agreed_at: "2026-01-01T00:00:00Z" })).toBe(true);
+    // missing DCO fields → invalid
     expect(isValidContributor({ name: "x" })).toBe(false);
-    expect(isValidContributor({ ...CONTRIB, email: "" })).toBe(false);
+    expect(isValidContributor({ ...CONTRIB, dco_agreed_at: "" })).toBe(false);
     expect(isValidContributor(null)).toBe(false);
   });
 });

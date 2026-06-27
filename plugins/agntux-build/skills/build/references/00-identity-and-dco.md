@@ -10,15 +10,15 @@ Open-source projects need a record that the contributor has the right
 to give the work they're contributing. The standard mechanism is the
 [Developer Certificate of Origin v1.1](https://developercertificate.org/)
 — a short, plain agreement that the contributor wrote (or has the
-right to contribute) the code they're submitting. The AgntUX
-maintainer's commit ends up with a `Signed-off-by:` trailer carrying
-the contributor's name and email; that's what Probot DCO checks on the
-public PR.
+right to contribute) the code they're submitting.
 
-For technical contributors who type `git commit -s`, the trailer
-appears automatically. For knowledge workers contributing via this
-flow, we capture the agreement once at the start and embed the
-trailer inside every submission the user makes.
+We capture that agreement once, at the start. The agreement itself is
+the load-bearing part — it does **not** require us to collect or
+publish any personal data. We do **not** ask for an email at all, and a
+name is **optional**: provide one only if you'd like to be credited
+publicly. When AgntUX maintainers merge the contribution, they sign off
+the public commit with the project's own identity, so the DCO check
+passes without exposing any of the contributor's personal details.
 
 ## Pre-flight
 
@@ -57,7 +57,8 @@ trailer inside every submission the user makes.
    has to click "Allow for scheduled runs" once.
 3. Read `<agntux project root>/.agntux-build/contributor.json`. If it
    exists AND its `dco_text_version` field equals `"1.1"`, skip this
-   whole stage silently. Use the stored `name` for personalised voice.
+   whole stage silently. Use the stored `name` (when present) for
+   personalised voice; greet without a name for anonymous contributors.
 
 ## Capture flow
 
@@ -109,46 +110,44 @@ If the file is missing or stale:
        with this project or the open source license(s) involved.
    ```
 
-3. Capture the contributor's **real legal name**:
+3. **Optionally** capture a name to credit. This is the only personal
+   detail the flow ever asks for, and it is entirely optional:
 
-   > To sign off, I need your real legal name (the one a court would
-   > use, not a handle). What should the sign-off use?
+   > Last thing before we build: would you like to be credited for this
+   > plugin? If so, tell me the name to show — it will be published
+   > publicly in the plugin's contribution record. Or say **skip** to
+   > stay anonymous.
 
-   Reject obvious placeholders:
-   - `test`, `anonymous`, `dev`, `me`, `user`, `contributor`
-   - Single-word names without a space (e.g. `john` alone)
-   - Names containing only ASCII punctuation
-   - Names < 4 chars
+   - If the contributor says **skip** (or `no`, `anonymous`, `private`,
+     or similar), record no name — the submission is anonymous. Don't
+     push back, and don't ask again.
+   - If they give a name, take it as-is — a handle or first name is
+     fine; it's for credit, not legal identification. Only re-ask if
+     they typed something that clearly isn't an answer.
 
-   If rejected, explain *why* in one line and re-ask. Don't lecture.
+   We do **not** ask for an email — ever.
 
-4. Capture the contributor's email:
-
-   > And the email AgntUX should credit you at?
-
-   Validate as a real email shape (regex: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`).
-   If it fails, ask once more.
-
-5. Final confirmation in a single turn:
+4. Final confirmation in a single turn:
 
    > Got it. To confirm:
    >
-   > - Name: **{captured-name}**
-   > - Email: **{captured-email}**
+   > - Credit: **{captured-name, or "Anonymous — no name published"}**
    > - You agree to the Developer Certificate of Origin v1.1 above.
    >
    > Type **I agree** to confirm, or anything else to revise.
 
    Accept exactly: `I agree`, `i agree`, `agree`, `yes`, `confirmed`.
-   Anything else → loop back to whichever field they want to revise.
+   Anything else → loop back to revise (change the name, or clear it to
+   stay anonymous).
 
 ## Publication notice
 
 By completing this flow and submitting, you acknowledge that:
 
 - Your finished plugin will be published publicly under the **Apache License 2.0**.
-- Your **name and email** will appear in the public commit history and in the
-  `CONTRIBUTING-SIGNATURE.md` file distributed with the plugin.
+- AgntUX does **not** publish your email — the flow never collects one.
+- A name is published **only if you chose to provide one** above; if you skipped
+  it, the contribution record is anonymous.
 - You must not include secrets, API keys, or other people's personal data anywhere
   in the plugin files.
 - Submission is governed by the [Marketplace Contributor Terms](https://agntux.ai/terms).
@@ -162,13 +161,15 @@ On confirmation, write
 
 ```json
 {
-  "name": "{captured-name}",
-  "email": "{captured-email}",
+  "name": "{captured-name — omit this key entirely when the contributor stayed anonymous}",
   "dco_text_version": "1.1",
   "dco_agreed_at": "{current-iso-timestamp}",
   "dco_agreed_via": "agntux-build/0.1.0"
 }
 ```
+
+Omit `name` entirely for an anonymous submission — never write
+`"name": ""`. The flow never writes an `email` field.
 
 Stage 11 may later append an optional `socials` block to this same
 file with the contributor's public handles + a `credit_consent_at`
@@ -190,7 +191,7 @@ clauses ("the agreement was updated — here's what's different — please
 re-confirm") and re-capture. Treat this rarely; bump the constant in
 this file when the project formally moves to a new DCO revision.
 
-## Why we capture name + email even on update mode
+## Why the DCO agreement applies even on update mode
 
 The "fix existing plugin" branch (stage 2b) is also a contribution.
 The signature embedding in stage 12 references the same
@@ -206,6 +207,7 @@ message body.
   `contributor.json` above.
 - A separate "agreed to terms" flag — the DCO record is the only
   agreement record we keep.
+- An email address — the flow never asks for one.
 
 ## What to do if the user declines
 
@@ -251,7 +253,7 @@ the public submission path (finalize-for-sync) verbatim as today.
    >
    > - Type **team** to publish to {display_name}.
    > - Type **public** to submit as an open-source contribution
-   >   (the standard email flow).
+   >   (the standard public submission flow).
 
    Accept exactly: `team`, `t`, `private` → team path. Anything else
    that includes `public`, `p`, `open` → public path. Ambiguous input

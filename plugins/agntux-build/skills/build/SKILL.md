@@ -149,8 +149,9 @@ home). Once resolved, look for
 `<agntux project root>/.agntux-build/contributor.json`.
 
 - If it exists AND its `dco_text_version` matches v1.1, skip stage 0
-  silently. Use the stored `name` for personalised voice ("Welcome
-  back, {name} — what would you like to build today?").
+  silently. Use the stored `name` for personalised voice when one was
+  provided ("Welcome back, {name} — what would you like to build
+  today?"); greet without a name when the contributor stayed anonymous.
 - If it's missing, or the DCO version is stale, load
   [`references/00-identity-and-dco.md`](references/00-identity-and-dco.md)
   and run the capture flow before anything else.

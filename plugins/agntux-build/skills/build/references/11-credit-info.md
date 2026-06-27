@@ -27,6 +27,23 @@ The stage runs **after stage 10, before stage 12**. If the session's
 `credit_info` was already captured (the build was resumed mid-flow),
 skip silently and proceed to stage 12.
 
+## Anonymous contributors
+
+If `contributor.json` has **no `name`** (the contributor chose to stay
+anonymous at stage 0), two things change in every prompt below:
+
+- **Drop the `{Name}, ` prefix** — greet without a name.
+- **Name the trade-off first.** A social handle is itself a public
+  identifier, so lead with that rather than the usual credit pitch:
+
+  > You chose to stay anonymous, so nothing personal is published by
+  > default. Sharing a handle here would be public credit and would
+  > identify you — totally optional. Say **skip** to stay fully
+  > anonymous, or drop a handle if you'd like the credit after all.
+
+  Only collect handles if they opt in after that framing; **skip** stays
+  the default.
+
 ## Pre-flight
 
 1. Read `<agntux project root>/.agntux-build/contributor.json` (which
@@ -118,8 +135,7 @@ If at least one handle was provided, extend
 
 ```json
 {
-  "name": "...",
-  "email": "...",
+  "name": "{present only if provided at stage 0 — omit for an anonymous contributor}",
   "dco_text_version": "1.1",
   "dco_agreed_at": "...",
   "dco_agreed_via": "...",

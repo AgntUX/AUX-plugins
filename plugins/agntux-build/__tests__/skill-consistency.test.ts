@@ -185,6 +185,28 @@ describe("skill ↔ references consistency", () => {
     expect(body).toMatch(/SUBMISSION\.json` failed self-check|failed self-check/);
   });
 
+  it("never collects or publishes a contributor email; name is opt-in (privacy contract)", () => {
+    // The 0.35.0 privacy change: the flow stops collecting an email and
+    // makes the name optional/opt-in, so no PII is published without
+    // permission. Guard that the email-capture + email-bearing sign-off
+    // templates stay gone and the anonymous/optional path stays documented.
+    const identity = readFileSync(join(REF_DIR, "00-identity-and-dco.md"), "utf-8");
+    const submit = readFileSync(join(REF_DIR, "12-submit.md"), "utf-8");
+
+    // (a) No email is ever captured (stage 0) or templated into the
+    // public signature / sign-off trailer (stage 12).
+    expect(identity).not.toContain("captured-email");
+    expect(submit).not.toContain("captured-email");
+    expect(submit).not.toMatch(/<\{captured-email\}>/);
+
+    // (b) The name is opt-in, with an explicit anonymous path. Anchor on
+    // phrases unique to the new opt-in prompt so this can't pass if the
+    // name were ever made mandatory again (the bare word "optional" also
+    // appears in the unrelated socials sentence, so it's too weak).
+    expect(identity).toContain("stay anonymous");
+    expect(identity).toContain("entirely optional");
+  });
+
   it("update-mode.md keeps the 0.8.0 update-mode marker fields", () => {
     // The cross-repo contract matches a fix to an existing plugin via
     // the marker's top-level `mode` + `previous_version`, so the

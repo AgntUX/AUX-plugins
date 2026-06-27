@@ -4,11 +4,12 @@ The plugin works. Sync surfaces the right things. Time to ship it to
 the AgntUX maintainers, who will deploy it to the remote MCP server.
 
 > **Before finalizing:** By submitting you confirm that your plugin will be
-> published publicly under the Apache License 2.0, your name and email will
-> appear in public commit history and in `CONTRIBUTING-SIGNATURE.md`, you have
-> not included secrets or other people's personal data, and submission is
-> governed by the [Marketplace Contributor Terms](https://agntux.ai/terms) and
-> [Privacy Policy](https://agntux.ai/privacy).
+> published publicly under the Apache License 2.0, you have not included secrets
+> or other people's personal data, and submission is governed by the
+> [Marketplace Contributor Terms](https://agntux.ai/terms) and
+> [Privacy Policy](https://agntux.ai/privacy). AgntUX does not publish your email
+> (none is collected); a name appears in `CONTRIBUTING-SIGNATURE.md` only if you
+> chose to provide one — otherwise the record is anonymous.
 
 Source plugins are remote-view-only — they have no local MCP server,
 and local install in Claude Cowork is broken for the view-tool path.
@@ -43,8 +44,7 @@ Compose:
 ```markdown
 ---
 contributor:
-  name: {captured-name}
-  email: {captured-email}
+  name: {captured-name — omit this line entirely when the contributor stayed anonymous}
 dco:
   version: "1.1"
   agreed_at: {dco_agreed_at-iso-timestamp}
@@ -55,17 +55,17 @@ submission:
   submitted_at: {now-iso-timestamp}
   mode: {create-or-update}
   previous_version: {only-when-mode-is-update}
-signed_off_by: "{captured-name} <{captured-email}>"
 ---
 
 By submitting this contribution, I confirm that I have read and
 agree to the Developer Certificate of Origin v1.1
 (https://developercertificate.org/), reproduced in full below.
 
-When committing this contribution, AgntUX maintainers MUST include
-the following trailer in the commit message:
-
-    Signed-off-by: {captured-name} <{captured-email}>
+This contribution is made under the Apache License 2.0. AgntUX does not
+collect or publish a contributor email; when AgntUX maintainers commit
+this contribution they sign off with the project's own identity
+(`Signed-off-by: AgntUX <noreply@agntux.ai>`), which satisfies the DCO
+check on the public PR.
 
 ---
 
@@ -107,10 +107,12 @@ By making a contribution to this project, I certify that:
 ```
 
 Write to `{build-path}/CONTRIBUTING-SIGNATURE.md` (the plugin root).
-This file now rides to S3 with the rest of the tree and remains the
-maintainer's commit-trailer source — the `Signed-off-by:` line a
-maintainer copies into the merge commit so Probot DCO passes on the
-public PR.
+This file now rides to S3 with the rest of the tree as the DCO consent
+record (the agreed DCO version + when, plus the contributor's name only
+when they opted into credit). When a maintainer merges the contribution
+they sign off the commit with the project's own identity
+(`Signed-off-by: AgntUX <noreply@agntux.ai>`) so Probot DCO passes on
+the public PR — no contributor email is ever required or published.
 
 ## a. Resolve the synced submission path
 
@@ -314,8 +316,10 @@ validates are `schema_version`, `kind: "agntux-build.submission"`, and
   "build_root": "agntux-{slug}",
   "agntux_build_version": "{agntux-build plugin.json version}",
   "contributor": {
+    // `name` appears ONLY when the contributor chose to provide one for
+    // credit; it is absent for an anonymous submission. No `email` is
+    // ever collected or emitted.
     "name": "...",
-    "email": "...",
     "socials": {
       // Only the handle keys the contributor actually filled in
       // appear here — never emit `"x": ""` placeholders for skipped
@@ -328,7 +332,7 @@ validates are `schema_version`, `kind: "agntux-build.submission"`, and
       "credit_consent_at": "{iso timestamp from stage 11}"
     }
   },
-  "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "Name <email>" },
+  "dco": { "version": "1.1", "agreed_at": "{iso}", "signed_off_by": "{the name, when one was provided for credit; the key is omitted otherwise — never an email}" },
   "validation": { "build": "pass", "lint": "pass", "tests": "pass", "validate": "pass | skipped", "render": "pass | skipped" },
   "submitted_at": "{iso}",
   "tree_sha256": "{sha256 over sorted `path\\tsha256` lines}",
@@ -550,17 +554,19 @@ or `tree_sha256` in user-facing copy; they're internal.
 ## Why this is enough
 
 - **Auditable**: every submission carries a `CONTRIBUTING-SIGNATURE.md`
-  with the DCO version agreed to, when, and by whom, plus a marker that
-  records the same in machine-readable form.
+  with the DCO version agreed to and when (plus the contributor's name
+  when they opted into credit), plus a marker that records the same in
+  machine-readable form.
 - **Content-addressed**: the marker's `files[].sha256` are the exact S3
   blob keys, so the maintainer side reconstructs the tree with no
   re-upload and `tree_sha256` dedupes re-syncs.
 - **Maintainer-side enforcement**: the intake worker can refuse a
   submission missing `CONTRIBUTING-SIGNATURE.md` or with a stale DCO
   version.
-- **Probot-DCO-compatible**: when the maintainer commits, the
-  `Signed-off-by:` trailer from the signature file passes Probot's
-  check on the public PR.
+- **Probot-DCO-compatible**: when the maintainer commits, they sign off
+  with the project's own identity (`Signed-off-by: AgntUX
+  <noreply@agntux.ai>`), which passes Probot's check on the public PR
+  without collecting or publishing a contributor email.
 - **No attachment channel to fail**: nothing is emailed and nothing is
   attached, so the file-type blocks that dead-ended the old flow can't
   happen.

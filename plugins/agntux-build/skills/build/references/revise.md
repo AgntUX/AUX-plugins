@@ -42,7 +42,7 @@ per input:
 
 | Input the build flow elicits | `--mode revise` default |
 |---|---|
-| Contributor identity (name / email / DCO) | Read from the prior submission's marker / `contributor.json` already on file — never re-elicit. |
+| Contributor identity (optional name / DCO) | Read from the prior submission's marker / `contributor.json` already on file — never re-elicit. |
 | Step 1 feedback (which codes to fix) | Read from `--fixes`, else `last-submission.json.blockers_summary`. If neither is present, exit with a logged defect — do NOT prompt. |
 | Stage 6 design-rule pushback | Silent. The standards stay enforced; never narrate them. |
 | Stage 7 "about to scaffold" / "ready to submit?" confirmation gates | Auto-yes. No confirmation turn. |

@@ -39,10 +39,15 @@ AgntUX marketplace** under the **Apache License 2.0**. By submitting you also
 agree to the [Marketplace Contributor Terms](https://agntux.ai/terms) (§7 —
 Plugin Marketplace), which cover publication, review, and takedown.
 
-Your **real name and email** (from the DCO sign-off) will appear in the public
-commit history and in the `CONTRIBUTING-SIGNATURE.md` file shipped with the
-plugin. See the [Privacy Policy](https://agntux.ai/privacy) for how AgntUX
-handles contributor data.
+The `agntux-build` flow does **not** collect or publish your email, and a name
+is **optional** — you're asked only whether you'd like to be credited, and can
+stay anonymous. If you provide a name it appears in the `CONTRIBUTING-SIGNATURE.md`
+contribution record shipped with the plugin; otherwise the record is anonymous.
+On merge, maintainers sign off the public commit with the project's own identity,
+so the DCO check passes without exposing your personal details. See the
+[Privacy Policy](https://agntux.ai/privacy) for how AgntUX handles contributor
+data. (Direct code contributors using `git commit -s` above still sign off with
+their own name and email per standard DCO practice.)
 
 ---
 
