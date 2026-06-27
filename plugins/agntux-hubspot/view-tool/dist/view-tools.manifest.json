@@ -1,0 +1,299 @@
+{
+  "plugin_slug": "agntux_hubspot",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-hubspot-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_hubspot_move_deal_view",
+      "description": "Use this to move a HubSpot deal to a new pipeline stage on behalf of the user. Opens a stage picker pre-loaded with the available stages for this deal's pipeline. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "deal_url": {
+            "type": "string"
+          },
+          "deal_id": {
+            "type": "string"
+          },
+          "deal_name": {
+            "type": "string"
+          },
+          "pipeline_label": {
+            "type": "string"
+          },
+          "current_stage": {
+            "type": "string"
+          },
+          "available_stages": {
+            "type": "array"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency_code": {
+            "type": "string"
+          },
+          "close_date": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-hubspot/move-deal",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_hubspot_task_view",
+      "description": "Use this to complete or reschedule a HubSpot task on behalf of the user. Opens a task card with tabs to mark the task complete or pick a new due date. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "task_url": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "task_title": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "associated_record_name": {
+            "type": "string"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-hubspot/task",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_hubspot_activity_view",
+      "description": "Use this to log a note or activity on a HubSpot record on behalf of the user. Opens a note composer pre-filled with a draft body the user can edit before submitting. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "record_url": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "record_type": {
+            "type": "string"
+          },
+          "record_name": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-hubspot/activity",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_hubspot_reassign_view",
+      "description": "Use this to reassign a HubSpot record (deal, ticket, or contact) to another owner on behalf of the user. Opens an owner picker with team members available to receive the record. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "record_url": {
+            "type": "string"
+          },
+          "record_id": {
+            "type": "string"
+          },
+          "record_type": {
+            "type": "string"
+          },
+          "record_name": {
+            "type": "string"
+          },
+          "current_owner": {
+            "type": "string"
+          },
+          "candidate_owners": {
+            "type": "array"
+          }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-hubspot/reassign",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-hubspot/move-deal",
+      "html_path": "view-tool/dist/ui-resources/move-deal.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-hubspot/task",
+      "html_path": "view-tool/dist/ui-resources/task.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-hubspot/activity",
+      "html_path": "view-tool/dist/ui-resources/activity.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-hubspot/reassign",
+      "html_path": "view-tool/dist/ui-resources/reassign.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
