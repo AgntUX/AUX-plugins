@@ -1,0 +1,11 @@
+{
+  "name": "agntux-notion",
+  "version": "0.1.0",
+  "description": "Brings your Notion workspace into AgntUX, so tasks and updates show up in one place.",
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
+  "license": "Apache-2.0",
+  "recommended_ingest_cadence": "Every 4 hours"
+}
