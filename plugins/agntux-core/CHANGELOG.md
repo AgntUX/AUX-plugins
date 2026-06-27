@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.6.0] — 2026-06-27
+
+### Added
+
+- **`/agntux triage` now nudges when a plugin is installed but not onboarded.**
+  After the action-items UI renders (so first paint is never delayed), triage
+  runs a single non-blocking onboarding-gap check: it compares the host's
+  installed plugins against `data/instructions/{slug}.md` existence / `status:
+  final` — the same "newly-onboarded" comparison as `_preconditions.md` Check
+  0.5, excluding the `agntux-core` / `agntux-build` infra plugins — and appends
+  one line when any installed ingest plugin still needs setup:
+  `📦 N AgntUX plugin(s) installed but not set up yet — run /agntux onboard …`.
+  This closes the confusion where a user installs a plugin from the
+  marketplace, never re-runs onboarding, and assumes the plugin is broken.
+  Triage still opens the UI instantly (the check is strictly after-render and
+  never blocks), and may also re-sync `~/.agntux/installed-plugins.json` so the
+  desktop app's companion "needs onboarding" banner stays fresh.
+
+### Fixed
+
+- **The `_preconditions.md` Check 0.5 "newly-onboarded plugins" nudge no longer
+  flags the infra plugins.** It now excludes `agntux-core` / `agntux-build`
+  (which have no per-plugin onboarding and never get a `data/instructions/`
+  file) — previously the every-other-command nudge could tell users to run
+  `/agntux onboard` for the hub/builder. The detection now matches the new
+  triage carve-out exactly, and both emit the same harmonized nudge copy.
+
 ## [10.5.3] — 2026-06-26
 
 ### Fixed

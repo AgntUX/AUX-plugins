@@ -79,14 +79,19 @@ against `<agntux project root>/user.md → # AgntUX plugins → ## Installed`.
   Emit this BEFORE the `/agntux onboard` nudge below. Skip when
   `newly_added_slugs` is empty — re-running a command shouldn't spam
   the user with a refresh prompt every time.
-- **Detect newly-onboarded plugins** — installed plugins that lack a
+- **Detect newly-onboarded plugins** — installed *ingest* plugins that lack a
   `data/instructions/{slug}.md` file (or whose file has `status: draft`).
+  **Exclude the non-ingest infra plugins `agntux-core` and `agntux-build`** —
+  they have no per-plugin onboarding interview and never get an instructions
+  file, so they must never enter this set (this matches the after-render
+  onboarding-gap nudge in the router `SKILL.md`'s `triage` carve-out; the two
+  paths use the same comparison and must stay consistent).
 - **If running `/agntux onboard`**: hand the newly-detected set to Mode A-bis
   via Set 2 (installed-without-instructions). The skill's normal flow walks
   per-plugin onboarding for each.
 - **If running any other `/agntux-*` command** AND there is at least one
   newly-detected plugin: emit one nudge line at the top of the response —
-  `📦 N new AgntUX plugin(s) detected ({slug-list}). Run /agntux onboard to walk through them.` —
+  `📦 N AgntUX plugin(s) installed but not set up yet — run /agntux onboard to activate them: {slug-list}.` —
   and continue with the user's actual request. Do NOT block.
 
 If `mcp__plugins__list_plugins` does not resolve, log nothing and continue.
