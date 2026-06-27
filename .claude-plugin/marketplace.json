@@ -239,6 +239,20 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-sentry",
+      "source": "./plugins/agntux-sentry",
+      "homepage": "https://agntux.ai/plugins/agntux-sentry",
+      "keywords": [
+        "sentry",
+        "errors",
+        "monitoring",
+        "observability",
+        "incidents"
+      ],
+      "category": "developer-tools",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-slack",
       "source": "./plugins/agntux-slack",
       "homepage": "https://agntux.ai/plugins/agntux-slack",
