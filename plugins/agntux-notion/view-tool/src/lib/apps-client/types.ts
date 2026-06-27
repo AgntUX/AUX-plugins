@@ -1,0 +1,843 @@
+/**
+ * Type definitions for apps-client
+ *
+ * Inlined from @mcp-apps-kit/ui v0.5.0
+ * Source: https://github.com/agntux/mcp-apps-kit
+ * Date: 2026-01-24
+ *
+ * This code provides type definitions for the unified client API
+ * that works with MCP Apps hosts.
+ */
+
+// =============================================================================
+// HOST CAPABILITIES
+// =============================================================================
+
+/**
+ * Host capabilities advertised during handshake.
+ * Protocol-agnostic interface covering host capabilities.
+ *
+ * @internal
+ */
+export interface HostCapabilities {
+  // ===========================================================================
+  // Common capabilities (supported by both platforms)
+  // ===========================================================================
+
+  /** Host accepts log messages via sendLog() */
+  logging?: Record<string, never>;
+
+  /** Host supports opening external URLs via openLink() */
+  openLinks?: Record<string, never>;
+
+  /** Host supports theme switching (light/dark/os) */
+  theming?: {
+    /** Supported themes */
+    themes?: ('light' | 'dark' | 'os')[];
+  };
+
+  /** Host supports display mode changes */
+  displayModes?: {
+    /** Available display modes */
+    modes?: ('inline' | 'fullscreen' | 'pip' | 'panel')[];
+  };
+
+  /** Host supports state persistence */
+  statePersistence?: {
+    /** State is persisted across sessions */
+    persistent?: boolean;
+    /** Maximum state size in bytes */
+    maxSize?: number;
+  };
+
+  // ===========================================================================
+  // MCP Apps specific capabilities
+  // ===========================================================================
+
+  /** Host can proxy resource reads to MCP server (MCP Apps only) */
+  serverResources?: {
+    /** Host supports resources/list_changed notifications */
+    listChanged?: boolean;
+  };
+
+  /** Host can proxy tool calls to MCP server (MCP Apps only) */
+  serverTools?: {
+    /** Host supports tools/list_changed notifications */
+    listChanged?: boolean;
+  };
+
+  /** Host supports size change notifications (MCP Apps only) */
+  sizeNotifications?: Record<string, never>;
+
+  /** Host supports partial/streaming tool input (MCP Apps only) */
+  partialToolInput?: Record<string, never>;
+
+  /** Host supports bidirectional tools - app can expose tools to host (MCP Apps only) */
+  appTools?: {
+    /** Host supports tools/list_changed notifications from app */
+    listChanged?: boolean;
+  };
+
+  /**
+   * Host supports model context updates (ext-apps v0.4.0+)
+   *
+   * Specifies which content block types are supported.
+   */
+  updateModelContext?: {
+    /** Supports text content blocks */
+    text?: Record<string, never>;
+    /** Supports image content blocks */
+    image?: Record<string, never>;
+    /** Supports audio content blocks */
+    audio?: Record<string, never>;
+    /** Supports resource content blocks */
+    resource?: Record<string, never>;
+    /** Supports resource link content blocks */
+    resourceLink?: Record<string, never>;
+    /** Supports structured content */
+    structuredContent?: Record<string, never>;
+  };
+
+  /**
+   * Host supports messages (ext-apps v0.4.0+)
+   *
+   * Specifies which content block types are supported for messages.
+   */
+  message?: {
+    /** Supports text content blocks */
+    text?: Record<string, never>;
+    /** Supports image content blocks */
+    image?: Record<string, never>;
+    /** Supports audio content blocks */
+    audio?: Record<string, never>;
+    /** Supports resource content blocks */
+    resource?: Record<string, never>;
+    /** Supports resource link content blocks */
+    resourceLink?: Record<string, never>;
+    /** Supports structured content */
+    structuredContent?: Record<string, never>;
+  };
+
+  /**
+   * Host sandbox capabilities (ext-apps v0.4.0+)
+   */
+  sandbox?: {
+    /** Supported permissions */
+    permissions?: {
+      camera?: Record<string, never>;
+      microphone?: Record<string, never>;
+      geolocation?: Record<string, never>;
+      clipboardWrite?: Record<string, never>;
+    };
+    /** Content Security Policy settings */
+    csp?: {
+      /** Allowed domains for fetch/XHR connections */
+      connectDomains?: string[];
+      /** Allowed domains for loading resources (images, scripts, etc.) */
+      resourceDomains?: string[];
+      /** Allowed domains for iframe embedding */
+      frameDomains?: string[];
+      /** Allowed domains for base URI */
+      baseUriDomains?: string[];
+    };
+  };
+
+  // ===========================================================================
+  // Experimental/extension capabilities
+  // ===========================================================================
+
+  /** Experimental features (structure TBD) */
+  experimental?: Record<string, unknown>;
+}
+
+/**
+ * Host version information returned after connection.
+ *
+ * @internal
+ */
+export interface HostVersion {
+  /** Host application name (e.g., "MCP Host") */
+  name: string;
+  /** Host application version */
+  version: string;
+}
+
+/**
+ * App capabilities declared during initialization.
+ * Tells the host what this app supports.
+ *
+ * @internal
+ */
+export interface AppCapabilities {
+  /** Experimental features (structure TBD) */
+  experimental?: Record<string, unknown>;
+
+  /** App exposes MCP-style tools that the host can call */
+  tools?: {
+    /** App supports tools/list_changed notifications */
+    listChanged?: boolean;
+  };
+}
+
+// =============================================================================
+// SIZE CHANGED PARAMS
+// =============================================================================
+
+/**
+ * Parameters for size changed notifications.
+ *
+ * @internal
+ */
+export interface SizeChangedParams {
+  /** Widget width in pixels */
+  width: number;
+  /** Widget height in pixels */
+  height: number;
+}
+
+// =============================================================================
+// TOOL HANDLER TYPES (Bidirectional)
+// =============================================================================
+
+/**
+ * Tool definition for app-exposed tools (bidirectional support).
+ * Used when the app exposes tools that the host can call.
+ *
+ * @internal
+ */
+export interface AppToolDefinition {
+  /** Tool name */
+  name: string;
+  /** Tool description */
+  description?: string;
+  /** JSON Schema for input parameters */
+  inputSchema?: Record<string, unknown>;
+}
+
+/**
+ * Handler for tool calls from the host.
+ * @param toolName - Name of the tool being called
+ * @param args - Tool arguments
+ * @returns Tool result
+ *
+ * @internal
+ */
+export type CallToolHandler = (
+  toolName: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>;
+
+/**
+ * Handler that returns the list of tools exposed by the app.
+ * @returns Array of tool definitions
+ *
+ * @internal
+ */
+export type ListToolsHandler = () => Promise<AppToolDefinition[]>;
+
+// =============================================================================
+// HOST CONTEXT
+// =============================================================================
+
+/**
+ * Viewport dimensions
+ *
+ * @internal
+ */
+export interface Viewport {
+  width: number;
+  height: number;
+  maxWidth?: number;
+  maxHeight?: number;
+}
+
+/**
+ * Container dimensions from host (ext-apps v0.4.0+)
+ *
+ * Replaces viewport for more explicit fixed vs flexible semantics.
+ * - Fixed dimensions (height/width): host controls the size
+ * - Flexible dimensions (maxHeight/maxWidth): app controls size up to max
+ *
+ * @internal
+ */
+export type ContainerDimensions =
+  | { height: number; width: number }
+  | { height: number; maxWidth?: number }
+  | { maxHeight?: number; width: number }
+  | { maxHeight?: number; maxWidth?: number };
+
+/**
+ * Safe area insets (mobile devices)
+ *
+ * @internal
+ */
+export interface SafeAreaInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Device capabilities
+ *
+ * @internal
+ */
+export interface DeviceCapabilities {
+  touch?: boolean;
+  hover?: boolean;
+}
+
+/**
+ * Host-provided styling
+ *
+ * @internal
+ */
+export interface HostStyles {
+  variables?: Record<string, string>;
+  css?: {
+    fonts?: string;
+  };
+}
+
+/**
+ * Runtime context from the host platform
+ */
+export interface HostContext {
+  /** Current theme */
+  theme: 'light' | 'dark';
+
+  /** Current display mode */
+  displayMode: 'inline' | 'fullscreen' | 'pip';
+
+  /** Available display modes */
+  availableDisplayModes: string[];
+
+  /** Viewport dimensions */
+  viewport: Viewport;
+
+  /**
+   * Container dimensions from host (ext-apps v0.4.0+)
+   *
+   * More explicit than viewport - indicates whether dimensions are
+   * fixed (host-controlled) or flexible (app-controlled up to max).
+   */
+  containerDimensions?: ContainerDimensions;
+
+  /** BCP 47 locale code */
+  locale: string;
+
+  /** IANA timezone */
+  timeZone?: string;
+
+  /** Platform type */
+  platform: 'web' | 'desktop' | 'mobile';
+
+  /** User agent string */
+  userAgent?: string;
+
+  /** Device capabilities */
+  deviceCapabilities?: DeviceCapabilities;
+
+  /** Safe area insets (mobile) */
+  safeAreaInsets?: SafeAreaInsets;
+
+  /** Host-provided styling */
+  styles?: HostStyles;
+
+  /**
+   * View identifier for multi-view widgets.
+   * Allows widgets to have different views/screens.
+   */
+  view?: string;
+}
+
+// =============================================================================
+// TOOL RESULT
+// =============================================================================
+
+/**
+ * Resource content from readResource
+ *
+ * @internal
+ */
+export interface ResourceContent {
+  uri: string;
+  mimeType: string;
+  text?: string;
+  blob?: Uint8Array;
+}
+
+/**
+ * Generic tool definitions type (for type inference)
+ *
+ * @internal
+ */
+export type ToolDefs = Record<string, { input: unknown; output?: unknown }>;
+
+/**
+ * Extract output types from tool definitions
+ *
+ * @internal
+ */
+export type InferToolOutputs<T extends ToolDefs> = {
+  [K in keyof T]: T[K]['output'] extends undefined
+    ? unknown
+    : NonNullable<T[K]['output']>;
+};
+
+/**
+ * Extract input types from tool definitions
+ *
+ * @internal
+ */
+export type InferToolInputs<T extends ToolDefs> = {
+  [K in keyof T]: T[K]['input'];
+};
+
+/**
+ * Typed tool methods generated from tool definitions.
+ *
+ * Creates a method for each tool with the naming convention `call{ToolName}`.
+ * For example, a tool named "greet" becomes `callGreet()`.
+ *
+ * @example
+ * ```typescript
+ * // Instead of:
+ * await client.callTool("greet", { name: "Alice" });
+ *
+ * // You can use:
+ * await client.tools.callGreet({ name: "Alice" });
+ * ```
+ */
+export type ToolMethods<T extends ToolDefs> = {
+  [K in keyof T as K extends string ? `call${Capitalize<K>}` : never]: (
+    args: InferToolInputs<T>[K],
+  ) => Promise<InferToolOutputs<T>[K]>;
+};
+
+/**
+ * Tool result with optional metadata
+ *
+ * @internal
+ */
+export type ToolResult<T extends ToolDefs> = {
+  [K in keyof T]?: InferToolOutputs<T>[K] & {
+    _meta?: Record<string, unknown>;
+  };
+};
+
+// =============================================================================
+// MODEL CONTEXT TYPES
+// =============================================================================
+
+/**
+ * Content block for model context updates
+ *
+ * Uses discriminated unions for type safety - each content type
+ * has only the fields that are valid for that type.
+ *
+ * @internal
+ */
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType?: string }
+  | { type: 'audio'; data: string; mimeType?: string }
+  | { type: 'resource'; uri: string; description?: string }
+  | { type: 'resource_link'; uri: string; name?: string; description?: string };
+
+/**
+ * Parameters for updateModelContext
+ */
+export interface UpdateModelContextParams {
+  /**
+   * Content blocks to add to model context.
+   * Supports text, image, audio, resource, and resource_link types.
+   */
+  content?: ContentBlock[];
+
+  /**
+   * Structured content as key-value pairs.
+   * Useful for passing typed data that the model can interpret.
+   */
+  structuredContent?: Record<string, unknown>;
+}
+
+// =============================================================================
+// APPS CLIENT INTERFACE
+// =============================================================================
+
+/**
+ * Unified client interface for UI code
+ */
+export interface AppsClient<T extends ToolDefs = ToolDefs> {
+  // === Tool Operations ===
+
+  /**
+   * Call a server tool with typed arguments
+   *
+   * @param name - Tool name (must be a key in T)
+   * @param args - Tool arguments (typed from input schema)
+   * @returns Tool result (typed from output schema)
+   */
+  callTool<K extends keyof T>(
+    name: K,
+    args: InferToolInputs<T>[K],
+  ): Promise<InferToolOutputs<T>[K]>;
+
+  /**
+   * Typed tool methods object.
+   *
+   * Provides direct method access to tools with the naming convention `call{ToolName}`.
+   * This is an alternative to using `callTool()` that provides a more ergonomic API.
+   *
+   * @example
+   * ```typescript
+   * // Instead of:
+   * await client.callTool("greet", { name: "Alice" });
+   *
+   * // You can use:
+   * await client.tools.callGreet({ name: "Alice" });
+   * ```
+   */
+  readonly tools: ToolMethods<T>;
+
+  // === Messaging ===
+
+  /**
+   * Send a message to the conversation
+   *
+   * @param content - Message content
+   */
+  sendMessage(content: { type: 'text'; text: string }): Promise<void>;
+
+  /**
+   * Send a follow-up message (convenience alias)
+   *
+   * @param prompt - Message text
+   */
+  sendFollowUpMessage(prompt: string): Promise<void>;
+
+  // === Model Context ===
+
+  /**
+   * Update the host's model context with app state (ext-apps v0.4.0+)
+   *
+   * Unlike sendMessage which triggers follow-up actions, context updates
+   * inform the model about app state without triggering responses.
+   *
+   * **Context Persistence:**
+   * - Each call **replaces** the previous context (not accumulated)
+   * - The host defers sending context to the model until the next user message
+   * - Only the most recent update is sent to the model
+   *
+   * **Platform Implementation Details:**
+   *
+   * - **MCP Apps:** Uses native protocol feature for pure context updates
+   *
+   * **Reserved Keys:**
+   * - Keys starting with underscore (`_`) in `structuredContent` are reserved
+   *   for internal use and will be filtered out
+   * - Use alphanumeric keys for your application data
+   *
+   * @param params - Context content and/or structured content
+   *
+   * @example
+   * ```typescript
+   * // Text content
+   * await client.updateModelContext({
+   *   content: [{ type: "text", text: "User selected 3 items totaling $150" }]
+   * });
+   *
+   * // Structured content
+   * await client.updateModelContext({
+   *   structuredContent: { selectedItems: 3, total: 150, currency: "USD" }
+   * });
+   * ```
+   */
+  updateModelContext(params: UpdateModelContextParams): Promise<void>;
+
+  // === Navigation ===
+
+  /**
+   * Open an external link
+   *
+   * @param url - URL to open
+   */
+  openLink(url: string): Promise<void>;
+
+  /**
+   * Request a different display mode
+   *
+   * @param mode - Target display mode
+   * @returns Actual mode applied
+   */
+  requestDisplayMode(
+    mode: 'inline' | 'fullscreen' | 'pip',
+  ): Promise<{ mode: string }>;
+
+  /**
+   * Request widget close (no-op if not supported by host)
+   */
+  requestClose(): void;
+
+  // === State ===
+
+  /**
+   * Get persisted widget state
+   *
+   * @returns State or null if not set
+   */
+  getState<S>(): S | null;
+
+  /**
+   * Set persisted widget state
+   *
+   * @param state - State to persist
+   */
+  setState<S>(state: S): void;
+
+  // === Resources ===
+
+  /**
+   * Read an MCP resource
+   *
+   * @param uri - Resource URI
+   * @returns Resource contents
+   */
+  readResource(uri: string): Promise<{ contents: ResourceContent[] }>;
+
+  // === Logging ===
+
+  /**
+   * Log to host console
+   *
+   * @param level - Log level
+   * @param data - Data to log
+   */
+  log(level: 'debug' | 'info' | 'warning' | 'error', data: unknown): void;
+
+  // === Events ===
+
+  /**
+   * Subscribe to tool results
+   *
+   * @param handler - Callback for tool results
+   * @returns Unsubscribe function
+   */
+  onToolResult(handler: (result: ToolResult<T>) => void): () => void;
+
+  /**
+   * Subscribe to tool input changes
+   *
+   * @param handler - Callback for tool input
+   * @returns Unsubscribe function
+   */
+  onToolInput(handler: (input: Record<string, unknown>) => void): () => void;
+
+  /**
+   * Subscribe to tool cancellation
+   *
+   * @param handler - Callback for cancellation
+   * @returns Unsubscribe function
+   */
+  onToolCancelled(handler: (reason?: string) => void): () => void;
+
+  /**
+   * Subscribe to host context changes
+   *
+   * @param handler - Callback for context changes
+   * @returns Unsubscribe function
+   */
+  onHostContextChange(handler: (context: HostContext) => void): () => void;
+
+  /**
+   * Subscribe to teardown events
+   *
+   * @param handler - Callback for teardown
+   * @returns Unsubscribe function
+   */
+  onTeardown(handler: (reason?: string) => void): () => void;
+
+  /**
+   * Subscribe to partial/streaming tool input
+   *
+   * Called when the host sends partial tool arguments during streaming.
+   * Useful for showing real-time input as the user types or as the model generates.
+   *
+   * @param handler - Callback for partial input
+   * @returns Unsubscribe function
+   */
+  onToolInputPartial(
+    handler: (input: Record<string, unknown>) => void,
+  ): () => void;
+
+  // === Host Information ===
+
+  /**
+   * Get host capabilities
+   *
+   * Returns the capabilities advertised by the host during handshake.
+   * Use this to check if features like logging or server tools are supported.
+   *
+   * @returns Host capabilities or undefined if not yet connected
+   */
+  getHostCapabilities(): HostCapabilities | undefined;
+
+  /**
+   * Get host version information
+   *
+   * Returns the name and version of the host application.
+   *
+   * @returns Host version info or undefined if not yet connected
+   */
+  getHostVersion(): HostVersion | undefined;
+
+  // === Protocol-Level Logging ===
+
+  /**
+   * Send a log message to the host
+   *
+   * Unlike the `log()` method which logs to the local console,
+   * this sends logs through the MCP protocol to the host for
+   * debugging and telemetry purposes.
+   *
+   * @param level - Log level
+   * @param data - Data to log
+   */
+  sendLog(
+    level:
+      | 'debug'
+      | 'info'
+      | 'notice'
+      | 'warning'
+      | 'error'
+      | 'critical'
+      | 'alert'
+      | 'emergency',
+    data: unknown,
+  ): Promise<void>;
+
+  // === Size Notifications ===
+
+  /**
+   * Send size changed notification to host
+   *
+   * Notifies the host when the widget's size changes.
+   * Use this for manual size reporting.
+   *
+   * @param params - Size parameters
+   */
+  sendSizeChanged(params: SizeChangedParams): Promise<void>;
+
+  /**
+   * Set up automatic size change notifications
+   *
+   * Creates a ResizeObserver that automatically sends size changed
+   * notifications to the host when the document body resizes.
+   *
+   * @returns Cleanup function to stop observing
+   */
+  setupSizeChangedNotifications(): () => void;
+
+  // === Bidirectional Tool Support ===
+
+  /**
+   * Set handler for tool calls from the host
+   *
+   * When the host calls a tool exposed by this app, this handler
+   * will be invoked with the tool name and arguments.
+   *
+   * @param handler - Handler function for tool calls
+   */
+  setCallToolHandler(handler: CallToolHandler): void;
+
+  /**
+   * Set handler for listing app-exposed tools
+   *
+   * When the host requests the list of tools this app exposes,
+   * this handler will be invoked.
+   *
+   * @param handler - Handler function that returns tool definitions
+   */
+  setListToolsHandler(handler: ListToolsHandler): void;
+
+  // === Current State (Read-Only) ===
+
+  /** Current host context */
+  readonly hostContext: HostContext;
+
+  /** Current tool input (if any) */
+  readonly toolInput?: Record<string, unknown>;
+
+  /** Current tool output (if any) */
+  readonly toolOutput?: Record<string, unknown>;
+
+  /** Current tool metadata (if any) */
+  readonly toolMeta?: Record<string, unknown>;
+
+  // === Resource Meta (host → app) ===
+
+  /**
+   * Most recent resource `_meta` envelope surfaced by the host.
+   * Carries the iframe license token (`_meta.license`), CSP descriptor
+   * (`_meta.ui.csp`), and other host-signed claims.
+   */
+  readonly resourceMeta?: Record<string, unknown>;
+
+  /**
+   * Subscribe to resource-meta changes.
+   *
+   * @returns Unsubscribe function
+   */
+  onResourceMetaChange(
+    handler: (meta: Record<string, unknown> | undefined) => void,
+  ): () => void;
+
+  // === Generic Notifications ===
+
+  /**
+   * Send a JSON-RPC notification to the host (one-way; no response).
+   *
+   * Used by protocol-level features like the iframe license gate
+   * (`ui/notifications/license-failed`). Adapters that don't support
+   * outbound notifications no-op gracefully.
+   */
+  sendNotification(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<void>;
+}
+
+// =============================================================================
+// CLIENT OPTIONS
+// =============================================================================
+
+/**
+ * Options for createClient
+ */
+export interface CreateClientOptions {
+  /**
+   * Force a specific protocol adapter
+   * Useful for testing or development
+   */
+  forceAdapter?: 'mcp' | 'mock';
+
+  /**
+   * Enable automatic size change notifications (MCP adapter only)
+   *
+   * When enabled, the UI automatically reports its size changes to the host
+   * using a ResizeObserver on document.body and document.documentElement.
+   * The host can then resize the UI container accordingly.
+   *
+   * @default true
+   */
+  autoResize?: boolean;
+}
+
+/**
+ * Detected protocol type
+ *
+ * @internal
+ */
+export type DetectedProtocol = 'mcp' | 'mock';

@@ -1,0 +1,68 @@
+# Per-plugin substitution map for agntux-notion.
+# Every {{placeholder}} in the canonical ingest skill template must appear here.
+# Run: node scripts/render-skill.mjs agntux-notion
+
+plugin-slug: agntux-notion
+plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+source-display-name: Notion
+source-slug: notion
+recommended-cadence: "Every 4 hours"           # matches plugin.json recommended_ingest_cadence
+
+# Cursor semantics — single low-water-mark last_edited_time timestamp, stored as
+# an ISO 8601 UTC string under the `cursor` key in the sync-state frontmatter.
+# On bootstrap the key is absent or null, triggering a full window pull bounded
+# by bootstrap_window_days. Comments do not have their own edit timestamp exposed
+# by the connector; they are re-polled per parent page each run and deduped by
+# comment id. Cursor advances only when every action write in the run succeeds
+# (transactional). Full shape and advance rules in reference/cursor.md.
+source-cursor-semantics: "Single low-water-mark last_edited_time timestamp stored as an ISO 8601 UTC string under `cursor` in data/learnings/agntux-notion/sync.md frontmatter (e.g. \"2026-06-25T14:00:00.000Z\"). Absent or null = bootstrap mode. Incremental filter: pass cursor value as the `last_edited_time` lower-bound filter to notion-search. Advance to max(last_edited_time) across all pages and database items successfully processed this run. Comments are re-polled per parent page and deduped by comment id — no separate comment cursor. Advance only on full-run success (transactional); never regress."
+
+# Notion MCP tool root names (host UUID-prefixes these at runtime).
+# notion-search         — primary discovery; keyword/semantic search with date and
+#                         teamspace filters; returns ranked page/db-item results.
+# notion-fetch          — fetch full page or database-item body by id or URL.
+# notion-get-comments   — fetch comment threads on a page or block.
+# notion-query-database-view — query database rows (tasks/projects) by filter.
+# notion-query-data-sources  — enumerate connected databases and their schemas.
+# notion-query-meeting-notes — query meeting-notes pages by date range or title.
+# notion-get-users      — resolve self identity and look up workspace members.
+# notion-get-teams      — look up teamspaces for scope-filtering searches.
+source-mcp-tools: "notion-search, notion-fetch, notion-get-comments, notion-query-database-view, notion-query-data-sources, notion-query-meeting-notes, notion-get-users, notion-get-teams"
+
+# The unit of work for this source — one Notion page or database item = one thread.
+thread-unit-name: page
+
+bootstrap-window-default-days: "30"
+
+# One representative Notion scope used in the SKILL description trigger phrase.
+example-channel: Engineering Wiki
+
+# No user-initiated view lane for the initial release.
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from connector read-tool error paths):
+  - notion-cursor-evicted          # cursor timestamp malformed or irrecoverably stale; reset to bootstrap
+  - notion-page-not-found          # notion-fetch returned 404 for a page id seen in search results
+  - notion-rate-limited            # Notion API returned 429; fetch stopped, retry next run
+  - notion-search-empty            # notion-search returned zero results for the full query window
+  - notion-comment-fetch-failed    # notion-get-comments failed for a page; comment data skipped for that page
