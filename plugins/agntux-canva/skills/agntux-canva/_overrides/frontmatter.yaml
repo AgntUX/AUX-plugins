@@ -1,0 +1,69 @@
+# _overrides/frontmatter.yaml — agntux-canva
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-canva
+plugin-version: 0.1.0                        # matches .claude-plugin/plugin.json
+source-display-name: Canva
+source-slug: canva
+recommended-cadence: "Every 60 min, 7am–7pm weekdays local"   # matches plugin.json
+
+# Cursor semantics:
+# Per-design JSON map keyed by design_id; each entry stores the design's
+# `updated_at` ISO-8601 timestamp at last successful processing. On each run,
+# call search-designs (sort: modified_descending) and compare each design's
+# `updated_at` to the map. A design is in-scope when:
+#   - Incremental: cursor map has no entry for design_id  OR
+#                  design.updated_at > cursor[design_id]
+#   - Bootstrap (cursor null): design.updated_at within bootstrap_window_days
+# After all action writes for the run succeed, advance every processed
+# design's entry to its current updated_at. Entries for designs that
+# disappear from search results for ≥ 3 consecutive runs are evicted
+# (canva-cursor-evicted). No global low-water-mark; per-design granularity
+# handles the case where a shared design is modified independently of the user's
+# own designs.
+source-cursor-semantics: "Per-design JSON map stored in sync.md frontmatter as `cursor`: { \"<design_id>\": \"<ISO-8601 updated_at>\" }. A design is in-scope when it has no cursor entry or its updated_at is newer than the stored value. Advance each entry to the design's current updated_at after all action writes succeed (transactional rule). Evict entries for designs absent ≥ 3 consecutive runs (canva-cursor-evicted)."
+
+# MCP tool names as the host exposes them (Cowork UUID-prefixes at runtime;
+# call by host-resolved name). All read tools are under the same prefix.
+source-mcp-tools: "mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__search-designs, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__get-design, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__list-comments, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__list-replies, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__list-folder-items, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__search-folders, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__get-design-content, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__get-design-pages, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__search-brand-templates, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__list-brand-kits, mcp__679539c6-bf39-4a83-8da6-34d02f9561ce__get-export-formats"
+
+# Each comment/mention thread on a design is the atomic action-bearing unit.
+thread-unit-name: comment
+
+bootstrap-window-default-days: "14"
+
+# One representative Canva design type / scope used in SKILL description trigger phrases.
+example-channel: Brand Kit
+
+# No user-initiated view lane for the initial release (no compose/send flow).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Canva:
+  - canva-cursor-evicted           # design absent ≥ 3 consecutive runs; cursor entry dropped
+  - canva-merged-into              # cross-source dedup merged this design/comment into an existing action
+  - canva-rate-limited             # API returned 429 / rate-limit backoff; run aborted
+  - canva-design-not-accessible    # get-design returned 403/404 for a design still in search results; skipped
+  - canva-comment-thread-truncated # list-comments continuation loop exceeded per-run cap; thread partially read
