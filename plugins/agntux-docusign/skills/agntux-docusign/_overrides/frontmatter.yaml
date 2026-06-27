@@ -1,0 +1,132 @@
+# _overrides/frontmatter.yaml — agntux-docusign
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-docusign
+plugin-version: 0.1.0                       # matches .claude-plugin/plugin.json
+
+source-display-name: DocuSign
+source-slug: docusign
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 60 min, 7am–7pm weekdays local"
+
+# Cursor semantics (dual-key JSON object):
+# The cursor is a JSON object serialised as a single-line string on the
+# sync.md → cursor key. Two independent keys advance under per-phase rules:
+#
+#   envelopes_since  — ISO-8601 UTC high-water-mark on lastModifiedDateTime.
+#                      Passed as from_date to getEnvelopes (server-side
+#                      inclusive filter). Advances to max(lastModifiedDateTime)
+#                      across all envelopes processed in the cursor-window
+#                      sweep (Step 5b) this run. The in-flight re-sweep
+#                      (status=sent, no from_date) does NOT contribute to
+#                      this max — those results are deduped at Step 9 only.
+#                      On bootstrap (null), use now − bootstrap_window_days.
+#                      Advances only if all envelope-phase action writes
+#                      succeeded.
+#
+#   agreements_ctoken — Opaque continuation token returned by getAllAgreements.
+#                       Null on first run or after a full-sweep completion.
+#                       On each run, pass the stored ctoken (if non-null) to
+#                       resume a paged agreements sweep; null triggers a fresh
+#                       sweep from the top. After a complete sweep, reset to
+#                       null so the next run starts over. Advances only if all
+#                       agreement-phase action writes succeeded. A failure in
+#                       one phase does not prevent the other key from advancing.
+#                       When the agreements phase is skipped because the account
+#                       lacks DocuSign Navigator (403 EnableNavigatorAPIDataOut),
+#                       this key is left UNCHANGED — neither advanced nor reset,
+#                       regardless of its prior value. The envelope cursor
+#                       advances independently. Set sync.md → learnings.
+#                       navigator_unavailable: true on first detection; skip
+#                       Step 5c silently on subsequent runs until cleared.
+#
+# Full advance semantics and gap recovery are documented in
+# _overrides/reference/cursor.md (authoritative).
+source-cursor-semantics: "Dual-key JSON object serialised as a single-line JSON string on sync.md → cursor. `envelopes_since`: ISO-8601 UTC high-water-mark; passed as from_date to getEnvelopes (server-side inclusive filter); advances to max(lastModifiedDateTime) across all envelopes processed in the cursor-window sweep this run; the in-flight re-sweep (status=sent, no from_date) does NOT contribute to this max and is deduped downstream at Step 9. `agreements_ctoken`: opaque token from getAllAgreements; null triggers a fresh sweep from the top; non-null resumes paging; reset to null after a complete sweep. Navigator capability absent (getAllAgreements 403 EnableNavigatorAPIDataOut): agreements_ctoken is left UNCHANGED — neither advanced nor reset regardless of prior value; run still considered successful; envelopes_since advances per normal envelope-phase outcome; set sync.md learnings.navigator_unavailable true on first detection and skip Step 5c entirely on subsequent runs until that flag is cleared (set false) when getAllAgreements eventually succeeds. Advance is per-phase: each key advances independently if and only if its own phase's action writes all succeeded; a capability-absent skip counts as agreements-phase success. Full semantics in _overrides/reference/cursor.md."
+
+# Tool root names as exposed by the DocuSign MCP server.
+# Host UUID-prefixes these at runtime as
+# mcp__ecf2dc59-f9e3-459a-90ee-c25286431faf__<tool>; call them by
+# whatever name the host exposes.
+#
+#   getEnvelopes(accountId, from_date, order_by, order, status,
+#                user_filter, count, start_position)
+#                       — primary envelope list/poll; from_date is required;
+#                         use as the envelopes_since cursor anchor.
+#   getEnvelope(accountId, envelopeId)
+#                       — single envelope status detail; called selectively
+#                         for envelopes that pass triage.
+#   listRecipients(accountId, envelopeId, include_tabs)
+#                       — full recipient list with per-recipient status and
+#                         routing position; used to determine pending signers
+#                         and whether the connected user must act.
+#   listEnvelopeDocuments(accountId, envelopeId)
+#                       — document names for an envelope; called when
+#                         document context improves action triage.
+#   getAllAgreements(accountId, filter, sort, limit, ctoken)
+#                       — managed agreements with parties, effective/expiration
+#                         dates, renewal type, total value; paged via ctoken.
+#   getAgreementDetails(accountId, agreementId)
+#                       — detail for one agreement; called selectively for
+#                         agreements nearing expiration or renewal.
+#   getTemplates(accountId)
+#                       — available envelope templates; low-priority; for
+#                         context only — not called on every run.
+source-mcp-tools: "getEnvelopes, getEnvelope, listRecipients, listEnvelopeDocuments, getAllAgreements, getAgreementDetails, getTemplates"
+
+# The atomic unit presented per run is the envelope (a signing workflow
+# triggered for one or more recipients on one or more documents).
+thread-unit-name: envelope
+
+# Default lookback window on first run (bootstrap). DocuSign users
+# typically have active envelopes from the past 30 days that need triage.
+bootstrap-window-default-days: "30"
+
+# Representative scope name used in the SKILL description trigger phrases.
+example-channel: contract
+
+# No user-initiated view lane in the initial release (ingest-only;
+# actions resolve to "Open in DocuSign" deep links or send-reminder
+# host_prompt — no compose iframe).
+extra-skill-triggers: ""
+
+# source-identity-fields declared here so Step 2 / Step 11 know what
+# to capture and persist from the first successful run:
+#   account_id   — the connected user's default DocuSign account ID
+#                  (from getUserInfo → accounts[0].account_id); resolved
+#                  once at bootstrap and reused on every subsequent run.
+source-identity-fields:
+  - account_id
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from tool inventory and cursor analysis):
+  - docusign-cursor-evicted        # cursor JSON malformed or irrecoverably stale; treated as bootstrap
+  - docusign-rate-limited          # DocuSign API returned 429 / throttle signal; fetch aborted for this run
+  - docusign-envelope-not-found    # getEnvelope or listRecipients returned 404 for a known envelopeId; entity skipped
+  - docusign-account-id-unresolved # getUserInfo did not return a usable account_id; run aborted
+  - docusign-pagination-overflow   # per-run envelope or agreement cap exceeded; remainder deferred to next run
+  - docusign-agreement-not-found   # getAgreementDetails returned 404 for a known agreementId; entity skipped
+  - docusign-navigator-unavailable # getAllAgreements returned 403 / "EnableNavigatorAPIDataOut" — account lacks DocuSign Navigator add-on; agreements phase skipped cleanly, envelope ingest continues normally; non-fatal
