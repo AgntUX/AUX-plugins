@@ -1,0 +1,69 @@
+# Per-plugin substitution map for agntux-sentry.
+# Every {{placeholder}} in the canonical ingest skill template must appear here.
+# Run: node scripts/render-skill.mjs agntux-sentry
+
+plugin-slug: agntux-sentry
+plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+source-display-name: Sentry
+source-slug: sentry
+recommended-cadence: "Every 30 min, 7am–7pm weekdays local"  # matches plugin.json
+
+# Cursor semantics — per-project last-seen ISO 8601 UTC high-water-mark map.
+# Each Sentry project under the resolved org is cursored independently. The
+# cursor is a JSON object whose keys are Sentry project slugs (e.g. "web",
+# "api-worker") and whose values are ISO 8601 UTC timestamps representing the
+# newest issue `lastSeen` observed in the last successful run for that project.
+# Absent key = bootstrap mode for that project. Incremental filter: pass
+# cursor[project_slug] as the lower-bound for `lastSeen` on the next
+# search_issues call. Advance each project's key independently to
+# max(lastSeen) across all issues successfully processed this run. Advance only
+# on full-run success (transactional); never regress. Full shape and advance
+# rules in reference/cursor.md.
+source-cursor-semantics: "Per-project lastSeen high-water-mark map. Cursor is a JSON object with one key per Sentry project slug (e.g. {\"web\":\"2026-06-25T18:00:00.000Z\",\"api-worker\":\"2026-06-25T17:00:00.000Z\"}). Absent key = bootstrap for that project. Incremental filter: pass cursor[project_slug] as the lastSeen lower-bound to search_issues for that project. Advance each project key independently to max(lastSeen) across all issues successfully processed this run. Advance only on full-run success (transactional); never regress."
+
+# Sentry MCP tool root names (host UUID-prefixes these at runtime).
+# find_organizations   — resolve org slug once per run (setup/bootstrap).
+# find_projects        — enumerate projects under the org.
+# search_issues        — core feed: issues by org, project, query, sort, period.
+# get_sentry_resource  — full issue detail (latest event, stack trace, breadcrumbs).
+# search_events        — optional event-volume/trend context (used selectively).
+source-mcp-tools: "find_organizations, find_projects, search_issues, get_sentry_resource, search_events"
+
+# The unit of work for this source — one Sentry issue = one thread-unit.
+thread-unit-name: issue
+
+bootstrap-window-default-days: "30"
+
+# One representative Sentry scope used in the SKILL description trigger phrase.
+example-channel: web
+
+# No user-initiated view lane for the initial release.
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions (derived from connector read-tool error paths):
+  - sentry-cursor-evicted          # cursor JSON malformed or per-project entry irrecoverably stale; project reset to bootstrap
+  - sentry-merged-into             # issue was merged into another issue; original source_id becomes an alias
+  - sentry-org-not-found           # find_organizations returned no org the token can read; run aborted
+  - sentry-project-not-found       # find_projects returned an empty list for the resolved org; run aborted
+  - sentry-rate-limited            # Sentry API returned 429; fetch stopped for this run, retry next run
+  - sentry-pagination-overflow     # per-project 50-issue cap reached; remainder deferred to next run
