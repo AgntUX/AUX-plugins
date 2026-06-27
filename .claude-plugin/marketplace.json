@@ -63,6 +63,19 @@
       "kind": "remote-view-only"
     },
     {
+      "name": "agntux-canva",
+      "source": "./plugins/agntux-canva",
+      "homepage": "https://agntux.ai/plugins/agntux-canva",
+      "keywords": [
+        "canva",
+        "design",
+        "collaboration",
+        "comments"
+      ],
+      "category": "productivity",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-core",
       "source": "./plugins/agntux-core",
       "homepage": "https://agntux.ai/plugins/agntux-core",
