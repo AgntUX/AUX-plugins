@@ -3,7 +3,7 @@
 # Run: node scripts/render-skill.mjs agntux-jira
 
 plugin-slug: agntux-jira
-plugin-version: 0.1.0                          # matches .claude-plugin/plugin.json
+plugin-version: 0.3.0                          # matches .claude-plugin/plugin.json
 source-display-name: Jira (Atlassian Cloud)
 source-slug: jira
 recommended-cadence: "Every 60 min, 7am–7pm weekdays local"  # matches plugin.json

@@ -13,9 +13,10 @@
  *      committed under skills/{plugin-slug}/. Catches "edited the rendered
  *      file by hand instead of editing the override".
  *   3. Line budget — skills/{plugin-slug}/SKILL.md ≤ 500 lines (router
- *      shape — typically ≤ 100); reference/sync.md ≤ 600 lines (the
- *      canonical procedural body is ~469 lines and needs headroom for
- *      source-specific splices); every other sibling *.md under
+ *      shape — typically ≤ 100); reference/sync.md ≤ 640 lines (the
+ *      canonical procedural body is ~474 lines and needs headroom for
+ *      source-specific splices incl. the mandatory step-reconcile append);
+ *      every other sibling *.md under
  *      skills/{plugin-slug}/reference/ ≤ 500 lines (detail-shape
  *      siblings are smaller).
  *   4. One-level-deep references — every link from
@@ -65,12 +66,17 @@ const RESOURCE_MAX_LINES = 500;
 // `<!-- append:* -->` splices, so a real plugin reliably overran it (Test #4:
 // 745 then 556 lines). Give sync.md (and only sync.md) a looser cap so the
 // canonical body plus a reasonable source-specific splice fits; every sibling
-// detail file keeps the tighter 500 cap. Raised 600 → 610 in 2026-06 when the
+// detail file keeps the tighter 500 cap. Raised 610 → 640 in 2026-06 when the
+// canonical body gained the broadened Step 8.5 reconcile + the generalized,
+// mandatory Step 10.1 pre-draft, and every action-producing plugin began
+// shipping a `step-reconcile-append.md` splice into sync.md (google-calendar,
+// the heaviest, lands at 608 with its reconcile append — the 640 cap is
+// forward-looking headroom for future splices). Earlier: raised 600 → 610 when the
 // required Step 10.1b "per-view payload sections" instruction was added to the
 // canonical body (it grew every plugin's sync.md by ~2 lines, and the most
 // feature-rich source — agntux-google-calendar, two views plus scheduling
 // intelligence — lands at ~603). The cap tracks the canonical body size.
-const SYNC_REFERENCE_MAX_LINES = 610;
+const SYNC_REFERENCE_MAX_LINES = 640;
 const SHARED_SIBLING_MAX_LINES = 200;
 
 function rel(repoRoot: string, p: string): string {

@@ -1,8 +1,11 @@
 {
   "name": "agntux-gmail",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "Brings your Gmail into AgntUX. Spots emails that need a reply and drafts responses you review and send yourself.",
-  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
   "license": "Apache-2.0",
   "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local — email is bursty during the workday but doesn't need higher resolution than every 60 min"
 }

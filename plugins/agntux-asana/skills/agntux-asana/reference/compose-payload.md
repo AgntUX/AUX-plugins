@@ -12,10 +12,23 @@ payload.md`. Sources with no UI ship none.
 
 ## Conditional body section: `## Compose payload`
 
-REQUIRED for every action item that ships a `Draft a reply` (or
-equivalent) suggested action. The block is a fenced ```yaml inside an
-H2 body section so the top-level frontmatter parser's `---` collision
-risk doesn't bite.
+REQUIRED for every action item that ships a suggested action which opens
+a compose/editor view — a drafted reply, a note body, or any other
+view-pre-fill — not only literal replies. The block is a fenced ```yaml
+inside an H2 body section so the top-level frontmatter parser's `---`
+collision risk doesn't bite.
+
+**Match the view's read keys, and pre-populate them.** The field names in
+this block MUST be exactly the keys the plugin's view handler reads off the
+section (`cp.draft_body`, `cp.target_folder`, `cp.drafted_body`, …). The
+field-coverage guard (lint E35) fails the build on any field a view reads
+that the ingest skill never writes — the apple-notes class where the view
+read `draft_body` but the generic schema documented only `drafted_body`.
+Every key must carry **real composed content** by ingest time; a
+present-but-empty section renders a blank iframe, the same defect as a
+missing one. When your source's payload shape diverges from the generic
+below (different draft field names, extra config fields), ship a wholesale
+`_overrides/reference/compose-payload.md` documenting your exact keys.
 
 **YAML quoting reminder.** Any string scalar containing `: ` (colon-
 space), a leading `-`, or starting with `{` / `[` MUST be wrapped in

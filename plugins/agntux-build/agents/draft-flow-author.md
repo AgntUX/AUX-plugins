@@ -147,6 +147,14 @@ UI-handler pattern, the analogous pre-compose step happens at ingest
 time and the result is persisted in the action file's body so the view
 tool can lift it at click time.
 
+**Pre-compose is the default for every action-taking view** — not only
+"Draft a reply". Any suggested action that opens a view (compose a reply,
+create or update a note, propose a status transition, suggest a
+configuration change, pre-fill candidate time slots) MUST have its
+payload pre-composed at Step 10.1 and persisted in a named body section.
+Name the section after the view's payload header
+(`## Compose payload`, `## RSVP payload`, `## Schedule payload`, etc.).
+
 The convention: append a `## Compose payload` (or `## Canvas payload`)
 section to the action file body during ingest's Step 10. The section
 holds a YAML/JSON block with the drafted body, thread context, channel
@@ -196,6 +204,16 @@ deck.
 ```
 ```
 
+**Field names are a contract — E35.** The JSON/YAML keys written into
+the payload section must exactly match the keys the view handler reads
+via `parseBodySection` / `extractFencedYaml`. A mismatch
+(`thread_context` written at ingest, `threadContext` read in the view)
+silently renders the iframe empty. Lint pass 20 (E35) warns when the
+view's declared read keys diverge from the ingest-authored payload
+section — treat it as a hard error during authoring. Keep the field
+names in sync with the `_overrides/reference/{verb-kebab}-payload.md`
+schema file and the view handler's parse call.
+
 **Authoring rule — native-UI suppression directive on write-back
 envelopes.** If your plugin's write-back envelope dispatches to a
 connector that ships its own MCP App UI (Slack, Gmail, Linear, etc.),
@@ -226,6 +244,14 @@ status updates), the pre-composed body is stale. Two mitigations:
   payload and the live source-side state, falling back to the on-disk
   copy when the source-side fetch fails (auth, rate limits, etc.). See
   §2b "Dual-mode view tools".
+- **Step 8.5 reconcile regeneration.** When the canonical Step 8.5
+  ("Reconcile open action items") determines a source artefact has
+  changed but the action remains valid, it re-runs Step 10.1 for that
+  item and overwrites the payload section with a fresh pre-compose.
+  This keeps pre-composed payloads from going stale across reconcile
+  cycles without any extra per-view logic. Keep the payload section a
+  pure function of the current source-side artefact state so Step 8.5
+  can safely overwrite it in place.
 
 ### 2a.1 Author a payload-schema reference file per verb (required deliverable)
 

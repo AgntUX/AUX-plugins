@@ -1,6 +1,6 @@
 {
   "name": "agntux-mercury",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Track Mercury balances, transactions, cards, and approvals in AgntUX.",
   "author": {
     "name": "AgntUX",

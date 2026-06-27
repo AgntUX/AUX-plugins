@@ -1,0 +1,3 @@
+- **Resolved when** — the user posted a reply in the thread with no qualifying follow-up, or the parent message or thread was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — new replies arrived that change the conversation context; regenerate the Compose payload (or the Canvas payload for canvas actions) so the pre-drafted content isn't stale.
+- **Re-check via** — `slack_read_thread` by the action's `source_ref` (channel id and thread ts); a not-found / 404 / 410 means deleted.

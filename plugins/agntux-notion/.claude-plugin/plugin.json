@@ -1,6 +1,6 @@
 {
   "name": "agntux-notion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Brings your Notion workspace into AgntUX, so tasks and updates show up in one place.",
   "author": {
     "name": "AgntUX",

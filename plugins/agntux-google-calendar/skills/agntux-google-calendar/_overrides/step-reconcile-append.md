@@ -1,0 +1,3 @@
+- **Resolved when** — the event status is `cancelled`, the user's `responseStatus` is `declined`, or the event end time is in the past and the RSVP was already sent. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — start/end time, attendees, or location changed; regenerate the Schedule and Respond view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `get_event` by the action's `source_ref` (event id); a not-found / 404 / 410 means deleted.

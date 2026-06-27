@@ -1,8 +1,11 @@
 {
   "name": "agntux-asana",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Asana tasks and projects in your AgntUX knowledge store.",
-  "author": { "name": "AgntUX", "email": "support@agntux.ai" },
+  "author": {
+    "name": "AgntUX",
+    "email": "support@agntux.ai"
+  },
   "license": "Apache-2.0",
   "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
 }

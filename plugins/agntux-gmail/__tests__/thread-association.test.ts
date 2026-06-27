@@ -90,7 +90,10 @@ describe("cross-source action merge", () => {
   });
 
   it("Step 8.5 honours cross-source links during auto-resolution", () => {
-    expect(SKILL_TEXT).toMatch(/Path B/);
-    expect(SKILL_TEXT).toMatch(/cross.source/i);
+    // The broadened Step 8.5 (reconcile open items against fresh data) folds the
+    // former "Path A / Path B" split into a single candidate scan that includes
+    // cross-source-merged actions carrying a `## Cross-source links` body section.
+    expect(SKILL_TEXT).toMatch(/cross-source-merged/i);
+    expect(SKILL_TEXT).toMatch(/Cross-source links/);
   });
 });

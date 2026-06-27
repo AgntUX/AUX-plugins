@@ -300,6 +300,77 @@ provided the runbook is followed; don't over-design defensive paths
 that anticipate "what if the lock is missing my plugin" — the
 validator and the runbook handle it.
 
+## Source-side resolution signals (Step 8.5 reconcile)
+
+Each ingest plugin that ships a view-tool MUST declare the three categories
+of information the canonical Step 8.5 ("Reconcile open action items against
+fresh data") needs to evaluate every open action via its `source_ref`:
+
+**1. Terminal states — when an action is resolved.**
+A targeted read of the source artefact returns one of these states and the
+action moves to `status: done` with an `## Auto-resolved` note:
+
+- **Linear / Jira issues** — `state.type` is `completed` or `cancelled`;
+  issue status is `Done`, `Closed`, `Cancelled`, or `Duplicate`.
+- **Calendar events** — event `status` is `cancelled`; attendee
+  `responseStatus` is `declined` by the user.
+- **Email threads** — a reply from the user is present in the thread (the
+  open `response-needed` action was answered by the user themselves).
+- **Files / documents** — artefact returns 404 / 410 / not-found; treat
+  as deleted (terminal, auto-resolve).
+- **Charges / payments** — `status` is `refunded`, `voided`, or `cancelled`.
+- **Signature envelopes** — `status` is `signed`, `completed`, or `voided`.
+
+Per-source, document terminal states in `_overrides/step-reconcile-append.md`
+spliced at `<!-- append:step-reconcile -->`. If a not-found response from
+the source's read tool is ambiguous (transient error vs. genuine deletion),
+keep the action open — the reconcile branch is conservative on ambiguous
+signals.
+
+**2. Change signals — when an open action should be refreshed.**
+The following field movements trigger the "Changed-but-valid" branch
+(rewrite `## Why this matters`, refresh `due_by` / `priority`, re-run
+Step 10.1 for a fresh pre-compose on every view the action carries):
+
+- **Issue trackers** — assignee changed, due date moved, priority bumped,
+  title or description edited materially.
+- **Calendar events** — start/end time changed, participants added or
+  removed, location changed.
+- **Email threads** — a new reply from someone other than the user (thread
+  still open, but context has grown).
+- **Documents** — `modifiedTime` advanced since last ingest.
+
+Refresh is conservative: cosmetic changes (whitespace edit, auto-label,
+metadata-only `updated` bump) should NOT trigger a refresh unless the
+plugin has a reliable signal for a material edit. When in doubt, leave
+the action open unchanged.
+
+**3. Single-artefact re-check tool.**
+Step 8.5 re-checks each open action using its `source_ref` via a targeted
+single-item fetch — NOT the container sweep and NOT a cursor advance.
+Declare the appropriate per-source read tool:
+
+- **Issues** — `{source}_get_issue(issue_id)` or `{source}_get_item(id)`.
+- **Events** — `{source}_get_event(event_id)`.
+- **Threads** — `{source}_read_thread(channel_id, thread_ts)` (Slack) or
+  `{source}_get_thread(thread_id)` (Gmail).
+- **Documents** — `{source}_get_file_metadata(file_id)`.
+
+The re-check is **read-only** and **bounded** (≤ 25 open actions per run,
+across all reason_classes for the source). It MUST NOT advance the cursor —
+it is a targeted spot-check entirely separate from the main ingest sweep.
+Declare the single-artefact tool in `_overrides/step-reconcile-append.md`;
+the canonical `reference/reconcile.md` skeleton references it by prose.
+Ambiguous tool results (timeout, unexpected shape, permission error) leave
+the action open — the reconcile branch never auto-resolves on uncertainty.
+
+See `canonical/prompts/ingest/skills/sync/reference/reconcile.md` for the
+full canonical Step 8.5 skeleton. Per-plugin work is the source-specific
+signal list in `_overrides/step-reconcile-append.md`. Coordinate the
+override with `ingest-prompt-author` (who owns `_overrides/`) and hand
+the signal list to `tests-author` for the `reconcile-flow.test.ts` E36
+structural check.
+
 ## When to engage me
 
 - Designing the cursor shape for a new source.

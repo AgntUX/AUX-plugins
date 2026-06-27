@@ -2,7 +2,7 @@
 # Renderer reads this at build time; surviving {{...}} placeholders fail.
 
 plugin-slug: agntux-slack
-plugin-version: 7.0.0
+plugin-version: 8.5.0
 source-display-name: Slack
 source-slug: slack
 recommended-cadence: Every 30 min, 7am–7pm weekdays local — chat is time-sensitive during work hours, quiet otherwise

@@ -1,0 +1,3 @@
+- **Resolved when** — the error issue `status` is `resolved`, the experiment status is `complete`, the alert is no longer firing, or the item was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — issue status, assignee, or occurrence count moved, or experiment variant results shifted; regenerate the resolve, reply, experiment, and report view payloads so the pre-drafted content isn't stale.
+- **Re-check via** — `query-error-tracking-issue` (errors), `alert-get` (alerts), or `experiment-results-get` (experiments) by the action's `source_ref` (resource id); a not-found / 404 / 410 means deleted.

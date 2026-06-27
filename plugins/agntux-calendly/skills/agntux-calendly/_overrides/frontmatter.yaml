@@ -5,7 +5,7 @@
 # the renderer's surviving-placeholder guard fails the build otherwise.
 
 plugin-slug: agntux-calendly
-plugin-version: 0.1.1                      # matches .claude-plugin/plugin.json
+plugin-version: 0.2.0                      # matches .claude-plugin/plugin.json
 source-display-name: Calendly
 source-slug: calendly
 

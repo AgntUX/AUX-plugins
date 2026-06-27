@@ -1,0 +1,3 @@
+- **Resolved when** — the task's `completed` field is `true`, or the task was deleted. Treat a not-found on re-check as resolved-by-deletion.
+- **Changed-but-valid when** — assignee, `due_on`, or task notes changed; refresh `## Why this matters` and the action's frontmatter (the view hydrates from inline args at click time, so there's no on-disk payload section to regenerate).
+- **Re-check via** — `get_task` by the action's `source_ref` (task gid); a not-found / 404 / 410 means deleted.
