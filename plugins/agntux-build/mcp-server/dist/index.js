@@ -410,6 +410,31 @@ function workerErrorVerdict({ slug, pluginDir, sessionDir }, detail) {
 }
 
 /**
+ * Honest `detail` for a worker that produced no usable verdict. A native abort
+ * (an uncatchable Electron-as-node V8/Node assertion, e.g.
+ * `node::MaybeStackBuffer ... (length+1) <= capacity()`) terminates the worker
+ * with a signal and writes nothing, so the captured exit code / signal + a
+ * bounded tail of the worker's own stderr/stdout is the ONLY record of the
+ * cause. Folding it in here is what turns the old, useless
+ * `could not read worker verdict: ENOENT` into an actionable verdict (and
+ * DEFECT.json) for the maintainer.
+ */
+function workerCrashDetail({ readErr, code, signal, errTail, outTail }) {
+  let head;
+  if (signal) {
+    head = `validation worker was killed by ${signal} — an uncatchable native crash/abort (e.g. an Electron-as-node V8 assertion) that bypasses JS error handling; it wrote no verdict`;
+  } else if (code != null && code !== 0) {
+    head = `validation worker exited with code ${code} without producing a verdict`;
+  } else if (readErr) {
+    head = `could not read worker verdict: ${errStr(readErr)}`;
+  } else {
+    head = "validation worker produced no verdict";
+  }
+  const tail = (errTail || "").trim() || (outTail || "").trim();
+  return tail ? `${head}. Worker output tail:\n${tail}` : head;
+}
+
+/**
  * Run the validation pipeline in a CHILD process so this server's event loop
  * stays free to answer ping keepalives (and emit progress) during the multi-
  * minute build→…→render run. The in-process path blocked on synchronous
@@ -435,6 +460,19 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
   let verdict = null;
   let ticker = null;
   let watchdog = null;
+  // Capture the worker's exit code/signal + a bounded tail of its own
+  // stderr/stdout. A native abort (an Electron-as-node V8 assertion) is
+  // uncatchable from the worker's JS, so it writes NO verdict — this captured
+  // tail is the only record of why.
+  let childCode = null;
+  let childSignal = null;
+  const TAIL_CAP = 8192; // chars (not bytes); ample for a native crash stack, well within the stdout-safe range
+  let errTail = "";
+  let outTail = "";
+  const keepTail = (cur, d) => {
+    const s = cur + d.toString();
+    return s.length > TAIL_CAP ? s.slice(s.length - TAIL_CAP) : s;
+  };
   try {
     await new Promise((resolve) => {
       const child = spawn(process.execPath, childArgs, {
@@ -442,10 +480,10 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
         env: process.env,
       });
       // Drain BOTH child pipes (an undrained >64KB OS buffer of build output
-      // would wedge the child). Route to OUR stderr only — never our stdout,
-      // which is the JSON-RPC channel.
-      child.stdout.on("data", (d) => process.stderr.write(d));
-      child.stderr.on("data", (d) => process.stderr.write(d));
+      // would wedge the child). Keep a bounded tail for crash diagnostics, then
+      // route to OUR stderr only — never our stdout, which is the JSON-RPC channel.
+      child.stdout.on("data", (d) => { outTail = keepTail(outTail, d); process.stderr.write(d); });
+      child.stderr.on("data", (d) => { errTail = keepTail(errTail, d); process.stderr.write(d); });
       // Watchdog: a wedged grandchild (npm/tsc/vitest/playwright) would never
       // let the worker close → the call would hang forever and the ticker would
       // emit "validating…" indefinitely. Kill it and return an honest timeout.
@@ -476,7 +514,7 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
         verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `spawn failed: ${errStr(e)}`);
         resolve();
       });
-      child.on("close", () => resolve());
+      child.on("close", (code, signal) => { childCode = code; childSignal = signal; resolve(); });
     });
   } catch (e) {
     verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `worker error: ${errStr(e)}`);
@@ -488,11 +526,35 @@ async function validateInWorker({ slug, pluginDir, sessionDir, progressToken } =
     if (watchdog) clearTimeout(watchdog);
   }
 
+  // The watchdog / spawn-error / promise-catch paths already set `verdict`.
+  // Otherwise the worker ran to a close: trust the on-disk verdict ONLY on a
+  // clean exit (code 0, no signal). A non-clean exit means the worker died
+  // before overwriting its pre-run breadcrumb (a native abort writes nothing) —
+  // synthesize an honest crash verdict from the captured exit code/signal/output
+  // (preserving any partial stages the worker had recorded on disk).
   if (!verdict) {
+    const cleanExit = childCode === 0 && childSignal == null;
+    let onDisk = null;
+    let readErr = null;
     try {
-      verdict = JSON.parse(readFileSync(outPath, "utf8"));
+      onDisk = JSON.parse(readFileSync(outPath, "utf8"));
     } catch (e) {
-      verdict = workerErrorVerdict({ slug, pluginDir, sessionDir }, `could not read worker verdict: ${errStr(e)}`);
+      readErr = e;
+    }
+    if (cleanExit && onDisk && typeof onDisk === "object") {
+      verdict = onDisk;
+    } else {
+      verdict = workerErrorVerdict(
+        { slug, pluginDir, sessionDir },
+        workerCrashDetail({ readErr, code: childCode, signal: childSignal, errTail, outTail }),
+      );
+      // Defensive: preserve any partial stage progress the worker recorded on
+      // disk. Today the worker only writes the empty-stages breadcrumb before a
+      // crash, so this is effectively a no-op — kept for a future worker that
+      // checkpoints incremental stages.
+      if (onDisk && typeof onDisk === "object" && onDisk.stages && Object.keys(onDisk.stages).length) {
+        verdict.stages = onDisk.stages;
+      }
     }
   }
   try {
