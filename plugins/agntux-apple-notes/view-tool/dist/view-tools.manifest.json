@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_apple_notes",
-  "plugin_version": "0.1.0",
+  "plugin_version": "0.2.0",
   "handler_module": "view-tool/dist/agntux-apple-notes-view.js",
   "view_tools": [
     {
