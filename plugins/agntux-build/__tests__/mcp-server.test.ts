@@ -364,6 +364,79 @@ describe("agntux-build MCP server", () => {
     }
   }, 20_000);
 
+  it("reports an honest crash verdict (signal + stderr tail) when the worker dies without writing one", async () => {
+    // The agntux-canva failure class: the validate worker aborts NATIVELY (an
+    // Electron-as-node V8 assertion → SIGABRT/SIGTRAP, exit 133) and writes no
+    // verdict. The parent MUST surface the signal + the worker's own stderr tail,
+    // NOT the old opaque `could not read worker verdict: ENOENT`. A native abort
+    // is uncatchable from the worker's JS, so this parent-side capture is the
+    // ONLY thing that can report it. We simulate it with the worker's
+    // TEST_ABORT hook (writes a marker to stderr, then SIGABRTs itself).
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-abort-"));
+    const absent = join(parent, "agntux-nope");
+    try {
+      const { byId } = await rpcRawStdout(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: absent } },
+          },
+        ],
+        [2],
+        20_000,
+        { AGNTUX_VALIDATE_WORKER_TEST_ABORT: "1" },
+      );
+      const resp = byId.get(2);
+      expect(resp.error).toBeUndefined(); // never a protocol error
+      const v = toolPayload(resp);
+      expect(v.ok).toBe(false);
+      expect(v.error_kind).toBe("internal");
+      expect(v.blocking).toBe(false);
+      // The real cause is surfaced — not the bare ENOENT that stranded the build.
+      expect(v.detail).not.toMatch(/could not read worker verdict: ENOENT/);
+      expect(v.detail).toMatch(/killed by SIG|exited with code/);
+      expect(v.detail).toContain("AGNTUX_VALIDATE_WORKER_TEST_ABORT_MARKER");
+      // The bounded tail keeps the END of the stream (where a real crash stack
+      // prints) and truncates the head: the marker (written LAST) survives; the
+      // head sentinel (written first, before >TAIL_CAP of filler) is dropped.
+      expect(v.detail).not.toContain("AGNTUX_VALIDATE_WORKER_TEST_HEAD_SENTINEL");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("turns a JS-level worker fault into a structured internal verdict (uncaught guard)", async () => {
+    // Distinct from the native-abort case above: a thrown error / rejected
+    // promise inside the worker IS catchable, so the worker's own guard writes a
+    // structured verdict carrying the error (exit 0 → the parent trusts it).
+    const parent = mkdtempSync(join(tmpdir(), "agntux-validate-throw-"));
+    const absent = join(parent, "agntux-nope");
+    try {
+      const { byId } = await rpcRawStdout(
+        [
+          { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+          {
+            jsonrpc: "2.0", id: 2, method: "tools/call",
+            params: { name: "agntux_validate", arguments: { slug: "agntux-nope", plugin_dir: absent } },
+          },
+        ],
+        [2],
+        20_000,
+        { AGNTUX_VALIDATE_WORKER_TEST_THROW: "1" },
+      );
+      const resp = byId.get(2);
+      expect(resp.error).toBeUndefined();
+      const v = toolPayload(resp);
+      expect(v.ok).toBe(false);
+      expect(v.error_kind).toBe("internal");
+      expect(v.blocking).toBe(false);
+      expect(v.detail).toContain("AGNTUX_VALIDATE_WORKER_TEST_THROW_MARKER");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 20_000);
+
   it("agntux_write_submission refuses (no throw) when the plugin tree is absent", async () => {
     const got = await rpc(
       [

@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.34.2] — 2026-06-26
+
+### Fixed
+
+- **`agntux_validate` no longer strands a build with the opaque
+  `could not read worker verdict: ENOENT`.** After 0.34.1 moved validation into
+  a child process, a worker that died *without* writing its verdict file left the
+  parent reporting only a missing-file read error — no exit code, no signal, no
+  output — so the maintainer's `DEFECT.json` carried nothing actionable. The
+  underlying trigger is an **uncatchable native abort**: the worker runs as
+  Electron-as-node, and the real validation pipeline hits a native V8/Node
+  assertion (`node::MaybeStackBuffer … (length + 1) <= capacity()`, `SIGTRAP`)
+  that bypasses all JS error handling. Two robustness fixes so the failure is now
+  honest and self-revealing:
+  - The parent (`validateInWorker`) captures the worker's **exit code + signal +
+    a bounded tail of its stderr/stdout** and folds them into the verdict
+    `detail` when no clean verdict was produced — surfacing the signal and the
+    worker's stderr (which carries the native crash stack) instead of `ENOENT`.
+  - The worker writes a **pre-run breadcrumb verdict**, imports the toolchain
+    dynamically (a module-load failure becomes a verdict), and installs
+    `uncaughtException`/`unhandledRejection` guards for JS-level faults.
+- Adds regression tests for the native-abort (signal) and JS-fault worker paths.
+
+> The native abort itself (an Electron 42 / Node 24 runtime fault) is tracked
+> separately; this release makes every such failure report its real cause.
+
 ## [0.34.1] — 2026-06-26
 
 ### Fixed
