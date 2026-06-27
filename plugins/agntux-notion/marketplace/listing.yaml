@@ -1,0 +1,129 @@
+tagline: "Notion tasks and updates in AgntUX, with direct replies and edits."
+description: |
+  Brings your Notion workspace into AgntUX so tasks, projects, and
+  pages that need you show up in one place. Reply to comments, update
+  page properties, and create new pages without leaving AgntUX. Check
+  for new activity every 4 hours or ask a question about your Notion
+  anytime.
+categories:
+  - notes-knowledge
+  - project-management
+keywords:
+  - notion
+  - tasks
+  - pages
+  - database
+  - projects
+  - documents
+  - workspace
+  - collaboration
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+data_ingested:
+  - "Pages from your Notion workspace"
+  - "Tasks and items in databases"
+  - "Comments and mentions on pages"
+  - "Page updates and property changes"
+  - "User assignments and ownership"
+supported_prompts:
+  - prompt: "/agntux-notion"
+    purpose: "Check for new activity in Notion, or ask a question about your workspace."
+ui_components:
+  - name: reply-to-comment
+    title: "Reply to comment"
+    purpose: "Write a reply to a comment on a Notion page."
+    view_tool: agntux_notion_comment_view
+    resource_uri: "ui://agntux-notion/reply-comment"
+  - name: update-page
+    title: "Update page"
+    purpose: "Edit properties and fields on a Notion page."
+    view_tool: agntux_notion_update_view
+    resource_uri: "ui://agntux-notion/update-page"
+  - name: create-page
+    title: "Create page"
+    purpose: "Create a new page in your Notion workspace."
+    view_tool: agntux_notion_create_view
+    resource_uri: "ui://agntux-notion/create-page"
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: notion
+  display_name: "Notion"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: notion-page
+      description: "A page in your Notion workspace — docs, wiki pages, or standalone notes."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: notion-database-item
+      description: "A row in a Notion database — tasks, projects, or custom items you track."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: notion-comment
+      description: "A comment or mention thread on a page or database item."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: person
+      description: "A Notion user or person mentioned in comments and assignments."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: response-needed
+      description: "A comment on a page or item that mentions you or waits for your reply."
+    - class: knowledge-update
+      description: "A page or database item that was created or updated with new information."
+    - class: deadline
+      description: "A task or project with a due date in Notion."
+    - class: opportunity
+      description: "A page or item marked as important or worth reviewing."
+    - class: other
+      description: "Any other actionable item from Notion that doesn't fit a standard class."
+  cursor_semantics: "Tracks the last-edited timestamp of pages and database items. Comments are polled per page each run; the plugin checks for new comment activity alongside page updates."
+  source_id_format: "`{block-id}` — Notion's 32-character hex UUID (dashed format) uniquely identifies each page, database item, and comment."

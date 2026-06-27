@@ -1,0 +1,234 @@
+{
+  "plugin_slug": "agntux_notion",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-notion-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_notion_comment_view",
+      "description": "Use this to show a Notion comment-reply composer when the user needs to reply to a comment thread on a Notion page. Displays the quoted comment thread above an editable reply field so the user can draft and post their response. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the comment reply composer for action {id}' → call with {action_id: id}; 'use the agntux-notion plugin to open the comment reply composer for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file and lifts page_title, comment_thread, draft_body, and personalization_signals from disk. Do NOT pass page_url, comment_thread, draft_body, or personalization_signals inline — any inline value (including partial or empty objects) overrides the on-disk payload destructively, producing an empty UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "page_id": {
+            "type": "string"
+          },
+          "discussion_id": {
+            "type": "string"
+          },
+          "page_url": {
+            "type": "string"
+          },
+          "page_title": {
+            "type": "string"
+          },
+          "comment_thread": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          },
+          "personalization_signals": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "page_id",
+          "discussion_id",
+          "page_url",
+          "page_title",
+          "comment_thread",
+          "draft_body",
+          "personalization_signals"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-notion/reply-comment",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_notion_update_view",
+      "description": "Use this to show a Notion page property editor when the user needs to update status, due date, or other properties on a Notion page. Displays current property values and lets the user edit them before saving. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'update page properties for action {id}' → call with {action_id: id}; 'use the agntux-notion plugin to update page properties for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file and lifts page_title, current_properties, and editable_properties from disk. Do NOT pass page_url, current_properties, or editable_properties inline — any inline value (including partial or empty objects) overrides the on-disk payload destructively, producing an empty UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "page_id": {
+            "type": "string"
+          },
+          "page_url": {
+            "type": "string"
+          },
+          "page_title": {
+            "type": "string"
+          },
+          "current_properties": {
+            "type": "string"
+          },
+          "editable_properties": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "page_id",
+          "page_url",
+          "page_title",
+          "current_properties",
+          "editable_properties"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-notion/update-page",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_notion_create_view",
+      "description": "Use this to show a Notion new-page creator when the user needs to create a new page in their Notion workspace. Lets the user choose a parent location, edit the page title, and write the initial body before creating it. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards. TRIGGER PHRASES (map verbatim to args — do not paraphrase): 'open the page creator for action {id}' → call with {action_id: id}; 'use the agntux-notion plugin to create a page for action {id}' → call with {action_id: id}. For these click-time prompts, pass ONLY action_id. The tool reads the action file and lifts parent_options, draft_title, and draft_body from disk. Do NOT pass parent_options, draft_title, or draft_body inline — any inline value (including partial or empty objects) overrides the on-disk payload destructively, producing an empty UI.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          },
+          "parent_options": {
+            "type": "string"
+          },
+          "draft_title": {
+            "type": "string"
+          },
+          "draft_body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id",
+          "parent_options",
+          "draft_title",
+          "draft_body"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-notion/create-page",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-notion/reply-comment",
+      "html_path": "view-tool/dist/ui-resources/reply-comment.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-notion/update-page",
+      "html_path": "view-tool/dist/ui-resources/update-page.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-notion/create-page",
+      "html_path": "view-tool/dist/ui-resources/create-page.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
