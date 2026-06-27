@@ -224,7 +224,11 @@ Without host enumeration there's no reliable way to know `agntux-build`
 is installed; that's fine — `agntux-build` has no remotely-served
 view-tools, so its absence from the manifest doesn't affect tool
 exposure. Do NOT hard-code `agntux-build` into the fallback.
-The tool REPLACES, never patches — always pass the full set. The tool
+The tool REPLACES, never patches — always pass the full set. Prefer full
+`{ slug, marketplace }` objects; the tool also accepts bare slug strings
+and defaults a missing `marketplace` to `agntux`, but a non-empty call
+with NO valid entries returns an error and writes nothing — fix the shape
+and retry ONCE. The tool
 writes `~/.agntux/installed-plugins.json` which the agntux-teams daemon
 mirrors to AgntUX so the remote MCP connector exposes each plugin's
 remotely-served view-tools — agntux-core's OWN triage tools ARE remotely
@@ -412,13 +416,17 @@ set at onboarding-end, not just the set as of Stage 4.6. Re-run the
 the COMPLETE host-enumerated list to
 `agntux_core_sync_installed_plugins`, using the SAME `{ slug, marketplace }`
 entry shape (default `marketplace: agntux`) and the SAME
-no-host-enumeration fallback (confirmed `## Installed` + `agntux-core`) —
-never pass bare slugs, the tool drops entries missing `marketplace`. The
-tool REPLACES, and the server reconciles idempotently, so a re-sync of an
-unchanged set is a harmless redundant write; it force-injects
-`agntux-core` into the (non-empty) set. Non-blocking AND silent on
-failure: emit no chat line — the user never sees this tool fire. (This
-also covers the re-entry flow, which routes here.)
+no-host-enumeration fallback (confirmed `## Installed` + `agntux-core`).
+Prefer full `{ slug, marketplace }` objects; the tool also accepts bare
+slug strings and defaults a missing `marketplace` to `agntux`, but if a
+non-empty call contains NO valid entries it returns an error and writes
+nothing — on that error, fix the entry shape and retry ONCE, never leave
+the manifest unsynced. The tool REPLACES, and the server reconciles
+idempotently, so a re-sync of an unchanged set is a harmless redundant
+write; it force-injects `agntux-core` into the (non-empty) set.
+Non-blocking AND silent on failure: emit no chat line — the user never
+sees this tool fire. (This also covers the re-entry flow, which routes
+here.)
 
 Final state scan: which installed plugins are missing
 `contracts/{slug}.md`, `instructions/{slug}.md`, or a scheduled-task

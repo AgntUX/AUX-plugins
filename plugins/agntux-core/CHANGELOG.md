@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.5.3] — 2026-06-26
+
+### Fixed
+
+- **`agntux_core_sync_installed_plugins` no longer silently writes an empty
+  `plugins: []` when the caller's list doesn't match the exact entry shape.**
+  The tool dropped every entry that wasn't precisely `{ slug, marketplace }`
+  (bare slug strings, an omitted/empty `marketplace`, or a JSON-stringified
+  array all collapsed to zero entries) and then wrote the empty manifest while
+  reporting success — so a real install set was lost with no signal, and the
+  caller (e.g. Cowork during onboarding) had no way to tell the sync had
+  failed. The tool is now tolerant where it safely can be and loud where it
+  can't:
+  - Accepts a JSON-stringified `plugins` array, bare slug strings, and entries
+    that omit `marketplace` (defaulted to `agntux`, the documented default) —
+    matching what the skill prompt already promises.
+  - When a **non-empty** call yields **zero** valid entries, it returns an
+    error and writes **nothing** (the previous good manifest is never
+    clobbered), with a per-entry explanation of what was dropped so the caller
+    can fix the shape and retry.
+  - A deliberate empty sync (absent arg or explicit `[]`) still writes the
+    zero-length no-op snapshot, and the `agntux-core` floor on non-empty sets
+    is unchanged.
+
 ## [10.5.2] — 2026-06-26
 
 ### Fixed
