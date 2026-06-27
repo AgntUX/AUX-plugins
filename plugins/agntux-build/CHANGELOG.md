@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-06-26
+
+### Changed
+
+- **The submission flow no longer collects or publishes a contributor email,
+  and the contributor name is now optional and opt-in.** Previously stage 0
+  required a real legal name *and* an email, and stage 12 published both into
+  the public repo (`CONTRIBUTING-SIGNATURE.md`, the marker's
+  `contributor`/`dco.signed_off_by`, and the maintainer's commit
+  `Signed-off-by:` trailer). There is no legal requirement to publish either —
+  Apache-2.0 doesn't require it, and the DCO's load-bearing part is the rights
+  assertion, not the personal data. Now:
+  - **Email is never requested, stored, or published.**
+  - **A name is optional**: the contributor is asked only whether they'd like
+    to be credited, with an explicit "stay anonymous" path. A provided name is
+    published in the contribution record; skipping it produces an anonymous
+    submission.
+  - The DCO "I agree" rights-consent gate and the verbatim DCO v1.1 text are
+    **unchanged** — only the PII collection/publication changed.
+  - On merge, AgntUX maintainers sign off the public commit with the project's
+    own identity (`Signed-off-by: AgntUX <noreply@agntux.ai>`), so the DCO check
+    passes without a contributor email.
+  - `contributor.json`, `CONTRIBUTING-SIGNATURE.md`, and the `SUBMISSION.json`
+    marker now omit `email` entirely and carry `name` only when provided;
+    `isValidContributor` requires only the DCO fields. The marker
+    `schema_version` is unchanged (`1.1.0`) — the consuming desktop daemon /
+    server intake must treat `contributor.email` and a personal
+    `dco.signed_off_by` as optional.
+
 ## [0.34.3] — 2026-06-26
 
 ### Fixed

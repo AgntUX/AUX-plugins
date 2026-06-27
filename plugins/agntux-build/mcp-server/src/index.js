@@ -667,7 +667,7 @@ async function handleWriteSubmission(args) {
     return { ok: false, error_kind: "usage", blocking: false, detail: `could not read contributor.json: ${errStr(e)}` };
   }
   if (!isValidContributor(contrib)) {
-    return { ok: false, error_kind: "usage", blocking: false, detail: "contributor.json missing name/email/dco fields" };
+    return { ok: false, error_kind: "usage", blocking: false, detail: "contributor.json missing DCO fields (dco_text_version / dco_agreed_at)" };
   }
 
   const marker = assembleMarker({
@@ -1413,14 +1413,19 @@ export function assembleMarker({
     build_root: slug,
     agntux_build_version: agntuxBuildVersion,
     contributor: {
-      name: contrib.name,
-      email: contrib.email,
+      // `name` is published only when the contributor opted into credit;
+      // it is absent for an anonymous submission. No email is ever
+      // collected or emitted.
+      ...(contrib.name ? { name: contrib.name } : {}),
       ...(contrib.socials ? { socials: contrib.socials } : {}),
     },
     dco: {
       version: contrib.dco_text_version,
       agreed_at: contrib.dco_agreed_at,
-      signed_off_by: `${contrib.name} <${contrib.email}>`,
+      // Name-only sign-off when one was provided; omitted otherwise.
+      // Never an email — the public DCO sign-off on merge uses the org
+      // identity (Signed-off-by: AgntUX <noreply@agntux.ai>).
+      ...(contrib.name ? { signed_off_by: contrib.name } : {}),
     },
     validation,
     submitted_at: new Date().toISOString(),
@@ -1429,11 +1434,13 @@ export function assembleMarker({
   };
 }
 
-/** contributor.json must carry name/email/dco fields. */
+/**
+ * contributor.json must carry the DCO agreement fields. `name` is optional
+ * (present only when the contributor opted into public credit) and no email is
+ * ever collected, so neither is required here.
+ */
 export function isValidContributor(contrib) {
   return (
-    isNonEmptyString(contrib?.name) &&
-    isNonEmptyString(contrib?.email) &&
     isNonEmptyString(contrib?.dco_text_version) &&
     isNonEmptyString(contrib?.dco_agreed_at)
   );
