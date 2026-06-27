@@ -1,0 +1,89 @@
+tagline: "Track DocuSign envelopes and stay on top of what needs your signature."
+description: |
+  Brings DocuSign e-signature workflows into your AgntUX knowledge store. See envelopes out for signature, track who still needs to sign, surface action items for pending signers, and flag agreements approaching renewal or expiration. One-click actions let you send reminder nudges or open signing ceremonies directly in DocuSign.
+categories:
+  - productivity
+keywords:
+  - docusign
+  - e-signature
+  - workflow
+  - agreements
+available_on:
+  - trial
+  - pro
+  - team
+  - enterprise
+supported_prompts:
+  - prompt: "/agntux-docusign"
+    purpose: "Check for new DocuSign envelopes and agreements. Or ask a question about your DocuSign — it just looks things up."
+requires_plugins:
+  - agntux-core
+requires_source_mcp:
+  source: connector
+  connector_slug: docusign
+  display_name: "DocuSign"
+data_ingested:
+  - "Envelopes with status (created, sent, delivered, signed, completed, declined, voided)"
+  - "Signers and their signing status for each envelope"
+  - "Documents in each envelope"
+  - "Executed agreements and renewal/expiration dates"
+ui_components:
+  - name: agntux-docusign-reminder
+    title: "Send Reminder"
+    purpose: "Notify pending signers that an envelope is awaiting their signature."
+    view_tool: agntux_docusign_reminder_view
+    resource_uri: "ui://agntux-docusign/reminder"
+  - name: agntux-docusign-void
+    title: "Void Envelope"
+    purpose: "Cancel an envelope and notify all recipients with a void reason."
+    view_tool: agntux_docusign_void_view
+    resource_uri: "ui://agntux-docusign/void"
+  - name: agntux-docusign-sign
+    title: "Review and Sign"
+    purpose: "Open a signing ceremony to review and sign an envelope waiting for your signature."
+    view_tool: agntux_docusign_sign_view
+    resource_uri: "ui://agntux-docusign/sign"
+support:
+  url: "https://github.com/AgntUX/AUX-plugins/issues"
+  email: "support@agntux.ai"
+developer:
+  name: "AgntUX"
+  url: "https://agntux.ai"
+  github_handle: "agntux"
+proposed_schema:
+  entity_subtypes:
+    - subtype: envelope
+      description: "A signature request or transaction with a lifecycle: created, sent, delivered, signed, completed, declined, or voided."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+    - subtype: agreement
+      description: "An executed or managed contract with parties, status, and renewal/expiration provisions."
+      required_frontmatter:
+        - id
+        - type
+        - schema_version
+        - subtype
+        - aliases
+        - sources
+        - created_at
+        - updated_at
+        - last_active
+        - deleted_upstream
+  action_classes:
+    - class: response-needed
+      description: "A signer must take action (sign/complete), or reminders are needed for pending signers."
+    - class: knowledge-update
+      description: "Envelope or agreement status change (voided, declined, completed) or renewal/expiration milestone."
+    - class: other
+      description: "Miscellaneous DocuSign signals."
+  cursor_semantics: "High-watermark on envelope last-modified time. Agreements paginate via cursor with created_at/modified_at watermarks."
+  source_id_format: "`envelope:{envelopeId}` and `agreement:{agreementId}`"

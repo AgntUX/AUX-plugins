@@ -1,0 +1,270 @@
+{
+  "plugin_slug": "agntux_docusign",
+  "plugin_version": "0.1.0",
+  "handler_module": "view-tool/dist/agntux-docusign-view.js",
+  "view_tools": [
+    {
+      "name": "agntux_docusign_reminder_view",
+      "description": "Use this to send a reminder to pending signers on a DocuSign envelope. Shows envelope context (subject, sent date, days outstanding, per-recipient status) and lets the user write an optional reminder message before sending. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "envelope_id": {
+            "type": "string"
+          },
+          "envelope_subject": {
+            "type": "string"
+          },
+          "envelope_url": {
+            "type": "string"
+          },
+          "sent_date": {
+            "type": "string"
+          },
+          "days_outstanding": {
+            "type": "number"
+          },
+          "pending_recipients": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "email",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "draft_message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "envelope_id",
+          "envelope_subject",
+          "envelope_url",
+          "sent_date",
+          "days_outstanding",
+          "pending_recipients",
+          "draft_message"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-docusign/reminder",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_docusign_void_view",
+      "description": "Use this to void a DocuSign envelope. Shows envelope context (subject, sent date, status, recipient count) and requires the user to enter a void reason before confirming. All recipients will be notified with the void reason. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "envelope_id": {
+            "type": "string"
+          },
+          "envelope_subject": {
+            "type": "string"
+          },
+          "envelope_url": {
+            "type": "string"
+          },
+          "sent_date": {
+            "type": "string"
+          },
+          "recipient_count": {
+            "type": "number"
+          },
+          "draft_void_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "envelope_id",
+          "envelope_subject",
+          "envelope_url",
+          "sent_date",
+          "recipient_count",
+          "draft_void_reason"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-docusign/void",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    },
+    {
+      "name": "agntux_docusign_sign_view",
+      "description": "Use this when the connected user needs to review and sign a DocuSign envelope. Shows document context (subject, sender, sent date, expiration, signer position) and provides a prominent link to open the DocuSign signing ceremony. There is no commit button — signing happens in DocuSign's secure embedded ceremony. This tool is an MCP App view tool: it returns a structured data payload that the host (Claude Desktop / Claude Cowork / Claude Code) renders into an interactive iframe shown above the next assistant turn. The iframe is the user-visible result of calling this tool; no additional chat output, summary, or visualization tool call is needed afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "envelope_id": {
+            "type": "string"
+          },
+          "envelope_subject": {
+            "type": "string"
+          },
+          "sender_name": {
+            "type": "string"
+          },
+          "sent_date": {
+            "type": "string"
+          },
+          "expiration_date": {
+            "type": "string"
+          },
+          "signer_position": {
+            "type": "string"
+          },
+          "signing_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "envelope_id",
+          "envelope_subject",
+          "sender_name",
+          "sent_date",
+          "expiration_date",
+          "signer_position",
+          "signing_url"
+        ],
+        "additionalProperties": false
+      },
+      "data_paths": [
+        {
+          "pattern": "actions/{id}.md",
+          "scope": "personal"
+        }
+      ],
+      "mcp_app_meta": {
+        "resourceUri": "ui://agntux-docusign/sign",
+        "csp": {
+          "connectDomains": [],
+          "resourceDomains": [],
+          "frameDomains": [],
+          "baseUriDomains": []
+        },
+        "permissions": {}
+      }
+    }
+  ],
+  "ui_bundles": [
+    {
+      "uri": "ui://agntux-docusign/reminder",
+      "html_path": "view-tool/dist/ui-resources/reminder.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-docusign/void",
+      "html_path": "view-tool/dist/ui-resources/void.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    },
+    {
+      "uri": "ui://agntux-docusign/sign",
+      "html_path": "view-tool/dist/ui-resources/sign.html",
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      },
+      "permissions": {}
+    }
+  ]
+}
