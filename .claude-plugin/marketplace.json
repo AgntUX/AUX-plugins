@@ -148,6 +148,21 @@
       "category": "productivity"
     },
     {
+      "name": "agntux-hubspot",
+      "source": "./plugins/agntux-hubspot",
+      "homepage": "https://agntux.ai/plugins/agntux-hubspot",
+      "keywords": [
+        "hubspot",
+        "crm",
+        "deals",
+        "tasks",
+        "tickets",
+        "sales"
+      ],
+      "category": "crm",
+      "kind": "remote-view-only"
+    },
+    {
       "name": "agntux-imessage",
       "source": "./plugins/agntux-imessage",
       "homepage": "https://agntux.ai/plugins/agntux-imessage",
@@ -190,6 +205,23 @@
         "accounts"
       ],
       "category": "productivity"
+    },
+    {
+      "name": "agntux-notion",
+      "source": "./plugins/agntux-notion",
+      "homepage": "https://agntux.ai/plugins/agntux-notion",
+      "keywords": [
+        "notion",
+        "tasks",
+        "pages",
+        "database",
+        "projects",
+        "documents",
+        "workspace",
+        "collaboration"
+      ],
+      "category": "notes-knowledge",
+      "kind": "remote-view-only"
     },
     {
       "name": "agntux-posthog",
