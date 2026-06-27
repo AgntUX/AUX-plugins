@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-27T03:47:20.750Z",
+  "generated_at": "2026-06-27T04:08:24.754Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -386,6 +386,123 @@
         ],
         "cursor_semantics": "Time window over scheduled events, advancing by updated_at timestamp to capture new bookings, attendee changes, and lead submissions.",
         "source_id_format": "`{scheduled_event_uuid}` for meetings, `{invitee_uuid}` for attendees, `{event_type_uuid}` for templates."
+      }
+    },
+    "agntux-canva": {
+      "tagline": "Track Canva comments and mentions as action items you can reply to.",
+      "description": "Brings your Canva designs and comments into AgntUX so you see what needs your attention. Reply to comments, add your own, and export designs—all from your action list.\n",
+      "categories": [
+        "productivity"
+      ],
+      "keywords": [
+        "canva",
+        "design",
+        "collaboration",
+        "comments"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "canva",
+        "display_name": "Canva"
+      },
+      "ui_components": [
+        {
+          "name": "reply",
+          "title": "Reply to a design comment",
+          "purpose": "Reply to a comment or mention on a Canva design from AgntUX.",
+          "view_tool": "agntux_canva_reply",
+          "resource_uri": "ui://agntux-canva/reply"
+        },
+        {
+          "name": "comment",
+          "title": "Comment on a design",
+          "purpose": "Add a fresh comment to a Canva design without leaving AgntUX.",
+          "view_tool": "agntux_canva_comment",
+          "resource_uri": "ui://agntux-canva/comment"
+        },
+        {
+          "name": "export",
+          "title": "Export a design to a file",
+          "purpose": "Export a Canva design as PDF, PNG, or other formats and get a download link.",
+          "view_tool": "agntux_canva_export",
+          "resource_uri": "ui://agntux-canva/export"
+        }
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-canva",
+          "purpose": "Check for new Canva comments and mentions. Ask questions about your designs and it looks them up."
+        }
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "design",
+            "description": "A Canva design or creative document.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          },
+          {
+            "subtype": "comment",
+            "description": "A comment or mention left on a Canva design.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at",
+              "last_active",
+              "deleted_upstream"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "A comment or mention on a design that needs a reply."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "A comment or mention that shares information about the design."
+          },
+          {
+            "class": "other",
+            "description": "A Canva comment or action that doesn't fit other categories."
+          }
+        ],
+        "cursor_semantics": "Polls designs by modification date (newest first) and pulls new or updated comments for each design since the last sync.",
+        "source_id_format": "`{design_id}#{comment_id}` — design IDs start with D (11 chars total); comment IDs are unique per design."
       }
     },
     "agntux-core": {
