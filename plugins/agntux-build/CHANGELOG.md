@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.34.3] — 2026-06-26
+
+### Fixed
+
+- **`agntux_validate` now captures the worker's *complete* stderr tail when it
+  dies by signal — fixing a flaky crash verdict** that intermittently failed CI
+  (green on macOS, red on Linux) and blocked unrelated submission PRs at the
+  "vitest + agntux-build bundle drift" check. Two complementary fixes:
+  - **Parent (`validateInWorker`)** computed the crash verdict on the child's
+    `'close'` event alone. When the worker dies by signal *immediately* after
+    writing, `'close'` can fire before the final stderr `'data'` chunk is
+    delivered, dropping the **end** of the stream — exactly the crash stack the
+    capture exists to surface. The parent now gates the verdict on the child
+    having exited **and** both stdio pipes having fully drained (their `'close'`
+    events), so the captured tail is always complete.
+  - **Worker (native-abort test hook)** wrote its simulated crash output with a
+    bare `writeSync`. A child's piped stderr is **non-blocking on Linux**, so a
+    `writeSync` larger than the pipe buffer partial-writes / throws `EAGAIN` and
+    silently drops the bytes written **last** — the very marker the test asserts
+    on (it passed on macOS, whose pipes block). The hook now loops on the written
+    byte count and retries `EAGAIN`, so every byte reaches the pipe before the
+    self-kill.
+
 ## [0.34.2] — 2026-06-26
 
 ### Fixed
