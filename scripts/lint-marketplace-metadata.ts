@@ -39,6 +39,7 @@ import { pass18HostPromptSlash } from "./lint/lint-host-prompt-slash.js";
 import { pass19ViewPayloadCoverage } from "./lint/lint-view-payload-coverage.js";
 import { pass20ViewPayloadFieldCoverage } from "./lint/lint-view-payload-field-coverage.js";
 import { pass21ReconcileDeclared } from "./lint/lint-reconcile-declared.js";
+import { pass22NamespacedComposeRead } from "./lint/lint-namespaced-compose-read.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -752,6 +753,14 @@ export function lintPlugin(
   // resolved items and refresh changed ones. Without it, handled items stay open
   // and noisy. Warning (E36).
   pass21ReconcileDeclared(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 22 — a view that reads an on-disk payload section must ALSO read its
+  // own namespaced cross-source header `## Compose payload (<slug>)`. The Step 9
+  // cross-source merge writes the plugin's payload under that namespaced header
+  // onto a sibling's action file; a view that only reads its per-view / bare
+  // header never reads it, so the merged action renders blank (the 2026-06-18
+  // agntux-google-calendar "Untitled event" class, fixed in 0.7.1). Warning
+  // (E37). Routed to ui-handler-author / ingest-prompt-author.
+  pass22NamespacedComposeRead(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

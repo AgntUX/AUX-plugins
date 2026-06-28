@@ -263,8 +263,13 @@ export function extractFencedYaml(body, header) {
  * absent or the fenced YAML is malformed/empty.
  */
 export function parseComposePayload(body) {
+    // Pass each header as a LITERAL string. `extractFencedYaml` regex-escapes its
+    // header arg exactly once, so the namespaced cross-source form must be the
+    // plain `Compose payload (gmail)` — NOT a pre-escaped `Compose payload
+    // \\(gmail\\)`, which double-escapes and never matches `## Compose payload
+    // (gmail)` (the bug that left gmail's cross-source-merged invites blank).
     const yamlBody = extractFencedYaml(body, "Compose payload") ??
-        extractFencedYaml(body, "Compose payload \\(gmail\\)");
+        extractFencedYaml(body, "Compose payload (gmail)");
     if (yamlBody == null)
         return null;
     let raw = {};

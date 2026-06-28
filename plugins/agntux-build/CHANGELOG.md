@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-06-28
+
+### Added
+
+- **New marketplace lint pass E37 (cross-source namespaced-payload read guard).** A view that reads an on-disk payload section must also read its own namespaced `## Compose payload (<slug>)` header — the section the Step 9 cross-source merge writes onto a sibling plugin's action file. A view that reads only its bare/per-view header renders blank for a cross-source-merged action (the agntux-google-calendar "Untitled event" class). Warning-only for now; promote to error once every view-shipping plugin reads its namespaced header.
+
+### Fixed
+
+- **The vendored `@agntux/plugin-runtime` `parseComposePayload` now actually reads the namespaced `## Compose payload (gmail)` cross-source section.** It previously passed a pre-escaped header string to `extractFencedYaml`, which regex-escapes its argument again — the double-escape never matched, so gmail's cross-source-merged invites rendered blank. The header is now passed as a literal.
+
 ## [0.36.0] — 2026-06-27
 
 ### Added

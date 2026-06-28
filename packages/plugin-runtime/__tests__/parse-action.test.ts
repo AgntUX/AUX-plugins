@@ -3,6 +3,7 @@ import {
   extractFrontmatterMetadata,
   extractSection,
   parseActionFile,
+  parseComposePayload,
   parseFrontmatter,
 } from "../src/parse-action.js";
 
@@ -138,6 +139,33 @@ Because B.
 text
 `;
     expect(extractSection(body, "A.B (C)")).toBe("text");
+  });
+});
+
+describe("parseComposePayload", () => {
+  const COMPOSE_YAML = `drafted_body: "Sounds good — Thursday works."
+personalization_signals:
+  - "Replying to Maya in #acme-partner"
+`;
+
+  it("reads the bare ## Compose payload section", () => {
+    const body = `## Why this matters\n\nx\n\n## Compose payload\n\n\`\`\`yaml\n${COMPOSE_YAML}\`\`\`\n`;
+    const cp = parseComposePayload(body);
+    expect(cp?.drafted_body).toBe("Sounds good — Thursday works.");
+  });
+
+  it("reads the namespaced ## Compose payload (gmail) section when the bare header is absent (cross-source merge)", () => {
+    // Regression guard: the header must be passed to extractFencedYaml as a
+    // LITERAL ("Compose payload (gmail)") so it is regex-escaped exactly once.
+    // A pre-escaped "Compose payload \\(gmail\\)" double-escapes and never
+    // matches `## Compose payload (gmail)`, leaving merged invites blank.
+    const body = `## Cross-source links\n\n- x\n\n## Compose payload (gmail)\n\n\`\`\`yaml\n${COMPOSE_YAML}\`\`\`\n`;
+    const cp = parseComposePayload(body);
+    expect(cp?.drafted_body).toBe("Sounds good — Thursday works.");
+  });
+
+  it("returns null when neither compose header is present", () => {
+    expect(parseComposePayload("## Why this matters\n\nno payload here\n")).toBeNull();
   });
 });
 
