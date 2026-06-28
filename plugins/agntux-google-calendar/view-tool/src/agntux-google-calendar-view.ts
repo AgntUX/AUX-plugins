@@ -6,7 +6,11 @@
 //   2. agntux_google_calendar_respond_view   (ui://agntux-google-calendar/respond)
 //
 // Both tools read from an action file on disk, extract a plugin-specific YAML
-// payload section, and return structuredContent the iframe consumes.
+// payload section, and return structuredContent the iframe consumes. The
+// respond tool reads its section from the canonical `## Respond payload` header
+// and falls back to the namespaced `## Compose payload (google-calendar)` header
+// that the cross-source merge step writes onto a sibling plugin's action file
+// (see the read site in handleRespond).
 //
 // Payload-shape contract (frozen, tested by __tests__/payload-shape.test.ts):
 //   schedule: draft_summary, draft_description, attendee_emails,
@@ -586,7 +590,20 @@ async function handleRespond(
     const text = buf.toString("utf8");
     const { body } = parseFrontmatter(text);
 
-    const raw = parseSectionYaml(body, "Respond payload");
+    // Read priority: the canonical `## Respond payload` header (written by this
+    // plugin's own ingest, Step 10) first, then the namespaced
+    // `## Compose payload (google-calendar)` header that the canonical
+    // cross-source merge (sync.md Step 9) writes onto a *sibling* plugin's
+    // action file — e.g. a gmail-raised emailed invite. Without the fallback,
+    // every cross-source-merged invite renders "Untitled event" because the
+    // canonical header is absent. The bare `## Compose payload` (a sibling's
+    // reply draft, different schema) is deliberately NOT read. Both reads use
+    // string-literal headers so the E34/E35 payload-coverage lint guards keep
+    // detecting the respond view's reads. Pass headers un-escaped —
+    // extractFencedYaml regex-escapes them exactly once (do NOT pre-escape).
+    const raw =
+      parseSectionYaml(body, "Respond payload") ??
+      parseSectionYaml(body, "Compose payload (google-calendar)");
     if (!raw) {
       return {
         content: [{ type: "text", text: renderConfirmationText(RESPOND_UI_LABEL) }],

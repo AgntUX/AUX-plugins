@@ -31,6 +31,21 @@ disk at click time via `extractFencedYaml(content, "Respond payload")`.
 > files, use `## Respond payload` as the section header — the view tool
 > hard-codes this string in its `extractFencedYaml` call.
 
+### Cross-source merge case (e.g. an emailed invite already raised by agntux-gmail)
+
+When the Step 9 cross-source merge edits a **sibling plugin's** action file
+(`source != google-calendar` — a calendar invite that agntux-gmail or
+agntux-slack already raised), it appends a namespaced
+`## Compose payload (google-calendar)` section rather than `## Respond payload`.
+The respond view reads BOTH headers (`## Respond payload` first, then
+`## Compose payload (google-calendar)`), so either works — **but the namespaced
+section MUST carry the full Respond-payload schema below** (at minimum
+`event_summary`, `event_start`, `event_end`, `current_response_status`, plus
+`organizer_*`/`attendees` when known). A sparse block of only `event_id` /
+`proposed_response` (the gmail-era ad-hoc shape) leaves `event_summary` empty
+and the view renders "Untitled event". Use the snake_case field names below —
+NOT `proposed_response` / `optional_note`.
+
 ---
 
 ## On-disk schema (what ingest writes and the view tool reads)

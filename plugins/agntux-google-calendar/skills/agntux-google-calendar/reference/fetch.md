@@ -242,7 +242,7 @@ Priority: `high` — within 24h or `response-needed` or `risk`;
 1. **`## Why this is here`** — 2–3 sentences citing the specific signal.
 2. **`## Event context`** — one line each: title, start (`"Day, Month DD at HH:MM tz"`), end, location, video link, organizer, calendar, recurring flag.
 3. **`## Attendees`** — `{displayName} <{email}> — {responseStatus}` per attendee; `(optional)` suffix where applicable.
-4. **`## Compose payload`** — per `reference/compose-payload.md`. Omit entirely for `deadline` class.
+4. **`## Respond payload`** (`response-needed`, `risk`, tentative `meeting-prep`) — per `reference/respond-payload.md`. This is the exact header the respond view reads via `extractFencedYaml(content, "Respond payload")`; a `## Compose payload`-named section is silently skipped → "Untitled event". Omit entirely for `deadline` class.
 5. **`## Suggested actions`** — by class:
    - `response-needed`: `"Respond to invite"` (host_prompt) + `"Open in Google Calendar"` (url)
    - `meeting-prep` tentative: `"Change response"` (host_prompt) + `"Open in Google Calendar"` (url)

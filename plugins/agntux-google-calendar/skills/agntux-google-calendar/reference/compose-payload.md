@@ -15,11 +15,20 @@ schema is identical; the view tool uses `current_response_status` to
 determine its default mode (needsAction → accept/decline tab; accepted/
 tentative → change-response mode).
 
-> **Section header:** The on-disk section must be `## Respond payload` (NOT
-> `## Compose payload`). The view tool (`agntux_google_calendar_respond_view`)
-> calls `extractFencedYaml(content, "Respond payload")` — the string is
-> hard-coded. A section named `## Compose payload` will be silently skipped
-> and the view tool will surface a `respond_payload_missing` error.
+> **Section header:** For this plugin's OWN ingest, write the section as
+> `## Respond payload` (NOT a bare `## Compose payload`). The view tool
+> (`agntux_google_calendar_respond_view`) reads `## Respond payload` first and
+> falls back to the namespaced `## Compose payload (google-calendar)` header —
+> both strings are hard-coded in the handler. A *bare* `## Compose payload`
+> section (a sibling plugin's reply draft, different schema) is NOT read by the
+> respond view → "Untitled event".
+> **Cross-source merge (Step 9):** when editing a sibling plugin's action file
+> (a calendar invite agntux-gmail/agntux-slack already raised), write the
+> namespaced `## Compose payload (google-calendar)` header and fill it with the
+> FULL Respond-payload schema below (`event_summary`, `event_start`,
+> `event_end`, `current_response_status`, plus `organizer_*`/`attendees` when
+> known) — NOT a sparse `event_id`/`proposed_response`/`optional_note` block, or
+> the view shows "Untitled event".
 > For the full field-by-field schema and Send-envelope shape, see
 > `reference/respond-payload.md`.
 
