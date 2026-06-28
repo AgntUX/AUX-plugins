@@ -16,6 +16,18 @@ the matching suggested action, or the view renders "… data is unavailable":
   ships a "log a note/activity" suggested action; the activity view reads it.
   Schema and YAML quoting rules are defined by the activity-payload reference
   shape.
+
+  **Cross-source merge (Step 9, "Draft a hubspot reply"):** when the merge
+  writes `## Compose payload (hubspot)` onto a sibling plugin's action file
+  (e.g. a Gmail or Slack action), that section MUST be filled with the
+  **`## Activity payload` schema** — the exact fields the activity view reads
+  (`record_url`, `record_id`, `record_type`, `record_name`, `draft_body`,
+  `personalization_signals`) — NOT the generic compose shape (`drafted_body` /
+  `thread_context`). The activity view reads `## Compose payload (hubspot)` as a
+  fallback when `## Activity payload` is absent (cross-source files never carry
+  the hubspot-native header); if the section contains the generic reply fields
+  the view renders blank because `draft_body`, `record_id`, etc. are all empty.
+
 - **Conditional body section: `## Reassign payload`** — REQUIRED when the action
   ships a "reassign to another owner" suggested action; the reassign view reads
   it. Schema and YAML quoting rules are defined by the reassign-payload reference

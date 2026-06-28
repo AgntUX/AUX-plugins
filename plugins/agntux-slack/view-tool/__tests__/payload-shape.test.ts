@@ -299,6 +299,89 @@ slack_permalink: null
     const drafted = sc.drafted_body as string;
     expect(drafted.length).toBeLessThanOrEqual(4001); // 4000 chars + possible ellipsis char
   });
+
+  it("namespaced 'Compose payload (slack)' takes precedence over bare 'Compose payload' decoy", async () => {
+    // Regression guard for the cross-source-merge fix: when an action file
+    // contains BOTH a namespaced header `## Compose payload (slack)` AND a bare
+    // `## Compose payload` decoy (e.g. injected by a cross-source merge), the
+    // compose handler must return the NAMESPACED section's values, not the decoy.
+    const actionId = "slack-compose-namespace-precedence";
+    const file = `---
+id: ${actionId}
+status: open
+priority: medium
+reason_class: slack_reply
+reason_detail: Namespace precedence test
+---
+
+## Why this matters
+
+Tests that the namespaced payload section wins over the bare decoy.
+
+## Compose payload (slack)
+
+\`\`\`yaml
+initial_verb: reply
+channel:
+  id: C001
+  name: namespaced-channel
+  is_dm: false
+thread:
+  parent_ts: "1234567890.000100"
+  parent_author_real_name: Alice
+  parent_excerpt: "Namespace test question?"
+  last_reply_ts: null
+  last_reply_author_real_name: null
+  last_reply_excerpt: null
+  total_replies: 0
+  participants: []
+messages_preview: []
+messages_truncated: false
+drafted_body: "NAMESPACED_SENTINEL"
+personalization_signals: []
+proposed_send_time: null
+slack_permalink: null
+\`\`\`
+
+## Compose payload
+
+\`\`\`yaml
+initial_verb: forward
+channel:
+  id: C999
+  name: decoy-channel
+  is_dm: true
+thread:
+  parent_ts: "9999999999.000999"
+  parent_author_real_name: Decoy
+  parent_excerpt: "Decoy question?"
+  last_reply_ts: null
+  last_reply_author_real_name: null
+  last_reply_excerpt: null
+  total_replies: 0
+  participants: []
+messages_preview: []
+messages_truncated: false
+drafted_body: "DECOY_SENTINEL"
+personalization_signals: []
+proposed_send_time: null
+slack_permalink: null
+\`\`\`
+`;
+    const files = { [`actions/${actionId}.md`]: file };
+    const result = await composeTool.handle(
+      { action_id: actionId },
+      makeCtx(files),
+    );
+    const sc = result.structuredContent as Record<string, unknown>;
+
+    expect("error" in sc).toBe(false);
+    // Namespaced section values must win
+    expect(sc.drafted_body).toBe("NAMESPACED_SENTINEL");
+    expect((sc.channel as Record<string, unknown>).name).toBe("namespaced-channel");
+    // Decoy values must not appear
+    expect(sc.drafted_body).not.toBe("DECOY_SENTINEL");
+  });
 });
 
 describe("agntux-slack canvas_view payload shape", () => {

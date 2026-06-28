@@ -2418,7 +2418,7 @@ async function handleComment(args, ctx) {
         structuredContent: errorPayload("action_already_handled")
       };
     }
-    const data = parseYamlSection(body, "Comment payload");
+    const data = parseYamlSection(body, "Comment payload") ?? parseYamlSection(body, "Compose payload (jira)");
     if (!data) {
       return {
         content: CONTENT_TEXT(COMMENT_LABEL),

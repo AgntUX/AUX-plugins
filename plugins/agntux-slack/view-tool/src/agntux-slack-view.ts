@@ -239,7 +239,14 @@ function asSlackThreadContext(v: unknown): SlackThreadContext {
 }
 
 function parseSlackComposePayload(body: string): SlackComposePayloadOnDisk | null {
-  const yamlBody = extractFencedYaml(body, "Compose payload");
+  // Read this plugin's OWN payload. On a sibling's action file the cross-source
+  // merge writes our data under the namespaced `## Compose payload (slack)`
+  // header — read it FIRST so we get our data, not the sibling's bare
+  // `## Compose payload`. On our own freshly-raised action only the bare header
+  // exists, so the `??` falls through. (E37 / agntux-google-calendar 0.7.1.)
+  const yamlBody =
+    extractFencedYaml(body, "Compose payload (slack)") ??
+    extractFencedYaml(body, "Compose payload");
   if (yamlBody == null) return null;
   let raw: unknown;
   try {

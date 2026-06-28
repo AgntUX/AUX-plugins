@@ -3272,7 +3272,7 @@ async function handleActivity(args, ctx) {
         structuredContent: errorPayload("action_already_handled")
       };
     }
-    const data = parseYamlSection(body, "Activity payload");
+    const data = parseYamlSection(body, "Activity payload") ?? parseYamlSection(body, "Compose payload (hubspot)");
     if (!data) {
       return {
         content: CONTENT_TEXT(ACTIVITY_LABEL),

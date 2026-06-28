@@ -755,6 +755,74 @@ describe("agntux_dropbox_file_request handler", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Namespaced-header regression — Compose payload (dropbox)
+//
+// Proves that the share handler's namespaced-first read:
+//   extractFencedYaml(body, "Compose payload (dropbox)") ?? extractFencedYaml(body, "Compose payload")
+// surfaces the values from the ## Compose payload (dropbox) section when
+// an action file carries BOTH sections (cross-source merge scenario),
+// not the values from the bare ## Compose payload decoy.
+//
+// Ordering: bare (decoy) section appears FIRST in the fixture so the
+// extractFencedYaml("Compose payload") call would return decoy values if
+// the namespaced lookup were skipped — making the assertion load-bearing.
+// ---------------------------------------------------------------------------
+
+const SHARE_CROSS_SOURCE_ACTION_MD = `---
+id: action-share-xsrc-001
+status: open
+---
+## Why this matters
+
+Cross-source merged action file — carries both a bare and a namespaced compose payload.
+
+## Compose payload
+
+\`\`\`yaml
+file_path: /Decoy/ShouldNotUse.docx
+file_name: ShouldNotUse.docx
+file_type: image
+existing_link: "https://decoy.example.com"
+suggested_access: team
+suggested_expiry: "2025-01-01"
+source_context: Decoy bare-header sentinel
+\`\`\`
+
+## Compose payload (dropbox)
+
+\`\`\`yaml
+file_path: /Real/NamespacedFile.docx
+file_name: NamespacedFile.docx
+file_type: document
+existing_link: ""
+suggested_access: anyone
+suggested_expiry: "2026-08-15"
+source_context: Namespaced sentinel value
+\`\`\`
+`;
+
+describe("namespaced-header regression — Compose payload (dropbox)", () => {
+  it("share handler reads ## Compose payload (dropbox) over bare ## Compose payload decoy", async () => {
+    const ctx = makeCtx({
+      "actions/action-share-xsrc-001.md": SHARE_CROSS_SOURCE_ACTION_MD,
+    });
+    const result = await shareTool.handle(
+      { action_id: "action-share-xsrc-001" },
+      ctx as never,
+    );
+    const p = result.structuredContent as Record<string, unknown>;
+    // Namespaced section values must appear in structuredContent
+    expect(p.file_path).toBe("/Real/NamespacedFile.docx");
+    expect(p.file_name).toBe("NamespacedFile.docx");
+    expect(p.file_type).toBe("document");
+    expect(p.source_context).toBe("Namespaced sentinel value");
+    // Decoy bare-header values must NOT appear
+    expect(p.file_path).not.toBe("/Decoy/ShouldNotUse.docx");
+    expect(p.source_context).not.toBe("Decoy bare-header sentinel");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Module shape — four tools exported, correct resource URIs
 // ---------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 {
   "name": "agntux-slack",
-  "version": "8.5.0",
+  "version": "8.5.1",
   "description": "Brings your Slack DMs, mentions, and threads into AgntUX. Spots messages that need a reply and drafts responses you review and send.",
   "author": {
     "name": "AgntUX",

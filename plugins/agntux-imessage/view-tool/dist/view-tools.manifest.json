@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_imessage",
-  "plugin_version": "0.2.0",
+  "plugin_version": "0.2.1",
   "handler_module": "view-tool/dist/agntux-imessage-view.js",
   "view_tools": [
     {

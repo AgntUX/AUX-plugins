@@ -47,7 +47,14 @@ function str(v: unknown): string {
 // ── Compose-payload section parser ───────────────────────────────────────────
 
 function parseComposeSectionYaml(body: string): Record<string, unknown> | null {
-  const yamlStr = extractFencedYaml(body, "Compose payload");
+  // Read this plugin's OWN payload. On a sibling's action file the cross-source
+  // merge writes our data under the namespaced `## Compose payload (dropbox)`
+  // header — read it FIRST so we get our data, not the sibling's bare
+  // `## Compose payload`. On our own freshly-raised action only the bare header
+  // exists, so the `??` falls through. (E37 / agntux-google-calendar 0.7.1.)
+  const yamlStr =
+    extractFencedYaml(body, "Compose payload (dropbox)") ??
+    extractFencedYaml(body, "Compose payload");
   if (!yamlStr) return null;
   try {
     const parsed = parseYaml(yamlStr);

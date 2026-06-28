@@ -854,6 +854,66 @@ describe("agntux_stripe_subscription_cancel_view render-harness contract", () =>
 });
 
 // =============================================================================
+// parseComposePayload namespaced-section precedence
+// Verifies that the shared parseComposePayload() helper (agntux-stripe-view.ts
+// lines 37–49) resolves "## Compose payload (stripe)" before the bare fallback
+// "## Compose payload" when both sections appear in the same action file.
+// Uses the refund view (mod.viewTools[0]) as the representative handler.
+// =============================================================================
+
+describe("parseComposePayload namespaced-section precedence", () => {
+  it("prefers ## Compose payload (stripe) over bare ## Compose payload when both are present", async () => {
+    // Fixture has the real data under the namespaced heading and a decoy
+    // under the bare heading. The handler must surface the namespaced value.
+    const fixture = [
+      "---",
+      "id: ns-prec-1",
+      "type: action",
+      "---",
+      "",
+      "Refund request.",
+      "",
+      "## Compose payload (stripe)",
+      "```yaml",
+      'payment_intent_id: "pi_namespaced"',
+      "charge_amount: 3333",
+      'currency: "usd"',
+      'customer_label: "Namespaced Corp"',
+      "max_refundable: 3333",
+      'suggested_reason: "requested_by_customer"',
+      'open_url: "https://dashboard.stripe.com/payments/pi_namespaced"',
+      "```",
+      "",
+      "## Compose payload",
+      "```yaml",
+      'payment_intent_id: "pi_decoy"',
+      "charge_amount: 9999",
+      'currency: "eur"',
+      'customer_label: "Decoy Corp"',
+      "max_refundable: 9999",
+      'suggested_reason: "duplicate"',
+      'open_url: "https://dashboard.stripe.com/payments/pi_decoy"',
+      "```",
+    ].join("\n");
+
+    const files = { "actions/ns-prec-1.md": fixture };
+    const result = await refundViewTool.handle({ action_id: "ns-prec-1" }, makeCtx(files));
+    const sc = result.structuredContent as Record<string, unknown>;
+
+    // Must reflect the NAMESPACED section values
+    expect(sc.action_id).toBe("ns-prec-1");
+    expect(sc.payment_intent_id).toBe("pi_namespaced");
+    expect(sc.charge_amount).toBe(3333);
+    expect(sc.currency).toBe("usd");
+    expect(sc.customer_label).toBe("Namespaced Corp");
+
+    // Must NOT reflect the decoy values
+    expect(sc.payment_intent_id).not.toBe("pi_decoy");
+    expect(sc.charge_amount).not.toBe(9999);
+  });
+});
+
+// =============================================================================
 // Descriptor contract — tool names, resource URIs, outputSchema, module count
 // =============================================================================
 

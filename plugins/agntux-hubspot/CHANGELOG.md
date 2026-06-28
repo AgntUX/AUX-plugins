@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-28
+
+### Fixed
+
+- Activity view now reads `## Compose payload (hubspot)` as a fallback when `## Activity payload` is absent — used by the cross-source merge path (Step 9 "Draft a hubspot reply") that writes onto a sibling plugin's (e.g. Gmail, Slack) action file. Ingest guidance updated: the `## Compose payload (hubspot)` section written by Step 9 must carry the activity-payload field schema (`record_url`, `record_id`, `record_type`, `record_name`, `draft_body`, `personalization_signals`), not the generic compose shape, or the activity view renders blank.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added
