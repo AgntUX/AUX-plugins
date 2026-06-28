@@ -2689,7 +2689,7 @@ async function handleRespond(args, ctx) {
     const buf = await ctx.fs.readFile(path);
     const text = buf.toString("utf8");
     const { body } = parseFrontmatter(text);
-    const raw = parseSectionYaml(body, "Respond payload");
+    const raw = parseSectionYaml(body, "Respond payload") ?? parseSectionYaml(body, "Compose payload (google-calendar)");
     if (!raw) {
       return {
         content: [{ type: "text", text: renderConfirmationText(RESPOND_UI_LABEL) }],

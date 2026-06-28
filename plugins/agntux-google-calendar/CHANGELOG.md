@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-06-28
+
+### Fixed
+
+- **The "Respond to invite" view no longer shows "Untitled event" for a calendar
+  invite that arrived by email.** When another plugin (e.g. agntux-gmail) had
+  already raised an action for the emailed invite, the cross-source merge wrote
+  the event details under a namespaced `## Compose payload (google-calendar)`
+  body section — but the respond view only read the canonical `## Respond
+  payload` header, so it received an empty envelope and rendered "Untitled
+  event". The view now reads the namespaced header as a fallback (the canonical
+  header still wins when both are present), and the ingest guidance now requires
+  that namespaced section to carry the full event schema (title, time,
+  organizer, attendees) rather than a sparse `event_id`-only block.
+
+### Note
+
+- An invite that was already merged onto another plugin's action file under the
+  old sparse shape will pick up its title on the next `/agntux-google-calendar`
+  sync — the title is recomposed at ingest, not recoverable from the existing
+  sparse section alone.
+
 ## [0.7.0] — 2026-06-27
 
 ### Added

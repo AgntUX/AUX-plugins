@@ -141,6 +141,152 @@ source_link:
 \`\`\`
 `;
 
+/**
+ * Cross-source-merge action file body. A sibling plugin (e.g. agntux-gmail)
+ * raised the invite, and the canonical Step 9 cross-source merge appended the
+ * google-calendar payload under the NAMESPACED header
+ * `## Compose payload (google-calendar)` — NOT `## Respond payload`. The file
+ * ALSO carries the sibling's own bare `## Compose payload` (a reply draft with
+ * a different schema) which the respond view must NOT read. Regression guard
+ * for the "Untitled event" cross-source bug: the namespaced section carries
+ * event_summary and the view must surface it.
+ */
+const RESPOND_NAMESPACED_BODY = `---
+id: 2026-06-18-cross-source-invite
+type: action-item
+source: gmail
+---
+
+## Compose payload
+
+\`\`\`yaml
+# Sibling plugin's own bare compose section — a reply draft, NOT the respond
+# payload. The respond view must skip this (it is not a respond header).
+drafted_body: "Thanks, I'll be there."
+\`\`\`
+
+## Compose payload (google-calendar)
+
+\`\`\`yaml
+event_id: "evt_cross_source_123"
+calendar_id: "primary"
+event_summary: "Partner + Program Data"
+event_start: "2026-06-18T14:00:00-04:00"
+event_end: "2026-06-18T14:30:00-04:00"
+event_timezone: "America/New_York"
+organizer_name: "Betsy Chen"
+organizer_email: "betsy@example.com"
+attendees:
+  - name: "Ben Gruber"
+    email: "ben@example.com"
+    response_status: "accepted"
+current_response_status: "needsAction"
+\`\`\`
+`;
+
+/**
+ * Action file carrying BOTH the canonical `## Respond payload` and the
+ * namespaced `## Compose payload (google-calendar)` section with conflicting
+ * values. Asserts the canonical header wins (read priority).
+ */
+const RESPOND_BOTH_HEADERS_BODY = `---
+id: both-headers
+type: action
+---
+
+## Respond payload
+
+\`\`\`yaml
+event_id: "canonical"
+event_summary: "Canonical wins"
+current_response_status: "needsAction"
+\`\`\`
+
+## Compose payload (google-calendar)
+
+\`\`\`yaml
+event_id: "namespaced"
+event_summary: "Namespaced loses"
+current_response_status: "accepted"
+\`\`\`
+`;
+
+/**
+ * Canonical `## Respond payload` present but with MALFORMED YAML (unterminated
+ * flow sequence → js-yaml throws), alongside a valid namespaced section. The
+ * read must fall through to the namespaced section rather than render
+ * "Untitled event" off the broken canonical block.
+ */
+const RESPOND_MALFORMED_CANONICAL_BODY = `---
+id: malformed-canonical
+type: action
+---
+
+## Respond payload
+
+\`\`\`yaml
+event_summary: [unterminated flow sequence
+event_id: "broken"
+\`\`\`
+
+## Compose payload (google-calendar)
+
+\`\`\`yaml
+event_id: "evt_from_namespaced"
+event_summary: "Recovered from namespaced"
+current_response_status: "needsAction"
+\`\`\`
+`;
+
+/**
+ * Only a sibling plugin's BARE `## Compose payload` (a reply draft, NOT a
+ * respond payload, with no event fields). The respond view reads neither
+ * `## Respond payload` nor `## Compose payload (google-calendar)`, so it must
+ * fall back to EMPTY_PAYLOAD — the bare section must never leak in.
+ */
+const RESPOND_BARE_COMPOSE_ONLY_BODY = `---
+id: bare-compose-only
+type: action-item
+source: gmail
+---
+
+## Compose payload
+
+\`\`\`yaml
+drafted_body: "Thanks, I'll be there."
+recipients:
+  - "betsy@example.com"
+\`\`\`
+`;
+
+/**
+ * The user's ACTUAL on-disk shape that produced the bug report: a sibling
+ * (gmail) raised the invite and the cross-source merge wrote a SPARSE
+ * namespaced section using the gmail-era ad-hoc field names
+ * (`proposed_response`/`optional_note`) with NO `event_summary`. This documents
+ * the known limitation: the view fallback reads the section, but the title is
+ * genuinely absent from the data, so it still renders "Untitled event". The
+ * durable fix is the ingest-doc change (write the full Respond schema); such a
+ * file needs a re-sync to gain a title.
+ */
+const RESPOND_SPARSE_NAMESPACED_BODY = `---
+id: 2026-06-18-sparse-cross-source
+type: action-item
+source: gmail
+---
+
+## Compose payload (google-calendar)
+
+\`\`\`yaml
+event_id: "57ejeb94v9ep524jb27mc3vevp"
+calendar_id: "john@example.com"
+proposed_response: "accepted"
+optional_note: ""
+personalization_signals:
+  - "Internal working session"
+\`\`\`
+`;
+
 // ---------------------------------------------------------------------------
 // Stub ViewToolContext factory
 // ---------------------------------------------------------------------------
@@ -689,6 +835,112 @@ describe("agntux_google_calendar_respond_view — structuredContent shape", () =
 
     // Handler returns a safe default when the section is absent.
     expect(sc.current_response_status).toBe("needsAction");
+  });
+
+  it("reads event_summary from the namespaced ## Compose payload (google-calendar) section when ## Respond payload is absent (cross-source merge)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const respond = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_respond_view",
+    )!;
+
+    const ctx = makeCtx(RESPOND_NAMESPACED_BODY);
+    const result = await respond.handle(
+      { action_id: "2026-06-18-cross-source-invite" },
+      ctx,
+    );
+    const sc = result.structuredContent;
+
+    // The exact "Untitled event" regression: an emailed invite raised by a
+    // sibling plugin and cross-source-merged under the namespaced header still
+    // surfaces the event title and id.
+    expect(sc.event_summary).toBe("Partner + Program Data");
+    expect(sc.event_id).toBe("evt_cross_source_123");
+    expect(sc.current_response_status).toBe("needsAction");
+    const attendees = sc.attendees as Array<Record<string, unknown>>;
+    expect(attendees.length).toBe(1);
+    expect(attendees[0].name).toBe("Ben Gruber");
+    // The sibling's bare ## Compose payload (a reply draft) must NOT leak in.
+    expect(sc).not.toHaveProperty("drafted_body");
+  });
+
+  it("prefers ## Respond payload over the namespaced section when both are present", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const respond = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_respond_view",
+    )!;
+
+    const ctx = makeCtx(RESPOND_BOTH_HEADERS_BODY);
+    const result = await respond.handle({ action_id: "both-headers" }, ctx);
+    const sc = result.structuredContent;
+
+    // Read priority: the canonical per-view header wins over the namespaced one.
+    expect(sc.event_summary).toBe("Canonical wins");
+    expect(sc.event_id).toBe("canonical");
+    expect(sc.current_response_status).toBe("needsAction");
+  });
+
+  it("falls through to the namespaced section when ## Respond payload is present but malformed", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const respond = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_respond_view",
+    )!;
+
+    const ctx = makeCtx(RESPOND_MALFORMED_CANONICAL_BODY);
+    const result = await respond.handle({ action_id: "malformed-canonical" }, ctx);
+    const sc = result.structuredContent;
+
+    // A present-but-malformed canonical section must NOT stop the search and
+    // must NOT throw — the `??` chain recovers from the valid namespaced block.
+    expect(sc.event_summary).toBe("Recovered from namespaced");
+    expect(sc.event_id).toBe("evt_from_namespaced");
+  });
+
+  it("does NOT read a sibling's bare ## Compose payload — returns EMPTY_PAYLOAD (anti-leak)", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const respond = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_respond_view",
+    )!;
+
+    const ctx = makeCtx(RESPOND_BARE_COMPOSE_ONLY_BODY);
+    const result = await respond.handle({ action_id: "bare-compose-only" }, ctx);
+    const sc = result.structuredContent;
+
+    // The bare `## Compose payload` (gmail reply draft) is NOT a respond header,
+    // so the view ignores it entirely and renders placeholders.
+    expect(sc.event_summary).toBe("");
+    expect(sc.event_id).toBe("");
+    expect(sc.current_response_status).toBe("needsAction");
+    expect(sc).not.toHaveProperty("drafted_body");
+    expect(sc).not.toHaveProperty("recipients");
+  });
+
+  it("KNOWN LIMITATION: a sparse namespaced section with no event_summary still renders 'Untitled event'", async () => {
+    const mod = await import(VIEW_MODULE_PATH);
+    const viewMod = mod.default as ViewMod;
+    const respond = viewMod.viewTools.find(
+      (t) => t.descriptor.name === "agntux_google_calendar_respond_view",
+    )!;
+
+    const ctx = makeCtx(RESPOND_SPARSE_NAMESPACED_BODY);
+    const result = await respond.handle(
+      { action_id: "2026-06-18-sparse-cross-source" },
+      ctx,
+    );
+    const sc = result.structuredContent;
+
+    // The view DOES read the namespaced section (event_id surfaces), but the
+    // title is absent from the data — no field carries it — so the component
+    // falls back to "Untitled event". The fix for this shape is the ingest-doc
+    // change (write event_summary into the namespaced section); a file authored
+    // under the old sparse shape needs a re-sync to gain a title. The gmail-era
+    // `proposed_response`/`optional_note` keys are NOT part of the respond
+    // schema and are intentionally not mapped.
+    expect(sc.event_id).toBe("57ejeb94v9ep524jb27mc3vevp");
+    expect(sc.event_summary).toBe("");
   });
 
   it("structuredContent stays within 16 kB byte budget", async () => {
