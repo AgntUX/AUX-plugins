@@ -2380,7 +2380,7 @@ function str(v) {
   return typeof v === "string" ? v : "";
 }
 function parseComposeSectionYaml(body) {
-  const yamlStr = extractFencedYaml(body, "Compose payload");
+  const yamlStr = extractFencedYaml(body, "Compose payload (dropbox)") ?? extractFencedYaml(body, "Compose payload");
   if (!yamlStr) return null;
   try {
     const parsed = load(yamlStr);

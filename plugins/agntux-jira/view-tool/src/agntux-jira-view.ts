@@ -111,7 +111,15 @@ async function handleComment(
         structuredContent: errorPayload("action_already_handled"),
       };
     }
-    const data = parseYamlSection(body, "Comment payload");
+    // Read the canonical `## Comment payload` header (own ingest, Step 10.1c)
+    // first, then the namespaced `## Compose payload (jira)` the cross-source
+    // merge (Step 9, "Draft a jira reply") writes onto a sibling plugin's action
+    // file. Without the fallback, a cross-source-merged comment renders blank.
+    // Both reads are string literals so passes 19/20/22 keep covering them.
+    // (E37 / agntux-google-calendar 0.7.1.)
+    const data =
+      parseYamlSection(body, "Comment payload") ??
+      parseYamlSection(body, "Compose payload (jira)");
     if (!data) {
       return {
         content: CONTENT_TEXT(COMMENT_LABEL),

@@ -1,6 +1,6 @@
 {
   "name": "agntux-dropbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bring your Dropbox files into your AgntUX knowledge store, and act on them — share, organize, request — right from triage.",
   "author": {
     "name": "AgntUX",

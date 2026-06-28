@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-28
+
+### Fixed
+
+- The respond/compose view now reads the namespaced `## Compose payload (apple-notes)` section first when the action file also carries a bare `## Compose payload` from a sibling plugin (cross-source merge). Previously the bare section was matched first, leaving the note composer blank with a calendar- or email-merged action item.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added

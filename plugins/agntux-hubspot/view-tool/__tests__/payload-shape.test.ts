@@ -542,6 +542,59 @@ describe("agntux_hubspot_activity_view payload shape", () => {
     expect("error" in sc).toBe(true);
     if ("error" in sc) expect(sc.error).toBe("action_already_handled");
   });
+
+  it("cross-source fallback: reads activity fields from ## Compose payload (hubspot) when ## Activity payload is absent", async () => {
+    // Regression guard for the cross-source-merge path: Step 9 ("Draft a hubspot
+    // reply") writes ## Compose payload (hubspot) onto a sibling plugin's action
+    // file (e.g. Gmail). The section MUST carry activity-payload fields, not the
+    // generic compose shape — the view reads ## Compose payload (hubspot) as a
+    // fallback and expects record_url/record_id/record_type/record_name/
+    // draft_body/personalization_signals. Without this path the activity view
+    // renders blank on cross-source merged actions.
+    const actionId = "cross-source-gmail-001";
+    const files = {
+      [`actions/${actionId}.md`]: `---
+id: ${actionId}
+status: open
+priority: medium
+type: action-item
+schema_version: "1.0.0"
+source: gmail
+---
+
+## Why this matters
+
+Step 9 merge drafted a HubSpot note from a Gmail thread.
+
+## Compose payload (hubspot)
+
+\`\`\`yaml
+record_id: "33333"
+record_url: "https://app.hubspot.com/contacts/98765432/contact/33333"
+record_type: "CONTACT"
+record_name: "Bob Martinez"
+draft_body: "Following up on your recent email regarding the Q3 proposal."
+personalization_signals:
+  - "Email received 2 days ago"
+  - "Deal in Proposal Sent stage"
+\`\`\`
+`,
+    };
+    const result = await activityTool.handle({ action_id: actionId }, makeCtx(files));
+    const sc = result.structuredContent;
+    expect("error" in sc).toBe(false);
+    if ("error" in sc) return;
+    assertKeySet(sc as Record<string, unknown>, ACTIVITY_KEYS, "activity (cross-source fallback)");
+    expect((sc as Record<string, unknown>).record_id).toBe("33333");
+    expect((sc as Record<string, unknown>).record_type).toBe("CONTACT");
+    expect((sc as Record<string, unknown>).record_name).toBe("Bob Martinez");
+    expect((sc as Record<string, unknown>).draft_body).toContain("Q3 proposal");
+    const signals = (sc as Record<string, unknown>).personalization_signals as string[];
+    expect(Array.isArray(signals)).toBe(true);
+    expect(signals.length).toBe(2);
+    const bytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
+    expect(bytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+  });
 });
 
 // =============================================================================

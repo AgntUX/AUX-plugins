@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_hubspot",
-  "plugin_version": "0.2.0",
+  "plugin_version": "0.2.1",
   "handler_module": "view-tool/dist/agntux-hubspot-view.js",
   "view_tools": [
     {

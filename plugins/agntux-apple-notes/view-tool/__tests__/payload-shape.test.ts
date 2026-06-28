@@ -282,6 +282,44 @@ describe("agntux_apple_notes_create_note payload-shape regression guard", () => 
     const payloadBytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
     expect(payloadBytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
   });
+
+  it("reads the namespaced ## Compose payload (apple-notes) section over a sibling's bare ## Compose payload (cross-source merge)", async () => {
+    const NAMESPACED_TITLE = "Apple Notes Note Title";
+    const DECOY_TITLE = "DECOY_TITLE_DO_NOT_USE";
+    // Build a cross-source-merged action file: the namespaced section carries
+    // the real draft fields; the bare section simulates a sibling plugin's
+    // reply draft. The view must prefer the namespaced header.
+    const actionFile =
+      `---\nid: cross-src-1\ntype: action\n---\n\n` +
+      `## Compose payload (apple-notes)\n\n` +
+      "```yaml\n" +
+      `source_context: "Meeting that produced this note"\n` +
+      `draft_title: "${NAMESPACED_TITLE}"\n` +
+      `draft_body: "Body from the namespaced section"\n` +
+      `target_folder: "Work"\n` +
+      `available_folders:\n  - "Work"\n  - "Personal"\n` +
+      "```\n\n" +
+      `## Compose payload\n\n` +
+      "```yaml\n" +
+      `source_context: "Sibling plugin reply — DECOY"\n` +
+      `draft_title: "${DECOY_TITLE}"\n` +
+      `draft_body: "DECOY_BODY_DO_NOT_USE"\n` +
+      `target_folder: "DECOY_FOLDER"\n` +
+      `available_folders:\n  - "DECOY_FOLDER"\n` +
+      "```\n";
+    const files = { "actions/cross-src-1.md": actionFile };
+    const result = await createNoteViewTool.handle(
+      { action_id: "cross-src-1" },
+      makeCtx(files),
+    );
+    const sc = result.structuredContent as Record<string, unknown>;
+    // Must use the namespaced section's values
+    expect(sc.draft_title).toBe(NAMESPACED_TITLE);
+    expect(sc.draft_body).toBe("Body from the namespaced section");
+    expect(sc.target_folder).toBe("Work");
+    // Must NOT fall through to the bare decoy section
+    expect(sc.draft_title).not.toBe(DECOY_TITLE);
+  });
 });
 
 describe("agntux_apple_notes_create_note render-harness contract", () => {

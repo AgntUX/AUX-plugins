@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.5.1] — 2026-06-28
+
+### Fixed
+
+- Compose view now reads `## Compose payload (slack)` (namespaced) before falling back to bare `## Compose payload`, so cross-source-merge action files containing both sections always surface the Slack-specific payload rather than a generic decoy.
+
 ## [8.5.0] — 2026-06-27
 
 ### Added

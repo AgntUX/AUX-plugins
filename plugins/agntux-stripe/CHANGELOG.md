@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-28
+
+### Fixed
+
+- All six view handlers now correctly read from the namespaced `## Compose payload (stripe)` cross-source section (falling back to bare `## Compose payload` only when absent), preventing the shared `parseComposePayload()` helper from silently pulling values from a different source's generic section when both are present in the same action file.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added

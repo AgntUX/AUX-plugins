@@ -280,6 +280,50 @@ describe("agntux_imessage_reply_view payload-shape regression guard", () => {
     }
   });
 
+  it("reads namespaced ## Compose payload (imessage) section and ignores the bare ## Compose payload decoy", async () => {
+    // Fixture has BOTH sections. The handler calls:
+    //   extractFencedYaml(body, "Compose payload (imessage)") ?? extractFencedYaml(body, "Compose payload")
+    // so the namespaced block must win and the decoy bare block must be ignored.
+    const namespacedBody =
+      `---\nid: reply-ns-1\ntype: action\n---\n\n` +
+      `## Compose payload (imessage)\n\n` +
+      "```yaml\n" +
+      `contact_name: "NAMESPACED_SENTINEL"\n` +
+      `contact_handle: "+10000000001"\n` +
+      `quoted_messages:\n` +
+      `  - date: "2026-06-28T10:00:00Z"\n` +
+      `    is_from_me: false\n` +
+      `    content: "namespaced message"\n` +
+      `draft_body: "NAMESPACED_DRAFT"\n` +
+      `personalization_signals:\n` +
+      `  - "namespaced signal"\n` +
+      "```\n\n" +
+      `## Compose payload\n\n` +
+      "```yaml\n" +
+      `contact_name: "DECOY_SENTINEL"\n` +
+      `contact_handle: "+19999999999"\n` +
+      `quoted_messages:\n` +
+      `  - date: "2026-06-28T10:00:00Z"\n` +
+      `    is_from_me: false\n` +
+      `    content: "decoy message"\n` +
+      `draft_body: "DECOY_DRAFT"\n` +
+      `personalization_signals:\n` +
+      `  - "decoy signal"\n` +
+      "```\n";
+    const files = { "actions/reply-ns-1.md": namespacedBody };
+    const result = await replyViewTool.handle(
+      { action_id: "reply-ns-1" },
+      makeCtx(files),
+    );
+    const sc = result.structuredContent as Record<string, unknown>;
+    // Must reflect namespaced values
+    expect(sc.contact_name).toBe("NAMESPACED_SENTINEL");
+    expect(sc.draft_body).toBe("NAMESPACED_DRAFT");
+    // Must NOT reflect decoy values
+    expect(sc.contact_name).not.toBe("DECOY_SENTINEL");
+    expect(sc.draft_body).not.toBe("DECOY_DRAFT");
+  });
+
   it("returns a sensible fallback when the underlying file is missing", async () => {
     const result = await replyViewTool.handle(
       { action_id: "does-not-exist" },

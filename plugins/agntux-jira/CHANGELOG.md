@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-06-28
+
+### Fixed
+
+- The comment view now reads the namespaced `## Compose payload (jira)` section as a fallback so a cross-source-merged "Draft a jira reply" action no longer renders blank; ingest guidance in `step-10-append.md` updated to require the Comment payload schema (`draft_body`, `cloud_id`, `issue_*`, `personalization_signals`) in that section — not the generic `drafted_body` compose shape.
+
 ## [0.3.0] — 2026-06-27
 
 ### Added

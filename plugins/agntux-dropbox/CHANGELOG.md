@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-28
+
+### Fixed
+
+- The view now reads its namespaced `## Compose payload (dropbox)` section first so a cross-source-merged action file no longer renders blank — the bare `## Compose payload` fallback is only used when the namespaced section is absent.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added

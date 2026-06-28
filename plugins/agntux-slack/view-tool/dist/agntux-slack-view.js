@@ -2708,7 +2708,7 @@ function asSlackThreadContext(v) {
   };
 }
 function parseSlackComposePayload(body) {
-  const yamlBody = extractFencedYaml(body, "Compose payload");
+  const yamlBody = extractFencedYaml(body, "Compose payload (slack)") ?? extractFencedYaml(body, "Compose payload");
   if (yamlBody == null) return null;
   let raw;
   try {

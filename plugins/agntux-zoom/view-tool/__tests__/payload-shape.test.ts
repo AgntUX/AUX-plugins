@@ -99,6 +99,58 @@ generated_at: "2026-06-24T18:30:00Z"
 `;
 
 // ---------------------------------------------------------------------------
+// Fixture: action file with NAMESPACED header "## Compose payload (zoom)"
+// PLUS a DECOY bare "## Compose payload" carrying different sentinel values.
+// This guards the fallback logic in agntux-zoom-view.ts:
+//   extractFencedYaml(body, "Compose payload (zoom)") ?? extractFencedYaml(body, "Compose payload")
+// The handler must pick the NAMESPACED block and ignore the decoy.
+// ---------------------------------------------------------------------------
+
+const NAMESPACED_ACTION_BODY = `---
+id: action-ns123
+type: action
+---
+
+## Compose payload (zoom)
+
+\`\`\`yaml
+meeting_uuid: "NAMESPACED_SENTINEL"
+meeting_topic: "Namespaced roadmap session"
+meeting_date: "June 28, 2026 at 10:00 AM CDT"
+participants:
+  - "NS Participant One"
+meeting_summary: "Namespaced summary text."
+action_items:
+  - "NS: follow up on item"
+draft_doc_title: "Namespaced doc title"
+draft_doc_body: "Namespaced doc body text."
+open_in_zoom_url: "https://zoom.us/rec/play/NAMESPACED_SENTINEL"
+personalization_signals:
+  - "NS signal"
+generated_at: "2026-06-28T15:00:00Z"
+\`\`\`
+
+## Compose payload
+
+\`\`\`yaml
+meeting_uuid: "DECOY_SENTINEL"
+meeting_topic: "Decoy topic"
+meeting_date: "January 1, 2000 at 12:00 PM"
+participants:
+  - "Decoy Participant"
+meeting_summary: "Decoy summary."
+action_items:
+  - "Decoy action item"
+draft_doc_title: "Decoy doc title"
+draft_doc_body: "Decoy doc body."
+open_in_zoom_url: "https://zoom.us/rec/play/DECOY_SENTINEL"
+personalization_signals:
+  - "Decoy signal"
+generated_at: "2000-01-01T00:00:00Z"
+\`\`\`
+`;
+
+// ---------------------------------------------------------------------------
 // Import the module under test
 // ---------------------------------------------------------------------------
 
@@ -376,6 +428,31 @@ generated_at: "2026-06-24T18:30:00Z"
     const ctx = makeFsCtx({ "actions/action-large.md": largeBody });
     const result = await handler.handle({ action_id: "action-large" }, ctx);
     expect(byteSize(result.structuredContent)).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Handler: agntux_zoom_save_doc_view — namespaced "## Compose payload (zoom)"
+// regression guard: namespaced header wins over bare "## Compose payload" decoy
+// ---------------------------------------------------------------------------
+
+describe('agntux_zoom_save_doc_view — namespaced "Compose payload (zoom)" wins over bare decoy', () => {
+  it("reads NAMESPACED values, not DECOY_SENTINEL, when both sections are present", async () => {
+    const handler = getSaveDocHandler();
+    const ctx = makeFsCtx({
+      "actions/action-ns123.md": NAMESPACED_ACTION_BODY,
+    });
+    const result = await handler.handle({ action_id: "action-ns123" }, ctx);
+    const sc = result.structuredContent as Record<string, unknown>;
+
+    // Must reflect the namespaced block.
+    expect(sc.meeting_uuid).toBe("NAMESPACED_SENTINEL");
+    expect(sc.meeting_topic).toBe("Namespaced roadmap session");
+    expect(sc.open_in_zoom_url).toBe("https://zoom.us/rec/play/NAMESPACED_SENTINEL");
+
+    // Must NOT reflect the decoy bare block.
+    expect(sc.meeting_uuid).not.toBe("DECOY_SENTINEL");
+    expect(sc.open_in_zoom_url).not.toBe("https://zoom.us/rec/play/DECOY_SENTINEL");
   });
 });
 

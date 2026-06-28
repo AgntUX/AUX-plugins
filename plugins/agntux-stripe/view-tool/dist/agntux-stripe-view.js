@@ -2375,7 +2375,7 @@ function num(v) {
   return typeof v === "number" ? v : 0;
 }
 function parseComposePayload(body) {
-  const yamlStr = extractFencedYaml(body, "Compose payload");
+  const yamlStr = extractFencedYaml(body, "Compose payload (stripe)") ?? extractFencedYaml(body, "Compose payload");
   if (!yamlStr) return null;
   try {
     const parsed = load(yamlStr);

@@ -337,7 +337,15 @@ async function handleActivity(
         structuredContent: errorPayload("action_already_handled"),
       };
     }
-    const data = parseYamlSection(body, "Activity payload");
+    // Read the canonical `## Activity payload` header (own ingest, Step 10.1c)
+    // first, then the namespaced `## Compose payload (hubspot)` the cross-source
+    // merge (Step 9, "Draft a hubspot reply") writes onto a sibling plugin's
+    // action file. Without the fallback, a cross-source-merged note renders
+    // blank. Both reads are string literals so passes 19/20/22 keep covering
+    // them. (E37 / agntux-google-calendar 0.7.1.)
+    const data =
+      parseYamlSection(body, "Activity payload") ??
+      parseYamlSection(body, "Compose payload (hubspot)");
     if (!data) {
       return {
         content: CONTENT_TEXT(ACTIVITY_LABEL),

@@ -445,6 +445,61 @@ describe("jira_comment_view payload shape", () => {
     expect("error" in sc).toBe(true);
     if ("error" in sc) expect(sc.error).toBe("action_already_handled");
   });
+
+  // Regression: cross-source merge writes ## Compose payload (jira) on a sibling
+  // plugin's action file. The comment view must read it as a fallback and surface
+  // the comment fields — NOT render blank (agntux-jira 0.3.1 fix).
+  it("reads comment fields from ## Compose payload (jira) when ## Comment payload is absent", async () => {
+    const actionId = "cross-source-merge-001";
+    // Action file from a sibling plugin (e.g. agntux-slack) that received a
+    // "Draft a jira reply" Step 9 merge — payload lives under the namespaced
+    // ## Compose payload (jira) header, NOT ## Comment payload.
+    const crossSourceFile = `---
+id: ${actionId}
+status: open
+priority: medium
+type: action-item
+schema_version: "1.0.0"
+source: slack
+---
+
+## Why this matters
+
+A Slack thread needs a Jira comment reply drafted.
+
+## Compose payload (jira)
+
+\`\`\`yaml
+cloud_id: "1c5b1484-c964-4d92-bb3e-9237be54ca08"
+issue_key: "OFM-412"
+issue_url: "https://agntux.atlassian.net/browse/OFM-412"
+issue_title: "Fix the login redirect"
+issue_status: "In Review"
+issue_assignee: "Alex Rivera"
+issue_priority: "High"
+draft_body: "Cross-source draft body from Slack thread."
+personalization_signals:
+  - "Slack thread triggered cross-source Jira reply"
+generated_at: "2026-06-28T10:00:00Z"
+\`\`\`
+`;
+    const files = { [`actions/${actionId}.md`]: crossSourceFile };
+    const result = await commentTool.handle({ action_id: actionId }, makeCtx(files));
+    const sc = result.structuredContent;
+    // Must not be an error — the fallback read should succeed
+    expect("error" in sc).toBe(false);
+    if ("error" in sc) return;
+    const payload = sc as Record<string, unknown>;
+    // The comment view must surface the fields written by the cross-source merge
+    expect(payload.issue_key).toBe("OFM-412");
+    expect(payload.draft_body).toBe("Cross-source draft body from Slack thread.");
+    expect(payload.cloud_id).toBe("1c5b1484-c964-4d92-bb3e-9237be54ca08");
+    expect(payload.issue_title).toBe("Fix the login redirect");
+    // Key set must match the comment schema (not a generic compose shape)
+    assertKeySet(payload, COMMENT_KEYS, "cross-source comment (namespaced fallback)");
+    const bytes = Buffer.byteLength(JSON.stringify(sc), "utf8");
+    expect(bytes).toBeLessThan(PAYLOAD_BUDGET_BYTES);
+  });
 });
 
 // =============================================================================

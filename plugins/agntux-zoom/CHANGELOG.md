@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-28
+
+### Fixed
+
+- View handler now reads the namespaced `## Compose payload (zoom)` section first, falling back to bare `## Compose payload` only when the namespaced header is absent. Prevents cross-source action files that carry both sections from silently serving the wrong (bare) block.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added
