@@ -9074,6 +9074,38 @@ function pass15GroundedTests(pluginSlug, pluginDir, _repoRoot, findings) {
     });
   }
 }
+var PLUGIN_JSON_VERSION_LITERAL_RE = /\.version\)\s*\.(?:toBe|toEqual|toStrictEqual)\(\s*(['"`])\d+\.\d+\.\d+(?:-[\w.]+)?\1\s*\)/;
+var FRONTMATTER_VERSION_LITERAL_RE = /\.toContain\(\s*['"`][^'"`\n]*plugin-version:\s*\d+\.\d+\.\d+/;
+function passVolatileVersionLiterals(pluginSlug, pluginDir, _repoRoot, findings) {
+  const testFiles = [];
+  for (const rel2 of TEST_DIRS_REL) {
+    collectTestFiles(path9.join(pluginDir, rel2), testFiles);
+  }
+  if (testFiles.length === 0) return;
+  for (const abs of testFiles) {
+    let body;
+    try {
+      body = fs9.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = body.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!PLUGIN_JSON_VERSION_LITERAL_RE.test(line) && !FRONTMATTER_VERSION_LITERAL_RE.test(line)) {
+        continue;
+      }
+      findings.push({
+        code: "E39",
+        severity: "warning",
+        plugin: pluginSlug,
+        file: path9.relative(pluginDir, abs),
+        line: i + 1,
+        message: `${path9.basename(abs)}:${i + 1} asserts a hard-coded version literal (\`${line.trim()}\`). A routine version bump turns this test red with no code change, and because the repo-wide test check runs every plugin, a stale literal here can block unrelated submission PRs. Assert the version STRUCTURALLY instead \u2014 \`expect(m.version).toMatch(/^\\d+\\.\\d+\\.\\d+$/)\` (or, for the frontmatter, \`expect(yaml).toMatch(/^plugin-version: \\d+\\.\\d+\\.\\d+/m)\`). Never hard-code the value or couple it to another file's version. See plugins/agntux-build/agents/tests-author.md \u2192 volatile fields.`
+      });
+    }
+  }
+}
 
 // scripts/lint/lint-view-tool-external-links.ts
 import * as fs10 from "node:fs";
@@ -10578,6 +10610,7 @@ function lintPlugin(pluginSlug, pluginDir, opts) {
   pass21ReconcileDeclared(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass22NamespacedComposeRead(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass23ViewToolLocalStr(pluginSlug, pluginDir, opts.repoRoot, findings);
+  passVolatileVersionLiterals(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 var __filename = fileURLToPath(import.meta.url);

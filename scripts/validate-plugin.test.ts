@@ -128,12 +128,15 @@ describe("BLOCKING_WARNING_CODES", () => {
   it("escalates E30 (grounded-tests) to blocking inside the build flow", () => {
     expect(BLOCKING_WARNING_CODES.has("E30")).toBe(true);
   });
+  it("escalates E39 (volatile version literal) to blocking inside the build flow", () => {
+    expect(BLOCKING_WARNING_CODES.has("E39")).toBe(true);
+  });
   it("does not escalate unrelated warning codes", () => {
     expect(BLOCKING_WARNING_CODES.has("E25")).toBe(false);
     expect(BLOCKING_WARNING_CODES.has("E28")).toBe(false);
   });
   it("locks the exact set membership (an accidental extra entry must fail)", () => {
-    expect([...BLOCKING_WARNING_CODES].sort()).toEqual(["E30"]);
+    expect([...BLOCKING_WARNING_CODES].sort()).toEqual(["E30", "E39"]);
   });
 });
 
@@ -268,6 +271,10 @@ describe("routeFromLintCode — per-code specialist ownership", () => {
   });
   it("skill-render drift E15 → ingest-prompt-author", () => {
     expect(routeFromLintCode("E15")).toBe("ingest-prompt-author");
+  });
+  it("test-assertion hygiene E30 + E39 → tests-author", () => {
+    expect(routeFromLintCode("E30")).toBe("tests-author");
+    expect(routeFromLintCode("E39")).toBe("tests-author");
   });
   it("view-tool passes + BUILD-* → view-tool-builder", () => {
     for (const c of ["E13", "E23", "E24", "E25", "E26", "E27", "E28", "BUILD-css"]) {

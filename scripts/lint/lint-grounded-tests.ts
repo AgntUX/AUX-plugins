@@ -168,3 +168,81 @@ export function pass15GroundedTests(
     });
   }
 }
+
+// E39 (companion to E30) — a test asserts a VOLATILE version LITERAL that breaks
+// the moment the plugin's version bumps. Two shapes seen in production:
+//   • `expect(m.version).toBe("0.2.0")`            — the plugin.json version
+//   • `expect(yaml).toContain("plugin-version: 0.2.0")` — the frontmatter version
+// Both are brittle: a routine `/bump-version` turns a green test red with NO code
+// change. Because the repo-wide test check runs every plugin's suite, a stale
+// literal in plugin Y then blocks an unrelated, clean PR for plugin X (the
+// agntux-dropbox 0.2.0→0.2.1 incident). The fix is to assert the version
+// STRUCTURALLY (a semver matcher), never a literal — and never couple it to
+// another file's value (the build pipeline does not keep frontmatter.yaml's
+// plugin-version in lockstep with plugin.json, so a cross-file equality assertion
+// would itself be brittle).
+//
+// Deliberately precise to avoid false positives:
+//   • The `\.version\)` anchor requires a literal dot before the WHOLE word
+//     "version", so fixture-passthrough assertions on `schema_version`,
+//     `agntux_build_version`, `previous_version` (marker.test.ts / report-defect)
+//     are NOT flagged.
+//   • Dates (`YYYY-MM-DD`) are out of scope — too many legitimate fixed-date
+//     fixtures to flag safely.
+// Warning in repo CI (so existing offenders don't break main); escalated to
+// BLOCKING inside agntux_validate (BLOCKING_WARNING_CODES), routed to tests-author.
+// `.version)` `.toBe|toEqual|toStrictEqual(` `"X.Y.Z"` (optional `-prerelease`).
+// The `\.version\)` whole-word anchor excludes `*_version` fixture fields.
+const PLUGIN_JSON_VERSION_LITERAL_RE =
+  /\.version\)\s*\.(?:toBe|toEqual|toStrictEqual)\(\s*(['"`])\d+\.\d+\.\d+(?:-[\w.]+)?\1\s*\)/;
+const FRONTMATTER_VERSION_LITERAL_RE =
+  /\.toContain\(\s*['"`][^'"`\n]*plugin-version:\s*\d+\.\d+\.\d+/;
+
+export function passVolatileVersionLiterals(
+  pluginSlug: string,
+  pluginDir: string,
+  _repoRoot: string,
+  findings: Finding[],
+): void {
+  const testFiles: string[] = [];
+  for (const rel of TEST_DIRS_REL) {
+    collectTestFiles(path.join(pluginDir, rel), testFiles);
+  }
+  if (testFiles.length === 0) return;
+
+  for (const abs of testFiles) {
+    let body: string;
+    try {
+      body = fs.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = body.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (
+        !PLUGIN_JSON_VERSION_LITERAL_RE.test(line) &&
+        !FRONTMATTER_VERSION_LITERAL_RE.test(line)
+      ) {
+        continue;
+      }
+      findings.push({
+        code: "E39",
+        severity: "warning",
+        plugin: pluginSlug,
+        file: path.relative(pluginDir, abs),
+        line: i + 1,
+        message:
+          `${path.basename(abs)}:${i + 1} asserts a hard-coded version literal ` +
+          `(\`${line.trim()}\`). A routine version bump turns this test red with ` +
+          `no code change, and because the repo-wide test check runs every ` +
+          `plugin, a stale literal here can block unrelated submission PRs. ` +
+          `Assert the version STRUCTURALLY instead — ` +
+          `\`expect(m.version).toMatch(/^\\d+\\.\\d+\\.\\d+$/)\` (or, for the ` +
+          `frontmatter, \`expect(yaml).toMatch(/^plugin-version: \\d+\\.\\d+\\.\\d+/m)\`). ` +
+          `Never hard-code the value or couple it to another file's version. ` +
+          `See plugins/agntux-build/agents/tests-author.md → volatile fields.`,
+      });
+    }
+  }
+}

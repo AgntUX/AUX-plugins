@@ -35,6 +35,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         # actions/checkout v7.0.0
+        with:
+          # Full history so scripts/affected.mjs can diff against the PR base /
+          # the previous commit to scope the suite to the changed plugin(s).
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
@@ -52,5 +56,39 @@ jobs:
       - name: Check agntux-build toolchain bundle is in sync
         run: npm run check:agntux-build-toolchain
 
-      - name: Run tests
+      # Scope the suite to the changed plugin(s). A shared-root change
+      # (canonical/, packages/, scripts/, lib/, vitest.config.ts, .github/, root
+      # configs) → "full", because it can break any plugin. Otherwise run only the
+      # affected plugins plus the always-on shared test dirs (scripts/, packages/).
+      # This is what keeps a stale test in plugin Y from blocking a clean PR for
+      # plugin X — exactly what the submission handler already validates scoped.
+      - name: Compute affected plugins
+        id: affected
+        env:
+          # Explicit event SHAs so affected.mjs diffs against the TRUE base without
+          # depending on origin/<base> being fetched: PR → the base commit SHA;
+          # push → the pre-push SHA (covers every commit in a multi-commit push).
+          GITHUB_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo "mode=$(node scripts/affected.mjs mode)"
+            echo "plugins=$(node scripts/affected.mjs plugins)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run tests (full suite)
+        if: steps.affected.outputs.mode == 'full'
         run: npm test
+
+      - name: Run tests (scoped to affected plugins)
+        if: steps.affected.outputs.mode == 'scoped'
+        env:
+          # Passed via env (not inline ${{ }}) so the value is shell data, never
+          # interpolated as code; slugs are charset-validated in affected.mjs.
+          AFFECTED: ${{ steps.affected.outputs.plugins }}
+        run: |
+          set -euo pipefail
+          targets="scripts packages"
+          for s in $AFFECTED; do targets="$targets plugins/$s"; done
+          echo "scoped vitest targets: $targets"
+          npx vitest run --passWithNoTests $targets

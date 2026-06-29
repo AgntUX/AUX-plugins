@@ -1409,8 +1409,12 @@ export function parseLintFindings(stdout) {
  * build flow. E30 (grounded-tests / phantom-contract guard) is here: catching it
  * at the lint stage — before vitest runs — converts what used to be multiple
  * rounds of test-assertion churn into one actionable stop routed to tests-author.
+ * E39 (volatile version literal) joins it: a hard-coded `toBe("0.2.0")` would pass
+ * lint and then silently rot into a red test on the next bump, so we stop the build
+ * here and have tests-author rewrite it to a structural matcher (warning in repo CI
+ * so existing plugins aren't retroactively broken).
  */
-export const BLOCKING_WARNING_CODES = new Set(["E30"]);
+export const BLOCKING_WARNING_CODES = new Set(["E30", "E39"]);
 
 /** Map ONE lint code to its owning specialist for the fix loop. */
 export function routeFromLintCode(code) {
@@ -1419,8 +1423,9 @@ export function routeFromLintCode(code) {
   // E15 is the skill-render-drift code (pass 8) — the ingest prompt author owns
   // the `_overrides/` + render map it derives from.
   if (code === "E15") return "ingest-prompt-author";
-  // E30 is the grounded-tests guard (pass 15) — the tests author owns it.
-  if (code === "E30") return "tests-author";
+  // E30 (grounded-tests / phantom-contract, pass 15) and E39 (volatile version
+  // literal, pass 24) are both test-assertion hygiene — the tests author owns them.
+  if (code === "E30" || code === "E39") return "tests-author";
   // View-tool passes: third-party MCP in views (E13), bundle-is-real-HTML (E23),
   // payload-shape guard (E24/E25), apps-client drift (E26/E27), CSS bundle (E28),
   // response-envelope/renderConfirmationText (E29).

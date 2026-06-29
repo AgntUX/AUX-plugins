@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-06-29
+
+**Stop authoring brittle version assertions; scope CI to the changed plugin(s).**
+Two coordinated changes that let the marketplace submission handler auto-merge a
+clean plugin even when an unrelated plugin's test has drifted on `main`:
+
+- **`tests-author` no longer writes hard-coded version literals.** The agent's
+  "read-then-copy-literal" rule now carves out VOLATILE fields, and a new mechanical
+  rule (7) requires the plugin's version to be asserted STRUCTURALLY —
+  `expect(m.version).toMatch(/^\d+\.\d+\.\d+$/)`, never `expect(m.version).toBe("0.2.0")`
+  or `.toContain("plugin-version: 0.2.0")`. A literal version assertion goes red on
+  the next `/bump-version` with no code change, and because the repo-wide `test`
+  check runs every plugin, one stale literal blocked unrelated submission PRs (the
+  agntux-dropbox 0.2.0→0.2.1 incident).
+- **New lint pass 24 (E39 — volatile version literal).** Detects hard-coded
+  `plugin.json` / frontmatter version literals in `__tests__/*`. Precise enough to
+  leave stable-contract constants (`schema_version`, fixture passthroughs) alone.
+  Warning in repo CI (existing plugins aren't retroactively broken — they're fixed
+  lazily the next time each is touched); **BLOCKING inside `agntux_validate`** so a
+  newly built plugin can never ship one. Routed to `tests-author`.
+- **Repo CI is now scoped to the affected plugin(s)** via `scripts/affected.mjs`:
+  the `test`, `lint`, `version-check`, and `build-verify` checks run only the
+  changed plugin(s) plus shared dirs, falling back to the full suite when a shared
+  root (`canonical/`, `packages/`, `scripts/`, `lib/`, …) changes. This is what
+  ends the cross-plugin contamination — a stale assertion in plugin Y can no longer
+  fail plugin X's PR.
+
 ## [0.40.0] — 2026-06-29
 
 Emit **structured build provenance** in the submission marker. `assembleMarker`
