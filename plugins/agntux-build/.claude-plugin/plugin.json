@@ -1,6 +1,6 @@
 {
   "name": "agntux-build",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "description": "Build a new AgntUX plugin for a tool AgntUX doesn't support yet. It guides you step by step — no coding needed.",
   "author": {
     "name": "AgntUX",
