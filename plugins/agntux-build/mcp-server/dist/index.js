@@ -55,6 +55,7 @@ import {
   realpathSync,
   readdirSync,
   statSync,
+  createWriteStream,
 } from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -198,6 +199,22 @@ const TOOLS = [
         agntux_root: { type: "string", description: "Absolute agntux project root (the stage-0 resolver result). Optional — enables caching the fetched index to .agntux-build/marketplace-index.cache.json for an offline fallback." },
       },
       required: ["slug"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "agntux_fetch_published_plugin",
+    description:
+      "Fetch the LATEST PUBLISHED source of an existing plugin from the public marketplace repo (AgntUX/AUX-plugins) into the build sandbox, so a FIX/UPDATE is authored against current code — never a stale local copy. Use this at the start of an update-mode fix (the user reported an existing, PUBLISHED plugin is broken) BEFORE dispatching the authoring specialists: it downloads plugins/agntux-{slug}/ at `ref` (default the main branch HEAD = latest published) and writes it to …/.agntux-build/builds/{session}/agntux-{slug}/, the exact path agntux_scaffold/agntux_validate/agntux_write_submission already use. Returns {ok:true, build_path, version, source_ref, files_written} — use build_path as the authoring base and bump the version from the returned `version`. ok:false carries error_kind: 'not_found' (the slug is NOT in the public repo — e.g. a never-merged submission; fall back to the local build), 'rate_limited' (GitHub 403/429 — retry shortly or use a local build), 'network', or 'usage'. NEVER throws, never partially populates build_path (fail-closed). Reads unauthenticated like agntux_marketplace_lookup; AUX-plugins is public so no token is needed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        slug: { type: "string", description: "The plugin slug — bare ('linear') or already agntux- prefixed ('agntux-linear')." },
+        agntux_root: { type: "string", description: "Absolute agntux project root (the stage-0 resolver result). The fetched tree lands under {agntux_root}/.agntux-build/builds/{session}/." },
+        session: { type: "string", description: "Current session id (YYYY-MM-DD-HHmmss) — selects the target build-sandbox dir." },
+        ref: { type: "string", description: "Optional git ref to fetch. Default 'main' (latest published source). Pass a tag like 'agntux-{slug}@{version}' to pin an exact published version." },
+      },
+      required: ["slug", "agntux_root", "session"],
       additionalProperties: false,
     },
   },
@@ -1168,6 +1185,385 @@ async function handleMarketplaceLookup(args) {
   };
 }
 
+// ── fetch a published plugin's source (update-mode fix base) ──────────────────
+//
+// A fix to an EXISTING published plugin must be authored against the LATEST
+// public source, not a possibly-stale local build (the original author's sandbox
+// may be behind later public fixes; a different contributor has no sandbox at
+// all). This fetches plugins/agntux-{slug}/ from the public marketplace repo into
+// the standard build sandbox so every downstream tool works unchanged. Reads
+// unauthenticated (AUX-plugins is public); a single tarball request per fix is
+// well within the 60/hr unauth limit. The /tarball/{ref} endpoint 302-redirects
+// to codeload.github.com — `fetch` follows it; if a host ever enforces a strict
+// egress allowlist, codeload must be allowed alongside api.github.com.
+
+// A repo tarball is far larger than index.json, so it gets its own (looser)
+// timeout + size cap. The cap guards a hostile/runaway endpoint from OOMing the
+// server; the real repo tarball is a few tens of MB.
+const PLUGIN_TARBALL_FETCH_TIMEOUT_MS = 60_000;
+const PLUGIN_TARBALL_MAX_BYTES = 300 * 1024 * 1024;
+// `tar -tzf` output for a large multi-plugin repo can be many thousands of lines;
+// give spawnSync headroom over its 1 MB default stdout buffer.
+const TAR_LISTING_MAX_BUFFER = 256 * 1024 * 1024;
+// A git ref we interpolate raw into the tarball URL path (it is NOT passed to
+// tar — only `prefix` + `canonical` reach tar's arg list). Restrict to the
+// characters real branch/tag names use AND forbid `..` / a leading `-`: `fetch`
+// normalizes `../` in a path, so an unconstrained ref like `../../../user/repos`
+// would redirect the GET to a DIFFERENT api.github.com endpoint. `main` and a
+// `agntux-{slug}@{semver}` tag both pass.
+const SAFE_REF_RE = /^(?!-)(?!.*\.\.)[A-Za-z0-9._@/-]+$/;
+// A session id is a path segment (YYYY-MM-DD-HHmmss); reject `/`, `..`, etc. so
+// it can't traverse out of the builds dir when path.join'd.
+const SAFE_SESSION_RE = /^[A-Za-z0-9._-]+$/;
+// The CANONICAL slug is the untrusted value that reaches BOTH path.join (→ the
+// destructive rmSync of buildPath) and tar's member arg. canonicalPluginSlug
+// only lowercases/prefixes — it does NOT strip `/` or `..` — so guard the result
+// against a real marketplace slug shape before any fs mutation. This is the
+// load-bearing check that keeps a crafted slug from deleting an arbitrary dir.
+const SAFE_SLUG_RE = /^agntux-[a-z0-9][a-z0-9-]*$/;
+
+/** GitHub repo-tarball URL at a ref (redirects to codeload). */
+function pluginTarballUrl(ref) {
+  return `https://api.github.com/repos/${MARKETPLACE_OWNER_REPO}/tarball/${ref}`;
+}
+
+/**
+ * Given the lines of `tar -tzf` output for a GitHub repo tarball (every member
+ * lives under a single `{owner}-{repo}-{sha}/` top dir) and a canonical plugin
+ * slug, return { prefix, members } where `members` are the member paths under
+ * `plugins/{canonical}/`. `members` is [] when that dir is absent (the plugin is
+ * not published at this ref). Matches on a path boundary so `agntux-linear` does
+ * NOT pick up `agntux-linear-foo`. Pure — exported for unit tests.
+ *
+ * The prefix is derived from the first line that actually contains a `/`, NOT
+ * blindly from line 0: GNU tar (Linux) lists a leading `pax_global_header`
+ * pseudo-entry (the git-archive commit header) that has no `/`, which would
+ * otherwise be mistaken for the top dir and yield zero members (a false
+ * not_found on every Linux host). BSD tar (macOS) omits it; this handles both.
+ */
+export function selectPluginTarballMembers(listingLines, canonical) {
+  const lines = (Array.isArray(listingLines)
+    ? listingLines
+    : String(listingLines || "").split("\n"))
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length || !canonical) return { prefix: "", members: [] };
+  const rootLine = lines.find((l) => l.includes("/"));
+  if (!rootLine) return { prefix: "", members: [] };
+  const prefix = rootLine.split("/")[0];
+  if (!prefix) return { prefix: "", members: [] };
+  const dirPath = `${prefix}/plugins/${canonical}`;
+  const members = lines.filter(
+    (p) => p === dirPath || p === `${dirPath}/` || p.startsWith(`${dirPath}/`),
+  );
+  return { prefix, members };
+}
+
+/** Count files (not dirs) under a tree. Best-effort; returns 0 on read error. */
+function countFilesRecursive(dir) {
+  let n = 0;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) n += countFilesRecursive(full);
+    else if (e.isFile()) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Download a URL to a file, STREAMING the body to disk with a hard timeout and a
+ * running byte cap. Never throws. Streaming (not res.arrayBuffer()) is load-
+ * bearing here: codeload.github.com serves the git-archive tarball CHUNKED with
+ * NO content-length, so a pre-read declared-size check can't fire and arrayBuffer
+ * would buffer the entire (capped at 300 MB) body in memory before any size check
+ * runs. We abort the moment the running total exceeds the cap, bounding memory to
+ * one chunk regardless of what the server streams.
+ */
+async function downloadToFile(url, headers, destFile) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PLUGIN_TARBALL_FETCH_TIMEOUT_MS);
+  let out = null;
+  try {
+    const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
+    if (!res.ok) return { ok: false, status: res.status, detail: `HTTP ${res.status} from ${url}` };
+    if (!res.body) return { ok: false, detail: `empty response body from ${url}` };
+    // Honor a declared content-length when present (cheap early reject).
+    const declared = Number(res.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > PLUGIN_TARBALL_MAX_BYTES) {
+      return { ok: false, detail: `tarball too large (${declared} bytes)` };
+    }
+    out = createWriteStream(destFile);
+    let total = 0;
+    for await (const chunk of res.body) {
+      total += chunk.length;
+      if (total > PLUGIN_TARBALL_MAX_BYTES) {
+        controller.abort();
+        return { ok: false, detail: `tarball exceeded ${PLUGIN_TARBALL_MAX_BYTES} bytes` };
+      }
+      if (!out.write(chunk)) {
+        await new Promise((resolve) => out.once("drain", resolve));
+      }
+    }
+    await new Promise((resolve, reject) =>
+      out.end((err) => (err ? reject(err) : resolve())),
+    );
+    out = null; // ended cleanly; don't destroy in finally
+    return { ok: true, bytes: total };
+  } catch (e) {
+    return { ok: false, detail: errStr(e) };
+  } finally {
+    clearTimeout(timer);
+    if (out) {
+      try {
+        out.destroy();
+      } catch {
+        /* best-effort: the partial file is discarded by the caller */
+      }
+    }
+  }
+}
+
+/**
+ * Fetch the latest published source of an existing plugin into the build sandbox.
+ * Fail-closed: build_path is only populated after a verified extraction (a real
+ * .claude-plugin/plugin.json). NEVER throws.
+ */
+async function handleFetchPublishedPlugin(args) {
+  const slug = str(args.slug);
+  const agntuxRoot = str(args.agntux_root);
+  const session = str(args.session);
+  const ref = args.ref ? str(args.ref) : MARKETPLACE_BRANCH;
+  const canonical = canonicalPluginSlug(slug);
+
+  if (!slug || !agntuxRoot || !session) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: "slug, agntux_root, and session are required",
+      summary: "Cannot fetch the published plugin without slug, agntux_root, and session.",
+    };
+  }
+  if (!path.isAbsolute(agntuxRoot)) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: `agntux_root must be an absolute path (got ${agntuxRoot})`,
+      summary: "agntux_root must be an absolute path.",
+    };
+  }
+  if (!SAFE_SESSION_RE.test(session)) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: `invalid session id: ${session}`,
+      summary: "The session id contains characters that aren't allowed in a path segment.",
+    };
+  }
+  if (!SAFE_REF_RE.test(ref)) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: `invalid ref: ${ref}`,
+      summary: "The git ref contains characters that aren't allowed.",
+    };
+  }
+  // The canonical slug reaches a destructive rmSync (of buildPath) and tar's
+  // member arg. Validate it BEFORE any fs mutation — canonicalPluginSlug does not
+  // strip `/` or `..`, so without this an `agntux-../../x` slug would make
+  // buildPath escape the builds dir and rmSync could delete an arbitrary tree.
+  if (!SAFE_SLUG_RE.test(canonical)) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: `invalid plugin slug: ${slug}`,
+      summary: "The plugin slug isn't a valid marketplace slug (lowercase, hyphenated, agntux- prefixed).",
+    };
+  }
+
+  const sessionDir = path.join(agntuxRoot, ".agntux-build", "builds", session);
+  const buildPath = path.join(sessionDir, canonical);
+  // Defense-in-depth: even with the regex guards above, refuse to operate on a
+  // buildPath that isn't strictly inside sessionDir (guards a future regex
+  // loosening from re-introducing the arbitrary-delete hazard).
+  const rel = path.relative(sessionDir, buildPath);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return {
+      ok: false, error_kind: "usage", blocking: false,
+      detail: `resolved build path escapes the session dir: ${buildPath}`,
+      summary: "The resolved plugin directory isn't inside the build sandbox.",
+    };
+  }
+
+  // Work in a temp dir so a failed/partial download never leaves a half-tree at
+  // buildPath. We only touch buildPath once we have a verified extraction.
+  let tmpDir;
+  try {
+    mkdirSync(sessionDir, { recursive: true });
+    tmpDir = mkdtempSync(path.join(os.tmpdir(), "agntux-fetch-"));
+  } catch (e) {
+    return {
+      ok: false, error_kind: "internal", blocking: false,
+      detail: `could not create a work directory: ${errStr(e)}`,
+      summary: "Couldn't prepare a work directory for the fetch.",
+    };
+  }
+
+  const tarFile = path.join(tmpDir, "repo.tar.gz");
+  try {
+    // 1) Download the repo tarball at `ref` (one request; redirects to codeload).
+    const dl = await downloadToFile(
+      pluginTarballUrl(ref),
+      {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "agntux-build",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      tarFile,
+    );
+    if (!dl.ok) {
+      const rateLimited = dl.status === 403 || dl.status === 429;
+      const notFoundRef = dl.status === 404;
+      return {
+        ok: false,
+        error_kind: rateLimited ? "rate_limited" : notFoundRef ? "not_found" : "network",
+        blocking: false,
+        detail: dl.detail,
+        summary: rateLimited
+          ? `GitHub rate-limited the source fetch for ${canonical}. Wait a few minutes and retry, or fix from a local build if one exists.`
+          : notFoundRef
+            ? `No ref '${ref}' in ${MARKETPLACE_OWNER_REPO} (the ref doesn't exist or the repo is unavailable). If ${canonical} was never merged, fix from the local build instead.`
+            : `Couldn't fetch ${canonical} source from GitHub (${dl.detail}). Check the connection and retry.`,
+      };
+    }
+    const downloadedBytes = dl.bytes;
+
+    // 2) List members → derive the top-dir prefix + detect the plugin subtree.
+    const listing = spawnSync("tar", ["-tzf", tarFile], {
+      encoding: "utf8",
+      maxBuffer: TAR_LISTING_MAX_BUFFER,
+    });
+    if (listing.error || listing.status !== 0) {
+      const why = listing.error
+        ? errStr(listing.error)
+        : (listing.stderr || "").trim() || `status ${listing.status}`;
+      return {
+        ok: false, error_kind: "internal", blocking: false,
+        detail: `tar listing failed: ${why}`,
+        summary: "Couldn't read the downloaded source archive (is `tar` available?).",
+      };
+    }
+    const { prefix, members } = selectPluginTarballMembers(listing.stdout.split("\n"), canonical);
+    if (!prefix) {
+      // No member line carried a top-level dir — an empty/truncated/corrupt
+      // download (e.g. a proxy returned a 200 with an empty body). This is a
+      // transient condition, not an internal bug: classify it network so the
+      // orchestrator retries rather than logging an agntux-build defect.
+      return {
+        ok: false, error_kind: "network", blocking: false,
+        detail: `downloaded archive had no usable entries (${downloadedBytes} bytes) — likely a truncated/empty response`,
+        summary: `The downloaded source archive for ${canonical} was empty or truncated. Retry in a moment.`,
+      };
+    }
+    if (!members.length) {
+      return {
+        ok: false, error_kind: "not_found", blocking: false,
+        detail: `plugins/${canonical}/ is not present in ${MARKETPLACE_OWNER_REPO}@${ref}`,
+        summary:
+          `${canonical} isn't published in the marketplace repo at ${ref}. If you're addressing ` +
+          `review feedback on a not-yet-merged submission, fix the local build instead.`,
+      };
+    }
+
+    // 3) Extract ONLY the plugin subtree into a STAGING dir, verify it there, and
+    //    only then swap it into buildPath. Fail-closed: a download/extract failure
+    //    must never destroy a pre-existing buildPath (the user's in-progress fix)
+    //    and leave nothing in its place. The stage dir is created under sessionDir
+    //    (same filesystem as buildPath) so the final swap is an atomic renameSync,
+    //    not a cross-device copy (os.tmpdir() may be a different device → EXDEV).
+    //    Portable across GNU and BSD tar: naming the directory member recurses;
+    //    --strip-components=3 drops {prefix}/plugins/{canonical} so files land at
+    //    the stage root. No --wildcards (BSD tar lacks it).
+    let stageDir;
+    try {
+      stageDir = mkdtempSync(path.join(sessionDir, ".fetch-stage-"));
+    } catch (e) {
+      return {
+        ok: false, error_kind: "internal", blocking: false,
+        detail: `could not create a staging dir: ${errStr(e)}`,
+        summary: "Couldn't prepare a staging directory for the fetched source.",
+      };
+    }
+    try {
+      const ex = spawnSync(
+        "tar",
+        ["-xzf", tarFile, "-C", stageDir, "--strip-components=3", `${prefix}/plugins/${canonical}`],
+        { encoding: "utf8" },
+      );
+      if (ex.error || ex.status !== 0) {
+        const why = ex.error ? errStr(ex.error) : (ex.stderr || "").trim() || `status ${ex.status}`;
+        return {
+          ok: false, error_kind: "internal", blocking: false,
+          detail: `tar extract failed: ${why}`,
+          summary: "Couldn't extract the plugin source from the archive.",
+        };
+      }
+
+      // 4) Verify the staged tree is real (fail-closed) BEFORE touching buildPath.
+      const stagedManifest = path.join(stageDir, ".claude-plugin", "plugin.json");
+      if (!existsSync(stagedManifest)) {
+        return {
+          ok: false, error_kind: "internal", blocking: false,
+          detail: "extracted tree is missing .claude-plugin/plugin.json",
+          summary: "The fetched plugin tree was incomplete (no plugin.json).",
+        };
+      }
+      let version = null;
+      try {
+        version = str(JSON.parse(readFileSync(stagedManifest, "utf8")).version) || null;
+      } catch {
+        version = null;
+      }
+
+      // 5) Swap the verified tree into place. Only now is a prior buildPath
+      //    replaced — on the success path exclusively.
+      rmSync(buildPath, { recursive: true, force: true });
+      renameSync(stageDir, buildPath);
+      stageDir = null; // consumed by the rename; nothing to clean up
+
+      const filesWritten = countFilesRecursive(buildPath);
+      return {
+        ok: true,
+        build_path: buildPath,
+        slug: canonical,
+        version,
+        source_ref: ref,
+        source_repo: MARKETPLACE_OWNER_REPO,
+        bytes: downloadedBytes,
+        files_written: filesWritten,
+        summary:
+          `Fetched ${canonical}${version ? ` v${version}` : ""} from ${MARKETPLACE_OWNER_REPO}@${ref} ` +
+          `into the build sandbox (${filesWritten} files). Use build_path as the authoring base ` +
+          `for the fix and bump from the returned version.`,
+      };
+    } finally {
+      if (stageDir) {
+        try {
+          rmSync(stageDir, { recursive: true, force: true });
+        } catch {
+          /* best-effort: a failed extract leaves only the staging dir, never buildPath */
+        }
+      }
+    }
+  } finally {
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* best-effort temp cleanup */
+    }
+  }
+}
+
 // ── JSON-RPC plumbing ─────────────────────────────────────────────────────────
 
 function send(msg) {
@@ -1224,6 +1620,7 @@ async function handle(req) {
         else if (name === "agntux_confirm_submission") payload = await handleConfirmSubmission(args);
         else if (name === "agntux_report_defect") payload = await handleReportDefect(args);
         else if (name === "agntux_marketplace_lookup") payload = await handleMarketplaceLookup(args);
+        else if (name === "agntux_fetch_published_plugin") payload = await handleFetchPublishedPlugin(args);
         else payload = { ok: false, error_kind: "usage", blocking: false, detail: `unknown tool: ${name}` };
       } catch (e) {
         payload = { ok: false, error_kind: "internal", blocking: false, detail: errStr(e) };

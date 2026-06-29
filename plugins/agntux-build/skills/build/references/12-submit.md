@@ -266,9 +266,11 @@ Branch on the result:
 - **`ok:true`** → the tool validated, hashed, and wrote the marker. Its return
   carries `{ submission_id, tree_sha256, files, marker_path, validation }`.
   Record the returned `submission_id` into `last-submission.json` per
-  `07-build.md` (its `submission_id` field — that exact key), then proceed to the
-  hard-require-sync gate (§e) and confirm (§e·confirm). `tree_sha256` is the
-  dedup key; its first 8 hex chars are the `submission_id` suffix.
+  `07-build.md` (its `submission_id` field — that exact key), **preserving the
+  `session_id` and `build_path` locator fields** so a later `:revise` can find
+  this exact tree, then proceed to the hard-require-sync gate (§e) and confirm
+  (§e·confirm). `tree_sha256` is the dedup key; its first 8 hex chars are the
+  `submission_id` suffix.
 - **`ok:false`** → the tool re-validated and **wrote nothing**. The return
   carries `{ failed_stage, routing, blocking, error_kind, detail, verdict }`
   (the per-stage detail is in `verdict.stages`). The failure is

@@ -95,6 +95,16 @@ the build creates it under `<agntux project root>/.agntux-build/builds/{session-
 instead. The user doesn't need a clone of the marketplace repo to
 build a plugin — we just need a working tree.
 
+**Exception — fix flows do NOT use a clone.** This clone-preference applies
+only to a NET-NEW build. In **update mode** (`update-mode.md`) and **`:revise`**
+(`revise.md`), the authoring base is the resolved sandbox tree under
+`.agntux-build/builds/{session-id}/agntux-{slug}/` — for update mode the tree
+fetched fresh from the published repo (`agntux_fetch_published_plugin`), for
+`:revise` the located prior build — **never** `<repo-root>/AUX-plugins/plugins/agntux-{slug}/`,
+even when a marketplace clone is present. Reading a clone there would defeat
+the "fix against latest published source" guarantee and re-introduce the
+stale-base version regression those flows exist to prevent.
+
 ### Build-prep the contributor never sees
 
 Three preconditions must hold before `vite build` can run against a
@@ -495,6 +505,8 @@ After all seven specialists complete without error, write
   "submission_id": "{submission_id}",
   "slug": "agntux-{slug}",
   "version": "{plugin_version}",
+  "session_id": "{session-id}",
+  "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-{slug}",
   "blockers_summary": []
 }
 ```
@@ -504,8 +516,19 @@ After all seven specialists complete without error, write
   `submission_id`, not `id` — see `12-submit.md` step d); at end of stage 7
   (pre-submission) write a sentinel value of `"pending-{session-id}"` so the file
   exists and `:revise` can detect an in-progress build.
+- `session_id` + `build_path` are the **cross-session locator** — the exact
+  on-disk tree this build produced. They are load-bearing for `:revise`: a fix
+  run in a *later* session can't reconstruct the build dir from the current
+  session-id (it differs), and the `submission_id` is no longer the
+  `pending-{session-id}` sentinel once confirmed, so without these two fields the
+  fix flow can't find the tree and falls back to prompting the user for a
+  directory (the bug this closes). Write the same `build_path` recorded in the
+  stage-7 saved state above. (Additive: an older `last-submission.json` without
+  these fields still works — `:revise` falls back to a glob of
+  `.agntux-build/builds/*/agntux-{slug}/`.)
 - After stage 12 completes and the submission is confirmed, overwrite
-  `last-submission.json` with the real `submission_id` the tool returned.
+  `last-submission.json` with the real `submission_id` the tool returned —
+  **carry `session_id` + `build_path` forward** (don't drop them).
 - `blockers_summary` is an empty array at a clean build; the marketplace worker
   populates it during review. `:revise` reads this file and uses the
   `submission_id` as `marker.revision_of` for the next submission.
