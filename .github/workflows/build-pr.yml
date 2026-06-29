@@ -30,6 +30,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         # actions/checkout v7.0.0
+        with:
+          # Full history so scripts/affected.mjs can diff to scope the build.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
@@ -41,5 +44,32 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Build every plugin (components → mcp-server → bundle-sync)
+      # Scope the build to the changed plugin(s); a shared-root change → build all
+      # (it can change any plugin's bundle). An unaffected plugin's bundle cannot
+      # have gone stale from this PR, so there is nothing to verify for it.
+      - name: Compute affected plugins
+        id: affected
+        env:
+          # Explicit event SHAs so affected.mjs diffs against the TRUE base without
+          # depending on origin/<base> being fetched: PR → the base commit SHA;
+          # push → the pre-push SHA (covers every commit in a multi-commit push).
+          GITHUB_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo "mode=$(node scripts/affected.mjs mode)"
+            echo "plugins=$(node scripts/affected.mjs plugins)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build every plugin (full — shared change)
+        if: steps.affected.outputs.mode == 'full'
         run: node scripts/build-plugin.mjs --all
+
+      - name: Build affected plugins (components → mcp-server → bundle-sync)
+        if: steps.affected.outputs.mode == 'scoped' && steps.affected.outputs.plugins != ''
+        env:
+          AFFECTED: ${{ steps.affected.outputs.plugins }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 — AFFECTED is a charset-validated slug list.
+          node scripts/build-plugin.mjs $AFFECTED

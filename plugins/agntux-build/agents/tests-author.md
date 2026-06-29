@@ -81,6 +81,11 @@ they are not judgement calls:
    `Read` that exact file and copy a **verbatim substring** out of it. Assert with
    `expect(text).toContain("…the exact substring…")`. Do NOT write a regex from
    memory of what the file "should" say — that is how phantom assertions happen.
+   **Exception — never copy a VOLATILE value as a literal (see rule 7):** the
+   plugin's version (`plugin.json` `version`, `_overrides/frontmatter.yaml`
+   `plugin-version`) and dates change on every bump. Copying them verbatim ships a
+   test that goes red on the next `/bump-version` with no code change. Assert those
+   STRUCTURALLY, never by value.
 2. **Assert only what THIS plugin actually contains.** If the plugin is
    forward-only (no eviction), has no `compose-discard-local` intent, declares no
    "soonest-starting 50" cap — then do NOT assert those. There is no fixed
@@ -134,6 +139,33 @@ they are not judgement calls:
      author-stable. agntux-slack's and agntux-gmail's `cold-start.test.ts` already
      assert `proposed_schema` from `listing.yaml` this way; copy that, not a
      `.toContain` of the override prose.
+
+7. **Volatile fields are asserted STRUCTURALLY, never by literal value — the gate
+   BLOCKS the build on a hard-coded version literal (E39).** A plugin's version is
+   the textbook volatile field: it bumps on most every change, but the test prose
+   doesn't, so a literal assertion silently rots into a red test. Because the
+   repo-wide test check runs *every* plugin's suite, a stale literal in one plugin
+   then blocks unrelated, clean submission PRs for others (the agntux-dropbox
+   0.2.0→0.2.1 incident: one drifted assertion turned the whole `test` check red).
+   So:
+   - `plugin.json` version → `expect(m.version).toMatch(/^\d+\.\d+\.\d+$/)`. **Never**
+     `expect(m.version).toBe("0.2.0")`.
+   - `_overrides/frontmatter.yaml` `plugin-version` → assert it is PRESENT and
+     semver-shaped: `expect(yaml).toMatch(/^plugin-version: \d+\.\d+\.\d+/m)` (or
+     `js-yaml`-load and `expect(fm["plugin-version"]).toMatch(/^\d+\.\d+\.\d+$/)`).
+     **Never** `.toContain("plugin-version: 0.2.0")`.
+   - Do **NOT** "fix" this by coupling the two files
+     (`expect(fm["plugin-version"]).toBe(m.version)`): the build pipeline does not
+     keep `frontmatter.yaml` in lockstep with `plugin.json` on a bump, so a
+     cross-file equality assertion is *also* brittle. Assert each field's SHAPE
+     independently.
+   - Dates (CHANGELOG release dates, `YYYY-MM-DD`) are volatile too — never
+     `.toContain` a specific date. If you must, match the SHAPE (`/\d{4}-\d{2}-\d{2}/`).
+   The marketplace linter's **pass 24 (E39)** detects hard-coded version literals
+   mechanically and is routed to you; **it is BLOCKING inside `agntux_validate`**
+   (a warning in repo CI). Asserting a value that is genuinely a stable contract
+   constant — a `schema_version` like `"1.1.0"`, a fixture's input passed straight
+   through — is fine; E39 only flags the plugin's OWN `.version` / `plugin-version`.
 
 ## When to add which test
 

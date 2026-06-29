@@ -10,7 +10,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { pass15GroundedTests } from "../lint-grounded-tests.js";
+import {
+  pass15GroundedTests,
+  passVolatileVersionLiterals,
+} from "../lint-grounded-tests.js";
 import type { Finding } from "../lint-grounded-tests.js";
 
 let pluginDir: string;
@@ -251,6 +254,123 @@ describe("pass15GroundedTests (E30)", () => {
     );
     const findings: Finding[] = [];
     pass15GroundedTests("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("passVolatileVersionLiterals (E39)", () => {
+  it("flags a hard-coded plugin.json version literal (`m.version).toBe(\"x.y.z\")`)", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { join } from 'node:path';\n` +
+        `const PLUGIN_ROOT = join(__dirname, '..');\n` +
+        `it('plugin.json version', () => {\n` +
+        `  const m = JSON.parse(readFileSync(join(PLUGIN_ROOT, '.claude-plugin/plugin.json'), 'utf-8'));\n` +
+        `  expect(m.version).toBe("0.2.0");\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E39");
+    expect(findings[0].severity).toBe("warning");
+    expect(findings[0].file).toBe("__tests__/cold-start.test.ts");
+    expect(findings[0].line).toBe(6);
+  });
+
+  it("also flags the `.toEqual` / `.toStrictEqual` and prerelease shapes", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `it('a', () => { expect(m.version).toEqual("0.2.0"); });\n` +
+        `it('b', () => { expect(m.version).toStrictEqual("1.0.0-beta.1"); });\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(2);
+    expect(findings.every((f) => f.code === "E39")).toBe(true);
+  });
+
+  it("flags a hard-coded frontmatter `plugin-version:` literal in toContain", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { join } from 'node:path';\n` +
+        `const ROOT = join(__dirname, '..');\n` +
+        `it('frontmatter version', () => {\n` +
+        `  const yaml = readFileSync(join(ROOT, 'skills/agntux-foo/_overrides/frontmatter.yaml'), 'utf-8');\n` +
+        `  expect(yaml).toContain("plugin-version: 0.2.0");\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].code).toBe("E39");
+    expect(findings[0].line).toBe(6);
+  });
+
+  it("does NOT flag the structural matcher (the correct pattern)", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `import { readFileSync } from 'node:fs';\n` +
+        `import { join } from 'node:path';\n` +
+        `const PLUGIN_ROOT = join(__dirname, '..');\n` +
+        `it('plugin.json version is semver', () => {\n` +
+        `  const m = JSON.parse(readFileSync(join(PLUGIN_ROOT, '.claude-plugin/plugin.json'), 'utf-8'));\n` +
+        `  expect(m.version).toMatch(/^\\d+\\.\\d+\\.\\d+$/);\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag stable-contract / fixture `*_version` assertions (the false-positive guard)", () => {
+    // schema_version is a contract constant; agntux_build_version / previous_version
+    // are fixture passthroughs. The `.version)` whole-word anchor must skip these.
+    writeTest(
+      "marker.test.ts",
+      `it('marker fixtures', () => {\n` +
+        `  expect(marker.schema_version).toBe("1.1.0");\n` +
+        `  expect(marker.agntux_build_version).toBe("0.16.0");\n` +
+        `  expect(marker.previous_version).toBe("0.0.9");\n` +
+        `  expect(defect.schema_version).toBe("1.0.0");\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("does NOT flag a date or non-version literal", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `it('cadence', () => {\n` +
+        `  expect(m.recommended_ingest_cadence).toBe("Every 4 hours");\n` +
+        `  expect(changelog).toContain("2026-06-27");\n` +
+        `});\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toEqual([]);
+  });
+
+  it("flags every offending line (one finding per line)", () => {
+    writeTest(
+      "cold-start.test.ts",
+      `it('a', () => { expect(m.version).toBe("0.2.0"); });\n` +
+        `it('b', () => { expect(yaml).toContain("plugin-version: 0.2.0"); });\n`,
+    );
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
+    expect(findings).toHaveLength(2);
+    expect(findings.every((f) => f.code === "E39")).toBe(true);
+  });
+
+  it("is silent when there are no test directories", () => {
+    fs.rmSync(path.join(pluginDir, "__tests__"), { recursive: true, force: true });
+    const findings: Finding[] = [];
+    passVolatileVersionLiterals("agntux-foo", pluginDir, "/repo", findings);
     expect(findings).toEqual([]);
   });
 });

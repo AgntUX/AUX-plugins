@@ -32,7 +32,10 @@ import { pass11ViewToolPayloadGuard } from "./lint/lint-view-tool-payload-guard.
 import { pass12AppsClientDrift } from "./lint/lint-apps-client-drift.js";
 import { pass13ViewToolCssBundle } from "./lint/lint-view-tool-css-bundle.js";
 import { pass14ViewToolResponseEnvelope } from "./lint/lint-view-tool-response-envelope.js";
-import { pass15GroundedTests } from "./lint/lint-grounded-tests.js";
+import {
+  pass15GroundedTests,
+  passVolatileVersionLiterals,
+} from "./lint/lint-grounded-tests.js";
 import { pass16ViewToolExternalLinks } from "./lint/lint-view-tool-external-links.js";
 import { pass17ViewToolConnectorCalls } from "./lint/lint-view-tool-connector-calls.js";
 import { pass18HostPromptSlash } from "./lint/lint-host-prompt-slash.js";
@@ -769,6 +772,13 @@ export function lintPlugin(
   // accessors from `lib/payload.js` and use `idStr()` for ids. Warning (E38)
   // until every shipping plugin migrates off its local `str()`.
   pass23ViewToolLocalStr(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 24 — companion to pass 15: flag VOLATILE version literals in tests
+  // (`expect(m.version).toBe("0.2.0")`, `.toContain("plugin-version: 0.2.0")`)
+  // that turn red on a routine version bump and — via the repo-wide test check —
+  // block unrelated submission PRs (the agntux-dropbox 0.2.0→0.2.1 class). Assert
+  // the version structurally instead. Warning (E39); BLOCKING in agntux_validate.
+  // Routed to tests-author.
+  passVolatileVersionLiterals(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

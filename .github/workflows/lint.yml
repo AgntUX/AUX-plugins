@@ -26,6 +26,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         # actions/checkout v7.0.0
+        with:
+          # Full history so scripts/affected.mjs can diff to scope the lint.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
@@ -37,8 +40,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run marketplace metadata linter
-        run: npm run lint:marketplace
+      # Per-plugin lint passes are scoped to the changed plugin(s); a shared-root
+      # change (canonical/, the linter itself, the schema) → lint all, since it can
+      # affect every plugin. Cross-cutting marketplace files (.claude-plugin/
+      # marketplace.json) live outside plugins/<slug>/ → also force a full run.
+      - name: Compute affected plugins
+        id: affected
+        env:
+          # Explicit event SHAs so affected.mjs diffs against the TRUE base without
+          # depending on origin/<base> being fetched: PR → the base commit SHA;
+          # push → the pre-push SHA (covers every commit in a multi-commit push).
+          GITHUB_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo "mode=$(node scripts/affected.mjs mode)"
+            echo "plugins=$(node scripts/affected.mjs plugins)"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Run version-changelog check
-        run: npx tsx scripts/verify-version-changelog.ts
+      - name: Lint + version-changelog (full)
+        if: steps.affected.outputs.mode == 'full'
+        run: |
+          set -euo pipefail
+          npm run lint:marketplace
+          npx tsx scripts/verify-version-changelog.ts
+
+      - name: Lint + version-changelog (scoped to affected plugins)
+        if: steps.affected.outputs.mode == 'scoped' && steps.affected.outputs.plugins != ''
+        env:
+          AFFECTED: ${{ steps.affected.outputs.plugins }}
+        run: |
+          set -euo pipefail
+          for s in $AFFECTED; do
+            echo "::group::lint $s"
+            npm run lint:marketplace -- --plugin "$s"
+            npx tsx scripts/verify-version-changelog.ts --plugin "$s"
+            echo "::endgroup::"
+          done
