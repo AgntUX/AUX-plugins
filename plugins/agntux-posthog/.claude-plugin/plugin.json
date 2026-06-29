@@ -1,11 +1,11 @@
 {
   "name": "agntux-posthog",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Brings PostHog analytics signals that need a decision into your AgntUX knowledge store.",
   "author": {
     "name": "AgntUX",
     "email": "support@agntux.ai"
   },
   "license": "Apache-2.0",
-  "recommended_ingest_cadence": "Every 60 min, 7am–7pm weekdays local"
+  "recommended_ingest_cadence": "Every 60 min, 7am\u20137pm weekdays local"
 }

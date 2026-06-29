@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-29
+
+### Fixed
+
+- The "Update issue" button on the resolve view did nothing when clicked, because numeric PostHog issue ids written unquoted in an action's frontmatter were parsed as numbers and dropped during payload coercion — leaving the issue id empty so the button's guard silently aborted. The view now coerces numeric ids to strings (also hardening the experiment view), and the resolve view surfaces a clear message instead of failing silently.
+
+
 ## [0.2.0] — 2026-06-27
 
 ### Added

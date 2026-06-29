@@ -35,11 +35,18 @@ interface ResolvePayload {
 }
 
 function str(v: unknown): string {
-  return typeof v === 'string' ? v : '';
+  if (typeof v === 'string') return v;
+  // Coerce primitive non-string scalars so a numeric issue_id (written
+  // unquoted in YAML and parsed as a number) is not silently dropped.
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') {
+    return String(v);
+  }
+  return '';
 }
 
 function strArr(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => str(x)).filter((s) => s.length > 0);
 }
 
 function parsePayload(toolOutput?: Record<string, unknown>): ResolvePayload {
@@ -105,7 +112,16 @@ function ResolveApp() {
   const isLoading = !effectiveToolOutput;
 
   async function handleSend() {
-    if (!data.action_id || !data.issue_id) return;
+    // Never fail silently: a missing id used to make this an enabled-but-dead
+    // button (clicking did nothing). Surface the reason instead.
+    if (!data.action_id || !data.issue_id) {
+      setErrorMsg(
+        'Cannot update: this action is missing its PostHog issue id. ' +
+          'Re-sync PostHog so the action is re-composed with issue_id.',
+      );
+      setSendState('error');
+      return;
+    }
     setSendState('sending');
     setErrorMsg('');
     try {
