@@ -174,7 +174,7 @@ describe("agntux-build MCP server", () => {
     expect(existsSync(SERVER)).toBe(true);
   });
 
-  it("handshakes and lists exactly the six pipeline tools", async () => {
+  it("handshakes and lists exactly the seven pipeline tools", async () => {
     const got = await rpc(
       [
         { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } },
@@ -186,6 +186,7 @@ describe("agntux-build MCP server", () => {
     const names = (got.get(2)?.result?.tools ?? []).map((t: any) => t.name).sort();
     expect(names).toEqual([
       "agntux_confirm_submission",
+      "agntux_fetch_published_plugin",
       "agntux_marketplace_lookup",
       "agntux_report_defect",
       "agntux_scaffold",
