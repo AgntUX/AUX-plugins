@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-29
+
+### Fixed
+
+- The Review-and-Sign view rendered blank with no signing button because the ingest pass never wrote the envelope fields the view reads. Action items for envelopes awaiting your signature now carry `envelope_id`, `envelope_subject`, `sender_name`, `sent_date`, `expiration_date`, `signer_position`, and `signing_url` in frontmatter, so the signing card and its open-in-DocuSign button populate correctly.
+- Applied the same field-coverage fix to the reminder and void views (envelope context plus the pending-recipients and draft-message sections), preventing the same blank-iframe failure there.
+
+
 ## [0.2.0] — 2026-06-27
 
 ### Added

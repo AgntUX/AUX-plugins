@@ -36,12 +36,12 @@ describe("manifest", () => {
     expect(m.name).toBe("agntux-docusign");
   });
 
-  it("plugin.json version is 0.2.0", () => {
+  it("plugin.json version is 0.2.1", () => {
     const m = JSON.parse(
       readFileSync(join(PLUGIN_ROOT, ".claude-plugin/plugin.json"), "utf-8"),
     );
-    // Verbatim from plugin.json line 3: "version": "0.2.0"
-    expect(m.version).toBe("0.2.0");
+    // Verbatim from plugin.json line 3: "version": "0.2.1"
+    expect(m.version).toBe("0.2.1");
   });
 
   it("recommended_ingest_cadence mentions weekdays", () => {

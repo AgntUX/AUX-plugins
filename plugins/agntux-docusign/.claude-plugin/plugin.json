@@ -1,6 +1,6 @@
 {
   "name": "agntux-docusign",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DocuSign e-signature workflow in your AgntUX knowledge store.",
   "author": {
     "name": "AgntUX",

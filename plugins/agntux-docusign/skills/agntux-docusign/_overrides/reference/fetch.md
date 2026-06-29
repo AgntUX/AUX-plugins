@@ -266,10 +266,25 @@ Do not create a self-entity for the connected user's own email.
 
 ### Envelope waiting on user to sign (response-needed)
 
+The `agntux_docusign_sign_view` handler reads every envelope detail from
+**top-level frontmatter keys** — not from the prose body. Emit each key
+below with a real value. A missing or empty key renders a blank field in
+the signing iframe, and an empty `signing_url` disables the "Review and
+sign" button ("Signing URL unavailable"). `signing_url` is required;
+build it deterministically from `envelopeId` per `reference/deep-links.md`
+when no short-lived embedded recipient-view URL is available.
+
 ```yaml
 title: "Sign required: {envelope subject}"
 kind: response-needed
 source_id: "envelope:{envelopeId}"
+envelope_id: "{envelopeId}"
+envelope_subject: "{envelope subject}"
+sender_name: "{sender display name from senderInfo}"
+sent_date: "{sentDateTime as YYYY-MM-DD}"
+expiration_date: "{expiredDateTime as YYYY-MM-DD; empty string if none}"
+signer_position: "Signer {your routingOrder} of {total signer count}"
+signing_url: "https://app.docusign.com/documents/details/{envelopeId}"
 suggested_actions:
   - label: "Review and sign"
     url: "https://app.docusign.com/documents/details/{envelopeId}"
@@ -279,12 +294,32 @@ suggested_actions:
 
 Body: envelope subject, sender name, document names, sent date, expiration date.
 
+**Field-coverage contract (lint E35).** `envelope_id`, `envelope_subject`,
+`sender_name`, `sent_date`, `expiration_date`, `signer_position`, and
+`signing_url` are exactly the keys `agntux_docusign_sign_view` reads. Do
+not rename, drop, or leave any of them empty — that is the defect that
+makes the signing view render blank.
+
 ### Sent envelope stuck on pending signer (response-needed)
+
+The `agntux_docusign_reminder_view` handler reads envelope detail from
+**top-level frontmatter keys** and reads the pending-signer table plus the
+pre-drafted nudge from **named body sections**. Emit all of them — an empty
+key or section renders a blank reminder iframe (same defect class as the
+signing view). The shared envelope keys here also back
+`agntux_docusign_void_view` if the user voids the same envelope.
 
 ```yaml
 title: "Awaiting signature: {envelope subject}"
 kind: response-needed
 source_id: "envelope:{envelopeId}"
+account_id: "{account_id resolved at Step 5a}"
+envelope_id: "{envelopeId}"
+envelope_subject: "{envelope subject}"
+envelope_url: "https://app.docusign.com/documents/details/{envelopeId}"
+sent_date: "{sentDateTime as YYYY-MM-DD}"
+days_outstanding: {integer days since sentDateTime}
+recipient_count: {total recipient count}
 suggested_actions:
   - label: "Send reminder"
     host_prompt: "Use the agntux-docusign plugin to send a signing reminder for action {id}"
@@ -292,7 +327,28 @@ suggested_actions:
     url: "https://app.docusign.com/documents/details/{envelopeId}"
 ```
 
+Body sections (author the headers verbatim — the handler reads them by name):
+
+```markdown
+## Pending recipients
+
+{name} | {email} | {status}
+{one line per pending signer from listRecipients; lowest routingOrder first}
+
+## Draft message
+
+{pre-composed reminder nudge, <=500 chars; see reference/draft-message.md}
+```
+
 Body: envelope subject, pending signer name and email, days open, document names.
+
+**Field-coverage contract (lint E35).** `account_id`, `envelope_id`,
+`envelope_subject`, `envelope_url`, `sent_date`, `days_outstanding`, the
+`## Pending recipients` table, and the `## Draft message` section are exactly
+what `agntux_docusign_reminder_view` reads. `recipient_count` (plus a
+`## Draft void reason` section composed at void time per
+`reference/draft-void-reason.md`) additionally covers
+`agntux_docusign_void_view`.
 
 ### Envelope completed (knowledge-update)
 
