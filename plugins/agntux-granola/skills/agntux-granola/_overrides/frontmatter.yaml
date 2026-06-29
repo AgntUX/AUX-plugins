@@ -1,0 +1,110 @@
+# _overrides/frontmatter.yaml — agntux-granola
+#
+# Substitution map consumed by scripts/render-skill.mjs.
+# Every {{key}} in the canonical sync template must appear here;
+# the renderer's surviving-placeholder guard fails the build otherwise.
+
+plugin-slug: agntux-granola
+plugin-version: 0.1.0                      # matches .claude-plugin/plugin.json
+source-display-name: Granola
+source-slug: granola
+
+# Matches plugin.json recommended_ingest_cadence exactly.
+recommended-cadence: "Every 30 min, 7am–7pm weekdays local"
+
+# Cursor semantics:
+# Single ISO-8601 UTC timestamp stored on the sync.md → cursor line. The cursor
+# records the run-start timestamp (now at Step 2) of the last fully successful
+# run — NOT max(meeting.start_time). Granola generates AI summaries
+# asynchronously after a meeting ends, so advancing the cursor to
+# max(start_time) would permanently miss late-arriving summaries for meetings
+# whose start_time is already below the new cursor floor. Using now instead
+# keeps all future meetings in scope and the look-back overlap recaptures
+# recently-finalised summaries.
+#
+# Incremental fetch: call list_meetings with time_range: custom,
+#   custom_start: cursor − overlap_days (default: cursor − 7 days),
+#   custom_end:   now (the run's start timestamp, captured at Step 2).
+#
+# The overlap_days look-back (default 7) re-fetches meetings whose start_time
+# falls in [cursor − 7d, cursor] on every run. Unchanged meetings are no-ops at
+# Step 7; already-open actions are suppressed at Steps 8–9 by source_id dedup.
+# overlap_days is user-overridable via user.md → granola_overlap_days.
+#
+# Bootstrap fetch (cursor null): use time_range: last_30_days (or the
+#   bootstrap_window_days equivalent via custom if the user has overridden
+#   bootstrap_window_days). Default bootstrap_window_days: 30. No look-back
+#   overlap on bootstrap (the bootstrap window is already a wide look-back).
+#
+# Advance rule: after every successful run, advance the cursor to now (the
+#   run-start timestamp captured at Step 2). Advance only when every action
+#   write this run has succeeded (transactional rule). Never regress the cursor.
+#
+# Eviction: if a meeting_id is no longer returned by get_meetings (meeting
+#   deleted in Granola), log granola-meeting-not-found and continue; the missing
+#   meeting does not block the cursor advance for the rest of the run.
+#
+# Cursor shape in sync.md frontmatter:
+#   cursor: "2026-06-28T09:30:00Z"
+#
+source-cursor-semantics: "Single ISO-8601 UTC timestamp stored on the sync.md cursor line, recording now (run-start) of the last successful run. Incremental fetch: list_meetings with time_range: custom, custom_start: cursor − overlap_days (default 7), custom_end: now. The look-back overlap catches late-arriving Granola AI summaries for meetings whose start_time predates the cursor. Bootstrap (cursor null): list_meetings with time_range: last_30_days (or custom over bootstrap_window_days). Cursor advances to now (run-start) on full-run success (transactional rule). Bootstrap default: 30 days. overlap_days user-overridable via user.md."
+
+# Tool names as the host exposes them (UUID-prefixed by Cowork at runtime).
+# Read-only tools used for ingest — do NOT call any write tool during ingest:
+#   list_meetings — list meeting notes + metadata within a time range;
+#     params: time_range (this_week|last_week|last_30_days|custom),
+#     custom_start (ISO-8601), custom_end (ISO-8601), folder_id (optional).
+#     Primary listing tool for the fetch loop.
+#   get_meetings — batch-hydrate up to 10 meeting UUIDs per call; returns
+#     AI summary, private notes, attendees, and full metadata. Use to enrich
+#     listed meetings before triage.
+#   get_meeting_transcript — verbatim transcript for a single meeting_id;
+#     fetch conditionally when deeper content or exact wording is needed to
+#     determine whether action items are assigned to the user.
+#   list_meeting_folders — returns folder list with note counts; use to
+#     enumerate available folders when the user has configured a folder scope
+#     in user.md, or to scope the fetch loop on first-run discovery.
+#   query_granola_meetings — natural-language Q&A over notes; NOT used in the
+#     deterministic ingest path (non-deterministic results). Reserved for the
+#     ask sub-command only.
+source-mcp-tools: "list_meetings, get_meetings, get_meeting_transcript, list_meeting_folders"
+
+# Each Granola meeting note is the atomic ingest unit.
+thread-unit-name: meeting
+
+bootstrap-window-default-days: "30"
+
+# One representative Granola scope name for SKILL description trigger phrases.
+example-channel: team standup
+
+# No user-initiated compose/send lane (ingest-only, read-only source).
+extra-skill-triggers: ""
+
+# Documentation-only declarations (NOT {{...}} placeholders — the renderer's
+# scalar-only parser skips list bodies; these are read by invariant-checker
+# §4.4 / lint sub-check 11 and referenced in prose by the canonical
+# runbook.md as the source of truth for valid `errors: kind:` values).
+permitted-error-kinds:
+  # Generic kinds (canonical — every ingest plugin carries these verbatim):
+  - auth
+  - network
+  - parse
+  - source
+  - internal
+  - lock-acquire-race
+  - lock-acquire-failed
+  - out-of-lane-write-attempted
+  - contract-version-drift
+  - contract-not-registered
+  - contract-minor-out-of-date
+  - bootstrap_window_days-out-of-range
+  - usermd-malformed
+  - subtype-out-of-contract
+  # Source-prefixed extensions for Granola — derived from the connector's
+  # read-tool error paths and the single-key cursor strategy above:
+  - granola-cursor-malformed        # cursor value present but not a parseable ISO-8601 timestamp; fall back to bootstrap window
+  - granola-meeting-not-found       # get_meetings returned no result for a known meeting_id; meeting skipped
+  - granola-transcript-unavailable  # get_meeting_transcript returned no transcript data; transcript skipped, meeting continues
+  - granola-rate-limited            # connector returned 429; fetch aborted for this run
+  - granola-pagination-overflow     # per-run meeting cap reached; remainder deferred to next run
+  - granola-folder-not-found        # list_meeting_folders returned no folder matching the user's configured folder scope; scope falls back to all folders
