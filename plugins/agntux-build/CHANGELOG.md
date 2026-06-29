@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-06-29
+
+Generator hardening from a study of real contributor fix-sessions: five
+distinct bug classes that shipped in generated plugins (blank views, dead
+buttons, dead links, write-backs that never fired, text replies where a UI
+was expected) all traced to the generator governing the seams between its
+stages with soft prose and validating views in isolation against happy-path
+fixtures. This release fixes them at the source — in the canonical template,
+the field-coverage gate, and the author-side contracts — so future plugins
+can't ship them.
+
+### Added
+
+- **Shared payload accessors in the canonical view-tool template**
+  (`canonical/ui-handlers/_template/view-tool/src/lib/payload.ts`): `str`,
+  `idStr`, `strArr`, `isOpenableUrl`, imported by both the Node handler and the
+  iframe components. `idStr` coerces a finite number to its string form, so a
+  numeric source id written unquoted in YAML (`issue_id: 789`) survives instead
+  of being dropped by a string-only coercer — the fix for the "fully-enabled
+  button that silently does nothing" class. Unit-tested at
+  `src/__tests__/lib/payload.test.ts` (inherited by every scaffolded plugin).
+
+### Changed
+
+- **`ExternalLink` is now scheme-aware.** It renders a clickable `<button>` only
+  when the href is openable from a sandboxed iframe (`http(s):`/`mailto:`);
+  filesystem paths, relative paths, and empty values render as plain text
+  instead of a dead link — the fix for the "Sources links look real but do
+  nothing" class.
+- **Field-coverage lint `E35` promoted from warning to error (fail-closed).** A
+  view handler that reads a payload field the ingest skill never documents
+  writing now fails the build (was a non-blocking warning). Safe to promote: all
+  21 plugins pass it today. This hard-gates the blank-view class.
+- **Author-side contracts hardened** so the generator stops emitting these bugs:
+  view/handler authors must import the shared accessors and use `idStr` for
+  every id field (never a re-authored string-only `str`); a write/action
+  button's `disabled` and its handler's early-return must derive from one
+  send-precondition predicate so they can't drift; ingest must quote numeric id
+  fields in YAML; write-back envelopes must be authored from the *live* connector
+  signature captured in stage 4 (exact tool/sub-command, params, and enums —
+  gateway vs named tool), never from the UI schema; and any hand-off backed by a
+  view tool must name the exact view-tool id and forbid a plain-text reply.
+
 ## [0.38.0] — 2026-06-29
 
 ### Added

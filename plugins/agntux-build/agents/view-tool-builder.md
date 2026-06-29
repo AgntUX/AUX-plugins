@@ -155,6 +155,17 @@ anything else (see also the import-resolution table under "Re-dispatch on failur
     exposes the field. The `check-view-tool-imports.mjs` gate fails the build on
     a `## `-prefixed extractSection call BEFORE vite.
 
+- **Shared payload accessors** — ALWAYS import the read-side coercers from the
+  scaffolded `./lib/payload.js` (the handler's depth) / `../lib/payload.js`
+  (component depth): `str(v)` for free text, `idStr(v)` for EVERY identifier
+  field (`*_id`, `*Id`), `strArr(v)` for string lists, `isOpenableUrl(href)` for
+  link gating. **NEVER re-author a local `str()`** — the recurring
+  `typeof v === "string" ? v : ""` blanks any field that arrives as a JS number,
+  and a numeric source id (`issue_id: 789` parsed unquoted from YAML) read
+  through it lands `""`, silently disabling the button that needs it (the
+  posthog dead-button incident). `idStr` exists precisely because identifier
+  fields can be string OR finite-number; coerce every id through it, never `str`.
+
 ## Handler must be render-safe — the gate calls it with EMPTY args `{}`
 
 The headless render check (and the host's cold first paint) invokes every view

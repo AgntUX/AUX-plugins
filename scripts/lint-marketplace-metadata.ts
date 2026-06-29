@@ -40,6 +40,7 @@ import { pass19ViewPayloadCoverage } from "./lint/lint-view-payload-coverage.js"
 import { pass20ViewPayloadFieldCoverage } from "./lint/lint-view-payload-field-coverage.js";
 import { pass21ReconcileDeclared } from "./lint/lint-reconcile-declared.js";
 import { pass22NamespacedComposeRead } from "./lint/lint-namespaced-compose-read.js";
+import { pass23ViewToolLocalStr } from "./lint/lint-view-tool-local-str.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -761,6 +762,13 @@ export function lintPlugin(
   // agntux-google-calendar "Untitled event" class, fixed in 0.7.1). Warning
   // (E37). Routed to ui-handler-author / ingest-prompt-author.
   pass22NamespacedComposeRead(pluginSlug, pluginDir, opts.repoRoot, findings);
+  // Pass 23 — a view-tool must not re-author a local `str()`/`strArr()` coercer.
+  // A hand-rolled string-only `str()` drops a numeric id (unquoted YAML
+  // `issue_id: 789` → a JS number) → the id arrives "" → the button reading it
+  // silently no-ops (the posthog dead-button incident). Import the shared
+  // accessors from `lib/payload.js` and use `idStr()` for ids. Warning (E38)
+  // until every shipping plugin migrates off its local `str()`.
+  pass23ViewToolLocalStr(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 

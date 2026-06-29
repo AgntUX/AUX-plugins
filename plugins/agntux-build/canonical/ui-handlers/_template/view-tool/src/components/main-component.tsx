@@ -129,8 +129,13 @@ function parsePayload(toolOutput?: Record<string, unknown>) {
 //     })
 //     .filter((s): s is Slot => s !== null && !!s.start && !!s.end); // narrow, THEN assign
 //
-// `str()` here is a string-safe accessor that always returns a string
-// (`typeof v === 'string' ? v : ''`) — never `string | undefined`.
+// `str()` here is the shared string-safe accessor from `../lib/payload.js`
+// (`import { str, idStr, strArr, isOpenableUrl } from "../lib/payload.js"`).
+// It always returns a string — never `string | undefined`. Use `idStr()` for
+// identifier fields (a numeric id written unquoted in YAML parses as a number;
+// `str()` would drop it and silently disable the button that reads it) and
+// `isOpenableUrl()` to gate any href before rendering it as a link. Import
+// these — do NOT re-author a local `str()` in this file.
 // ─────────────────────────────────────────────────────────────────────────
 
 /**

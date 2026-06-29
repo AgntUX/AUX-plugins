@@ -50,6 +50,12 @@ import {
   parseActionFile,
   renderConfirmationText,
 } from "@agntux/plugin-runtime";
+// Shared payload accessors — coerce every frontmatter read the same way.
+// Use `str()` for free text, `idStr()` for identifier fields (a numeric id
+// written unquoted in YAML parses as a number and `str()` would drop it,
+// blanking the field and silently disabling its button), `strArr()` for
+// string lists. Import from ./lib/payload.js; never re-author `str()` here.
+import { str } from "./lib/payload.js";
 
 // ── Constants & caps ─────────────────────────────────────────────────────────
 
@@ -111,7 +117,10 @@ async function handle(
       content: [{ type: "text", text: renderConfirmationText(UI_LABEL) }],
       structuredContent: {
         action_id: actionId,
-        title: (parsed.frontmatter.title as string | undefined) ?? "",
+        // `str()` over an inline `as string ?? ""` cast: a cast lies to the
+        // compiler (a numeric/array value sails through as the wrong type),
+        // `str()` actually coerces. For an id field use `idStr()` instead.
+        title: str(parsed.frontmatter.title),
         body: parsed.body ?? "",
       },
     };
