@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-06-29
+
+### Fixed
+
+- **"Sources" links in the "Respond to invite" view are no longer dead.** Each
+  prep-source entry rendered as a blue, underlined link (with a ↗ arrow) even
+  when its target was a local filesystem path or was empty — neither of which a
+  sandboxed iframe can open via `openLink()` — so clicking did nothing. The view
+  now treats an entry as a clickable link only when its `href` is an openable
+  web/mail URL (`https`, `http`, or `mailto`); every other entry renders as
+  plain text with no link styling. The prep-signal guidance now requires ingest
+  to emit openable source deep-links (Slack permalink, Gmail thread URL, event
+  `htmlLink`) rather than filesystem paths.
+
 ## [0.7.1] — 2026-06-28
 
 ### Fixed
