@@ -198,14 +198,21 @@ function ScheduleInner() {
     setIsFindingSlots(true);
     setFindSlotsError(null);
     const instruction = [
-      'Use the Google Calendar Connector to find available meeting times, then',
-      're-open the AgntUX Google Calendar schedule view pre-populated with the results.',
+      'Use the Google Calendar Connector tool suggest_time to find available meeting',
+      'times for this request:',
       `attendeeEmails: [${attendees.join(', ')}], durationMinutes: ${data.duration_minutes},`,
       `startTime: ${data.search_window_start}, endTime: ${data.search_window_end},`,
       `timeZone: ${data.user_timezone}.`,
-      `Keep the current title "${summary}", the attendees, and the description, and`,
-      'pass the returned free/busy overlaps as candidate_slots. Do NOT create the',
-      'event — the user picks a slot and clicks Schedule in the iframe (the only write gate).',
+      'Then you MUST re-open the schedule view by calling the',
+      'agntux_google_calendar_schedule_view tool, passing the returned free/busy',
+      'overlaps as candidate_slots (each {start, end, label?}), and keeping the current',
+      `title "${summary}", the attendees [${attendees.join(', ')}], the description,`,
+      `durationMinutes ${data.duration_minutes}, timeZone ${data.user_timezone}, and the`,
+      'same search window. Re-opening the schedule view is REQUIRED: do NOT list the',
+      'available times as a plain-text reply and do NOT summarise them in chat — the',
+      'schedule view is the only correct way to present them so the user can pick one.',
+      'Do NOT create the event — the user picks a slot and clicks Schedule in the iframe',
+      '(the only write gate).',
     ].join('\n');
     try {
       await client.sendFollowUpMessage(instruction);

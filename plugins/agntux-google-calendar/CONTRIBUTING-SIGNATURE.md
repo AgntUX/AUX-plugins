@@ -1,27 +1,27 @@
 ---
 contributor:
-  name: AgntUX
-  email: plugins@agntux.ai
+  name: Janice Jordan
 dco:
   version: "1.1"
-  agreed_at: 2026-05-09T00:00:00Z
-  agreed_via: agntux-build/0.1.0
+  agreed_at: 2026-06-15T00:00:00Z
+  agreed_via: agntux-build/0.7.3
 submission:
   plugin_slug: agntux-google-calendar
-  plugin_version: 0.1.0
-  submitted_at: 2026-06-02T02:07:00Z
-  mode: create
-signed_off_by: "AgntUX <plugins@agntux.ai>"
+  plugin_version: 0.7.3
+  submitted_at: 2026-06-29T18:37:43Z
+  mode: update
+  previous_version: 0.7.2
 ---
 
 By submitting this contribution, I confirm that I have read and
 agree to the Developer Certificate of Origin v1.1
 (https://developercertificate.org/), reproduced in full below.
 
-When committing this contribution, AgntUX maintainers MUST include
-the following trailer in the commit message:
-
-    Signed-off-by: AgntUX <plugins@agntux.ai>
+This contribution is made under the Apache License 2.0. AgntUX does not
+collect or publish a contributor email; when AgntUX maintainers commit
+this contribution they sign off with the project's own identity
+(`Signed-off-by: AgntUX <noreply@agntux.ai>`), which satisfies the DCO
+check on the public PR.
 
 ---
 

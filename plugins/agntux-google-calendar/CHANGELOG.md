@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-06-29
+
+### Fixed
+
+- **Finding a meeting time now reliably opens the interactive slot picker
+  instead of replying with a plain-text list of times.** When the scheduling
+  flow needed to look up free/busy times — both on an initial "schedule a
+  meeting" request and when the user clicked "Find available times" inside the
+  card — it asked Claude to "re-open the schedule view," but the wording was too
+  soft, so Claude often answered in chat with the times as text and never
+  re-rendered the picker. The hand-off now explicitly requires calling the
+  `agntux_google_calendar_schedule_view` tool with the found times as
+  `candidate_slots` and forbids presenting them as a text reply, so the user
+  always gets a selectable slot picker.
+
+## [0.7.2] — 2026-06-29
+
+### Fixed
+
+- **"Sources" links in the "Respond to invite" view are no longer dead.** Each
+  prep-source entry rendered as a blue, underlined link (with a ↗ arrow) even
+  when its target was a local filesystem path or was empty — neither of which a
+  sandboxed iframe can open via `openLink()` — so clicking did nothing. The view
+  now treats an entry as a clickable link only when its `href` is an openable
+  web/mail URL (`https`, `http`, or `mailto`); every other entry renders as
+  plain text with no link styling. The prep-signal guidance now requires ingest
+  to emit openable source deep-links (Slack permalink, Gmail thread URL, event
+  `htmlLink`) rather than filesystem paths.
+
 ## [0.7.1] — 2026-06-28
 
 ### Fixed
