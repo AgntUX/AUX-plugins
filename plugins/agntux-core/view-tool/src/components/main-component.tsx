@@ -38,6 +38,24 @@ type ActionStatus = (typeof ACTION_STATUS_VALUES)[number];
 const HANDLED_STATUS_VALUES = ['done', 'dismissed'] as const;
 type HandledStatus = (typeof HANDLED_STATUS_VALUES)[number];
 
+// Every status an action file can carry. The server splits open/snoozed
+// (the open list) from done/dismissed (Recently handled) before we ever
+// see them, but `normalizeAction` parses across the full set so a terminal
+// status is preserved verbatim rather than clamped to 'open' — defense in
+// depth for any future path (or eventual-consistency flap in the synced
+// product) that surfaces a terminal row in the open stream.
+const ALL_ACTION_STATUS_VALUES = [
+  ...ACTION_STATUS_VALUES,
+  ...HANDLED_STATUS_VALUES,
+] as const;
+type AnyActionStatus = (typeof ALL_ACTION_STATUS_VALUES)[number];
+
+// An action belongs in an OPEN list only while its status is non-terminal.
+// `visibleHandled` (Recently handled) is intentionally exempt.
+function isOpenStatus(status: AnyActionStatus): boolean {
+  return status !== 'done' && status !== 'dismissed';
+}
+
 const ERROR_KINDS = ['actions_index_missing'] as const;
 type ErrorKind = (typeof ERROR_KINDS)[number];
 
@@ -107,7 +125,11 @@ interface Action {
   title: string;
   summary: string;
   priority: Priority;
-  status: ActionStatus;
+  // Widened to the full status set (10.6.1). In practice the server only
+  // ever places open/snoozed rows here, but parsing the real status (rather
+  // than clamping to 'open') lets the open-list filter drop a terminal row
+  // if one ever leaks in. The card UI only branches on === 'snoozed'.
+  status: AnyActionStatus;
   reason_class: string;
   due_by: string | null;
   snoozed_until: string | null;
@@ -257,6 +279,12 @@ interface WidgetUiState {
   // arrays and the chips never render.
   muted_team_slugs: string[];
   muted_view_slugs: string[];
+  // Ids the user has resolved client-side (Done) but the cached toolOutput
+  // still lists as open. Persisted here (not in plain component state) so the
+  // hide survives an iframe remount — see the optimistic-hide block in
+  // MainComponent (10.6.1 fix). Pruned by the reconciliation effect once the
+  // server moves the row to handled_recent.
+  resolved_ids: string[];
 }
 
 const DEFAULT_WIDGET_STATE: WidgetUiState = {
@@ -266,6 +294,7 @@ const DEFAULT_WIDGET_STATE: WidgetUiState = {
   handled_expanded: false,
   muted_team_slugs: [],
   muted_view_slugs: [],
+  resolved_ids: [],
 };
 
 // =============================================================================
@@ -316,7 +345,7 @@ function normalizeAction(raw: unknown): Action {
     title: safeString(r.title),
     summary: safeString(r.summary),
     priority: safeEnum(r.priority, PRIORITY_VALUES, 'low'),
-    status: safeEnum(r.status, ACTION_STATUS_VALUES, 'open'),
+    status: safeEnum(r.status, ALL_ACTION_STATUS_VALUES, 'open'),
     reason_class: safeString(r.reason_class),
     due_by: typeof r.due_by === 'string' ? r.due_by : null,
     snoozed_until:
@@ -590,6 +619,9 @@ function readWidgetState(raw: Record<string, unknown>): WidgetUiState {
       .map((v) => safeString(v))
       .filter(Boolean),
     muted_view_slugs: safeArray<unknown>(raw.muted_view_slugs)
+      .map((v) => safeString(v))
+      .filter(Boolean),
+    resolved_ids: safeArray<unknown>(raw.resolved_ids)
       .map((v) => safeString(v))
       .filter(Boolean),
   };
@@ -2038,29 +2070,37 @@ export function MainComponent(props: MainComponentProps) {
     [],
   );
 
-  // Optimistic-hide set: ids the user has just resolved client-side. Plain
-  // useState (not widgetState) — should not survive an iframe remount or
-  // persist across host re-invokes. Reconciled per-id against fresh
-  // toolOutput below: keep an id while the server still lists it as open
-  // (slow-write race), drop it once the server agrees it's gone OR has
-  // moved it to handled_recent.
+  // Optimistic-hide set: ids the user has resolved client-side this session.
+  // SEEDED from widgetState.resolved_ids so a Done resolution SURVIVES an
+  // iframe remount. This is the 10.6.1 fix: the host re-renders the same
+  // cached toolOutput on scroll/remount, in which a just-"done" row is still
+  // listed as open (the action file's new status only moves it to
+  // handled_recent on the *next* fetch). With a plain useState the hide reset
+  // on remount and the completed row reappeared as open. Done resolutions are
+  // written to the persisted set via persistResolved (below); the in-session
+  // set still also holds snooze/dismiss hides, which are intentionally NOT
+  // persisted. Reconciled per-id against fresh toolOutput below: keep an id
+  // while the server still lists it as open (slow-write race), drop it once
+  // the server agrees it's gone OR has moved it to handled_recent.
   const [optimisticallyHidden, setOptimisticallyHidden] = useState<
     Set<string>
-  >(() => new Set());
+  >(() => new Set(ui.resolved_ids));
 
   useEffect(() => {
+    // The "still open" set across every scope (personal + team + leader). In
+    // team mode every scope contributes open ids; in solo mode this is
+    // exactly the personal list. Built once and used to reconcile BOTH the
+    // in-session hide set and the persisted resolved set below.
+    const stillOpen = new Set<string>();
+    for (const a of data.actions) stillOpen.add(a.id);
+    for (const t of data.teams) for (const a of t.actions) stillOpen.add(a.id);
+    for (const v of data.leader_views)
+      for (const a of v.actions) stillOpen.add(a.id);
+
+    // Reconcile the in-session hide set: keep ids the server still considers
+    // open (slow-write race), drop ids it has moved to handled / removed.
     setOptimisticallyHidden((prev) => {
       if (prev.size === 0) return prev;
-      // In team mode every scope contributes open ids; in solo mode this is
-      // exactly the personal list. The reconciliation rule is unchanged
-      // ("keep ids the server still considers open; drop ids the server has
-      // moved to handled / removed"), but we widen the "still open" set so
-      // a team-scoped mutation reconciles too.
-      const stillOpen = new Set<string>();
-      for (const a of data.actions) stillOpen.add(a.id);
-      for (const t of data.teams) for (const a of t.actions) stillOpen.add(a.id);
-      for (const v of data.leader_views)
-        for (const a of v.actions) stillOpen.add(a.id);
       let changed = false;
       const next = new Set<string>();
       for (const id of prev) {
@@ -2072,7 +2112,28 @@ export function MainComponent(props: MainComponentProps) {
       }
       return changed ? next : prev;
     });
-  }, [data.actions, data.handled_recent, data.teams, data.leader_views]);
+
+    // Prune the PERSISTED resolved set (widgetState.resolved_ids) by the same
+    // rule. Without this a done id lingers in widgetState forever, and a
+    // later remount would re-hide a row that now legitimately lives in
+    // "Recently handled" — worse, `visibleHandled` also subtracts hidden ids,
+    // so the row would vanish entirely.
+    setWidgetState((prev) => {
+      const ids = safeArray<unknown>(prev.resolved_ids)
+        .map((v) => safeString(v))
+        .filter(Boolean);
+      if (ids.length === 0) return prev;
+      const kept = ids.filter((id) => stillOpen.has(id));
+      if (kept.length === ids.length) return prev;
+      return { ...prev, resolved_ids: kept };
+    });
+  }, [
+    data.actions,
+    data.handled_recent,
+    data.teams,
+    data.leader_views,
+    setWidgetState,
+  ]);
 
   const hideOptimistically = useCallback((id: string) => {
     setOptimisticallyHidden((s) => {
@@ -2082,6 +2143,29 @@ export function MainComponent(props: MainComponentProps) {
       return next;
     });
   }, []);
+
+  // Persist an id the user terminally resolved via the Done button into
+  // widgetState so the hide SURVIVES an iframe remount (the host re-renders
+  // the same cached toolOutput, in which the just-"done" row is still listed
+  // as open — see the optimistic-hide comment above). Scoped to Done ONLY: it
+  // is the single in-band, awaited, unambiguously-terminal mutation (status →
+  // done → Recently handled). Snooze/dismiss are deliberately excluded — they
+  // either stay in the open list (governed by show_snoozed / show_dismissed,
+  // which a durable hide here would defeat across a remount) or carry their
+  // own prefs-backed durability. Pruned by the reconciliation effect above
+  // once the server moves the row out of the open list.
+  const persistResolved = useCallback(
+    (id: string) => {
+      setWidgetState((prev) => {
+        const ids = safeArray<unknown>(prev.resolved_ids)
+          .map((v) => safeString(v))
+          .filter(Boolean);
+        if (ids.includes(id)) return prev;
+        return { ...prev, resolved_ids: [...ids, id] };
+      });
+    },
+    [setWidgetState],
+  );
 
   // When a feedback row expires (timer fires, or the user re-triggers the
   // same id), drop the feedback entry AND optimistically hide the row.
@@ -2149,7 +2233,10 @@ export function MainComponent(props: MainComponentProps) {
   // fix). The count chips below subtract feedback'd ids so "All · N" is
   // honest about what's still actionable.
   const visibleActions = useMemo(
-    () => data.actions.filter((a) => !optimisticallyHidden.has(a.id)),
+    () =>
+      data.actions.filter(
+        (a) => !optimisticallyHidden.has(a.id) && isOpenStatus(a.status),
+      ),
     [data.actions, optimisticallyHidden],
   );
   const visibleHandled = useMemo(
@@ -2261,7 +2348,7 @@ export function MainComponent(props: MainComponentProps) {
       })
       .map((t) => {
         const visibleTeamActions = t.actions.filter(
-          (a) => !optimisticallyHidden.has(a.id),
+          (a) => !optimisticallyHidden.has(a.id) && isOpenStatus(a.status),
         );
         const memberClasses = t.member_relevance_classes;
         // Selected: user's explicit chip narrowing (defaults to member's full picks)
@@ -2314,7 +2401,7 @@ export function MainComponent(props: MainComponentProps) {
       })
       .map((v) => {
         const visibleViewActions = v.actions.filter(
-          (a) => !optimisticallyHidden.has(a.id),
+          (a) => !optimisticallyHidden.has(a.id) && isOpenStatus(a.status),
         );
         return {
           view_slug: v.view_slug,
@@ -2605,6 +2692,10 @@ export function MainComponent(props: MainComponentProps) {
       }
       void runMutation(id, 'agntux_core_set_status', args, () => {
         setExpanded((cur) => (cur && cur.id === id ? null : cur));
+        // Persist the resolution immediately (before the 5s feedback fade
+        // adds it to optimisticallyHidden) so even a remount during the
+        // feedback window re-hides the row on the fresh instance. 10.6.1.
+        persistResolved(id);
         showFeedback(id, {
           kind: 'done',
           title: action?.title ?? '',
@@ -2616,6 +2707,7 @@ export function MainComponent(props: MainComponentProps) {
       findActionAcrossScopes,
       runMutation,
       showFeedback,
+      persistResolved,
       scopeArgs,
       data.self_user_slug,
       data.self_user_id,

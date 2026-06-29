@@ -598,6 +598,193 @@ describe('MainComponent — optimistic hide on resolve', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 10.6.1 — a Done resolution survives a TRUE iframe remount
+//
+// Regression for the user-reported bug: clicking Done hid the row, but after
+// a scroll/remount the completed item reappeared in the open list. The host
+// re-renders the SAME cached toolOutput on remount (no refetch), in which the
+// just-done row is still listed as open; the only thing hiding it was plain
+// useState, which reset on remount. The fix persists the resolved id in
+// widgetState (resolved_ids) and seeds the hide set from it on mount.
+//
+// `rerender` (used by the slow-write-race tests above) keeps component state,
+// so it does NOT reproduce a remount. These tests fully unmount and render a
+// fresh instance, carrying widgetState across exactly as the host would.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MainComponent — Done survives an iframe remount (10.6.1)', () => {
+  function twoOpenActions(): Record<string, unknown> {
+    return makePayload({
+      actions: [
+        makeAction({ id: 'persist-a', title: 'Persist A' }),
+        makeAction({ id: 'persist-b', title: 'Persist B' }),
+      ],
+      counts: { open: 2, snoozed: 0, handled_recent: 0, truncated: false },
+    });
+  }
+
+  it('Done writes the resolved id into widgetState.resolved_ids immediately', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({ toolOutput: twoOpenActions() });
+    render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('done-persist-a'));
+    // persistResolved fires in the Done success path (before the 5s feedback
+    // fade), so the id is durable without waiting on any timer.
+    expect(created.getWidgetState().resolved_ids).toContain('persist-a');
+  });
+
+  it('completed row stays hidden after a full unmount + remount with the same (stale) toolOutput', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({ toolOutput: twoOpenActions() });
+    const first = render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('done-persist-a'));
+    expect(created.getWidgetState().resolved_ids).toContain('persist-a');
+
+    // TRUE remount: destroy the instance, then render a fresh one. The server
+    // has NOT refetched, so persist-a is still listed as open in toolOutput.
+    // The host carries widgetState across the remount.
+    first.unmount();
+    const remount = createMainComponentProps({
+      toolOutput: twoOpenActions(),
+      widgetState: created.getWidgetState(),
+    });
+    render(<MainComponent {...remount.props} />);
+
+    // Pre-10.6.1 this row reappeared (ephemeral hide reset). It must stay
+    // hidden now; the untouched sibling still renders.
+    expect(screen.queryByTestId('action-card-persist-a')).not.toBeInTheDocument();
+    expect(screen.getByTestId('action-card-persist-b')).toBeInTheDocument();
+  });
+
+  it('reconciliation prunes resolved_ids once the server moves the row to handled_recent', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [makeAction({ id: 'recon-a' })],
+        counts: { open: 1, snoozed: 0, handled_recent: 0, truncated: false },
+      }),
+    });
+    const { rerender } = render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('done-recon-a'));
+    expect(created.getWidgetState().resolved_ids).toContain('recon-a');
+
+    // Fresh fetch: recon-a is gone from the open list and now lives in
+    // handled_recent. The reconciliation effect must drop it from the
+    // persisted set so a later remount doesn't keep it hidden everywhere
+    // (including Recently handled).
+    const refreshed = makePayload({
+      actions: [],
+      handled_recent: [
+        {
+          id: 'recon-a',
+          title: 'Recon A',
+          priority: 'high',
+          status: 'done',
+          handled_at: '2026-06-29T00:00:00.000Z',
+          outcome: null,
+        },
+      ],
+      counts: { open: 0, snoozed: 0, handled_recent: 1, truncated: false },
+    });
+    rerender(<MainComponent {...{ ...created.props, toolOutput: refreshed }} />);
+    expect(created.getWidgetState().resolved_ids).not.toContain('recon-a');
+  });
+
+  it('a completed row renders in "Recently handled" after a remount — not hidden by a stale resolved id', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [makeAction({ id: 'handled-a', title: 'Handled A' })],
+        counts: { open: 1, snoozed: 0, handled_recent: 0, truncated: false },
+      }),
+    });
+    const first = render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('done-handled-a'));
+    expect(created.getWidgetState().resolved_ids).toContain('handled-a');
+
+    // TRUE remount, this time with a FRESH fetch: handled-a has moved out of
+    // the open list into handled_recent. The reconciliation effect must prune
+    // the now-stale resolved id; otherwise the seeded hide would also remove
+    // the row from Recently handled (visibleHandled subtracts hidden ids) and
+    // the completed item would vanish entirely.
+    first.unmount();
+    const refreshed = makePayload({
+      actions: [],
+      handled_recent: [
+        {
+          id: 'handled-a',
+          title: 'Handled A',
+          priority: 'high',
+          status: 'done',
+          handled_at: '2026-06-29T00:00:00.000Z',
+          outcome: null,
+        },
+      ],
+      counts: { open: 0, snoozed: 0, handled_recent: 1, truncated: false },
+    });
+    const remount = createMainComponentProps({
+      toolOutput: refreshed,
+      widgetState: { ...created.getWidgetState(), handled_expanded: true },
+    });
+    render(<MainComponent {...remount.props} />);
+
+    // Pruned from the persisted set, absent from the open list, and present
+    // in Recently handled.
+    expect(remount.getWidgetState().resolved_ids).not.toContain('handled-a');
+    expect(
+      screen.queryByTestId('action-card-handled-a'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('handled-list').textContent).toContain(
+      'Handled A',
+    );
+  });
+
+  it('a non-Done hide (snooze) is NOT persisted, so a show-toggle can still reveal it after remount', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({ toolOutput: makePayload() });
+    render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('snooze-fixture-action-1'));
+    await user.click(screen.getByTestId('snooze-preset-24h'));
+    await user.click(screen.getByTestId('snooze-confirm'));
+    // Snooze hides the row, but persisting it durably would defeat the
+    // show_snoozed toggle across a remount — so resolved_ids must stay empty.
+    const ids = (created.getWidgetState().resolved_ids ?? []) as string[];
+    expect(ids).not.toContain('fixture-action-1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10.6.1 — defensive: a terminal status is parsed verbatim and dropped from
+// the open list (belt-and-suspenders; the server already routes done/dismissed
+// to handled_recent, so in practice this row never reaches the open list).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MainComponent — terminal status excluded from the open list (10.6.1)', () => {
+  it('parsePayload preserves a terminal status instead of clamping it to open', () => {
+    const data = parsePayload(
+      makePayload({ actions: [makeAction({ id: 'd', status: 'done' })] }),
+    );
+    expect(data.actions[0].status).toBe('done');
+  });
+
+  it('a done row in the actions array does not render as an open card', () => {
+    const { props } = createMainComponentProps({
+      toolOutput: makePayload({
+        actions: [
+          makeAction({ id: 'leak-done', status: 'done' }),
+          makeAction({ id: 'open-ok', status: 'open' }),
+        ],
+      }),
+    });
+    render(<MainComponent {...props} />);
+    expect(
+      screen.queryByTestId('action-card-leak-done'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('action-card-open-ok')).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Filter chips + sort toggle persist to widgetState
 // ─────────────────────────────────────────────────────────────────────────────
 
