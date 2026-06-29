@@ -21,6 +21,13 @@ the top of the ask reference.
   the iframe — that click is the single authorisation gate. Do NOT call
   `create_event` from this lane, and do NOT answer in plain chat with raw
   `suggest_time` output: the whole point is to open the pre-populated view.
+- **Always present the candidate times by opening the schedule view.** The
+  candidate slots are shown to the user ONLY by calling
+  `agntux_google_calendar_schedule_view` (Step 6) with them passed as
+  `candidate_slots`. Never list the times as a text reply or a chat summary —
+  not even when `suggest_time` returns a single slot, when the request feels
+  simple, or when a quick text answer would seem faster. A text list is a bug:
+  the user cannot pick from it, and the only correct surface is the view.
 
 ## Preflight (interactive context)
 
@@ -132,6 +139,12 @@ agntux_google_calendar_schedule_view(
   personalization_signals  = <personalization_signals>,
 )
 ```
+
+Calling `agntux_google_calendar_schedule_view` is **REQUIRED** and is the only
+correct way to present the candidate times — even if there is just one slot, or
+none. Do NOT reply with the slots as a text list, a bulleted summary, or a
+"here are some times that work" message; the user picks from the rendered view,
+not from chat.
 
 The view opens pre-filled: title, attendee chips, the candidate-slot radios,
 and the prep context. The host renders it as an iframe above the next turn —

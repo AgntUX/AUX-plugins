@@ -192,6 +192,16 @@ function initialMode(current: string): ResponseMode {
   return 'accepted'; // needsAction defaults to Accept tab
 }
 
+/**
+ * True only for hrefs the sandboxed iframe host can actually open via
+ * client.openLink() — real web/mail schemes. A filesystem path (a relative
+ * project path or a file: URL) and an empty value are NOT openable from the
+ * iframe, so they must render as plain text rather than as a dead link.
+ */
+function isOpenableUrl(href: string): boolean {
+  return /^(https?|mailto):/i.test(href.trim());
+}
+
 // ── Inner component ───────────────────────────────────────────────────────────
 
 function RespondInner() {
@@ -445,12 +455,16 @@ function RespondInner() {
                 <ul className="space-y-1">
                   {data.prep_signals.map((sig, idx) => (
                     <li key={idx} className="text-xs">
-                      <ExternalLink
-                        href={sig.href}
-                        className="text-primary hover:underline p-0 text-left"
-                      >
-                        {sig.label} &#x2197;
-                      </ExternalLink>
+                      {isOpenableUrl(sig.href) ? (
+                        <ExternalLink
+                          href={sig.href}
+                          className="text-primary hover:underline p-0 text-left"
+                        >
+                          {sig.label} &#x2197;
+                        </ExternalLink>
+                      ) : (
+                        <span className="text-muted-foreground">{sig.label}</span>
+                      )}
                     </li>
                   ))}
                 </ul>
