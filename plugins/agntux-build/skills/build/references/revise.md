@@ -23,9 +23,12 @@ to work.
 ```
 
 - `<slug-or-path>` — the plugin slug (e.g. `agntux-linear`) or an explicit
-  path to the plugin directory. Resolve to the plugin's working directory the
-  same way `build` does (walk up for `.agntux-build/`, fall back to
-  `.agntux-build/builds/{session-id}/agntux-{slug}/`).
+  path to the plugin directory. Resolve it to a concrete working directory using
+  the **locator order in Step 0a below** — do NOT just guess
+  `.agntux-build/builds/{session-id}/agntux-{slug}/` with the *current*
+  session-id (a fix run in a later session has a different session-id than the
+  build, so that path is empty — the bug that used to drop the user into a
+  directory picker).
 - `--fixes <code,code>` — optional comma-separated list of error codes (e.g.
   `E05,E15`). When present, routes work only to the agents that own those
   codes. When absent, all user-fixable blockers from `last-submission.json`
@@ -65,6 +68,8 @@ Read `<agntux project root>/.agntux-build/last-submission.json`:
   "submission_id": "abc123...",
   "slug": "agntux-{slug}",
   "version": "0.1.0",
+  "session_id": "{session-id}",
+  "build_path": "/Users/.../.agntux-build/builds/{session-id}/agntux-{slug}",
   "blockers_summary": []
 }
 ```
@@ -86,6 +91,50 @@ not a revision. If `blockers_summary` is non-empty the flow proceeds regardless
 of `submission_id` shape.
 
 ---
+
+## Step 0a — resolve the plugin's working directory (the fix base)
+
+A `:revise` addresses review feedback on a submission that has **not merged**
+yet, so the public marketplace repo does not have it — the authoritative base is
+the **local tree you submitted**. Resolve it in this order; the first hit wins.
+**Never** fall through to a directory picker / "select your project root" prompt —
+that confusing dead-end is the bug this order removes.
+
+1. **Explicit `<path>` arg** — if the caller passed an absolute path to a plugin
+   dir, use it.
+2. **`last-submission.json.build_path`** — if present AND the dir exists on disk,
+   use it. (The normal case: the same machine that built it.)
+3. **Glob the build sandbox** — list
+   `<agntux project root>/.agntux-build/builds/*/agntux-{slug}/`. Recovers when
+   `build_path` is missing (an older `last-submission.json`) or the recorded dir
+   moved. Pick deterministically: among the candidates, prefer the **newest**
+   (the `YYYY-MM-DD-HHmmss` session dirs sort lexically, so last == newest)
+   **whose `.claude-plugin/plugin.json` version equals
+   `last-submission.json.version`** — that is the tree you submitted, not a later
+   `agntux_fetch_published_plugin` tree (an update-mode fetch lands in this same
+   `builds/*` namespace, carrying the *published* version). Only if no candidate's
+   version matches, AND a candidate carrying a *different* version exists, treat
+   that as a since-merged situation → go to item 4 (don't silently revise the
+   published tree as if it were your submission).
+4. **Since-merged fallback (= update)** — if no local submitted tree is found but
+   the plugin is now PUBLISHED, a `:revise` arriving after the fix already merged
+   is really an **update**, not a revision. Confirm with
+   `agntux_marketplace_lookup({ slug, agntux_root })`; on an `exact_match`,
+   **switch to `update-mode.md` wholesale** — it fetches via
+   `agntux_fetch_published_plugin` and applies the update ruleset (patch-bump off
+   the FETCHED version, `mode:"update"`, `previous_version`). Do **not** stay on
+   the revise rules here: revise's "never bump the version" rule (Step 3 / "What
+   you never do") applies ONLY to the not-yet-merged base in items 1–3; a merged
+   plugin already shipped, so re-submitting its version unchanged would collide.
+   Pass the current build session-id as `session` (or
+   `last-submission.json.session_id`); `agntux_root` is the Step-0 resolved root.
+   If that fetch itself returns `not_found`/`network`/`rate_limited`, do NOT loop
+   back — fall straight to item 5.
+5. **Honest stop** — if none of the above resolves, surface one line and stop —
+   do NOT prompt for a directory:
+
+   > No prior build of `agntux-{slug}` found on this machine. Run
+   > `/agntux-build:build` to start it, then submit before revising.
 
 ## Step 1 — resolve the feedback
 

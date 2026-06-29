@@ -31,7 +31,14 @@ passes without exposing any of the contributor's personal details.
       it.
    2. If any ancestor matches `/agntux/i`, use the nearest.
    3. Otherwise there's no agntux project yet — **create it first, then
-      request access** (never ask the user to run a terminal command):
+      request access** (never ask the user to run a terminal command).
+      This request (`request_cowork_directory` / "open or select that
+      folder") is the **ONLY** place agntux-build may surface a directory
+      picker, and it resolves the **agntux project root** alone. The
+      working directory of a plugin being *fixed* is resolved
+      programmatically — `revise.md` Step 0a (locator order) and
+      `update-mode.md` (`agntux_fetch_published_plugin`) — and must
+      **never** trigger a picker. The steps:
       1. **Create `~/agntux`.** Try
          `ToolSearch({query: "select:agntux_core_create_project_directory", max_results: 1})`.
          - Resolves (agntux-core installed) → call it (no arguments) to

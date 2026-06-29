@@ -52,16 +52,59 @@ Update mode skips:
 
 ## What you DO different
 
-- **Plugin source is the existing repo, not a fresh scaffold.** Read
-  the existing plugin from
-  `AUX-plugins/plugins/agntux-{slug}/` and treat that tree as the
-  authoring base. Internally, dispatch
-  `manifest-author`, `ingest-prompt-author`, `ui-handler-author` etc.
-  pointed at the existing files rather than from `_template/`.
-- **Version bump is patch by default.** The user's fix is a fix —
-  patch bump (`0.1.0` → `0.1.1`). Bump minor only if the fix adds a
-  capability (a new keyword for sync to catch, a new mode tab on the
-  UI).
+- **Fetch the LATEST PUBLISHED source as the authoring base — never a
+  fresh scaffold, never a stale local copy.** The plugin already exists
+  in the marketplace; a fix must be authored against current published
+  code. Call the MCP tool:
+
+  ```
+  agntux_fetch_published_plugin({
+    slug:        "agntux-{slug}",
+    agntux_root: "{stage-0 agntux root}",
+    session:     "{session-id}"        // the current build session
+  })
+  ```
+
+  It downloads `plugins/agntux-{slug}/` from the public repo (default
+  ref `main` = latest published) into
+  `<agntux root>/.agntux-build/builds/{session-id}/agntux-{slug}/` and
+  returns `{ build_path, version, files_written, … }`. Use `build_path`
+  as the authoring base; dispatch `manifest-author`,
+  `ingest-prompt-author`, `ui-handler-author` etc. pointed at those
+  files rather than from `_template/`. **Do NOT read from a marketplace
+  clone (`AUX-plugins/plugins/agntux-{slug}/`)** — most contributors
+  don't have one, and even when they do it can be behind the published
+  version. (A local clone is only a maintainer fast-path; the fetch is
+  the contract.)
+
+  Branch on the result:
+  - **`ok:true`** → author the fix on `build_path`.
+  - **`error_kind:"rate_limited"`** → GitHub throttled the read; tell the
+    user to retry in a few minutes (or, if a local build of this slug
+    exists under `.agntux-build/builds/*/`, fix that instead).
+  - **`error_kind:"not_found"`** → the slug isn't on `main`, even though
+    stage 1's marketplace lookup matched it. The lookup index can be
+    stale (it warns it may be ~2 weeks behind), so you were likely
+    mis-routed here for a plugin that hasn't actually merged. Handle it
+    **here** — do NOT loop back through another fetch: if a local build
+    of `agntux-{slug}` exists under
+    `<agntux root>/.agntux-build/builds/*/agntux-{slug}/`, fix that
+    (newest by lexical session sort) as a `:revise`-style in-review fix;
+    if none exists, stop honestly ("`agntux-{slug}` isn't on `main` yet —
+    if you just submitted it, finish that review first"). Never re-call
+    `agntux_fetch_published_plugin` for the same slug in the same turn.
+  - **`error_kind:"network"`** → offline; surface honestly and stop.
+
+  **Never** fall back to prompting the user to pick a directory.
+
+- **Version bump is patch by default, off the FETCHED version.** The
+  user's fix is a fix — patch bump from `agntux_fetch_published_plugin`'s
+  returned `version` (e.g. `0.7.1` → `0.7.2`), NOT from a stale local
+  number. Bump minor only if the fix adds a capability (a new keyword
+  for sync to catch, a new mode tab on the UI). Basing the bump on the
+  fetched version prevents the regression where a stale local copy
+  (`0.5.0`) bumps to `0.5.1` while the published plugin is already at
+  `0.7.1`.
 - **CHANGELOG entry uses `Fixed:` and the user's framing.** Don't
   copy the user's complaint verbatim — paraphrase it cleanly:
   > Fixed: @-mentions in private channels weren't surfacing as action

@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.38.0] — 2026-06-29
+
+### Added
+
+- **New MCP tool `agntux_fetch_published_plugin`.** Fetches a published plugin's latest source from the public marketplace repo (`AgntUX/AUX-plugins`, default ref `main`) and extracts `plugins/agntux-{slug}/` into the build sandbox (`.agntux-build/builds/{session}/agntux-{slug}/`). This lets an update/fix be authored against the **current published code** rather than a stale or absent local copy. Reads unauthenticated (the repo is public), streams the tarball to disk with a running size cap, extracts only the one subtree (portable across GNU/BSD tar), and is fail-closed — `build_path` is only populated after a verified `plugin.json`. Returns `{ build_path, version, files_written, … }` or a structured `not_found`/`rate_limited`/`network`/`usage` verdict.
+
+### Fixed
+
+- **Fixing a previously-submitted plugin no longer drops the user into a "select your project root" directory picker.** The fix flows had no reliable way to locate an existing plugin's source: build sandboxes are namespaced by a per-session timestamp that differs across sessions, and the cross-session anchor `last-submission.json` carried no path, so a later fix session couldn't find the tree and degraded to prompting for a directory. Now:
+  - **Update mode** (fixing a *published* plugin) fetches the latest source via `agntux_fetch_published_plugin` and authors on it — never a marketplace clone — and bumps the version off the **fetched** version (preventing the stale-base regression where a local `0.5.0` bumps to `0.5.1` while the published plugin is at `0.7.1`).
+  - **`:revise`** (review feedback on a not-yet-merged submission) resolves the working dir by an explicit order — explicit path → `last-submission.json.build_path` → newest matching sandbox build (version-matched to the submission) → since-merged fetch → honest stop — and **never** triggers a directory picker.
+  - `last-submission.json` now persists `session_id` + `build_path` (additive; older files self-heal via the glob fallback).
+  - The host directory picker is now explicitly scoped to resolving the **agntux project root** only.
+
 ## [0.37.0] — 2026-06-28
 
 ### Added
