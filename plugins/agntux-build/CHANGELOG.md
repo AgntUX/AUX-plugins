@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-06-29
+
+Emit **structured build provenance** in the submission marker. `assembleMarker`
+now includes an optional `builder` block (`{ version }` today; `commit` /
+`canonical_sha` reserved for exact differential reproduction) alongside the
+long-standing flat `agntux_build_version` field. This lets the marketplace
+submission handler's builder-feedback loop attribute a defect to the generator
+version that produced a plugin instead of assuming "latest". The block is
+schema-additive and optional — older markers without it stay valid (the handler
+falls back to `agntux_build_version`, then to assuming the latest build).
+
 ## [0.39.0] — 2026-06-29
 
 Generator hardening from a study of real contributor fix-sessions: five

@@ -1809,6 +1809,14 @@ export function assembleMarker({
     session_id: sessionId,
     build_root: slug,
     agntux_build_version: agntuxBuildVersion,
+    // Structured build provenance (schema-additive; the marketplace submission
+    // handler's validateMarker accepts it as OPTIONAL). Records WHICH agntux-build
+    // produced this submission so the builder-feedback loop can attribute a defect
+    // to a generator version instead of assuming "latest". `version` is always
+    // available; `commit` / `canonical_sha` are reserved for exact differential
+    // reproduction and may be added later (both optional). `agntux_build_version`
+    // is retained above for back-compat with consumers that read the flat field.
+    builder: { version: agntuxBuildVersion },
     contributor: {
       // `name` is published only when the contributor opted into credit;
       // it is absent for an anonymous submission. No email is ever

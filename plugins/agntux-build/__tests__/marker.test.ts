@@ -117,6 +117,9 @@ describe("assembleMarker", () => {
     expect(marker.previous_version).toBeUndefined();
     expect(marker.submission_id).toBe(`agntux-testcal@0.1.0+${treeSha.slice(0, 8)}`);
     expect(marker.agntux_build_version).toBe("0.16.0");
+    // Structured build provenance (optional, schema-additive): version mirrors the
+    // flat field; commit/canonical_sha are reserved for differential reproduction.
+    expect(marker.builder).toEqual({ version: "0.16.0" });
     expect(marker.contributor.name).toBe("Test User");
     expect(marker.contributor.email).toBeUndefined();
     expect(marker.dco.signed_off_by).toBe("Test User");
