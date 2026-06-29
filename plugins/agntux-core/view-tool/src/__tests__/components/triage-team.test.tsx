@@ -370,3 +370,70 @@ describe('MainComponent — mutator scope routing', () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10.6.1 — Done on a team-scope row survives a true iframe remount
+//
+// The 10.6.1 persist/reconcile path must work across scopes: `stillOpen` is
+// built from data.actions + data.teams[].actions + data.leader_views[].actions,
+// and handleDone resolves across scopes. This guards a future refactor that
+// might (wrongly) build stillOpen from data.actions only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MainComponent — team Done survives an iframe remount (10.6.1)', () => {
+  it('persists a team-row Done, keeps it hidden across remount, and prunes it once handled', async () => {
+    const user = userEvent.setup();
+    const created = createMainComponentProps({
+      toolOutput: makeTeamModePayload(),
+    });
+    const first = render(<MainComponent {...created.props} />);
+    await user.click(screen.getByTestId('done-team-platform-1'));
+    expect(created.getWidgetState().resolved_ids).toContain('team-platform-1');
+
+    // TRUE remount with the same (stale) team payload — the server hasn't
+    // refetched, so the team row is still listed as open in data.teams[].
+    first.unmount();
+    const remount = createMainComponentProps({
+      toolOutput: makeTeamModePayload(),
+      widgetState: created.getWidgetState(),
+    });
+    const second = render(<MainComponent {...remount.props} />);
+    expect(
+      screen.queryByTestId('action-card-team-platform-1'),
+    ).not.toBeInTheDocument();
+    // The untouched personal row still renders.
+    expect(screen.getByTestId('action-card-personal-1')).toBeInTheDocument();
+
+    // Fresh fetch: the team row has moved into that team's handled_recent
+    // (no longer in teams[].actions). Reconciliation must prune resolved_ids.
+    second.unmount();
+    const refreshed = makeTeamModePayload({
+      teams: [
+        {
+          team_slug: 'platform',
+          team_id: 'uuid-platform',
+          display_name: 'Platform Team',
+          actions: [],
+          handled_recent: [
+            {
+              id: 'team-platform-1',
+              title: 'A platform team item',
+              priority: 'high',
+              status: 'done',
+              handled_at: '2026-06-29T00:00:00.000Z',
+              outcome: null,
+            },
+          ],
+        },
+      ],
+    });
+    const third = createMainComponentProps({
+      toolOutput: refreshed,
+      widgetState: remount.getWidgetState(),
+    });
+    render(<MainComponent {...third.props} />);
+    expect(third.getWidgetState().resolved_ids).not.toContain(
+      'team-platform-1',
+    );
+  });
+});

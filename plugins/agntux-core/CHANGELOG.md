@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.6.1] — 2026-06-29
+
+### Fixed
+
+- **Completed (Done) action items no longer reappear in the triage list after
+  the view re-renders (e.g. on scroll).** The "Done" hide was tracked only in
+  ephemeral component state that reset whenever the host remounted the iframe;
+  because a remount re-renders the same cached payload (in which the just-done
+  row is still listed as open until the next sync), the completed item popped
+  back into the open list. The resolved id is now persisted in the view's
+  widget state, so the hide survives a remount and is cleared automatically
+  once the next sync moves the item into "Recently handled." Snooze/dismiss
+  hides are intentionally left ephemeral so the "show snoozed / show dismissed"
+  toggles keep working. As defense-in-depth the view now also parses an
+  action's real status (rather than coercing it to `open`) and excludes any
+  terminal row from the open list.
+
 ## [10.6.0] — 2026-06-27
 
 ### Added
