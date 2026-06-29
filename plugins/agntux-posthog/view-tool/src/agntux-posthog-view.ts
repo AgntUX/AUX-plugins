@@ -40,13 +40,24 @@ const UI_LABEL_REPORT = "PostHog — Mark Report Handled";
 // ── Safe accessor ─────────────────────────────────────────────────────────────
 
 function str(v: unknown): string {
-  return typeof v === "string" ? v : "";
+  if (typeof v === "string") return v;
+  // Coerce primitive non-string scalars (number / boolean / bigint). PostHog
+  // ids (issue_id, experiment_id, …) are numeric, and the ingest skill often
+  // writes them UNQUOTED in YAML frontmatter, so extractFrontmatterMetadata
+  // parses them as numbers. The previous `typeof v === "string" ? v : ""`
+  // silently dropped those, leaving issue_id empty and the iframe's
+  // "Update issue" button a dead no-op. Coercing here preserves them.
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") {
+    return String(v);
+  }
+  return "";
 }
 
 function strArr(v: unknown): string[] {
-  return Array.isArray(v)
-    ? v.filter((x): x is string => typeof x === "string")
-    : [];
+  if (!Array.isArray(v)) return [];
+  // Coerce each element via str() so numeric list entries (e.g. numeric
+  // variant keys or assignee ids) survive instead of being filtered out.
+  return v.map((x) => str(x)).filter((s) => s.length > 0);
 }
 
 // ── Types: resolve ────────────────────────────────────────────────────────────

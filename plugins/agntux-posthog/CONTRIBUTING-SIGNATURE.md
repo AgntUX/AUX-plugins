@@ -1,27 +1,27 @@
 ---
 contributor:
   name: Janice Jordan
-  email: trish@agntux.ai
 dco:
   version: "1.1"
   agreed_at: 2026-06-15T00:00:00Z
-  agreed_via: agntux-build/0.1.0
+  agreed_via: agntux-build/0.2.1
 submission:
   plugin_slug: agntux-posthog
-  plugin_version: 0.1.0
-  submitted_at: 2026-06-20T22:00:00Z
-  mode: create
-signed_off_by: "Janice Jordan <trish@agntux.ai>"
+  plugin_version: 0.2.1
+  submitted_at: 2026-06-29T17:54:34Z
+  mode: update
+  previous_version: 0.2.0
 ---
 
 By submitting this contribution, I confirm that I have read and
 agree to the Developer Certificate of Origin v1.1
 (https://developercertificate.org/), reproduced in full below.
 
-When committing this contribution, AgntUX maintainers MUST include
-the following trailer in the commit message:
-
-    Signed-off-by: Janice Jordan <trish@agntux.ai>
+This contribution is made under the Apache License 2.0. AgntUX does not
+collect or publish a contributor email; when AgntUX maintainers commit
+this contribution they sign off with the project's own identity
+(`Signed-off-by: AgntUX <noreply@agntux.ai>`), which satisfies the DCO
+check on the public PR.
 
 ---
 

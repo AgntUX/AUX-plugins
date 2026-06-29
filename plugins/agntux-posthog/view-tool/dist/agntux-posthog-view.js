@@ -13,10 +13,15 @@ var UI_LABEL_REPLY = "PostHog \u2014 Reply to Comment";
 var UI_LABEL_EXPERIMENT = "PostHog \u2014 Ship Experiment Variant";
 var UI_LABEL_REPORT = "PostHog \u2014 Mark Report Handled";
 function str(v) {
-  return typeof v === "string" ? v : "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") {
+    return String(v);
+  }
+  return "";
 }
 function strArr(v) {
-  return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => str(x)).filter((s) => s.length > 0);
 }
 async function handleResolve(args, ctx) {
   const emptyPayload = {
