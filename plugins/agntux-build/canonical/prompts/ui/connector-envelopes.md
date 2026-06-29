@@ -50,6 +50,27 @@ display name and instructs the host with `Use the {Source} Connector to …`,
 followed by the required arguments inline, the body delimited by Unicode
 guillemets, and (optionally) trailing metadata in parentheses.
 
+**Author every write-back envelope from the captured live signature** —
+the one stage 4 recorded into `write_tool_signatures` by inspecting the
+live connector (see
+`${CLAUDE_PLUGIN_ROOT}/skills/build/references/04-discover-tools.md`,
+"Capture the live signature…"). Never author from the connector's UI
+schema, its docs, or assumption. The envelope must name:
+
+- the **exact tool / sub-command** — and when the connector is a
+  CLI-style gateway rather than a set of individually-named tools, name
+  the gateway form, e.g.
+  `posthog:exec({command:'call inbox-reports-set-state …'})`;
+- the **exact parameter names** (`id`, not a guessed `report_id`);
+- the **exact enum values** (`suppressed` / `potential`, not invented
+  `resolved` / `archived`).
+
+An envelope that names a tool, parameter, or enum that doesn't exist on
+the live connector is a **dead write** — the host's LLM searches the
+tool list, finds nothing it can call, and gives up; nothing is written
+and the user sees no error. This is the posthog "mark report resolved"
+failure verbatim. The live signature is the only authority.
+
 The reference shape:
 
 ```

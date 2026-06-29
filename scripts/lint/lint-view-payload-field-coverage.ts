@@ -18,12 +18,12 @@
  * by a payload-parse call), collect the field keys it reads off that variable,
  * and require each key to appear (as a whole word) somewhere in the plugin's
  * rendered skill tree (sync.md + reference/*.md) — i.e. the ingest skill
- * documents writing it. A read field absent from the whole skill tree is a
- * warning (E35): the field-name the view reads is one the ingest never writes.
+ * documents writing it. A read field absent from the whole skill tree is an
+ * error (E35): the field-name the view reads is one the ingest never writes.
  *
  * Findings
  * --------
- *   E35 (warning) — a field `<key>` read off a parsed payload object in a
+ *   E35 (error) — a field `<key>` read off a parsed payload object in a
  *     view handler is not documented anywhere in the plugin's rendered ingest
  *     skill, so the action file will lack it and the view shows a blank field.
  *     Author the field into the plugin's `_overrides/reference/compose-payload.md`
@@ -32,12 +32,19 @@
  *
  * Severity rationale
  * ------------------
- * Warning, not error: view handlers parse on-disk payloads in heterogeneous
- * ways (fenced `## Compose payload` YAML, per-view `## <View> payload` sections,
- * frontmatter-metadata extraction, `extractSection`), so static field linkage is
- * best-effort and can miss a documented synonym. Warning-first keeps a
- * false-positive from breaking CI while still surfacing every real gap for the
- * pre-draft sweep. Promote to error once every plugin's field set is clean.
+ * Error (fail-closed). This started as a warning because static field linkage
+ * is best-effort: view handlers parse on-disk payloads heterogeneously (fenced
+ * `## Compose payload` YAML, per-view `## <View> payload` sections,
+ * frontmatter-metadata extraction, `extractSection`), so it can miss a
+ * documented synonym. Two facts flipped it to error: (1) every plugin under
+ * `plugins/` is clean at promotion time (the marketplace lint passed with zero
+ * E35 across all 21), so it breaks no shipping plugin; (2) the blank-view class
+ * it guards (the apple-notes / docusign incident — view reads keys ingest never
+ * writes) is a hard contributor-facing defect that must never ship, which is
+ * exactly what a fail-closed gate prevents. The scope note below bounds the
+ * false-positive surface: the pass only links object-member reads, so the
+ * heterogeneous string-parse handlers it can't statically link are skipped
+ * entirely rather than flagged — it errs toward silence, not a false error.
  *
  * Scope
  * -----
@@ -260,7 +267,7 @@ export function pass20ViewPayloadFieldCoverage(
     if (!wordRe.test(skillText)) {
       findings.push({
         code: "E35",
-        severity: "warning",
+        severity: "error",
         plugin: pluginSlug,
         file: where.file,
         line: where.line,

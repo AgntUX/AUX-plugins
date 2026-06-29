@@ -32,6 +32,14 @@
 //   3. Update the in-memory fixture to match what your handler reads
 //      from `ctx.fs`. The default `makeActionFile` builds an action-file
 //      shape; non-action shapes need their own builder.
+//   4. Add an ADVERSARIAL fixture for every id / href field your view reads.
+//      Ingest writes real data, not the happy path: numeric ids land UNQUOTED
+//      in YAML (`issue_id: 789` → a JS number) and `href`s can be filesystem
+//      paths or empty. Assert the handler still surfaces a usable id (via
+//      `idStr`) and that any link field is gated by `isOpenableUrl` — these
+//      are the posthog dead-button and gcal dead-links incidents. The shared
+//      accessors are unit-tested in `src/__tests__/lib/payload.test.ts`; this
+//      file exercises them through YOUR handler's real read path.
 // =============================================================================
 
 import { describe, expect, it } from "vitest";

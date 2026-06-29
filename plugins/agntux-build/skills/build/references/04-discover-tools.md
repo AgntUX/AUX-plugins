@@ -67,6 +67,55 @@ that's reading issues/comments/cycles and commenting/transitioning.
 Choose the read-tool coverage and the cadence for the typical user of
 this source, not for your own habits.
 
+## Capture the live signature of any write tool that will back an envelope
+
+For each write verb that will be wired to a write-back envelope (stage
+5's UI handlers, authored per
+[`connector-envelopes.md`](../../../canonical/prompts/ui/connector-envelopes.md)),
+capture its **real invocation signature now** — before any later stage
+authors the envelope. Don't read it off the connector's UI, its docs,
+or your own assumption: inspect the **live connector schema** by calling
+the connector's own discovery/help path (e.g. `<connector>:exec` with an
+`info`/help sub-command, or the namespaced tool's description from the
+`ToolSearch` inventory above). Record three things per write verb:
+
+1. **Invocation form** — does the connector expose individually-named
+   tools (`mcp__…__inbox_reports_set_state`), or a **CLI-style gateway**
+   (`<connector>:exec` with `search` / `info` / `call` sub-commands)? An
+   envelope authored against the wrong form is a dead write — the agent
+   searches the tool list, finds nothing, and gives up.
+2. **Exact parameter names** — verbatim, as the live tool declares them.
+3. **Exact enum / allowed values** — verbatim, for every constrained
+   field.
+
+This exists because of the posthog "mark report resolved" incident: the
+envelope said *"Use the PostHog Connector to mark the report…"* and
+named a per-tool write call, but PostHog ships a `posthog:exec` gateway
+(`search`/`info`/`call`) with **no** individually-named tools — so the
+write never fired. It also used `report_id` (the real
+`inbox-reports-set-state` tool takes `id`) and the states
+`resolved`/`archived` (the real enum is `suppressed`/`potential`). All
+three were authored from the UI / assumption instead of the live API.
+Capturing the signature here, from the live connector, is what makes the
+later envelope correct.
+
+Persist the captured signature into the session record so stage 5 and
+the envelope author work from it rather than re-guessing:
+
+```jsonc
+{
+  // …other session-record fields…
+  "write_tool_signatures": {
+    "set_report_state": {
+      "invocation": "gateway",
+      "call": "posthog:exec({command:'call inbox-reports-set-state …'})",
+      "params": ["id", "state"],
+      "enums": { "state": ["suppressed", "potential"] }
+    }
+  }
+}
+```
+
 ## Translate to plain language
 
 Write a 3–6 line summary, each line one sentence. Avoid the verb

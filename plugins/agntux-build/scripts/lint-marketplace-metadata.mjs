@@ -3,8 +3,8 @@
 // Source: scripts/lint-marketplace-metadata.ts (+ scripts/lint/, lib/marketplace-schema.ts).
 
 // scripts/lint-marketplace-metadata.ts
-import * as fs17 from "node:fs";
-import * as path17 from "node:path";
+import * as fs18 from "node:fs";
+import * as path18 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
@@ -3881,8 +3881,8 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 var makeIssue = (params) => {
-  const { data, path: path18, errorMaps, issueData } = params;
-  const fullPath = [...path18, ...issueData.path || []];
+  const { data, path: path19, errorMaps, issueData } = params;
+  const fullPath = [...path19, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -4007,11 +4007,11 @@ var errorUtil;
 var _ZodEnum_cache;
 var _ZodNativeEnum_cache;
 var ParseInputLazyPath = class {
-  constructor(parent, value, path18, key) {
+  constructor(parent, value, path19, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path18;
+    this._path = path19;
     this._key = key;
   }
   get path() {
@@ -9822,7 +9822,7 @@ function pass20ViewPayloadFieldCoverage(pluginSlug, pluginDir, _repoRoot, findin
     if (!wordRe.test(skillText)) {
       findings.push({
         code: "E35",
-        severity: "warning",
+        severity: "error",
         plugin: pluginSlug,
         file: where.file,
         line: where.line,
@@ -10027,10 +10027,126 @@ function pass22NamespacedComposeRead(pluginSlug, pluginDir, _repoRoot, findings)
   }
 }
 
+// scripts/lint/lint-view-tool-local-str.ts
+import * as fs17 from "node:fs";
+import * as path17 from "node:path";
+var VIEW_TOOL_SRC_REL8 = "view-tool/src";
+var LOCAL_STR_DECL = /^\s*(?:export\s+)?(?:function\s+(str|strArr)\b\s*\(|(?:const|let|var)\s+(str|strArr)\b\s*[:=])/;
+function stripComments7(src) {
+  let out = "";
+  let i = 0;
+  const len = src.length;
+  let inStr = null;
+  while (i < len) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (inStr) {
+      if (c === "\\") {
+        out += c + (next ?? "");
+        i += 2;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      while (i < len && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  ";
+      i += 2;
+      while (i < len && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      out += c;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function isExcluded6(relFromSrc) {
+  const parts = relFromSrc.split(path17.sep);
+  if (parts.includes("lib")) return true;
+  if (parts.includes("__tests__")) return true;
+  if (parts.some((p) => p === "test-utils")) return true;
+  const base = parts[parts.length - 1];
+  if (base.endsWith(".d.ts")) return true;
+  if (base === "setup.ts") return true;
+  return false;
+}
+function collectSources6(dir, srcRoot, acc) {
+  let entries;
+  try {
+    entries = fs17.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const abs = path17.join(dir, e.name);
+    if (e.isDirectory()) {
+      collectSources6(abs, srcRoot, acc);
+      continue;
+    }
+    if (!e.isFile()) continue;
+    if (!/\.(ts|tsx)$/.test(e.name)) continue;
+    const relFromSrc = path17.relative(srcRoot, abs);
+    if (isExcluded6(relFromSrc)) continue;
+    acc.push(abs);
+  }
+}
+function pass23ViewToolLocalStr(pluginSlug, pluginDir, _repoRoot, findings) {
+  const srcDir = path17.join(pluginDir, VIEW_TOOL_SRC_REL8);
+  if (!fs17.existsSync(srcDir) || !fs17.statSync(srcDir).isDirectory()) return;
+  const files = [];
+  collectSources6(srcDir, srcDir, files);
+  files.sort();
+  for (const abs of files) {
+    let body;
+    try {
+      body = fs17.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = stripComments7(body).split("\n");
+    const relFile = path17.join(VIEW_TOOL_SRC_REL8, path17.relative(srcDir, abs));
+    for (let li = 0; li < lines.length; li++) {
+      const m = LOCAL_STR_DECL.exec(lines[li]);
+      if (m) {
+        const name = m[1] ?? m[2] ?? "str";
+        findings.push({
+          code: "E38",
+          severity: "warning",
+          plugin: pluginSlug,
+          file: relFile,
+          line: li + 1,
+          col: (m.index ?? 0) + 1,
+          message: `View-tool source re-authors a local \`${name}()\` coercer. A hand-rolled string-only \`str()\` drops a numeric id (an unquoted YAML \`issue_id: 789\` parses as a number) \u2192 the id arrives "" \u2192 the button that reads it silently no-ops (the posthog dead-button incident). Import \`{ str, idStr, strArr, isOpenableUrl }\` from the scaffolded \`./lib/payload.js\` (handler) / \`../lib/payload.js\` (component) and use \`idStr()\` for every identifier field. See the accessors at plugins/agntux-build/canonical/ui-handlers/_template/view-tool/src/lib/payload.ts.`
+        });
+      }
+    }
+  }
+}
+
 // scripts/lint-marketplace-metadata.ts
 function fileExists2(p) {
   try {
-    fs17.accessSync(p, fs17.constants.F_OK);
+    fs18.accessSync(p, fs18.constants.F_OK);
     return true;
   } catch {
     return false;
@@ -10038,7 +10154,7 @@ function fileExists2(p) {
 }
 function isDirectory2(p) {
   try {
-    return fs17.statSync(p).isDirectory();
+    return fs18.statSync(p).isDirectory();
   } catch {
     return false;
   }
@@ -10048,13 +10164,13 @@ function emit2(findings, f) {
 }
 function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path17.relative(repoRoot, p);
+    return path18.relative(repoRoot, p);
   }
   const required = [
-    path17.join(pluginDir, "marketplace", "listing.yaml"),
-    path17.join(pluginDir, "marketplace", "icon.png"),
-    path17.join(pluginDir, "README.md"),
-    path17.join(pluginDir, "CHANGELOG.md")
+    path18.join(pluginDir, "marketplace", "listing.yaml"),
+    path18.join(pluginDir, "marketplace", "icon.png"),
+    path18.join(pluginDir, "README.md"),
+    path18.join(pluginDir, "CHANGELOG.md")
   ];
   for (const f of required) {
     if (!fileExists2(f)) {
@@ -10070,13 +10186,13 @@ function pass1RequiredFiles(pluginSlug, pluginDir, repoRoot, findings) {
 }
 function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   function rel2(p) {
-    return path17.relative(repoRoot, p);
+    return path18.relative(repoRoot, p);
   }
-  const listingPath = path17.join(pluginDir, "marketplace", "listing.yaml");
+  const listingPath = path18.join(pluginDir, "marketplace", "listing.yaml");
   if (!fileExists2(listingPath)) return;
   let raw;
   try {
-    raw = fs17.readFileSync(listingPath, "utf-8");
+    raw = fs18.readFileSync(listingPath, "utf-8");
   } catch (e) {
     emit2(findings, {
       code: "E05",
@@ -10150,9 +10266,9 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
   if (result.success) {
     const listing = result.data;
     if (listing.screenshot_order) {
-      const screenshotsDir = path17.join(pluginDir, "marketplace", "screenshots");
+      const screenshotsDir = path18.join(pluginDir, "marketplace", "screenshots");
       for (const fname of listing.screenshot_order) {
-        const fpath = path17.join(screenshotsDir, fname);
+        const fpath = path18.join(screenshotsDir, fname);
         if (!fileExists2(fpath)) {
           emit2(findings, {
             code: "E06",
@@ -10166,7 +10282,7 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
     }
     if (listing.requires_plugins && isDirectory2(pluginsDir)) {
       for (const slug of listing.requires_plugins) {
-        const depDir = path17.join(pluginsDir, slug);
+        const depDir = path18.join(pluginsDir, slug);
         if (!isDirectory2(depDir)) {
           emit2(findings, {
             code: "E06",
@@ -10192,15 +10308,15 @@ function pass2Schema(pluginSlug, pluginDir, pluginsDir, repoRoot, findings) {
 var SCREENSHOT_RE = /^[0-9]{2}-[a-z0-9-]+\.(png|jpg)$/;
 function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path17.relative(repoRoot, p);
+    return path18.relative(repoRoot, p);
   }
-  const iconPath = path17.join(pluginDir, "marketplace", "icon.png");
+  const iconPath = path18.join(pluginDir, "marketplace", "icon.png");
   if (fileExists2(iconPath)) {
     validateIcon(pluginSlug, iconPath, rel2(iconPath), findings);
   }
-  const screenshotsDir = path17.join(pluginDir, "marketplace", "screenshots");
+  const screenshotsDir = path18.join(pluginDir, "marketplace", "screenshots");
   if (!isDirectory2(screenshotsDir)) return;
-  const files = fs17.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
+  const files = fs18.readdirSync(screenshotsDir).filter((n) => !n.startsWith("."));
   if (files.length > 8) {
     emit2(findings, {
       code: "E02",
@@ -10211,14 +10327,14 @@ function pass3Images(pluginSlug, pluginDir, repoRoot, findings) {
     });
   }
   for (const fname of files) {
-    const fpath = path17.join(screenshotsDir, fname);
+    const fpath = path18.join(screenshotsDir, fname);
     validateScreenshot(pluginSlug, fpath, rel2(fpath), fname, findings);
   }
 }
 function validateIcon(pluginSlug, iconPath, relFile, findings) {
   let dims;
   try {
-    const buf = fs17.readFileSync(iconPath);
+    const buf = fs18.readFileSync(iconPath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -10248,7 +10364,7 @@ function validateIcon(pluginSlug, iconPath, relFile, findings) {
       message: `icon is ${dims.width}\xD7${dims.height}, expected 512\xD7512`
     });
   }
-  const stat = fs17.statSync(iconPath);
+  const stat = fs18.statSync(iconPath);
   if (stat.size > 512 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -10270,10 +10386,10 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
     });
     return;
   }
-  const ext = path17.extname(fname).toLowerCase().slice(1);
+  const ext = path18.extname(fname).toLowerCase().slice(1);
   let dims;
   try {
-    const buf = fs17.readFileSync(fpath);
+    const buf = fs18.readFileSync(fpath);
     dims = imageSize(buf);
   } catch (e) {
     emit2(findings, {
@@ -10319,7 +10435,7 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
       });
     }
   }
-  const stat = fs17.statSync(fpath);
+  const stat = fs18.statSync(fpath);
   if (stat.size > 2 * 1024 * 1024) {
     emit2(findings, {
       code: "E08",
@@ -10333,13 +10449,13 @@ function validateScreenshot(pluginSlug, fpath, relFile, fname, findings) {
 var VERSION_SECTION_RE = /^## \[(\d+\.\d+\.\d+)\][ \t]+[—–-][ \t]+\d{4}-\d{2}-\d{2}$/m;
 function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   function rel2(p) {
-    return path17.relative(repoRoot, p);
+    return path18.relative(repoRoot, p);
   }
-  const readmePath = path17.join(pluginDir, "README.md");
-  const changelogPath = path17.join(pluginDir, "CHANGELOG.md");
-  const pluginJsonPath = path17.join(pluginDir, ".claude-plugin", "plugin.json");
+  const readmePath = path18.join(pluginDir, "README.md");
+  const changelogPath = path18.join(pluginDir, "CHANGELOG.md");
+  const pluginJsonPath = path18.join(pluginDir, ".claude-plugin", "plugin.json");
   if (fileExists2(readmePath)) {
-    const content = fs17.readFileSync(readmePath, "utf-8");
+    const content = fs18.readFileSync(readmePath, "utf-8");
     if (content.trim().length < 200) {
       emit2(findings, {
         code: "E05",
@@ -10361,7 +10477,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
     }
   }
   if (!fileExists2(changelogPath)) return;
-  const changelog = fs17.readFileSync(changelogPath, "utf-8");
+  const changelog = fs18.readFileSync(changelogPath, "utf-8");
   if (!changelog.trimStart().startsWith("# Changelog")) {
     emit2(findings, {
       code: "E03",
@@ -10401,7 +10517,7 @@ function pass4ReadmeChangelog(pluginSlug, pluginDir, repoRoot, findings) {
   let pluginJson;
   try {
     pluginJson = JSON.parse(
-      fs17.readFileSync(pluginJsonPath, "utf-8")
+      fs18.readFileSync(pluginJsonPath, "utf-8")
     );
   } catch {
     return;
@@ -10461,6 +10577,7 @@ function lintPlugin(pluginSlug, pluginDir, opts) {
   pass20ViewPayloadFieldCoverage(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass21ReconcileDeclared(pluginSlug, pluginDir, opts.repoRoot, findings);
   pass22NamespacedComposeRead(pluginSlug, pluginDir, opts.repoRoot, findings);
+  pass23ViewToolLocalStr(pluginSlug, pluginDir, opts.repoRoot, findings);
   return findings;
 }
 var __filename = fileURLToPath(import.meta.url);
@@ -10471,7 +10588,7 @@ if (isMain) {
     if (idx === -1) return void 0;
     return cliArgs[idx + 1];
   }, relPath = function(absPath) {
-    return path17.relative(repoRoot, absPath);
+    return path18.relative(repoRoot, absPath);
   }, formatHuman = function(f) {
     const loc = f.line != null ? `:${f.line}${f.col != null ? `:${f.col}` : ""}` : "";
     const sev = f.severity.toUpperCase();
@@ -10494,15 +10611,15 @@ if (isMain) {
   const appsClientCanonicalRootFlag = getFlag("--apps-client-canonical-root");
   const tmpRootFlag = getFlag("--tmp-root");
   const jsonMode = cliArgs.includes("--json");
-  const __dirname = path17.dirname(__filename);
-  const repoRoot = path17.resolve(__dirname, "..");
-  const pluginsDir = path17.join(repoRoot, "plugins");
+  const __dirname = path18.dirname(__filename);
+  const repoRoot = path18.resolve(__dirname, "..");
+  const pluginsDir = path18.join(repoRoot, "plugins");
   const lintRoots = {
-    canonicalRoot: canonicalRootFlag ? path17.resolve(canonicalRootFlag) : repoRoot,
-    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path17.resolve(appsClientCanonicalRootFlag) : repoRoot,
-    tmpRoot: tmpRootFlag ? path17.resolve(tmpRootFlag) : repoRoot
+    canonicalRoot: canonicalRootFlag ? path18.resolve(canonicalRootFlag) : repoRoot,
+    appsClientCanonicalRoot: appsClientCanonicalRootFlag ? path18.resolve(appsClientCanonicalRootFlag) : repoRoot,
+    tmpRoot: tmpRootFlag ? path18.resolve(tmpRootFlag) : repoRoot
   };
-  const explicitPluginDir = pluginDirFlag ? path17.resolve(pluginDirFlag) : null;
+  const explicitPluginDir = pluginDirFlag ? path18.resolve(pluginDirFlag) : null;
   let slugs;
   if (explicitPluginDir) {
     if (!isDirectory2(explicitPluginDir)) {
@@ -10512,9 +10629,9 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = [pluginFilter ?? path17.basename(explicitPluginDir)];
+    slugs = [pluginFilter ?? path18.basename(explicitPluginDir)];
   } else if (pluginFilter) {
-    const pluginDir = path17.join(pluginsDir, pluginFilter);
+    const pluginDir = path18.join(pluginsDir, pluginFilter);
     if (!isDirectory2(pluginDir)) {
       process.stderr.write(
         `Error: plugin "${pluginFilter}" not found in ${relPath(pluginsDir)}
@@ -10531,14 +10648,14 @@ if (isMain) {
       );
       process.exit(1);
     }
-    slugs = fs17.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path17.join(pluginsDir, n))).filter(
-      (n) => fileExists2(path17.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
+    slugs = fs18.readdirSync(pluginsDir).filter((n) => !n.startsWith(".")).filter((n) => isDirectory2(path18.join(pluginsDir, n))).filter(
+      (n) => fileExists2(path18.join(pluginsDir, n, ".claude-plugin", "plugin.json"))
     ).sort();
   }
   const allFindings = [];
   const failedPlugins = /* @__PURE__ */ new Set();
   for (const slug of slugs) {
-    const pluginDir = explicitPluginDir ?? path17.join(pluginsDir, slug);
+    const pluginDir = explicitPluginDir ?? path18.join(pluginsDir, slug);
     const findings = lintPlugin(slug, pluginDir, {
       repoRoot,
       pluginsDir,

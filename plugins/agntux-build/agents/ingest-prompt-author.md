@@ -314,14 +314,17 @@ for *every* action that ships a view-opening suggested action (not only
 literal "Draft a reply"), and an action whose payload is missing or empty
 renders a blank iframe.
 
-**Match the view's read keys exactly (lint E35).** The field names you
-instruct the skill to write MUST be the exact keys the view handler reads
-off the parsed section (`cp.draft_body`, `cp.target_folder`, …). The
-field-coverage guard (pass 20, **E35**, warning) collects every field a
+**Match the view's read keys exactly (lint E35 — now ERROR, fail-closed).** The
+field names you instruct the skill to write MUST be the exact keys the view
+handler reads off the parsed section (`cp.draft_body`, `cp.target_folder`, …).
+The field-coverage guard (pass 20, **E35**) collects every field a
 `view-tool/src` handler reads off its payload object and flags any that the
 rendered skill tree never documents writing — the apple-notes class where
 the view read `draft_title`/`draft_body` but the inherited generic schema
-wrote only `drafted_body`. When your source's payload keys diverge from the
+wrote only `drafted_body`. **E35 is now a build ERROR, not a warning**: a view
+handler that reads a payload field the action-item / compose-payload shape never
+documents writing now FAILS the build. The contract is fail-closed — every field
+a handler reads MUST be documented as written. When your source's payload keys diverge from the
 generic `compose-payload.md`, ship a wholesale
 `_overrides/reference/compose-payload.md` (or per-view `*-payload.md`)
 documenting your exact keys, AND a `_overrides/step-10-append.md` telling
@@ -334,6 +337,16 @@ override) when your source has a non-trivial body schema. For every
 `_overrides/reference/{verb-kebab}-payload.md` schema file per §3
 "Per-verb payload reference files" above — these are required deliverables,
 not optional, and `tests-author` derives the expected filename set from them.
+
+**Quote numeric identifier fields in YAML.** Any identifier carrying a numeric
+source id (issue / experiment / report ids) MUST be written QUOTED in the action
+frontmatter and payload sections — `issue_id: "789"`, NOT `issue_id: 789`. An
+unquoted numeric id parses to a JS number, and even with `idStr` on the read
+side that on-disk contract is fragile; quoting keeps the persisted value a
+string end-to-end. This is the posthog incident: `issue_id: 789` /
+`experiment_id: 55` parsed as numbers, were dropped by the view's string-only
+coercer, and silently disabled a fully-enabled button. Instruct the skill to
+quote every id field it writes.
 
 The pre-existing rule "do NOT pre-fill orchestrator-authored content"
 applies to the `suggested_actions[].host_prompt` strings — those stay

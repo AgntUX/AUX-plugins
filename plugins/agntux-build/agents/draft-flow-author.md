@@ -405,6 +405,18 @@ user-initiated one.
 - **No write call without an immediately preceding user gesture.** For
   this lane, the gesture is the iframe Send click. The component's
   onClick handler is the only place the envelope is constructed.
+- **One predicate gates the Send button — `disabled` and the handler's
+  early-return must never drift.** Derive both from a single
+  `const canSend = !!idStr(data.x_id) && …;` — `disabled={!canSend ||
+  isStreaming || sendState === 'sending'}` on the button AND `if (!canSend)
+  return;` at the top of the commit handler. Gate on the SAME id fields the
+  handler requires, each coerced with `idStr`. A button whose `disabled` checks
+  one field while the handler bails on another stays clickable yet silently does
+  nothing — the posthog "looks clickable, does nothing" dead-button shape.
+- **Coerce id fields with `idStr()` into the envelope.** Every identifier passed
+  into the connector-targeted envelope (`issue_id`, `experiment_id`, report ids)
+  goes through `idStr` so a numeric source id survives — read straight through a
+  string-only coercer it blanks to `""` and the send fails silently.
 - **Show the exact payload.** The form already shows the body verbatim;
   don't transform it on commit. Use guillemets to delimit the body so
   user-authored bytes survive round-trip.

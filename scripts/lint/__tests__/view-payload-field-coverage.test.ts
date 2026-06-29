@@ -57,7 +57,7 @@ describe("pass20ViewPayloadFieldCoverage", () => {
   beforeEach(() => { tmp = null; });
   afterEach(() => { if (tmp) fs.rmSync(tmp.repoRoot, { recursive: true, force: true }); });
 
-  it("flags E35 (warning) for a payload field the skill never documents", () => {
+  it("flags E35 (error) for a payload field the skill never documents", () => {
     tmp = mkTmpPlugin("agntux-apple-notes");
     writeSrc(
       tmp,
@@ -71,7 +71,7 @@ describe("pass20ViewPayloadFieldCoverage", () => {
     const findings = run(tmp);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.code).toBe("E35");
-    expect(findings[0]?.severity).toBe("warning");
+    expect(findings[0]?.severity).toBe("error");
     expect(findings[0]?.message).toContain("draft_title");
   });
 

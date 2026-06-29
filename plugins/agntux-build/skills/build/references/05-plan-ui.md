@@ -88,6 +88,32 @@ doesn't decide which renders for any given action item. If you
 ship five handlers, the host picks one of those five per action
 item; the user sees one button.
 
+## A backing view tool means a MANDATORY view hand-off
+
+Any skill lane or model hand-off that presents data which **has a
+backing view tool** (a render tool the plugin ships) must instruct the
+model with MANDATORY language, not soft prose. The instruction must:
+
+1. **Name the exact view-tool id** — the literal
+   `agntux_<slug>_<name>` id, never a description like "the schedule
+   view" or "the results view".
+2. **Explicitly forbid answering in plain text** / a chat summary —
+   even for a single result, even for a case that feels "simple."
+
+Canonical phrasing pattern:
+
+> You MUST call `agntux_<slug>_<name>` with <data>. Do NOT
+> list/summarise the results as text — the view is the only correct
+> surface.
+
+Soft phrasing ("re-open the schedule view with the results",
+"consider showing the times") lets the model treat the call as optional
+and reply with a plain-text list instead — that is the
+agntux-google-calendar time-slot bug, where the view never opened and
+the model dumped times into chat. Whenever a lane presents data that a
+view tool renders, write the hand-off as a hard requirement naming the
+exact tool id.
+
 ## Plan the structuredContent (internal)
 
 Internally (silent to user), `ui-handler-author` will design the

@@ -394,6 +394,15 @@ is which primitives to wire, not a second source of import paths:
 | `ServerErrorScreen` + `detectErrorEnvelope` | `@agntux/ui-primitives` | Short-circuit on MCP-layer error envelopes. |
 | `apps-react/`, `apps-client/` | `view-tool/src/lib/` (imported as `./lib/apps-react/index.js`) | MIT-inlined hooks/transport. **DO NOT modify; DO NOT move into @agntux/plugin-runtime; DO NOT import `SimpleMcpApp` from component code.** |
 
+**Payload accessors — import, never re-author.** Read every
+`structuredContent` field through the scaffolded `../lib/payload.js` coercers:
+`str(v)` for free text, `idStr(v)` for EVERY identifier field (`*_id`, `*Id`),
+`strArr(v)` for string lists, `isOpenableUrl(href)` to gate links. **NEVER
+re-author a local `str()`** — the recurring `typeof v === "string" ? v : ""`
+blanks any id that arrives as a JS number (an unquoted `issue_id: 789` parses to
+a number), which silently disables the button that needs it (the posthog
+dead-button incident). Coerce ids with `idStr`, never `str`.
+
 Now walk through `briefing-learnings.md` §1 with the developer as a
 checklist; flag §2 anti-patterns explicitly ("we are NOT using fire-and-poll;
 we are NOT adding custom hotkeys").
@@ -577,6 +586,15 @@ the contributor (see `skills/build/references/self-validation.md`):
   postMessage, or call `openLink()` directly from a `<button onClick>`.
   **Enforced:** lint pass 16 (E31) hard-fails any view-tool component carrying
   one of these patterns. (§1.7.)
+- **No drift between a Send/action button's `disabled` prop and its handler's
+  early-return.** Both MUST derive from ONE predicate — e.g.
+  `const canSend = !!idStr(data.x_id) && …;` then
+  `disabled={!canSend || isStreaming || sendState === 'sending'}` on the button
+  and `if (!canSend) return;` at the top of `handleSend`. Gate the button on the
+  SAME id fields the handler requires, each coerced with `idStr`. A button whose
+  `disabled` checks one field while `handleSend` bails on another stays clickable
+  yet silently does nothing — the exact posthog "looks clickable, does nothing"
+  dead-button shape.
 - **No raw color hex codes.** Use semantic Tailwind tokens.
 - **No code-split bundles.** `vite-plugin-singlefile` only.
 - **No host-side state writes from the component.** The component
