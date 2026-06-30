@@ -21,7 +21,7 @@ final).
 
 `knowledge-update`
 
-Raised when John has worked on a Jira issue but no worklog entry has been
+Raised when the user has worked on a Jira issue but no worklog entry has been
 logged — a gap that degrades "what did I work on?" recall and makes sprint
 reporting inaccurate.
 
@@ -31,18 +31,18 @@ reporting inaccurate.
 
 Generate a `log-work` suggested action when any of:
 
-- An issue assigned to John has been moved to `In Progress` or `In Review`
-  status and no worklog entry for John exists for the current sprint (inferred
+- An issue assigned to the user has been moved to `In Progress` or `In Review`
+  status and no worklog entry for the user exists for the current sprint (inferred
   from last 2 weeks; no sprint API required).
-- An issue assigned to John has been transitioned to `Done` or `Closed` within
+- An issue assigned to the user has been transitioned to `Done` or `Closed` within
   the last 24 hours and has no worklog entries at all.
-- John has commented on an issue in the last sync window and the issue has no
+- The user has commented on an issue in the last sync window and the issue has no
   worklog for the current period — participation without logging is a common
   gap.
 - The issue has a `duedate` within the next 3 days and no recent worklog for
-  John.
+  the user.
 
-Do NOT generate a `log-work` action for issues where John is only a watcher
+Do NOT generate a `log-work` action for issues where the user is only a watcher
 (not assignee, reporter, or recent commenter). Do NOT generate for issues in
 `Backlog` or `To Do` status unless there is an explicit signal of work started.
 
@@ -122,7 +122,7 @@ Step 10.
 
 **Estimating `suggested_started`**: use the timestamp of the issue's most
 recent transition to `In Progress`, `In Review`, or `Code Review` status.
-When unavailable, use the timestamp of John's most recent comment on the issue.
+When unavailable, use the timestamp of the user's most recent comment on the issue.
 When neither is available, use `today at 09:00:00` in the user's local timezone
 (from `user.md → frontmatter.timezone`, default `America/Denver`).
 
@@ -231,7 +231,7 @@ Tone rules apply to `draft_comment` only:
 - Discard is local — no envelope emitted; banner: `Discarded — no worklog
   posted. The action item is still open.`
 - The iframe must clearly display the issue key and title alongside the time
-  entry fields so John can verify he is logging to the correct issue.
+  entry fields so the user can verify they are logging to the correct issue.
 
 # Always raise
 
@@ -242,7 +242,7 @@ Tone rules apply to `draft_comment` only:
 # Notes
 
 - Default `suggested_time_spent` to `"1h"` when no better signal is
-  available. Err toward underestimation rather than overestimation — John
+  available. Err toward underestimation rather than overestimation — the user
   can adjust up; it is harder to explain a logged time that looks inflated.
 - The `suggested_started` timestamp is a hint, not a mandate. The date picker
   should default to it but leave it fully editable.

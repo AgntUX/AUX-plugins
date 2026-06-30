@@ -318,7 +318,7 @@ source: jira
 
 ## Why this matters
 
-OFM-412 has no worklog for John.
+OFM-412 has no worklog for the user.
 
 ## Log-work payload
 
@@ -331,7 +331,7 @@ suggested_time_spent: "1h 30m"
 suggested_started: "2026-06-08T09:00:00Z"
 draft_comment: null
 personalization_signals:
-  - "No worklog found for John in the last sprint"
+  - "No worklog found for the user in the last sprint"
 generated_at: "2026-06-08T12:00:00Z"
 \`\`\`
 `;

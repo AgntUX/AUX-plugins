@@ -66,7 +66,7 @@ explicitly wrong:
   `source_id` for entity lookup — the cursor key should match it.
 
 Note: `fetch.md`'s YAML example (the `## Cursor shape for iMessage`
-section) uses display names (`"Mom"`, `"John Jordan"`) as map keys.
+section) uses display names (`"Mom"`, `"Riley Chen"`) as map keys.
 That example is illustrative shorthand. This file is the authoritative
 cursor specification; the handle-keyed form governs. The ingest skill
 MUST use the raw `sender` string as the cursor map key.

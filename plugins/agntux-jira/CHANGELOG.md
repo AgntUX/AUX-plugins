@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-06-29
+
+### Changed
+
+- Genericized the handler-instruction and skill-reference prose that previously referred to the account owner by a hard-coded first name; the assign / transition / log-work / comment / edit instructions and their payload references now say "the user". No behavior change.
+
 ## [0.3.1] — 2026-06-28
 
 ### Fixed

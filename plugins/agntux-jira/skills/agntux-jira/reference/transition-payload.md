@@ -81,8 +81,8 @@ Args derived from the form at Send time:
 
 - `cloudId`: from `structuredContent.cloud_id`
 - `issueIdOrKey`: from `structuredContent.issue_key`
-- `transition.id`: the transition id John selected in the picker (may differ
-  from `suggested_transition_id` if he overrides)
+- `transition.id`: the transition id the user selected in the picker (may differ
+  from `suggested_transition_id` if they override)
 - `update.comment` (optional): the value of `optional_comment` if non-empty;
   omitted from the envelope entirely when blank
 

@@ -254,7 +254,7 @@ record_id: "12345"
 record_url: "https://app.hubspot.com/contacts/98765432/deal/12345"
 record_type: "DEAL"
 record_name: "Acme Corp Enterprise License"
-current_owner: "John Jordan"
+current_owner: "Riley Chen"
 candidate_owners:
   - ownerId: "11111111"
     name: "Alice Wong"

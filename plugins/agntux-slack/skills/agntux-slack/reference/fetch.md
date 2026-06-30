@@ -54,7 +54,7 @@ This runs on **every run**, not just bootstrap. Bootstrap-deferred `null` thread
 
 ### Step 5c — Per-channel polling (bulk of the work)
 
-**Walk-set short-circuit (O2).** When `last_success` is non-null AND less than 1 day ago, restrict the walk-set to: (a) channels whose `<channel_id>` appeared in this run's discovery hits, plus (b) channels with cursor older than `last_success - 1 day`. Channels with no John-authored or @-mention activity that are also recently-polled fall out of this run's per-channel pass — discovery would have surfaced them if they had new triage-relevant content. Skipped channels are NOT logged. On the first run after a cold-start (`last_success: null`) walk every channel-shaped key.
+**Walk-set short-circuit (O2).** When `last_success` is non-null AND less than 1 day ago, restrict the walk-set to: (a) channels whose `<channel_id>` appeared in this run's discovery hits, plus (b) channels with cursor older than `last_success - 1 day`. Channels with no user-authored or @-mention activity that are also recently-polled fall out of this run's per-channel pass — discovery would have surfaced them if they had new triage-relevant content. Skipped channels are NOT logged. On the first run after a cold-start (`last_success: null`) walk every channel-shaped key.
 
 Walk the resulting set in **cursor-stale order**: explicitly sort the entries ascending by cursor value before iterating (`Object.entries(cursor).filter(channel-shaped).sort((a,b) => Number(a[1] ?? 0) - Number(b[1] ?? 0))`). Map insertion order is irrelevant. The most-stale channel must run first. For each:
 

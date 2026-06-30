@@ -13,7 +13,7 @@ Source: `data/instructions/edit.md` — `## Edit payload`.
 
 REQUIRED for every action item whose `suggested_actions` list contains an
 `Edit issue` entry (handler: `edit`). The iframe shows current values alongside
-draft suggestions; Send includes ONLY the fields John actually changed. The
+draft suggestions; Send includes ONLY the fields the user actually changed. The
 Send button is disabled on zero-diff (no changes made).
 
 ### structuredContent keys
@@ -94,7 +94,7 @@ Tool: `mcp__claude_ai_Atlassian__editJiraIssue`
 The envelope is assembled by `buildEditEnvelope()` in
 `view-tool/src/apps/edit/lib/build-envelope.ts`.
 
-The envelope includes ONLY the fields John actually changed in the form.
+The envelope includes ONLY the fields the user actually changed in the form.
 Fields unchanged from their `current_*` values are omitted entirely — this
 avoids unintentional overwrites on fields the iframe did not surface.
 
@@ -106,7 +106,7 @@ Args derived from the form at Send time (only changed fields):
 - `fields.priority.name` (only if changed): selected priority name
 - `fields.labels` (only if changed): the full label array after edits
 
-The `fields.labels` value is always a full replacement array — if John adds one
+The `fields.labels` value is always a full replacement array — if the user adds one
 label, the envelope must carry all existing labels plus the new one, not just the
 new one. The Send button must remain disabled when no fields differ from current
 values. Discard emits no envelope; a local banner confirms no changes were

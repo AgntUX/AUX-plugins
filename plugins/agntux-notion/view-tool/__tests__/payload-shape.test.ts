@@ -152,7 +152,7 @@ source_id: notion:9f8e7d6c-5b4a-3210-fedc-ba9876543210
 page_id: "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
 page_url: "https://www.notion.so/API-Migration-9f8e7d6c5b4a3210fedcba9876543210"
 title: "API Migration"
-current_properties: "Status: In Progress\\nDue: 2026-07-01\\nAssignee: John Jordan"
+current_properties: "Status: In Progress\\nDue: 2026-07-01\\nAssignee: Riley Chen"
 editable_properties: '[{"key":"status","type":"select","label":"Status","value":"In Progress","options":["Not started","In Progress","Done"]},{"key":"due_date","type":"date","label":"Due date","value":"2026-07-01"}]'
 ---
 

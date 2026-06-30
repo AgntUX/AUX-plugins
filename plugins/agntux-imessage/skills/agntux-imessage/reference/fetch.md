@@ -182,7 +182,7 @@ The cursor is a per-contact JSON map on the `sync.md → cursor` line:
 
 ```yaml
 # sync.md frontmatter — example after a successful run
-cursor: '{"Mom":{"handle":"+14155550101","last_seen":"2026-06-18T18:15:00Z"},"John Jordan":{"handle":"+14155550102","last_seen":"2026-06-18T17:45:00Z"}}'
+cursor: '{"Mom":{"handle":"+14155550101","last_seen":"2026-06-18T18:15:00Z"},"Riley Chen":{"handle":"+14155550102","last_seen":"2026-06-18T17:45:00Z"}}'
 ```
 
 Each entry: `contact_name` → `{ handle, last_seen }` where `handle` is

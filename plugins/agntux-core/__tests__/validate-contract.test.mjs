@@ -115,7 +115,7 @@ describe("validate-contract hook", () => {
       "",
       "For **`response-needed`**:",
       "",
-      "- `[dm]` — direct DM to John.",
+      "- `[dm]` — direct DM to the user.",
       "- `[mention]` — @-mention.",
       "",
     ].join("\n");
@@ -145,8 +145,8 @@ describe("validate-contract hook", () => {
       "",
       "For **`response-needed`**:",
       "",
-      "- `dm` — direct DM to John.",
-      "- `mention` — @-mention of John in a channel.",
+      "- `dm` — direct DM to the user.",
+      "- `mention` — @-mention of the user in a channel.",
       "",
     ].join("\n");
     const result = runHook(
@@ -207,7 +207,7 @@ describe("validate-contract hook", () => {
       "",
       "For **`response-needed`**:",
       "",
-      "- `dm` — direct DM to John.",
+      "- `dm` — direct DM to the user.",
       "",
     ].join("\n");
     const result = runHook(

@@ -89,10 +89,10 @@ Args derived from the form at Send time:
 
 - `cloudId`: from `structuredContent.cloud_id`
 - `issueIdOrKey`: from `structuredContent.issue_key`
-- `fields.assignee.accountId`: the `account_id` John selected in the picker
-  (may differ from `suggested_assignee_account_id` if he overrides)
+- `fields.assignee.accountId`: the `account_id` the user selected in the picker
+  (may differ from `suggested_assignee_account_id` if they override)
 
-When John selects the "Unassigned" entry, send `fields.assignee: null` rather
+When the user selects the "Unassigned" entry, send `fields.assignee: null` rather
 than `fields.assignee.accountId: null` — Jira interprets `null` on the
 `assignee` object as an unassign. Do not write an accountId that is not present
 in `candidate_assignees`. Discard emits no envelope; a local banner confirms

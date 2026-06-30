@@ -21,9 +21,9 @@ final).
 
 `response-needed`
 
-Raised when an issue requires a reply from John — a new comment @-mentioning
-him, a request for review, or a blocking question that has arrived unaddressed
-on an issue he owns or is watching.
+Raised when an issue requires a reply from the user — a new comment @-mentioning
+them, a request for review, or a blocking question that has arrived unaddressed
+on an issue they own or are watching.
 
 ---
 
@@ -31,12 +31,12 @@ on an issue he owns or is watching.
 
 Generate a `comment` suggested action when any of:
 
-- A new comment on a Jira issue @-mentions John's Atlassian account.
-- A comment asks a question directed at the assignee and John is the assignee.
-- A comment marks the issue as Blocked or Needs Review and John is the
+- A new comment on a Jira issue @-mentions the user's Atlassian account.
+- A comment asks a question directed at the assignee and the user is the assignee.
+- A comment marks the issue as Blocked or Needs Review and the user is the
   reporter or a watcher.
 - An always-flag person (from `user.md → # People`) comments on any issue
-  John is watching.
+  the user is watching.
 
 Do NOT generate this action for bot-authored comments (`accountType: "app"`,
 Automation for Jira, atlassian-addons-admin) — those are status transitions
@@ -95,7 +95,7 @@ be wrapped in double quotes.
 
 The draft body is composed at ingest time using the issue's description,
 comment thread, and the user's drafting-voice preferences below. The iframe
-loads the on-disk draft; John edits it and clicks Send to commit.
+loads the on-disk draft; the user edits it and clicks Send to commit.
 
 ---
 
@@ -151,17 +151,17 @@ frontmatter).
 
 ## Tone / personalization
 
-- **Voice**: match John's existing Jira comment style. Before composing, the
-  ingest pass re-reads recent comments John has authored on issues in the same
-  project (available in the deep-fetch pass) and mirrors his register, sentence
+- **Voice**: match the user's existing Jira comment style. Before composing, the
+  ingest pass re-reads recent comments the user has authored on issues in the same
+  project (available in the deep-fetch pass) and mirrors their register, sentence
   length, and capitalization conventions.
 - **Internal issues** (OatFi projects): terse, direct, sentence-case. Mirrors
-  his Slack voice. Keep it short — Jira comments are not essays.
+  their Slack voice. Keep it short — Jira comments are not essays.
 - **Shared/external-facing issues** (partner or vendor projects): slightly more
   polished but still direct. Full sentences; minimal pleasantry.
-- **Sign-off**: none by default for Jira comments. John does not sign Jira
-  comments. Do not append "Thanks, John" or any other sign-off unless the
-  thread context shows he historically does so for this project.
+- **Sign-off**: none by default for Jira comments. The user does not sign Jira
+  comments. Do not append "Thanks, <name>" or any other sign-off unless the
+  thread context shows they historically do so for this project.
 - Do not add filler phrases ("As discussed", "Per our conversation", "Hope this
   helps"). Get to the point.
 - Never insert emoji unless the original thread uses them and the in-instructions

@@ -21,7 +21,7 @@ final).
 
 `needs-routing`
 
-Raised when a Jira issue lacks an assignee or has landed in John's queue but
+Raised when a Jira issue lacks an assignee or has landed in the user's queue but
 belongs to someone else — a triage candidate that needs to be routed to the
 right person.
 
@@ -31,21 +31,21 @@ right person.
 
 Generate an `assign` suggested action when any of:
 
-- An issue is unassigned and is in a project where John is expected to triage
-  (typically his own team's projects: OFM, PLAT, ENG, and any project where
-  he is the default component owner or lead).
-- An issue is assigned to John but the work clearly belongs to another team
-  member (e.g. the issue is in a domain he has explicitly routed to a direct
+- An issue is unassigned and is in a project where the user is expected to triage
+  (typically their own team's projects: OFM, PLAT, ENG, and any project where
+  they are the default component owner or lead).
+- An issue is assigned to the user but the work clearly belongs to another team
+  member (e.g. the issue is in a domain they have explicitly routed to a direct
   report before, or the issue type/component maps to a known owner per
   `user.md → # People`).
-- A comment on the issue explicitly asks John to re-assign it.
+- A comment on the issue explicitly asks the user to re-assign it.
 - The current assignee has left the team or is out of office (inferred from
   Jira account status or OOO signals from Slack/Gmail if cross-source data
   is available in the knowledge store).
 
 Do NOT generate an `assign` action for issues where the correct owner is
 genuinely ambiguous and no candidate can be suggested — raise a
-`needs-decision` action instead, with a `host_prompt` directing John to
+`needs-decision` action instead, with a `host_prompt` directing the user to
 pick manually.
 
 ---
@@ -130,8 +130,8 @@ Args derived from the form at Send time:
 
 - `cloudId`: from `structuredContent.cloud_id`
 - `issueIdOrKey`: from `structuredContent.issue_key`
-- `fields.assignee.accountId`: the account_id John selected in the picker
-  (may differ from `suggested_assignee_account_id` if he overrides)
+- `fields.assignee.accountId`: the account_id the user selected in the picker
+  (may differ from `suggested_assignee_account_id` if they override)
 
 Envelope shape:
 
@@ -173,9 +173,9 @@ frontmatter).
 This handler carries no draft body — the payload is a structured assignee
 selection with no free text. Personalization applies to candidate ranking only:
 
-- Rank candidates based on John's known routing patterns. Read recent
+- Rank candidates based on the user's known routing patterns. Read recent
   `assign` events in the knowledge store (`## Activity` sections on resolved
-  action items) to learn which team members John has assigned to which issue
+  action items) to learn which team members the user has assigned to which issue
   types / components before.
 - For OFM issues: prefer Josue or Jonathan (Eng Leads) for implementation
   issues; prefer Dana or Pao (PMs) for product/requirements issues.
@@ -184,8 +184,8 @@ selection with no free text. Personalization applies to candidate ranking only:
 - For issues where no `user.md → # People` mapping applies, surface the most
   recent commenter (excluding bots) as the first candidate after any
   `suggested_assignee_account_id`.
-- Never suggest assigning to John himself when the action trigger was "reassign
-  away from John". Exclude his own account from the candidate list in that case.
+- Never suggest assigning to the user themselves when the action trigger was "reassign
+  away from the user". Exclude their own account from the candidate list in that case.
 
 ---
 
@@ -193,7 +193,7 @@ selection with no free text. Personalization applies to candidate ranking only:
 
 - Do not write `fields.assignee.accountId` with an accountId that is not
   present in `candidate_assignees`. The list is the authorised set for this
-  action item. If John wants to assign to someone outside the list, direct him
+  action item. If the user wants to assign to someone outside the list, direct them
   to open the issue in Jira directly (`Open in Jira` deep link).
 - An "unassign" (clearing the assignee) is a valid outcome — include a
   "Unassigned" entry in the picker with `account_id: null`. The envelope in

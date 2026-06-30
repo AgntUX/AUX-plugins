@@ -56,7 +56,7 @@ The `agntux_jira_edit_view` view tool reads the action file's
 `## Edit payload` body section at click time and lifts the following fields
 into `structuredContent`. The iframe renders an edit form showing current
 values with editable fields for summary, priority, and labels. Only the
-fields John actually changes are included in the Send envelope.
+fields the user actually changes are included in the Send envelope.
 
 | Key | Type | Source |
 |---|---|---|
@@ -134,7 +134,7 @@ Tool: `mcp__claude_ai_Atlassian__editJiraIssue`
 The envelope is assembled by `buildEditEnvelope()` in
 `view-tool/src/apps/edit/lib/build-envelope.ts`.
 
-The envelope includes ONLY the fields John actually changed in the form.
+The envelope includes ONLY the fields the user actually changed in the form.
 Fields unchanged from their `current_*` values are omitted from the envelope.
 This avoids unintentional overwrites on fields the iframe did not surface.
 
@@ -215,12 +215,12 @@ and to any suggested `draft_summary` rewrites:
 
 - The form must display `current_summary`, `current_priority`, and
   `current_labels` as a read-only baseline before showing the draft values.
-  John should be able to see exactly what is changing.
+  The user should be able to see exactly what is changing.
 - If no changes are made in the form (all draft values left as-is or
   matching current), the Send button must remain disabled. There is no
   zero-diff send.
 - The `fields.labels` value in the envelope is a full replacement array.
-  If John adds one label in the form, the envelope must include all existing
+  If the user adds one label in the form, the envelope must include all existing
   labels plus the new one — not just the new one.
 - Discard is local — no envelope emitted; banner: `Discarded — no changes
   applied. The action item is still open.`

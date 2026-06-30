@@ -21,7 +21,7 @@ final).
 
 `needs-decision`
 
-Raised when a Jira issue requires a status transition that only John can
+Raised when a Jira issue requires a status transition that only the user can
 authorise — a PR is approved and the issue needs to move to In Review, a
 deploy is confirmed and the issue should close, or a blocker is resolved and
 the issue should resume In Progress.
@@ -32,7 +32,7 @@ the issue should resume In Progress.
 
 Generate a `transition` suggested action when any of:
 
-- An issue assigned to John has been in the same status for more than the
+- An issue assigned to the user has been in the same status for more than the
   expected cycle time for that status (heuristic: 3 business days for In
   Progress, 2 business days for In Review / Code Review, 1 business day for
   Needs Review).
@@ -40,13 +40,13 @@ Generate a `transition` suggested action when any of:
   this to Done?", "mark as blocked", "this is ready for review").
 - An issue linked via `issuelinks` as "blocks" has been resolved, suggesting
   the blocked issue can now move forward.
-- The issue's current status is `Blocked` or `On Hold` and John is the
+- The issue's current status is `Blocked` or `On Hold` and the user is the
   reporter or assignee, and the blocking condition no longer appears to hold
   (inferred from linked issue status or recent comments).
 
 Do NOT generate a `transition` action for issues where the required transition
 requires a third party (e.g. QA sign-off, release manager approval) unless
-John is explicitly named as the next-step owner.
+the user is explicitly named as the next-step owner.
 
 ---
 
@@ -104,7 +104,7 @@ generated_at: "<RFC 3339 of this run>"
 
 The `optional_comment` field is null by default. The ingest agent may populate
 it with a brief rationale when the transition requires context (e.g. "Resolving
-— PR #42 was merged and deployed to staging."). John can edit or clear it in
+— PR #42 was merged and deployed to staging."). The user can edit or clear it in
 the iframe.
 
 YAML quoting reminder: any string scalar containing `: ` MUST be wrapped in
@@ -125,8 +125,8 @@ Args derived from the form at Send time:
 
 - `cloudId`: from `structuredContent.cloud_id`
 - `issueIdOrKey`: from `structuredContent.issue_key`
-- `transition.id`: the transition id selected by John in the picker (may
-  differ from `suggested_transition_id` if he overrides)
+- `transition.id`: the transition id selected by the user in the picker (may
+  differ from `suggested_transition_id` if they override)
 - `update.comment` (optional): the value of `optional_comment` if non-empty;
   omitted from the envelope when blank
 
@@ -202,18 +202,18 @@ selection, not free text. Tone rules apply only to `optional_comment`:
 
 - The transition picker must show ALL transitions returned in
   `available_transitions`. Do not filter or hide transitions the ingest agent
-  did not suggest — John may know context the agent does not.
+  did not suggest — the user may know context the agent does not.
 - The `suggested_transition_id` is a pre-selection hint, not a lock. The form
-  must allow John to select any available transition.
+  must allow the user to select any available transition.
 - If `available_transitions` is empty (ingest-time fetch failed or the issue
   is in a terminal state with no outgoing transitions), surface a structured
-  error and direct John to open the issue in Jira directly.
+  error and direct the user to open the issue in Jira directly.
 - Discard is local — no envelope emitted; banner: `Discarded — issue status
   unchanged. The action item is still open.`
 - Do not allow transitioning to a state that requires a mandatory field
   (screen transition) without surfacing a warning. If `getTransitionsForJiraIssue`
   indicates a screen is required for a transition, mark that transition with a
-  warning label in the picker and, when selected, direct John to complete it in
+  warning label in the picker and, when selected, direct the user to complete it in
   Jira directly (`Open in Jira` deep link).
 
 # Always raise

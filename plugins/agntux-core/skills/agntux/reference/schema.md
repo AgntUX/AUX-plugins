@@ -323,7 +323,7 @@ Correct framing in a contract:
 `reason_class` carries the closed action_class enum from `schema.lock.json`.
 
 ## reason_detail prefixes
-Tags at the start of `reason_detail`, e.g. `reason_detail: "[dm] John asked for sign-off"`.
+Tags at the start of `reason_detail`, e.g. `reason_detail: "[dm] a teammate asked for sign-off"`.
 Not valid `reason_class` values.
 - `[dm]` — direct DM to the user.
 - `[mention]` — @-mention in a channel.

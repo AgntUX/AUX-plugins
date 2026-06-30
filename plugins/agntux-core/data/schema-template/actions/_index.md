@@ -88,7 +88,7 @@ Action items are stored at `<agntux project root>/actions/{YYYY-MM-DD}-{slug-suf
 | `opportunity` | Something worth pursuing. |
 | `other` | Escape hatch. Requires `reason_detail`. |
 
-Plugins propose new action_classes via `proposed_schema → action_classes` in their `marketplace/listing.yaml`; once approved by the architect in Mode B, they are added to `schema.lock.json → action_classes` and become valid `reason_class` values. **Sub-categorisation that depends on context (per-message details) goes in `reason_detail`** — typically as a square-bracket prefix, e.g. `reason_detail: "[dm] John asked for sign-off"`. Per-plugin contracts MAY document recommended `reason_detail` prefix conventions under a `## reason_detail prefixes` section; those are authoring aids, not a closed enum.
+Plugins propose new action_classes via `proposed_schema → action_classes` in their `marketplace/listing.yaml`; once approved by the architect in Mode B, they are added to `schema.lock.json → action_classes` and become valid `reason_class` values. **Sub-categorisation that depends on context (per-message details) goes in `reason_detail`** — typically as a square-bracket prefix, e.g. `reason_detail: "[dm] a teammate asked for sign-off"`. Per-plugin contracts MAY document recommended `reason_detail` prefix conventions under a `## reason_detail prefixes` section; those are authoring aids, not a closed enum.
 
 ### Worked example — contract framing
 
@@ -105,7 +105,7 @@ The plugin uses these action classes (matches `schema.lock.json → action_class
 
 ## reason_detail prefixes
 
-These prefixes go at the start of `reason_detail` in square brackets, e.g. `reason_detail: "[dm] John asked for sign-off"`. They are NOT valid `reason_class` values.
+These prefixes go at the start of `reason_detail` in square brackets, e.g. `reason_detail: "[dm] a teammate asked for sign-off"`. They are NOT valid `reason_class` values.
 
 For **`response-needed`**: `[dm]`, `[mention]`, `[decision-request]`.
 

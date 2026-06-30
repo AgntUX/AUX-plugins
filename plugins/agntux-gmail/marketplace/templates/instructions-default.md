@@ -40,7 +40,7 @@ status: draft
 # Each rule is one bullet starting with the trigger and ending with
 # the substitution. Examples:
 #
-# - Always sign off as "John"
+# - Always sign off as "<your name>"
 # - Replace "ASAP" with an explicit time
 # - Use Markdown lists rather than prose for follow-ups
 

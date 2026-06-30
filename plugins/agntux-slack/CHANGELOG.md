@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [8.5.2] — 2026-06-29
+
+### Changed
+
+- Genericized ingest skill prose in the walk-set short-circuit reference ("user-authored" instead of a hard-coded name).
+
 ## [8.5.1] — 2026-06-28
 
 ### Fixed

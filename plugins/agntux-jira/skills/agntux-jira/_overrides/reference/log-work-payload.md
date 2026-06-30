@@ -77,7 +77,7 @@ to the nearest 15 minutes.
 
 **Estimating `suggested_started`:** use the timestamp of the issue's most
 recent transition to `In Progress`, `In Review`, or `Code Review`. When
-unavailable, use the timestamp of John's most recent comment on the issue.
+unavailable, use the timestamp of the user's most recent comment on the issue.
 When neither is available, use today at `09:00:00` in the user's local
 timezone (from `user.md → frontmatter.timezone`, default `America/Denver`),
 converted to UTC.

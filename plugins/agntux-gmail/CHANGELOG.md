@@ -6,6 +6,12 @@ in `.claude-plugin/plugin.json` MUST match the most-recent version section.
 
 ## [Unreleased]
 
+## [4.5.1] — 2026-06-29
+
+### Changed
+
+- Genericized the example sign-off rule in the default instructions template to a `<your name>` placeholder instead of a hard-coded name.
+
 ## [4.5.0] — 2026-06-27
 
 ### Added

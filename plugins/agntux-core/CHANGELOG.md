@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [10.6.2] — 2026-06-29
+
+### Changed
+
+- Genericized the `[dm]` `reason_detail` example in the schema-template action index and the skill schema reference so it no longer names a specific person (now "a teammate"); contract-validator test fixtures updated to match. No behavior change.
+
 ## [10.6.1] — 2026-06-29
 
 ### Fixed
