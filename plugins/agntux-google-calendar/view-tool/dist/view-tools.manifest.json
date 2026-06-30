@@ -1,6 +1,6 @@
 {
   "plugin_slug": "agntux_google_calendar",
-  "plugin_version": "0.7.1",
+  "plugin_version": "0.7.3",
   "handler_module": "view-tool/dist/agntux-google-calendar-view.js",
   "view_tools": [
     {

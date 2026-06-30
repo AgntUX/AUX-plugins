@@ -77,7 +77,7 @@ prep_summary: |
   <verbatim copy of ## Meeting prep section markdown, or empty string>
 prep_signals:
   - label: "<person name or thread title>"
-    href: "<filesystem path or external URL>"
+    href: "<openable external URL — https/http/mailto; empty string if none>"
 personalization_signals:
   - "<short bullet e.g. 'Alice is in your Important people list'>"
 source_link:
@@ -103,8 +103,14 @@ source_link:
 - `prep_summary`: copy verbatim from the `## Meeting prep` section when present.
   Write empty string when no prep was composed.
 - `prep_signals`: one `{label, href}` entry per source cited in prep bullets.
-  Cap at 5. `href` is a filesystem path relative to the agntux project root, or
-  an external URL.
+  Cap at 5. `href` MUST be an openable external deep link — an `https://`,
+  `http://`, or `mailto:` URL (e.g. the Slack message permalink, the Gmail
+  thread URL, or the source event's `htmlLink`). The respond view opens these
+  via the host's `openLink()`, which only works for web/mail URLs. A filesystem
+  path relative to the project root is NOT openable from the sandboxed iframe —
+  never emit one as `href`. When no openable URL exists, still write the entry
+  with its best label and an empty `href`; the view renders it as plain text
+  instead of a dead link.
 - `personalization_signals`: one bullet per `user.md` signal that shaped the
   prep (e.g. "Alice is in your Important people list", "working hours applied").
 - `source_link.url`: always use `event.htmlLink` from the connector response.
