@@ -1,0 +1,22 @@
+{
+  "name": "@agntux/agntux-granola-plugin",
+  "version": "0.0.0",
+  "description": "Build + test harness for the agntux-granola plugin",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-plugin.mjs agntux-granola",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

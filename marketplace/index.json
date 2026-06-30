@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-27T04:08:24.754Z",
+  "generated_at": "2026-06-30T01:21:20.666Z",
   "plugins": {
     "agntux-apple-notes": {
       "tagline": "Capture notes from Apple Notes with one-click create and edit.",
@@ -1268,6 +1268,112 @@
         ],
         "cursor_semantics": "Time-based cursor tracking the most recent modifiedTime of files seen.",
         "source_id_format": "Google Drive file ID (stable identifier, e.g. 1cguDW1J6QA…)"
+      }
+    },
+    "agntux-granola": {
+      "tagline": "See meeting transcripts and action items—pull Granola into AgntUX.",
+      "description": "Brings your Granola meeting notes into AgntUX so you don't miss action items\nand context from calls. Read transcripts, summaries, and follow-ups in one\nplace, then open them in Granola to reply or take action.\n",
+      "categories": [
+        "productivity",
+        "notes-knowledge"
+      ],
+      "keywords": [
+        "granola",
+        "meetings",
+        "transcripts",
+        "notes",
+        "ai-notetaker"
+      ],
+      "available_on": [
+        "trial",
+        "pro",
+        "team",
+        "enterprise"
+      ],
+      "supported_prompts": [
+        {
+          "prompt": "/agntux-granola",
+          "purpose": "Type /agntux-granola to check for new meeting notes. Or ask about your meetings—it just looks things up."
+        }
+      ],
+      "data_ingested": [
+        "Meeting transcripts and AI summaries",
+        "Attendee names and roles",
+        "Meeting action items and follow-ups",
+        "Meeting metadata (title, date, duration, folder)"
+      ],
+      "support": {
+        "url": "https://github.com/AgntUX/AUX-plugins/issues",
+        "email": "support@agntux.ai"
+      },
+      "developer": {
+        "name": "AgntUX",
+        "url": "https://agntux.ai",
+        "github_handle": "agntux"
+      },
+      "requires_plugins": [
+        "agntux-core"
+      ],
+      "requires_source_mcp": {
+        "source": "connector",
+        "connector_slug": "granola",
+        "display_name": "Granola"
+      },
+      "proposed_schema": {
+        "entity_subtypes": [
+          {
+            "subtype": "person",
+            "description": "Meeting attendees and people mentioned in notes.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          {
+            "subtype": "topic",
+            "description": "Discussion topics, projects, or subjects from meetings.",
+            "required_frontmatter": [
+              "id",
+              "type",
+              "schema_version",
+              "subtype",
+              "aliases",
+              "sources",
+              "created_at",
+              "updated_at"
+            ]
+          }
+        ],
+        "action_classes": [
+          {
+            "class": "response-needed",
+            "description": "Action items and follow-ups assigned in meetings."
+          },
+          {
+            "class": "knowledge-update",
+            "description": "Key decisions, updates, or information from meetings."
+          },
+          {
+            "class": "risk",
+            "description": "Blockers, dependencies, or concerns surfaced in meetings."
+          },
+          {
+            "class": "opportunity",
+            "description": "Proposals and ideas discussed in meetings."
+          },
+          {
+            "class": "other",
+            "description": "Additional context or notes requiring review."
+          }
+        ],
+        "cursor_semantics": "Single timestamp cursor; advances to the newest meeting processed in each run.",
+        "source_id_format": "`{meeting_id}` — unique per meeting instance in Granola."
       }
     },
     "agntux-hubspot": {

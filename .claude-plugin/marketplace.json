@@ -161,6 +161,19 @@
       "category": "productivity"
     },
     {
+      "name": "agntux-granola",
+      "source": "./plugins/agntux-granola",
+      "homepage": "https://agntux.ai/plugins/agntux-granola",
+      "keywords": [
+        "granola",
+        "meetings",
+        "transcripts",
+        "notes",
+        "ai-notetaker"
+      ],
+      "category": "productivity"
+    },
+    {
       "name": "agntux-hubspot",
       "source": "./plugins/agntux-hubspot",
       "homepage": "https://agntux.ai/plugins/agntux-hubspot",
